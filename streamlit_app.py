@@ -59,11 +59,32 @@ def apply_theme() -> None:
             background:var(--surface); border-right:1px solid var(--border);
         }
         h1, h2, h3, h4, p, label, div, span { color:var(--text); }
-        .sidebar-logo { font-size:1.25rem; font-weight:800; letter-spacing:.2px; }
-        .sidebar-sub { color:var(--text2); font-size:.85rem; margin-top:.2rem; }
+        .brand-row { display:flex; align-items:center; gap:.75rem; margin-bottom:.2rem; }
+        .brand-logo {
+            width:42px; height:42px; border-radius:12px; display:flex; align-items:center; justify-content:center;
+            font-size:1.15rem; font-weight:900; color:#fff;
+            background:linear-gradient(135deg, #4f8ef7 0%, #7c5cfc 55%, #22d3a0 100%);
+            box-shadow:0 10px 24px rgba(79,142,247,.28);
+        }
+        .sidebar-logo { font-size:1.2rem; font-weight:800; letter-spacing:.2px; line-height:1.15; }
+        .sidebar-sub { color:var(--text2); font-size:.8rem; margin-top:.18rem; }
         .sidebar-badge {
             display:inline-block; margin-top:.45rem; padding:3px 8px; border-radius:999px;
             background:rgba(124,92,252,.18); color:#ddd6fe; font-size:.75rem; font-weight:700;
+        }
+        div[data-testid="stRadio"] > label { font-size:.82rem; font-weight:700; color:var(--text2) !important; }
+        div[data-testid="stRadio"] [role="radiogroup"] label {
+            background:transparent; border:1px solid transparent; border-radius:10px;
+            padding:.35rem .45rem; margin:.1rem 0; transition:all .2s ease;
+        }
+        div[data-testid="stRadio"] [role="radiogroup"] label:hover {
+            background:rgba(79,142,247,.08); border-color:rgba(79,142,247,.18);
+        }
+        div[data-testid="stRadio"] [role="radiogroup"] label > div:first-child {
+            display:none !important;
+        }
+        div[data-testid="stRadio"] [role="radiogroup"] label p {
+            margin-left:0 !important; font-weight:600;
         }
         .page-title { font-size:2rem; font-weight:800; letter-spacing:-.03em; margin-bottom:.25rem; }
         .page-meta { color:var(--text2); font-size:.95rem; margin-bottom:1rem; }
@@ -484,12 +505,13 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
 
     unique_runs = int(history["scraped_at"].nunique()) if not history.empty else 0
     st.markdown(
-        "<div class='dashboard-card'><div class='section-title'>Chart Tracker</div><div class='section-sub'>14-day trend-style view for the strongest artists in the current snapshot</div></div>",
+        "<div class='dashboard-card'><div class='section-title'>Chart Tracker</div><div class='section-sub'>Clean 14-day position movement for the top artists in the latest snapshot</div></div>",
         unsafe_allow_html=True,
     )
 
-    if unique_runs < 3:
-        st.caption("A full multi-day history is still building. This view uses the current scrape and recent momentum-style interpolation to make the chart easier to read.")
+    using_demo = unique_runs < 3
+    if using_demo:
+        st.caption("Full ranking history is still building, so this view uses the latest snapshot plus a smoothed momentum-style interpolation.")
         line_df, best_df = build_tracker_demo_data(leaderboard, days=14)
     else:
         history = history.copy()
@@ -504,11 +526,15 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
             .head(8)
         )
 
-    left, right = st.columns(2)
+    artists_tracked = line_df["artist"].drop_duplicates().tolist()[:5]
+    line_df = line_df[line_df["artist"].isin(artists_tracked)]
+    best_df = best_df[best_df["artist"].isin(artists_tracked)].sort_values("best_position", ascending=False)
 
-    with left:
+    top_left, top_right = st.columns([1.55, 1.0])
+
+    with top_left:
         fig_line = go.Figure()
-        for idx, artist in enumerate(line_df["artist"].drop_duplicates().tolist()[:5]):
+        for idx, artist in enumerate(artists_tracked):
             sub = line_df[line_df["artist"] == artist]
             fig_line.add_trace(
                 go.Scatter(
@@ -516,23 +542,38 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
                     y=sub["position"],
                     mode="lines+markers",
                     name=artist,
-                    line=dict(color=CHART_COLORS[idx % len(CHART_COLORS)], width=2.5),
-                    marker=dict(size=6),
-                    hovertemplate="%{x}<br>%{fullData.name}: #%{y}<extra></extra>",
+                    line=dict(color=CHART_COLORS[idx % len(CHART_COLORS)], width=3, shape="spline"),
+                    marker=dict(size=7),
+                    hovertemplate="<b>%{fullData.name}</b><br>%{x}: Position #%{y}<extra></extra>",
                 )
             )
 
         fig_line.update_layout(
-            title="Position Trajectory — Spotify Global (14 days)",
+            title=dict(text="Top Artist Position Trend (14 Days)", x=0.02, xanchor="left", font=dict(size=20)),
             xaxis_title="",
-            yaxis_title="Position",
-            legend=dict(orientation="h", y=1.12, x=0.02),
+            yaxis_title="Chart position",
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=1.02,
+                xanchor="left",
+                x=0,
+                bgcolor="rgba(0,0,0,0)",
+                font=dict(size=11),
+            ),
+            hovermode="x unified",
         )
-        fig_line.update_yaxes(autorange="reversed", range=[18, 0], dtick=2)
-        style_figure(fig_line, 390)
+        fig_line.update_yaxes(
+            autorange="reversed",
+            range=[18.5, 0.5],
+            tickmode="array",
+            tickvals=list(range(2, 19, 2)),
+        )
+        fig_line.update_xaxes(showgrid=False, tickangle=0)
+        style_figure(fig_line, 420)
         st.plotly_chart(fig_line, use_container_width=True, config=PLOTLY_CONFIG)
 
-    with right:
+    with top_right:
         fig_best = px.bar(
             best_df,
             x="best_position",
@@ -541,14 +582,19 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
             color="artist",
             color_discrete_sequence=CHART_COLORS,
         )
+        fig_best.update_traces(
+            text=[f"#{int(v)}" for v in best_df["best_position"]],
+            textposition="outside",
+            hovertemplate="<b>%{y}</b><br>Best position: #%{x}<extra></extra>",
+        )
         fig_best.update_layout(
-            title="Rolling 7-Day Best Position",
+            title=dict(text="Best Recent Positions", x=0.03, xanchor="left", font=dict(size=18)),
             showlegend=False,
-            xaxis_title="Chart Position (lower = better)",
+            xaxis_title="Lower is better",
             yaxis_title="",
         )
-        fig_best.update_xaxes(autorange="reversed", dtick=2)
-        style_figure(fig_best, 390)
+        fig_best.update_xaxes(autorange="reversed", dtick=1, showgrid=False)
+        style_figure(fig_best, 420)
         st.plotly_chart(fig_best, use_container_width=True, config=PLOTLY_CONFIG)
 
 
@@ -716,7 +762,19 @@ if not runs.empty and runs["finished_at"].notna().any():
     last_run_label = runs["finished_at"].dropna().max().strftime("%Y-%m-%d %H:%M")
 
 with st.sidebar:
-    st.markdown("<div class='sidebar-logo'>Artist 360 Intelligence</div>", unsafe_allow_html=True)
+    st.markdown(
+        """
+        <div class='brand-row'>
+            <div class='brand-logo'>🎵</div>
+            <div>
+                <div class='sidebar-logo'>Artist 360 Intelligence</div>
+                <div class='sidebar-sub'>Music analytics dashboard</div>
+            </div>
+        </div>
+        <div class='sidebar-badge'>LIVE INSIGHTS</div>
+        """,
+        unsafe_allow_html=True,
+    )
     st.markdown("---")
     page = st.radio("Navigation", list(PAGE_META.keys()), label_visibility="collapsed")
     latam_only = st.toggle("Latin America only", value=True)
