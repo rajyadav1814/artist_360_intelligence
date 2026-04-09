@@ -3,9 +3,9 @@
 A Python project to scrape music chart data from [kworb.net](https://kworb.net) and store it in PostgreSQL.
 
 ## Features
-- Scrapes **iTunes Global Artist Rankings** (top 300)
+- Scrapes **iTunes Global Artist Rankings**
 - Scrapes **Spotify Artists** (monthly listeners, peak data)
-- Scrapes **Artist Details** from kworb profile pages (songs, albums, **Latin American countries** snapshot)
+- Scrapes **Artist Details** (songs, albums, **Latin American countries** snapshot)
 - Captures **Trending Artists for Last Month** (stored per calendar month)
 - Stores all data in PostgreSQL with full audit trail (`scrape_runs` table)
 - Daily scheduler built-in
@@ -27,7 +27,7 @@ cp .env.example .env
 
 ### 3. Run database migrations
 ```bash
-python main.py migrate
+python3 main.py migrate
 ```
 
 ---
@@ -36,13 +36,13 @@ python main.py migrate
 
 | Command | Description |
 |---------|-------------|
-| `python main.py scrape` | Run all scrapers |
-| `python main.py scrape itunes` | iTunes global rankings only |
-| `python main.py scrape spotify` | Spotify artist stats only |
-| `python main.py scrape trending` | Trending artists (last month) only |
-| `python main.py scrape details [limit]` | Artist detail snapshots from kworb profile pages |
-| `python main.py schedule` | Run daily at 06:00 UTC |
-| `python main.py migrate` | Apply DB migrations |
+| `python3 main.py scrape` | Run all scrapers |
+| `python3 main.py scrape itunes` | iTunes global rankings only |
+| `python3 main.py scrape spotify` | Spotify artist stats only |
+| `python3 main.py scrape trending` | Trending artists (last month) only |
+| `python3 main.py scrape details [limit]` | Artist detail snapshots from kworb profile pages |
+| `python3 main.py schedule` | Run daily at 06:00 UTC |
+| `python3 main.py migrate` | Apply DB migrations |
 
 ---
 
