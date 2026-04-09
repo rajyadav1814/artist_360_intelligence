@@ -93,8 +93,29 @@ def apply_theme() -> None:
             background:var(--surface); border-right:1px solid var(--border);
             animation: slideIn 0.4s ease-out;
         }
+        [data-testid="stSidebarHeader"] {
+            position: relative;
+            min-height: 74px;
+            padding: 1rem 3rem .9rem 1rem;
+            border-bottom: 1px solid rgba(41,52,85,.7);
+        }
+        [data-testid="stSidebarHeader"]::before {
+            content:"🎵";
+            position:absolute; left:1rem; top:1rem;
+            width:42px; height:42px; border-radius:12px; display:flex; align-items:center; justify-content:center;
+            font-size:1.15rem; font-weight:900; color:#fff;
+            background:linear-gradient(135deg, #4f8ef7 0%, #7c5cfc 55%, #22d3a0 100%);
+            box-shadow:0 10px 24px rgba(79,142,247,.28);
+        }
+        [data-testid="stSidebarHeader"]::after {
+            content:"Artist 360 Intelligence";
+            position:absolute; left:4.25rem; top:1.35rem;
+            right:3.25rem; color:var(--text); font-size:1.15rem; font-weight:800;
+            letter-spacing:.2px; line-height:1.15;
+        }
+        [data-testid="stSidebarNav"] { padding-top:.6rem; }
         h1, h2, h3, h4, p, label, div, span { color:var(--text); }
-        .brand-row { display:flex; align-items:center; gap:.75rem; margin-bottom:.2rem; animation: slideIn 0.5s ease-out; }
+        .brand-row { display:none; }
         .brand-logo {
             width:42px; height:42px; border-radius:12px; display:flex; align-items:center; justify-content:center;
             font-size:1.15rem; font-weight:900; color:#fff;
@@ -1531,6 +1552,38 @@ last_run_label = "n/a"
 if not runs.empty and runs["finished_at"].notna().any():
     last_run_label = runs["finished_at"].dropna().max().strftime("%Y-%m-%d %H:%M")
 
+
+def show_leaderboard_page() -> None:
+    page_title, page_meta = PAGE_META["Leaderboard"]
+    render_header(page_title, page_meta, last_run_label)
+    render_leaderboard(filtered, runs, max_rows=max_rows)
+
+
+def show_chart_tracker_page() -> None:
+    page_title, page_meta = PAGE_META["Chart Tracker"]
+    render_header(page_title, page_meta, last_run_label)
+    render_chart_tracker(history, filtered)
+
+
+def show_stream_trends_page() -> None:
+    page_title, page_meta = PAGE_META["Stream Trends"]
+    render_header(page_title, page_meta, last_run_label)
+    render_stream_trends(filtered)
+
+
+def show_ops_monitor_page() -> None:
+    page_title, page_meta = PAGE_META["Ops Monitor"]
+    render_header(page_title, page_meta, last_run_label)
+    render_ops_monitor(runs)
+
+
+app_pages = [
+    st.Page(show_leaderboard_page, title="Leaderboard", url_path="leaderboard", default=True),
+    st.Page(show_chart_tracker_page, title="Chart Tracker", url_path="chart-tracker"),
+    st.Page(show_stream_trends_page, title="Stream Trends", url_path="stream-trends"),
+    st.Page(show_ops_monitor_page, title="Ops Monitor", url_path="ops-monitor"),
+]
+
 with st.sidebar:
     st.markdown(
         """
@@ -1543,14 +1596,9 @@ with st.sidebar:
         """,
         unsafe_allow_html=True,
     )
-    st.markdown("---")
     
-    # Enhanced navigation
-    # st.markdown("### 🧭 Navigation")
-    page = st.radio("Navigation", list(PAGE_META.keys()), label_visibility="collapsed")
-    
-    st.markdown("---")
-    st.markdown("### ⚙️ Filters & Settings")
+    # Proper sidebar routing for all dashboard views
+    current_page = st.navigation(app_pages, position="sidebar", expanded=True)
     
     # Collapsible advanced settings
     with st.expander("🔍 Search & Filter", expanded=True):
@@ -1562,8 +1610,6 @@ with st.sidebar:
             default_countries or LATAM_COUNTRIES,
             default=default_countries or LATAM_COUNTRIES[:6],
         )
-
-    st.markdown("---")
 
     
     with st.expander("🎛️ Display Options", expanded=True):
@@ -1578,9 +1624,6 @@ with st.sidebar:
     if search.strip():
         filtered = filtered[filtered["name"].str.contains(search.strip(), case=False, na=False)]
     filtered = filtered.sort_values("rank")
-        
-    
-    st.markdown("---")
     
     # Action buttons
     st.markdown("### 🔄 Actions")
@@ -1595,8 +1638,6 @@ with st.sidebar:
     if auto_refresh_sidebar != st.session_state.auto_refresh:
         st.session_state.auto_refresh = auto_refresh_sidebar
     
-    st.markdown("---")
-    
     # Status indicator
     status_color = "status-good" if len(runs) > 0 else "muted"
     st.markdown(f"<span class='{status_color}'>● Pipeline: {'Healthy' if len(runs) > 0 else 'Unknown'}</span>", unsafe_allow_html=True)
@@ -1604,17 +1645,7 @@ with st.sidebar:
     st.markdown(f"<div class='small-note'>Updated: {pd.Timestamp.now().strftime('%H:%M:%S')}</div>", unsafe_allow_html=True)
     
 
-page_title, page_meta = PAGE_META[page]
-render_header(page_title, page_meta, last_run_label)
-
-if page == "Leaderboard":
-    render_leaderboard(filtered, runs, max_rows=max_rows)
-elif page == "Chart Tracker":
-    render_chart_tracker(history, filtered)
-elif page == "Stream Trends":
-    render_stream_trends(filtered)
-else:
-    render_ops_monitor(runs)
+current_page.run()
 
 # Auto-refresh functionality
 if st.session_state.auto_refresh:
