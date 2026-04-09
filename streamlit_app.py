@@ -1578,10 +1578,31 @@ def show_ops_monitor_page() -> None:
 
 
 app_pages = [
-    st.Page(show_leaderboard_page, title="Leaderboard", url_path="leaderboard", default=True),
-    st.Page(show_chart_tracker_page, title="Chart Tracker", url_path="chart-tracker"),
-    st.Page(show_stream_trends_page, title="Stream Trends", url_path="stream-trends"),
-    st.Page(show_ops_monitor_page, title="Ops Monitor", url_path="ops-monitor"),
+    st.Page(
+        show_leaderboard_page,
+        title="Leaderboard",
+        icon=":material/trending_up:",
+        url_path="leaderboard",
+        default=True,
+    ),
+    st.Page(
+        show_chart_tracker_page,
+        title="Chart Tracker",
+        icon=":material/desktop_windows:",
+        url_path="chart-tracker",
+    ),
+    st.Page(
+        show_stream_trends_page,
+        title="Stream Trends",
+        icon=":material/show_chart:",
+        url_path="stream-trends",
+    ),
+    st.Page(
+        show_ops_monitor_page,
+        title="Ops Monitor",
+        icon=":material/tune:",
+        url_path="ops-monitor",
+    ),
 ]
 
 with st.sidebar:
@@ -1603,7 +1624,7 @@ with st.sidebar:
     # Collapsible advanced settings
     with st.expander("🔍 Search & Filter", expanded=True):
         search = st.text_input("🎤 Artist search", placeholder="e.g. BTS, Drake...")
-        latam_only = st.toggle("🌎 Latin America only", value=True)
+        latam_only = st.toggle("🌎 Latin America", value=True)
         default_countries = sorted([c for c in leaderboard["display_country"].unique().tolist() if c != "—"])
         selected_countries = st.multiselect(
             "📍 Countries",
