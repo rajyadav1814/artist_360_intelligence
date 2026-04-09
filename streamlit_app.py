@@ -21,7 +21,7 @@ st.set_page_config(
 PAGE_META = {
     "Leaderboard": (
         "Artist 360 Leaderboard",
-        "Live chart signals from the latest kworb.net scrape stored in PostgreSQL",
+        "Live chart signals from the latest scrape stored in PostgreSQL",
     ),
     "Chart Tracker": (
         "Chart Tracker",
@@ -309,7 +309,7 @@ def style_figure(fig, height: int) -> None:
 def render_header(title: str, meta: str, last_run_label: str) -> None:
     st.markdown(f"<div class='page-title'>{escape(title)}</div>", unsafe_allow_html=True)
     st.markdown(
-        f"<div class='page-meta'>{escape(meta)} · Last refresh: {escape(last_run_label)}</div>",
+        f"<div class='page-meta'>{escape(meta)}</div>",
         unsafe_allow_html=True,
     )
 
