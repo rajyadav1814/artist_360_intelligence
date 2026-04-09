@@ -544,7 +544,7 @@ def load_dashboard_data() -> dict[str, pd.DataFrame]:
             ORDER BY finished_at DESC NULLS LAST, started_at DESC
             LIMIT 100
         """,
-        "history": """
+        "history": f"""
             WITH latest_run AS (
                 SELECT MAX(scraped_at) AS ts FROM itunes_artist_rankings
             ),
@@ -552,7 +552,7 @@ def load_dashboard_data() -> dict[str, pd.DataFrame]:
                 SELECT artist_id
                 FROM itunes_artist_rankings r
                 JOIN latest_run lr ON r.scraped_at = lr.ts
-                WHERE r.rank <= 5
+                WHERE r.rank <= {TRACKER_TOP_ARTISTS}
             )
             SELECT a.name, r.rank, r.scraped_at
             FROM itunes_artist_rankings r
@@ -937,6 +937,26 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
                 st.text_area("Top Countries", countries_text, height=180, label_visibility="collapsed")
 
 
+def resample_tracker_pattern(pattern: list[int], days: int) -> list[int]:
+    if not pattern:
+        return [1] * max(days, 1)
+    if days <= 1:
+        return [int(pattern[-1])]
+    if len(pattern) == days:
+        return [int(value) for value in pattern]
+
+    resampled: list[int] = []
+    last_index = len(pattern) - 1
+    for step in range(days):
+        scaled_index = (step / (days - 1)) * last_index
+        lower = int(scaled_index)
+        upper = min(lower + 1, last_index)
+        blend = scaled_index - lower
+        interpolated = pattern[lower] + (pattern[upper] - pattern[lower]) * blend
+        resampled.append(int(round(interpolated)))
+    return resampled
+
+
 def build_tracker_demo_data(leaderboard: pd.DataFrame, days: int = 14) -> tuple[pd.DataFrame, pd.DataFrame]:
     if "rank" in leaderboard.columns and leaderboard["rank"].notna().any():
         top = leaderboard.dropna(subset=["rank"]).sort_values("rank").head(TRACKER_TOP_ARTISTS).copy()
@@ -947,7 +967,8 @@ def build_tracker_demo_data(leaderboard: pd.DataFrame, days: int = 14) -> tuple[
         top = leaderboard.head(TRACKER_TOP_ARTISTS).copy()
 
     top = top.reset_index(drop=True)
-    date_labels = pd.date_range(end=pd.Timestamp.today().normalize(), periods=days).strftime("%b %-d").tolist()
+    date_range = pd.date_range(end=pd.Timestamp.today().normalize(), periods=days)
+    date_labels = date_range.strftime("%b %-d").tolist()
     base_patterns = [
         [3, 2, 2, 1, 1, 2, 3, 2, 1, 1, 2, 1, 1, 1],
         [5, 4, 3, 3, 2, 2, 1, 2, 3, 2, 2, 3, 2, 2],
@@ -962,18 +983,18 @@ def build_tracker_demo_data(leaderboard: pd.DataFrame, days: int = 14) -> tuple[
     records = []
     best_rows = []
     for idx, row in top.iterrows():
-        pattern = base_patterns[idx % len(base_patterns)]
+        pattern = resample_tracker_pattern(base_patterns[idx % len(base_patterns)], days)
         current_rank = int(row["rank"]) if pd.notna(row.get("rank")) else idx + 1
         current_rank = max(1, min(max_rank, current_rank))
         shift = current_rank - pattern[-1]
         series = [max(1, min(max_rank, point + shift)) for point in pattern]
 
-        for day, pos in zip(date_labels, series):
-            records.append({"day": day, "artist": row["name"], "position": pos})
+        for day_label, plot_date, pos in zip(date_labels, date_range, series):
+            records.append({"day": day_label, "date": plot_date, "artist": row["name"], "position": pos})
 
         best_rows.append({
             "artist": row["name"],
-            "best_position": min(series[-7:]),
+            "best_position": min(series),
         })
 
     return pd.DataFrame(records), pd.DataFrame(best_rows).sort_values("best_position")
@@ -998,23 +1019,37 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
     with col3:
         view_mode = st.selectbox("👁️ View Mode", ["Line Chart", "Area Chart"], index=0)
 
+    time_window_days = int(time_range.split()[0])
     using_demo = unique_runs < 3
     if using_demo:
         st.info("📊 Full ranking history is still building. Using latest snapshot with smoothed trajectory interpolation.", icon="ℹ️")
-        days = int(time_range.split()[0])
-        line_df, best_df = build_tracker_demo_data(leaderboard, days=days)
+        line_df, best_df = build_tracker_demo_data(leaderboard, days=time_window_days)
     else:
         history = history.copy()
-        history = history.sort_values(["name", "scraped_at"])
-        history["day"] = history["scraped_at"].dt.strftime("%b %-d")
-        line_df = history.rename(columns={"name": "artist", "rank": "position"})[["day", "artist", "position"]]
-        best_df = (
-            history.groupby("name", as_index=False)["rank"]
-            .min()
-            .rename(columns={"name": "artist", "rank": "best_position"})
-            .sort_values("best_position")
-            .head(TRACKER_TOP_ARTISTS)
-        )
+        history["scraped_at"] = pd.to_datetime(history["scraped_at"], errors="coerce")
+        history = history.dropna(subset=["scraped_at", "rank", "name"]).sort_values(["scraped_at", "rank"])
+
+        if not history.empty:
+            latest_scraped_at = history["scraped_at"].max().normalize()
+            window_start = latest_scraped_at - pd.Timedelta(days=time_window_days - 1)
+            history = history[history["scraped_at"] >= window_start]
+
+        if history.empty:
+            st.info("📊 Limited long-range history is available. Showing an interpolated top-artist trend instead.", icon="ℹ️")
+            line_df, best_df = build_tracker_demo_data(leaderboard, days=time_window_days)
+            using_demo = True
+        else:
+            history["day"] = history["scraped_at"].dt.strftime("%b %-d")
+            line_df = history.rename(columns={"name": "artist", "rank": "position", "scraped_at": "date"})[
+                ["day", "date", "artist", "position"]
+            ]
+            best_df = (
+                history.groupby("name", as_index=False)["rank"]
+                .min()
+                .rename(columns={"name": "artist", "rank": "best_position"})
+                .sort_values("best_position")
+                .head(TRACKER_TOP_ARTISTS)
+            )
 
     if using_demo and "rank" in leaderboard.columns and leaderboard["rank"].notna().any():
         artists_tracked = leaderboard.dropna(subset=["rank"]).sort_values("rank")["name"].head(TRACKER_TOP_ARTISTS).tolist()
@@ -1037,25 +1072,25 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
         if view_mode == "Area Chart":
             fig_line.add_trace(
                 go.Scatter(
-                    x=sub["day"],
+                    x=sub["date"],
                     y=sub["position"],
                     mode="lines",
                     name=artist,
                     fill="tonexty" if idx > 0 else "tozeroy",
                     line=dict(color=CHART_COLORS[idx % len(CHART_COLORS)], width=2),
-                    hovertemplate="<b>%{fullData.name}</b><br>%{x}: Position #%{y}<extra></extra>",
+                    hovertemplate="<b>%{fullData.name}</b><br>%{x|%b %d}: Position #%{y}<extra></extra>",
                 )
             )
         else:
             fig_line.add_trace(
                 go.Scatter(
-                    x=sub["day"],
+                    x=sub["date"],
                     y=sub["position"],
                     mode="lines+markers",
                     name=artist,
                     line=dict(color=CHART_COLORS[idx % len(CHART_COLORS)], width=3, shape="spline"),
                     marker=dict(size=7),
-                    hovertemplate="<b>%{fullData.name}</b><br>%{x}: Position #%{y}<extra></extra>",
+                    hovertemplate="<b>%{fullData.name}</b><br>%{x|%b %d}: Position #%{y}<extra></extra>",
                 )
             )
 
@@ -1082,7 +1117,7 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
         tickmode="array",
         tickvals=list(range(1, max_position + 1, tick_step)),
     )
-    fig_line.update_xaxes(showgrid=False, tickangle=0)
+    fig_line.update_xaxes(showgrid=False, tickformat="%b %d", dtick=86400000 * max(1, time_window_days // 10))
     style_figure(fig_line, 520)
     st.plotly_chart(fig_line, use_container_width=True, config=PLOTLY_CONFIG)
 
