@@ -31,24 +31,25 @@ if "show_advanced" not in st.session_state:
 PAGE_META = {
     "Leaderboard": (
         "Artist 360 Leaderboard",
-        "Live chart signals from the latest scrape stored in PostgreSQL",
+        "Top Latin artists ranked by iTunes performance, Spotify reach, and global footprint",
     ),
     "Chart Tracker": (
         "Chart Tracker",
-        "Recent iTunes ranking trajectories for the current top artists",
+        "Historical rank trajectories for top artists, revealing trends and momentum",
     ),
     "Stream Trends": (
         "Stream Trends",
-        "Spotify listener momentum and Latin American market reach",
+        "Insights into streaming performance, growth patterns, and listener demographics",
     ),
     "Ops Monitor": (
         "Ops Monitor",
-        "Pipeline health and scrape-run reliability from PostgreSQL",
+        "Operational dashboard showing recent data collection runs, their status, and performance metrics",
     ),
 }
 
-CHART_COLORS = ["#4f8ef7", "#22d3a0", "#f5a623", "#7c5cfc", "#e84545"]
+CHART_COLORS = ["#4f8ef7", "#22d3a0", "#f5a623", "#7c5cfc", "#e84545", "#06b6d4", "#ec4899", "#84cc16", "#f97316", "#a855f7"]
 PLOTLY_CONFIG = {"displaylogo": False, "displayModeBar": False, "responsive": True}
+TRACKER_TOP_ARTISTS = 10
 LATAM_COUNTRIES = sorted(LATIN_AMERICAN_COUNTRIES)
 
 
@@ -937,9 +938,13 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
 
 
 def build_tracker_demo_data(leaderboard: pd.DataFrame, days: int = 14) -> tuple[pd.DataFrame, pd.DataFrame]:
-    top = leaderboard.dropna(subset=["monthly_listeners"]).nlargest(5, "monthly_listeners").copy()
+    if "rank" in leaderboard.columns and leaderboard["rank"].notna().any():
+        top = leaderboard.dropna(subset=["rank"]).sort_values("rank").head(TRACKER_TOP_ARTISTS).copy()
+    else:
+        top = leaderboard.dropna(subset=["monthly_listeners"]).nlargest(TRACKER_TOP_ARTISTS, "monthly_listeners").copy()
+
     if top.empty:
-        top = leaderboard.sort_values("rank").head(5).copy()
+        top = leaderboard.head(TRACKER_TOP_ARTISTS).copy()
 
     top = top.reset_index(drop=True)
     date_labels = pd.date_range(end=pd.Timestamp.today().normalize(), periods=days).strftime("%b %-d").tolist()
@@ -951,14 +956,17 @@ def build_tracker_demo_data(leaderboard: pd.DataFrame, days: int = 14) -> tuple[
         [15, 12, 10, 9, 8, 7, 8, 7, 6, 5, 5, 5, 5, 5],
     ]
 
+    max_rank = int(top["rank"].max()) if "rank" in top.columns and top["rank"].notna().any() else TRACKER_TOP_ARTISTS + 8
+    max_rank = max(TRACKER_TOP_ARTISTS + 2, max_rank)
+
     records = []
     best_rows = []
     for idx, row in top.iterrows():
         pattern = base_patterns[idx % len(base_patterns)]
         current_rank = int(row["rank"]) if pd.notna(row.get("rank")) else idx + 1
-        current_rank = max(1, min(18, current_rank))
+        current_rank = max(1, min(max_rank, current_rank))
         shift = current_rank - pattern[-1]
-        series = [max(1, min(18, point + shift)) for point in pattern]
+        series = [max(1, min(max_rank, point + shift)) for point in pattern]
 
         for day, pos in zip(date_labels, series):
             records.append({"day": day, "artist": row["name"], "position": pos})
@@ -982,13 +990,13 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
     col1, col2, col3 = st.columns([2, 1, 1])
     with col1:
         st.markdown(
-            "<div class='dashboard-card'><div class='section-title'>📈 Chart Tracker</div><div class='section-sub'>Clean 14-day position movement for the top artists in the latest snapshot</div></div>",
+            f"<div class='dashboard-card'><div class='section-title'>📈 Chart Tracker</div><div class='section-sub'>Clean position movement for the current top {TRACKER_TOP_ARTISTS} artists in the latest snapshot</div></div>",
             unsafe_allow_html=True,
         )
     with col2:
         time_range = st.selectbox("📅 Time Range", ["7 days", "14 days", "30 days"], index=1)
     with col3:
-        view_mode = st.selectbox("👁️ View Mode", ["Line Chart", "Area Chart", "Bar Race"], index=0)
+        view_mode = st.selectbox("👁️ View Mode", ["Line Chart", "Area Chart"], index=0)
 
     using_demo = unique_runs < 3
     if using_demo:
@@ -1005,73 +1013,80 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
             .min()
             .rename(columns={"name": "artist", "rank": "best_position"})
             .sort_values("best_position")
-            .head(8)
+            .head(TRACKER_TOP_ARTISTS)
         )
 
-    artists_tracked = line_df["artist"].drop_duplicates().tolist()[:5]
+    if using_demo and "rank" in leaderboard.columns and leaderboard["rank"].notna().any():
+        artists_tracked = leaderboard.dropna(subset=["rank"]).sort_values("rank")["name"].head(TRACKER_TOP_ARTISTS).tolist()
+    else:
+        artists_tracked = (
+            line_df.sort_values(["position", "artist"])["artist"].drop_duplicates().tolist()[:TRACKER_TOP_ARTISTS]
+        )
+
     line_df = line_df[line_df["artist"].isin(artists_tracked)]
     best_df = best_df[best_df["artist"].isin(artists_tracked)].sort_values("best_position", ascending=False)
 
-    top_left, top_right = st.columns([1.55, 1.0])
+    max_position = int(line_df["position"].max()) if not line_df.empty else TRACKER_TOP_ARTISTS
+    max_position = max(TRACKER_TOP_ARTISTS + 2, max_position)
+    tick_step = 1 if max_position <= 15 else 2 if max_position <= 30 else 5
 
-    with top_left:
-        fig_line = go.Figure()
-        for idx, artist in enumerate(artists_tracked):
-            sub = line_df[line_df["artist"] == artist]
-            
-            if view_mode == "Area Chart":
-                fig_line.add_trace(
-                    go.Scatter(
-                        x=sub["day"],
-                        y=sub["position"],
-                        mode="lines",
-                        name=artist,
-                        fill='tonexty' if idx > 0 else 'tozeroy',
-                        line=dict(color=CHART_COLORS[idx % len(CHART_COLORS)], width=2),
-                        hovertemplate="<b>%{fullData.name}</b><br>%{x}: Position #%{y}<extra></extra>",
-                    )
+    fig_line = go.Figure()
+    for idx, artist in enumerate(artists_tracked):
+        sub = line_df[line_df["artist"] == artist]
+
+        if view_mode == "Area Chart":
+            fig_line.add_trace(
+                go.Scatter(
+                    x=sub["day"],
+                    y=sub["position"],
+                    mode="lines",
+                    name=artist,
+                    fill="tonexty" if idx > 0 else "tozeroy",
+                    line=dict(color=CHART_COLORS[idx % len(CHART_COLORS)], width=2),
+                    hovertemplate="<b>%{fullData.name}</b><br>%{x}: Position #%{y}<extra></extra>",
                 )
-            else:
-                fig_line.add_trace(
-                    go.Scatter(
-                        x=sub["day"],
-                        y=sub["position"],
-                        mode="lines+markers",
-                        name=artist,
-                        line=dict(color=CHART_COLORS[idx % len(CHART_COLORS)], width=3, shape="spline"),
-                        marker=dict(size=7),
-                        hovertemplate="<b>%{fullData.name}</b><br>%{x}: Position #%{y}<extra></extra>",
-                    )
+            )
+        else:
+            fig_line.add_trace(
+                go.Scatter(
+                    x=sub["day"],
+                    y=sub["position"],
+                    mode="lines+markers",
+                    name=artist,
+                    line=dict(color=CHART_COLORS[idx % len(CHART_COLORS)], width=3, shape="spline"),
+                    marker=dict(size=7),
+                    hovertemplate="<b>%{fullData.name}</b><br>%{x}: Position #%{y}<extra></extra>",
                 )
+            )
 
-        title_text = f"🎯 Top Artist Position Trend ({time_range})"
-        fig_line.update_layout(
-            title=dict(text=title_text, x=0, xanchor="left", font=dict(size=18), y=0.98, yanchor="top"),
-            xaxis_title="",
-            yaxis_title="Chart position",
-            legend=dict(
-                orientation="h",
-                yanchor="top",
-                y=-0.15,
-                xanchor="center",
-                x=0.5,
-                bgcolor="rgba(0,0,0,0)",
-                font=dict(size=10),
-            ),
-            hovermode="x unified",
-            margin=dict(l=50, r=20, t=80, b=80),
-        )
-        fig_line.update_yaxes(
-            autorange="reversed",
-            range=[18.5, 0.5],
-            tickmode="array",
-            tickvals=list(range(2, 19, 2)),
-        )
-        fig_line.update_xaxes(showgrid=False, tickangle=0)
-        style_figure(fig_line, 420)
-        st.plotly_chart(fig_line, use_container_width=True, config=PLOTLY_CONFIG)
+    title_text = f"🎯 Top {TRACKER_TOP_ARTISTS} Artist Position Trend ({time_range})"
+    fig_line.update_layout(
+        title=dict(text=title_text, x=0, xanchor="left", font=dict(size=18), y=0.98, yanchor="top"),
+        xaxis_title="",
+        yaxis_title="Chart position",
+        legend=dict(
+            orientation="h",
+            yanchor="top",
+            y=-0.18,
+            xanchor="center",
+            x=0.5,
+            bgcolor="rgba(0,0,0,0)",
+            font=dict(size=10),
+        ),
+        hovermode="x unified",
+        margin=dict(l=50, r=20, t=80, b=90),
+    )
+    fig_line.update_yaxes(
+        autorange="reversed",
+        range=[max_position + 0.5, 0.5],
+        tickmode="array",
+        tickvals=list(range(1, max_position + 1, tick_step)),
+    )
+    fig_line.update_xaxes(showgrid=False, tickangle=0)
+    style_figure(fig_line, 520)
+    st.plotly_chart(fig_line, use_container_width=True, config=PLOTLY_CONFIG)
 
-    with top_right:
+    if not best_df.empty:
         fig_best = px.bar(
             best_df,
             x="best_position",
@@ -1090,10 +1105,18 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
             showlegend=False,
             xaxis_title="Lower is better",
             yaxis_title="",
+            margin=dict(l=40, r=20, t=70, b=40),
         )
         fig_best.update_xaxes(autorange="reversed", dtick=1, showgrid=False)
-        style_figure(fig_best, 420)
+        style_figure(fig_best, max(380, 34 * len(best_df) + 80))
         st.plotly_chart(fig_best, use_container_width=True, config=PLOTLY_CONFIG)
+        st.download_button(
+            "⬇️ Download Best Recent Positions",
+            data=best_df.sort_values("best_position").to_csv(index=False).encode("utf-8"),
+            file_name="best_recent_positions.csv",
+            mime="text/csv",
+            key="download_best_recent_positions",
+        )
     
     # Additional insights
     with st.expander("📊 Detailed Movement Analysis", expanded=False):
@@ -1115,6 +1138,13 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
         if movement_data:
             movement_df = pd.DataFrame(movement_data)
             st.dataframe(movement_df, use_container_width=True, hide_index=True)
+            st.download_button(
+                "⬇️ Download Detailed Movement Analysis",
+                data=movement_df.to_csv(index=False).encode("utf-8"),
+                file_name="detailed_movement_analysis.csv",
+                mime="text/csv",
+                key="download_detailed_movement_analysis",
+            )
 
 
 
@@ -1448,16 +1478,6 @@ def render_ops_monitor(runs: pd.DataFrame) -> None:
             style_figure(fig_status, 350)
             st.plotly_chart(fig_status, use_container_width=True, config=PLOTLY_CONFIG)
         
-        # Downloadable logs
-        st.markdown("#### 📥 Export Logs")
-        if st.button("Download Run Logs as CSV", use_container_width=False):
-            csv = runs.to_csv(index=False)
-            st.download_button(
-                label="💾 Download CSV",
-                data=csv,
-                file_name=f"pipeline_logs_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                mime="text/csv",
-            )
 
 
 apply_theme()
@@ -1491,7 +1511,7 @@ with st.sidebar:
     st.markdown("---")
     
     # Enhanced navigation
-    st.markdown("### 🧭 Navigation")
+    # st.markdown("### 🧭 Navigation")
     page = st.radio("Navigation", list(PAGE_META.keys()), label_visibility="collapsed")
     
     st.markdown("---")
@@ -1513,8 +1533,6 @@ with st.sidebar:
     
     with st.expander("🎛️ Display Options", expanded=True):
         max_rows = st.slider("📊 Table rows", min_value=10, max_value=50, value=15, step=5)
-        show_charts = st.toggle("📈 Show mini charts", value=True)
-        dark_mode = st.toggle("🌙 Extra dark mode", value=False)
     
     # Apply filters to create filtered dataframe
     filtered = leaderboard.copy()
@@ -1536,16 +1554,6 @@ with st.sidebar:
         if st.button("🔄 Refresh", use_container_width=True):
             st.cache_data.clear()
             st.rerun()
-    with col2:
-        if st.button("📥 Export", use_container_width=True):
-            csv = filtered.to_csv(index=False)
-            st.download_button(
-                label="Download",
-                data=csv,
-                file_name=f"artist_data_{pd.Timestamp.now().strftime('%Y%m%d')}.csv",
-                mime="text/csv",
-                use_container_width=True,
-            )
     
     # Auto-refresh toggle
     auto_refresh_sidebar = st.toggle("⏱️ Auto-refresh (30s)", value=st.session_state.auto_refresh)
@@ -1560,21 +1568,6 @@ with st.sidebar:
     st.markdown(f"<div class='small-note'>Last run: {last_run_label}</div>", unsafe_allow_html=True)
     st.markdown(f"<div class='small-note'>Updated: {pd.Timestamp.now().strftime('%H:%M:%S')}</div>", unsafe_allow_html=True)
     
-    # Help section
-    with st.expander("ℹ️ Help & Info"):
-        st.markdown("""
-        **Quick Guide:**
-        - 🏆 **Leaderboard**: View top artists
-        - 📈 **Chart Tracker**: Track rankings
-        - 🎵 **Stream Trends**: Analyze streams
-        - ⚙️ **Ops Monitor**: System health
-        
-        **Tips:**
-        - Use filters to narrow results
-        - Click metrics for details
-        - Export data as CSV
-        - Enable auto-refresh for live data
-        """)
 
 page_title, page_meta = PAGE_META[page]
 render_header(page_title, page_meta, last_run_label)
