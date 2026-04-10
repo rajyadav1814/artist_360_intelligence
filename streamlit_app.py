@@ -13,6 +13,35 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+
+def get_openai_api_key() -> str:
+    """Read API key from Streamlit secrets first, then environment variables."""
+    secrets_candidates = [
+        "OPENAI_API_KEY",
+        "openai_api_key",
+    ]
+
+    for key_name in secrets_candidates:
+        secret_value = st.secrets.get(key_name)
+        if secret_value:
+            return str(secret_value).strip()
+
+    openai_secrets = st.secrets.get("openai")
+    if isinstance(openai_secrets, dict):
+        nested_value = openai_secrets.get("api_key") or openai_secrets.get("OPENAI_API_KEY")
+        if nested_value:
+            return str(nested_value).strip()
+
+    return os.getenv("OPENAI_API_KEY", "").strip()
+
+
+def get_openai_model() -> str:
+    """Allow model override from secrets/env with a safe default."""
+    model_from_secret = st.secrets.get("OPENAI_MODEL")
+    if model_from_secret:
+        return str(model_from_secret).strip()
+    return os.getenv("OPENAI_MODEL", "gpt-4o-mini").strip()
+
 from src.database.connection import get_connection
 from src.scrapers.artist_details_scraper import LATIN_AMERICAN_COUNTRIES
 
@@ -1923,7 +1952,16 @@ else:
                 
             with msg_container.chat_message("assistant"):
                 try:
-                    client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY", ""))
+                    api_key = get_openai_api_key()
+                    if not api_key:
+                        st.error(
+                            "OpenAI API key is missing. Add `OPENAI_API_KEY` in Streamlit secrets "
+                            "(or in local .env) and retry."
+                        )
+                        st.stop()
+
+                    client = OpenAI(api_key=api_key)
+                    model_name = get_openai_model()
                     
                     try:
                         dash_data = load_dashboard_data()
@@ -1986,12 +2024,12 @@ ONLY if the requested person is an actor/public figure who HAS released official
 {live_data_context}"""
                     msgs = [{"role": "system", "content": sys_msg}] + st.session_state.messages
                     with st.spinner("Analyzing..."):
-                        response = client.chat.completions.create(model="gpt-4o", messages=msgs)
+                        response = client.chat.completions.create(model=model_name, messages=msgs)
                     answer = response.choices[0].message.content
                     st.markdown(answer)
                     st.session_state.messages.append({"role": "assistant", "content": answer})
                 except Exception as e:
-                    st.error(f"Error: {e}")
+                    st.error(f"OpenAI request failed: {e}")
 
 import streamlit.components.v1 as components
 # Guarantee Floating using JS Injection
