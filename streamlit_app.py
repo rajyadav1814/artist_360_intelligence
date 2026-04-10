@@ -88,7 +88,22 @@ def apply_theme() -> None:
         }
         [data-testid="stHeader"], [data-testid="stToolbar"], #MainMenu, header { background:transparent !important; }
         [data-testid="stDecoration"] { display:none; }
-        .block-container { padding-top:1rem; padding-bottom:2rem; max-width:1400px; }
+        .block-container {
+            width: min(100%, 1680px);
+            max-width: 1680px;
+            padding-top: 1rem;
+            padding-right: clamp(0.85rem, 1.8vw, 1.6rem);
+            padding-left: clamp(0.85rem, 1.8vw, 1.6rem);
+            padding-bottom: 2rem;
+        }
+        div[data-testid="stHorizontalBlock"] {
+            gap: clamp(0.75rem, 1.4vw, 1.1rem);
+            align-items: stretch;
+        }
+        div[data-testid="column"] > div {
+            width: 100%;
+            height: 100%;
+        }
         [data-testid="stSidebar"] {
             background:var(--surface); border-right:1px solid var(--border);
             animation: slideIn 0.4s ease-out;
@@ -156,9 +171,9 @@ def apply_theme() -> None:
         .page-meta { color:var(--text2); font-size:.95rem; margin-bottom:1rem; }
         .dashboard-card {
             background:rgba(18,24,42,.96); border:1px solid var(--border); border-radius:16px;
-            padding:1rem 1rem .9rem 1rem; box-shadow:0 12px 32px rgba(0,0,0,.22);
+            padding:clamp(0.9rem, 1.2vw, 1.1rem); box-shadow:0 12px 32px rgba(0,0,0,.22);
             margin-bottom:1rem; transition: all 0.3s ease;
-            animation: fadeIn 0.7s ease-out;
+            animation: fadeIn 0.7s ease-out; min-height: 100%;
         }
         .dashboard-card:hover {
             box-shadow:0 18px 42px rgba(0,0,0,.35);
@@ -195,7 +210,7 @@ def apply_theme() -> None:
         .kpi-card {
             background:linear-gradient(180deg, rgba(19,26,45,1) 0%, rgba(16,21,37,1) 100%);
             border:1px solid var(--border); border-radius:14px; padding:1rem 1rem .9rem 1rem;
-            min-height:110px; position:relative; overflow:hidden;
+            min-height:clamp(108px, 12vw, 132px); position:relative; overflow:hidden; height: 100%;
             transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
             animation: fadeIn 0.6s ease-out;
         }
@@ -379,15 +394,20 @@ def apply_theme() -> None:
         }
         
         /* Interactive tabs */
+        .stTabs {
+            width: 100%;
+            border-bottom: none !important;
+        }
         .stTabs [data-baseweb="tab-list"] {
             display: grid !important;
-            grid-auto-flow: column;
-            grid-auto-columns: minmax(0, 1fr);
-            gap: 8px;
+            grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
+            grid-auto-flow: row;
+            gap: 10px;
             width: 100%;
             background: transparent;
             border-bottom: none !important;
-            overflow: hidden;
+            overflow: visible;
+            align-items: stretch;
         }
         .stTabs [data-baseweb="tab-border"] {
             display: none !important;
@@ -395,12 +415,10 @@ def apply_theme() -> None:
         .stTabs [data-baseweb="tab-highlight"] {
             display: none !important;
         }
-        .stTabs {
-            border-bottom: none !important;
-        }
         .stTabs > div > div {
             border-bottom: none !important;
-            gap: 8px;
+            gap: 10px;
+            width: 100%;
         }
         .stTabs [data-baseweb="tab"] {
             width: 100%;
@@ -410,8 +428,9 @@ def apply_theme() -> None:
             border-radius: 10px;
             color: var(--text2);
             border: 1px solid var(--border);
-            padding: 0.45rem 0.55rem !important;
-            min-height: 42px;
+            padding: 0.5rem 0.65rem !important;
+            min-height: 44px;
+            height: 100%;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
@@ -424,6 +443,10 @@ def apply_theme() -> None:
             white-space: nowrap;
             font-size: .86rem;
         }
+        .stTabs [data-baseweb="tab-panel"] {
+            width: 100%;
+            padding-top: 0.85rem;
+        }
         .stTabs [data-baseweb="tab"]:hover {
             background: rgba(79,142,247,.12);
             border-color: rgba(79,142,247,.3);
@@ -434,6 +457,9 @@ def apply_theme() -> None:
             border-color: var(--accent);
             color: var(--text);
             border-bottom: 1px solid var(--accent) !important;
+        }
+        .stPlotlyChart, div[data-testid="stDataFrame"], div[data-testid="stTable"] {
+            width: 100% !important;
         }
         
         /* Buttons enhancement */
@@ -456,6 +482,69 @@ def apply_theme() -> None:
             background: rgba(18,24,42,0.98) !important;
             border: 1px solid var(--accent) !important;
             border-radius: 12px !important;
+        }
+
+        @media (max-width: 1200px) {
+            .block-container {
+                max-width: 100%;
+            }
+            .page-title {
+                font-size: 1.8rem;
+            }
+            .kpi-value {
+                font-size: 1.75rem;
+            }
+            .stTabs [data-baseweb="tab-list"] {
+                grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr));
+            }
+        }
+
+        @media (max-width: 992px) {
+            .block-container {
+                padding-right: 0.9rem;
+                padding-left: 0.9rem;
+            }
+            div[data-testid="stHorizontalBlock"] {
+                flex-wrap: wrap;
+            }
+            div[data-testid="column"] {
+                min-width: calc(50% - 0.55rem) !important;
+                flex: 1 1 calc(50% - 0.55rem) !important;
+            }
+        }
+
+        @media (max-width: 768px) {
+            div[data-testid="column"] {
+                min-width: 100% !important;
+                flex: 1 1 100% !important;
+            }
+            .page-title {
+                font-size: 1.55rem;
+            }
+            .page-meta {
+                font-size: 0.88rem;
+            }
+            .dashboard-card {
+                padding: 0.9rem;
+                border-radius: 14px;
+            }
+            .kpi-card {
+                min-height: auto;
+            }
+            .kpi-value {
+                font-size: 1.55rem;
+            }
+            .stTabs [data-baseweb="tab"] {
+                min-height: 40px;
+                padding: 0.4rem 0.45rem !important;
+            }
+            .stTabs [data-baseweb="tab"] p {
+                font-size: 0.8rem;
+            }
+            .run-item {
+                grid-template-columns: 1fr;
+                gap: 0.35rem;
+            }
         }
         
         /* Metric cards enhancement */
@@ -666,8 +755,9 @@ def latest_source_rows(runs: pd.DataFrame) -> pd.DataFrame:
 def style_figure(fig, height: int) -> None:
     fig.update_layout(
         template="plotly_dark",
-        height=height,
-        margin=dict(l=0, r=0, t=56, b=0),
+        height=max(280, int(height)),
+        autosize=True,
+        margin=dict(l=0, r=0, t=56, b=0, pad=0),
         paper_bgcolor="rgba(18,24,42,1)",
         plot_bgcolor="rgba(18,24,42,1)",
         font=dict(color="#e8eaf6"),
