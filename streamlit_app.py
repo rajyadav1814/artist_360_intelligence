@@ -613,7 +613,33 @@ def apply_theme() -> None:
         [data-testid="stCheckbox"] input[type="checkbox"]:checked + div {
             background: linear-gradient(135deg, #4f8ef7, #7c5cfc) !important;
         }
+        .app-footer {
+            margin-top: 2rem;
+            padding: 1rem 0 0.25rem 0;
+            border-top: 1px solid rgba(41,52,85,.72);
+            text-align: center;
+            color: var(--text2);
+            font-size: 0.85rem;
+            line-height: 1.7;
+        }
+        .app-footer a {
+            color: #b7d4ff !important;
+            text-decoration: none;
+            font-weight: 600;
+        }
         </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_footer() -> None:
+    st.markdown(
+        """
+        <div class="app-footer">
+            <div><a href="mailto:info@chromadata.com">info@chromadata.com</a></div>
+            <div>© 2026 - Chromadata. All rights reserved.</div>
+        </div>
         """,
         unsafe_allow_html=True,
     )
@@ -1917,6 +1943,7 @@ with st.sidebar:
     
 
 current_page.run()
+render_footer()
 
 # Auto-refresh functionality
 if st.session_state.auto_refresh:
