@@ -794,13 +794,13 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
             use_container_width=True,
             key="download_csv_btn"
         )
-    with btn_col3:
-        if st.button("🔄 " + ("ON" if st.session_state.auto_refresh else "OFF"), 
-                     use_container_width=True, 
-                     type="primary" if st.session_state.auto_refresh else "secondary",
-                     key="auto_refresh_btn"):
-            st.session_state.auto_refresh = not st.session_state.auto_refresh
-            st.rerun()
+    # with btn_col3:
+    #     if st.button("🔄 " + ("ON" if st.session_state.auto_refresh else "OFF"), 
+    #                  use_container_width=True, 
+    #                  type="primary" if st.session_state.auto_refresh else "secondary",
+    #                  key="auto_refresh_btn"):
+    #         st.session_state.auto_refresh = not st.session_state.auto_refresh
+    #         st.rerun()
     
     st.markdown("<br>", unsafe_allow_html=True)
     
