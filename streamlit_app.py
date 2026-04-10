@@ -6,6 +6,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
+import streamlit.components.v1 as st_components
 
 from src.database.connection import get_connection
 from src.scrapers.artist_details_scraper import LATIN_AMERICAN_COUNTRIES
@@ -27,8 +28,6 @@ if "selected_artists" not in st.session_state:
     st.session_state.selected_artists = []
 if "show_advanced" not in st.session_state:
     st.session_state.show_advanced = False
-if "leaderboard_view" not in st.session_state:
-    st.session_state.leaderboard_view = "📋 Table"
 
 PAGE_META = {
     "Leaderboard": (
@@ -53,6 +52,8 @@ CHART_COLORS = ["#4f8ef7", "#22d3a0", "#f5a623", "#7c5cfc", "#e84545", "#06b6d4"
 PLOTLY_CONFIG = {"displaylogo": False, "displayModeBar": False, "responsive": True}
 TRACKER_TOP_ARTISTS = 10
 LATAM_COUNTRIES = sorted(LATIN_AMERICAN_COUNTRIES)
+BOT_SRC = "https://copilotstudio.microsoft.com/environments/4b079cee-b5d6-e253-856d-c427359af206/bots/cr917_agentT1zDET/webchat?__version__=2"
+LOAD_TIMEOUT_MS = 20000
 
 
 def apply_theme() -> None:
@@ -168,20 +169,6 @@ def apply_theme() -> None:
         }
         div[data-testid="stRadio"] [role="radiogroup"] label p {
             margin-left:0 !important; font-weight:600;
-        }
-        div[data-testid="stRadio"] [role="radiogroup"][aria-orientation="horizontal"] {
-            display:flex;
-            flex-wrap:nowrap;
-            gap:.45rem;
-        }
-        div[data-testid="stRadio"] [role="radiogroup"][aria-orientation="horizontal"] label {
-            flex:1 1 0;
-            justify-content:center;
-            margin:0;
-            min-width:0;
-        }
-        div[data-testid="stRadio"] [role="radiogroup"][aria-orientation="horizontal"] label:hover {
-            transform: translateY(-2px);
         }
         .page-title { font-size:2rem; font-weight:800; letter-spacing:-.03em; margin-bottom:.25rem; }
         .page-meta { color:var(--text2); font-size:.95rem; margin-bottom:1rem; }
@@ -613,33 +600,7 @@ def apply_theme() -> None:
         [data-testid="stCheckbox"] input[type="checkbox"]:checked + div {
             background: linear-gradient(135deg, #4f8ef7, #7c5cfc) !important;
         }
-        .app-footer {
-            margin-top: 2rem;
-            padding: 1rem 0 0.25rem 0;
-            border-top: 1px solid rgba(41,52,85,.72);
-            text-align: center;
-            color: var(--text2);
-            font-size: 0.85rem;
-            line-height: 1.7;
-        }
-        .app-footer a {
-            color: #b7d4ff !important;
-            text-decoration: none;
-            font-weight: 600;
-        }
         </style>
-        """,
-        unsafe_allow_html=True,
-    )
-
-
-def render_footer() -> None:
-    st.markdown(
-        """
-        <div class="app-footer">
-            <div><a href="mailto:info@chromadata.com">info@chromadata.com</a></div>
-            <div>© 2026 - Chromadata. All rights reserved.</div>
-        </div>
         """,
         unsafe_allow_html=True,
     )
@@ -902,20 +863,6 @@ def prepare_leaderboard_table(leaderboard: pd.DataFrame, max_rows: int) -> pd.Da
     return table_df
 
 
-def set_leaderboard_view(view_name: str) -> None:
-    st.session_state.leaderboard_view = view_name
-    st.session_state.comparison_mode = False
-
-
-def toggle_comparison_mode() -> None:
-    is_enabled = not st.session_state.get("comparison_mode", False)
-    st.session_state.comparison_mode = is_enabled
-    if is_enabled:
-        st.session_state.leaderboard_view = "compare"
-    elif st.session_state.get("leaderboard_view") == "compare":
-        st.session_state.leaderboard_view = "📋 Table"
-
-
 def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: int) -> None:
     if leaderboard.empty:
         st.warning("No leaderboard data available yet. Run the scraper first.")
@@ -925,45 +872,13 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
     
     st.markdown("<br>", unsafe_allow_html=True)
     
-    # Keep all five controls in one row: Table, Analysis, Spotlight, Compare, Download
-    csv = leaderboard.head(max_rows).to_csv(index=False)
-    selected_view = st.session_state.get("leaderboard_view", "📋 Table")
-    btn_col1, btn_col2, btn_col3, btn_col4, btn_col5 = st.columns(5, gap="small")
+    # Add action buttons row - left aligned
+    btn_col1, btn_col2, btn_col3, spacer = st.columns([1, 1, 1, 6])
     with btn_col1:
-        st.button(
-            "📋 Table",
-            use_container_width=True,
-            type="primary" if selected_view == "📋 Table" else "secondary",
-            key="view_table_btn",
-            on_click=set_leaderboard_view,
-            args=("📋 Table",),
-        )
+        if st.button("📊 Compare", use_container_width=True, key="compare_btn"):
+            st.session_state.comparison_mode = not st.session_state.comparison_mode
     with btn_col2:
-        st.button(
-            "📈 Analysis",
-            use_container_width=True,
-            type="primary" if selected_view == "📈 Analysis" else "secondary",
-            key="view_analysis_btn",
-            on_click=set_leaderboard_view,
-            args=("📈 Analysis",),
-        )
-    with btn_col3:
-        st.button(
-            "🎯 Spotlight",
-            use_container_width=True,
-            type="primary" if selected_view == "🎯 Spotlight" else "secondary",
-            key="view_spotlight_btn",
-            on_click=set_leaderboard_view,
-            args=("🎯 Spotlight",),
-        )
-    with btn_col4:
-        st.button(
-            "📊 Compare",
-            use_container_width=True,
-            key="compare_btn",
-            on_click=toggle_comparison_mode,
-        )
-    with btn_col5:
+        csv = leaderboard.head(max_rows).to_csv(index=False)
         st.download_button(
             label="⬇️ Download",
             data=csv,
@@ -972,7 +887,14 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
             use_container_width=True,
             key="download_csv_btn"
         )
-
+    # with btn_col3:
+    #     if st.button("🔄 " + ("ON" if st.session_state.auto_refresh else "OFF"), 
+    #                  use_container_width=True, 
+    #                  type="primary" if st.session_state.auto_refresh else "secondary",
+    #                  key="auto_refresh_btn"):
+    #         st.session_state.auto_refresh = not st.session_state.auto_refresh
+    #         st.rerun()
+    
     st.markdown("<br>", unsafe_allow_html=True)
     
     # Comparison Mode
@@ -1051,10 +973,10 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
         else:
             st.warning("Please select at least 2 artists to compare")
     
-    if st.session_state.comparison_mode:
-        return
-
-    if selected_view == "📋 Table":
+    # Use tabs for different views
+    tab1, tab2, tab3 = st.tabs(["📋 Table", "📈 Analysis", "🎯 Spotlight"])
+    
+    with tab1:
         left, right = st.columns([2.2, 1.0])
 
         with left:
@@ -1165,7 +1087,7 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
             else:
                 st.info("No monthly listener data is available for the current leaderboard selection.")
     
-    elif selected_view == "📈 Analysis":
+    with tab2:
         col_a, col_b = st.columns(2)
         
         with col_a:
@@ -1200,7 +1122,7 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
                 style_figure(fig_scatter, 350)
                 st.plotly_chart(fig_scatter, use_container_width=True, config=PLOTLY_CONFIG)
     
-    else:
+    with tab3:
         st.markdown("### 🎯 Artist Detail Spotlight")
         artists = leaderboard["name"].dropna().tolist()
         
@@ -1809,6 +1731,354 @@ def render_ops_monitor(runs: pd.DataFrame) -> None:
             )
             style_figure(fig_status, 350)
             st.plotly_chart(fig_status, use_container_width=True, config=PLOTLY_CONFIG)
+
+
+def render_chatbot_widget() -> None:
+        st_components.html(
+                f"""
+                <script>
+                (function() {{
+                    const BOT_SRC = {BOT_SRC!r};
+                    const LOAD_TIMEOUT_MS = {LOAD_TIMEOUT_MS};
+                    const IFRAME_TOP_CROP_PX = 88;
+                    const ROOT_ID = "a360-chatbot-root";
+                    const STYLE_ID = "a360-chatbot-style";
+
+                    const doc = window.parent.document;
+
+                    if (!doc.getElementById(STYLE_ID)) {{
+                        const style = doc.createElement("style");
+                        style.id = STYLE_ID;
+                        style.textContent = `
+                            .a360-chatbot-toggle {{
+                                position: fixed;
+                                right: 24px;
+                                bottom: 24px;
+                                width: 62px;
+                                height: 62px;
+                                border: none;
+                                border-radius: 999px;
+                                cursor: pointer;
+                                z-index: 10010;
+                                color: #ffffff;
+                                font-size: 30px;
+                                line-height: 1;
+                                background: linear-gradient(135deg, #4f8ef7 0%, #7c5cfc 60%, #22d3a0 100%);
+                                box-shadow: 0 14px 36px rgba(79, 142, 247, 0.35);
+                            }}
+                            .a360-chatbot-toggle:hover {{
+                                transform: translateY(-2px);
+                            }}
+                            .a360-chatbot-container {{
+                                position: fixed;
+                                width: min(400px, calc(100vw - 48px));
+                                height: min(650px, calc(100vh - 120px));
+                                min-height: 460px;
+                                border-radius: 16px;
+                                overflow: hidden;
+                                border: 1px solid #293455;
+                                background: #11182c;
+                                box-shadow: 0 30px 65px rgba(0, 0, 0, 0.45);
+                                z-index: 10011;
+                            }}
+                            .a360-chatbot-mobile {{
+                                left: 16px !important;
+                                right: 16px !important;
+                                top: 80px !important;
+                                bottom: 16px !important;
+                                width: auto !important;
+                                height: auto !important;
+                                min-height: 0;
+                            }}
+                            .a360-chatbot-header {{
+                                height: 58px;
+                                padding: 0 12px;
+                                display: flex;
+                                align-items: center;
+                                justify-content: space-between;
+                                background: linear-gradient(135deg, #4f8ef7 0%, #7c5cfc 60%, #22d3a0 100%);
+                                color: #ffffff;
+                                cursor: grab;
+                                user-select: none;
+                                font-family: -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif;
+                                position: relative;
+                                z-index: 2;
+                            }}
+                            .a360-chatbot-title {{
+                                display: flex;
+                                align-items: center;
+                                gap: 10px;
+                                font-weight: 700;
+                                font-size: 14px;
+                            }}
+                            .a360-chatbot-actions {{
+                                display: flex;
+                                gap: 8px;
+                            }}
+                            .a360-chatbot-btn {{
+                                width: 32px;
+                                height: 32px;
+                                border-radius: 999px;
+                                border: 1px solid rgba(255, 255, 255, 0.35);
+                                background: rgba(0, 0, 0, 0.12);
+                                color: #fff;
+                                font-size: 16px;
+                                cursor: pointer;
+                            }}
+                            .a360-chatbot-window {{
+                                position: relative;
+                                height: calc(100% - 58px);
+                                background: #0a1123;
+                                overflow: hidden;
+                                z-index: 1;
+                            }}
+                            .a360-chatbot-iframe {{
+                                position: relative;
+                                top: 0;
+                                width: 100%;
+                                height: 100%;
+                                border: none;
+                                opacity: 0;
+                                transition: opacity 0.3s ease;
+                            }}
+                            .a360-chatbot-overlay {{
+                                position: absolute;
+                                inset: 0;
+                                display: flex;
+                                flex-direction: column;
+                                align-items: center;
+                                justify-content: center;
+                                text-align: center;
+                                color: #dce6ff;
+                                padding: 24px;
+                                font-family: -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif;
+                            }}
+                            .a360-chatbot-spinner {{
+                                width: 36px;
+                                height: 36px;
+                                border-radius: 999px;
+                                border: 3px solid rgba(255,255,255,0.18);
+                                border-top-color: #7da9ff;
+                                animation: a360spin 0.9s linear infinite;
+                                margin-bottom: 12px;
+                            }}
+                            .a360-chatbot-error-btn {{
+                                margin-top: 12px;
+                                border: 1px solid #4f8ef7;
+                                color: #e8f0ff;
+                                background: rgba(79,142,247,0.15);
+                                border-radius: 8px;
+                                padding: 8px 12px;
+                                cursor: pointer;
+                            }}
+                            @keyframes a360spin {{
+                                from {{ transform: rotate(0deg); }}
+                                to {{ transform: rotate(360deg); }}
+                            }}
+                        `;
+                        doc.head.appendChild(style);
+                    }}
+
+                    let root = doc.getElementById(ROOT_ID);
+                    if (!root) {{
+                        root = doc.createElement("div");
+                        root.id = ROOT_ID;
+                        doc.body.appendChild(root);
+                    }}
+
+                    root.innerHTML = "";
+
+                    const margin = 24;
+                    const containerWidth = Math.min(400, window.parent.innerWidth - margin * 2);
+                    const containerHeight = Math.min(650, window.parent.innerHeight - 140);
+                    const state = {{
+                        open: false,
+                        iframeKey: 0,
+                        status: "idle",
+                        isDragging: false,
+                        dragStartX: 0,
+                        dragStartY: 0,
+                        x: Math.max(margin, window.parent.innerWidth - containerWidth - margin),
+                        y: Math.max(margin, window.parent.innerHeight - containerHeight - margin),
+                        timer: null,
+                    }};
+
+                    const isMobile = () => window.parent.matchMedia("(max-width: 480px)").matches;
+
+                    const clearTimer = () => {{
+                        if (state.timer) {{
+                            clearTimeout(state.timer);
+                            state.timer = null;
+                        }}
+                    }};
+
+                    const startBotLoad = () => {{
+                        state.status = "loading";
+                        clearTimer();
+                        state.timer = setTimeout(() => {{
+                            state.status = "error";
+                            render();
+                        }}, LOAD_TIMEOUT_MS);
+                    }};
+
+                    const createIframe = () => {{
+                        const iframe = doc.createElement("iframe");
+                        iframe.className = "a360-chatbot-iframe";
+                        iframe.style.top = `-${{IFRAME_TOP_CROP_PX}}px`;
+                        iframe.style.height = `calc(100% + ${{IFRAME_TOP_CROP_PX}}px)`;
+                        iframe.title = "AI Artist Assistant";
+                        iframe.allow = "microphone; camera";
+                        iframe.src = BOT_SRC + "&iframeKey=" + state.iframeKey;
+                        iframe.onload = () => {{
+                            clearTimer();
+                            state.status = "ready";
+                            iframe.style.opacity = "1";
+                            const overlay = root.querySelector(".a360-chatbot-overlay");
+                            if (overlay) overlay.style.display = "none";
+                        }};
+                        return iframe;
+                    }};
+
+                    const openChat = () => {{
+                        state.open = true;
+                        startBotLoad();
+                        render();
+                    }};
+
+                    const closeChat = () => {{
+                        clearTimer();
+                        state.open = false;
+                        state.status = "idle";
+                        state.isDragging = false;
+                        render();
+                    }};
+
+                    const retryChat = () => {{
+                        state.iframeKey += 1;
+                        startBotLoad();
+                        render();
+                    }};
+
+                    const onMouseMove = (e) => {{
+                        if (!state.isDragging || !state.open || isMobile()) return;
+                        const container = root.querySelector(".a360-chatbot-container");
+                        if (!container) return;
+                        const maxX = window.parent.innerWidth - (container.offsetWidth || 450);
+                        const maxY = window.parent.innerHeight - (container.offsetHeight || 520);
+                        state.x = Math.max(0, Math.min(e.clientX - state.dragStartX, maxX));
+                        state.y = Math.max(0, Math.min(e.clientY - state.dragStartY, maxY));
+                        container.style.left = state.x + "px";
+                        container.style.top = state.y + "px";
+                    }};
+
+                    const onMouseUp = () => {{
+                        state.isDragging = false;
+                        doc.body.style.userSelect = "";
+                        doc.body.style.cursor = "";
+                    }};
+
+                    const buildOverlay = () => {{
+                        const overlay = doc.createElement("div");
+                        overlay.className = "a360-chatbot-overlay";
+
+                        if (state.status === "error") {{
+                            overlay.innerHTML = `
+                                <div style="font-size: 30px; margin-bottom: 8px;">⚠️</div>
+                                <div>Unable to connect to the AI Assistant. The service may be temporarily unavailable or the session has expired.</div>
+                                <button class="a360-chatbot-error-btn">Try Again</button>
+                            `;
+                            overlay.querySelector("button").addEventListener("click", retryChat);
+                            return overlay;
+                        }}
+
+                        overlay.innerHTML = `
+                            <div class="a360-chatbot-spinner"></div>
+                            <div>Loading AI Assistant...</div>
+                        `;
+                        return overlay;
+                    }};
+
+                    const render = () => {{
+                        root.innerHTML = "";
+
+                        if (!state.open) {{
+                            const toggle = doc.createElement("button");
+                            toggle.className = "a360-chatbot-toggle";
+                            toggle.setAttribute("aria-label", "Open Artist Bot");
+                            toggle.setAttribute("title", "Chat with our AI assistant");
+                            toggle.textContent = "🤖";
+                            toggle.addEventListener("click", openChat);
+                            root.appendChild(toggle);
+                            return;
+                        }}
+
+                        const container = doc.createElement("div");
+                        container.className = "a360-chatbot-container";
+
+                        if (isMobile()) {{
+                            container.classList.add("a360-chatbot-mobile");
+                        }} else {{
+                            container.style.left = state.x + "px";
+                            container.style.top = state.y + "px";
+                        }}
+
+                        const header = doc.createElement("div");
+                        header.className = "a360-chatbot-header";
+
+                        header.innerHTML = `
+                            <div class="a360-chatbot-title"><span style="font-size: 20px;">🤖</span><span>AI Artist Assistant</span></div>
+                            <div class="a360-chatbot-actions">
+                                <button class="a360-chatbot-btn" aria-label="Reload chat" title="Reload chat">↺</button>
+                                <button class="a360-chatbot-btn" aria-label="Close chat" title="Close chat">✕</button>
+                            </div>
+                        `;
+
+                        const buttons = header.querySelectorAll("button");
+                        buttons[0].addEventListener("click", retryChat);
+                        buttons[1].addEventListener("click", closeChat);
+
+                        header.addEventListener("mousedown", (e) => {{
+                            if (isMobile()) return;
+                            state.isDragging = true;
+                            const rect = container.getBoundingClientRect();
+                            state.dragStartX = e.clientX - rect.left;
+                            state.dragStartY = e.clientY - rect.top;
+                            doc.body.style.userSelect = "none";
+                            doc.body.style.cursor = "grabbing";
+                            e.preventDefault();
+                        }});
+
+                        const win = doc.createElement("div");
+                        win.className = "a360-chatbot-window";
+                        const iframe = createIframe();
+                        win.appendChild(iframe);
+
+                        if (state.status === "loading" || state.status === "error") {{
+                            win.appendChild(buildOverlay());
+                        }}
+
+                        container.appendChild(header);
+                        container.appendChild(win);
+                        root.appendChild(container);
+                    }};
+
+                    doc.removeEventListener("mousemove", onMouseMove);
+                    doc.removeEventListener("mouseup", onMouseUp);
+                    doc.addEventListener("mousemove", onMouseMove);
+                    doc.addEventListener("mouseup", onMouseUp);
+
+                    window.parent.addEventListener("resize", () => {{
+                        if (!state.open) return;
+                        render();
+                    }});
+
+                    render();
+                }})();
+                </script>
+                """,
+                height=0,
+                width=0,
+        )
         
 
 
@@ -1943,7 +2213,7 @@ with st.sidebar:
     
 
 current_page.run()
-render_footer()
+render_chatbot_widget()
 
 # Auto-refresh functionality
 if st.session_state.auto_refresh:
