@@ -27,6 +27,8 @@ if "selected_artists" not in st.session_state:
     st.session_state.selected_artists = []
 if "show_advanced" not in st.session_state:
     st.session_state.show_advanced = False
+if "leaderboard_view" not in st.session_state:
+    st.session_state.leaderboard_view = "📋 Table"
 
 PAGE_META = {
     "Leaderboard": (
@@ -166,6 +168,20 @@ def apply_theme() -> None:
         }
         div[data-testid="stRadio"] [role="radiogroup"] label p {
             margin-left:0 !important; font-weight:600;
+        }
+        div[data-testid="stRadio"] [role="radiogroup"][aria-orientation="horizontal"] {
+            display:flex;
+            flex-wrap:nowrap;
+            gap:.45rem;
+        }
+        div[data-testid="stRadio"] [role="radiogroup"][aria-orientation="horizontal"] label {
+            flex:1 1 0;
+            justify-content:center;
+            margin:0;
+            min-width:0;
+        }
+        div[data-testid="stRadio"] [role="radiogroup"][aria-orientation="horizontal"] label:hover {
+            transform: translateY(-2px);
         }
         .page-title { font-size:2rem; font-weight:800; letter-spacing:-.03em; margin-bottom:.25rem; }
         .page-meta { color:var(--text2); font-size:.95rem; margin-bottom:1rem; }
@@ -860,6 +876,20 @@ def prepare_leaderboard_table(leaderboard: pd.DataFrame, max_rows: int) -> pd.Da
     return table_df
 
 
+def set_leaderboard_view(view_name: str) -> None:
+    st.session_state.leaderboard_view = view_name
+    st.session_state.comparison_mode = False
+
+
+def toggle_comparison_mode() -> None:
+    is_enabled = not st.session_state.get("comparison_mode", False)
+    st.session_state.comparison_mode = is_enabled
+    if is_enabled:
+        st.session_state.leaderboard_view = "compare"
+    elif st.session_state.get("leaderboard_view") == "compare":
+        st.session_state.leaderboard_view = "📋 Table"
+
+
 def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: int) -> None:
     if leaderboard.empty:
         st.warning("No leaderboard data available yet. Run the scraper first.")
@@ -869,13 +899,45 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
     
     st.markdown("<br>", unsafe_allow_html=True)
     
-    # Add action buttons row - left aligned
-    btn_col1, btn_col2, btn_col3, spacer = st.columns([1, 1, 1, 6])
+    # Keep all five controls in one row: Table, Analysis, Spotlight, Compare, Download
+    csv = leaderboard.head(max_rows).to_csv(index=False)
+    selected_view = st.session_state.get("leaderboard_view", "📋 Table")
+    btn_col1, btn_col2, btn_col3, btn_col4, btn_col5 = st.columns(5, gap="small")
     with btn_col1:
-        if st.button("📊 Compare", use_container_width=True, key="compare_btn"):
-            st.session_state.comparison_mode = not st.session_state.comparison_mode
+        st.button(
+            "📋 Table",
+            use_container_width=True,
+            type="primary" if selected_view == "📋 Table" else "secondary",
+            key="view_table_btn",
+            on_click=set_leaderboard_view,
+            args=("📋 Table",),
+        )
     with btn_col2:
-        csv = leaderboard.head(max_rows).to_csv(index=False)
+        st.button(
+            "📈 Analysis",
+            use_container_width=True,
+            type="primary" if selected_view == "📈 Analysis" else "secondary",
+            key="view_analysis_btn",
+            on_click=set_leaderboard_view,
+            args=("📈 Analysis",),
+        )
+    with btn_col3:
+        st.button(
+            "🎯 Spotlight",
+            use_container_width=True,
+            type="primary" if selected_view == "🎯 Spotlight" else "secondary",
+            key="view_spotlight_btn",
+            on_click=set_leaderboard_view,
+            args=("🎯 Spotlight",),
+        )
+    with btn_col4:
+        st.button(
+            "📊 Compare",
+            use_container_width=True,
+            key="compare_btn",
+            on_click=toggle_comparison_mode,
+        )
+    with btn_col5:
         st.download_button(
             label="⬇️ Download",
             data=csv,
@@ -884,14 +946,7 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
             use_container_width=True,
             key="download_csv_btn"
         )
-    # with btn_col3:
-    #     if st.button("🔄 " + ("ON" if st.session_state.auto_refresh else "OFF"), 
-    #                  use_container_width=True, 
-    #                  type="primary" if st.session_state.auto_refresh else "secondary",
-    #                  key="auto_refresh_btn"):
-    #         st.session_state.auto_refresh = not st.session_state.auto_refresh
-    #         st.rerun()
-    
+
     st.markdown("<br>", unsafe_allow_html=True)
     
     # Comparison Mode
@@ -970,10 +1025,10 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
         else:
             st.warning("Please select at least 2 artists to compare")
     
-    # Use tabs for different views
-    tab1, tab2, tab3 = st.tabs(["📋 Table", "📈 Analysis", "🎯 Spotlight"])
-    
-    with tab1:
+    if st.session_state.comparison_mode:
+        return
+
+    if selected_view == "📋 Table":
         left, right = st.columns([2.2, 1.0])
 
         with left:
@@ -1084,7 +1139,7 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
             else:
                 st.info("No monthly listener data is available for the current leaderboard selection.")
     
-    with tab2:
+    elif selected_view == "📈 Analysis":
         col_a, col_b = st.columns(2)
         
         with col_a:
@@ -1119,7 +1174,7 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
                 style_figure(fig_scatter, 350)
                 st.plotly_chart(fig_scatter, use_container_width=True, config=PLOTLY_CONFIG)
     
-    with tab3:
+    else:
         st.markdown("### 🎯 Artist Detail Spotlight")
         artists = leaderboard["name"].dropna().tolist()
         
