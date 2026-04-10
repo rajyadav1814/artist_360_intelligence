@@ -380,9 +380,14 @@ def apply_theme() -> None:
         
         /* Interactive tabs */
         .stTabs [data-baseweb="tab-list"] {
+            display: grid !important;
+            grid-auto-flow: column;
+            grid-auto-columns: minmax(0, 1fr);
             gap: 8px;
+            width: 100%;
             background: transparent;
             border-bottom: none !important;
+            overflow: hidden;
         }
         .stTabs [data-baseweb="tab-border"] {
             display: none !important;
@@ -398,13 +403,26 @@ def apply_theme() -> None:
             gap: 8px;
         }
         .stTabs [data-baseweb="tab"] {
+            width: 100%;
+            min-width: 0 !important;
+            justify-content: center;
             background: var(--surface2);
             border-radius: 10px;
             color: var(--text2);
             border: 1px solid var(--border);
-            padding: 0.5rem 1.2rem;
+            padding: 0.45rem 0.55rem !important;
+            min-height: 42px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
             transition: all 0.3s ease;
             border-bottom: 1px solid var(--border) !important;
+        }
+        .stTabs [data-baseweb="tab"] p {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            font-size: .86rem;
         }
         .stTabs [data-baseweb="tab"]:hover {
             background: rgba(79,142,247,.12);
@@ -649,14 +667,30 @@ def style_figure(fig, height: int) -> None:
     fig.update_layout(
         template="plotly_dark",
         height=height,
-        margin=dict(l=0, r=0, t=50, b=0),
+        margin=dict(l=0, r=0, t=56, b=0),
         paper_bgcolor="rgba(18,24,42,1)",
         plot_bgcolor="rgba(18,24,42,1)",
         font=dict(color="#e8eaf6"),
         legend_title_text="",
+        title=dict(x=0.03, xanchor="left", font=dict(size=16, color="#eef2ff")),
+        hoverlabel=dict(
+            bgcolor="rgba(9,17,39,.96)",
+            bordercolor="rgba(79,142,247,.45)",
+            font=dict(color="#eef2ff"),
+        ),
     )
-    fig.update_xaxes(gridcolor="rgba(151,163,197,.12)", zerolinecolor="rgba(151,163,197,.12)")
-    fig.update_yaxes(gridcolor="rgba(151,163,197,.12)", zerolinecolor="rgba(151,163,197,.12)")
+    fig.update_xaxes(
+        gridcolor="rgba(151,163,197,.12)",
+        zerolinecolor="rgba(151,163,197,.12)",
+        tickfont=dict(size=11),
+        title_font=dict(size=12),
+    )
+    fig.update_yaxes(
+        gridcolor="rgba(151,163,197,.12)",
+        zerolinecolor="rgba(151,163,197,.12)",
+        tickfont=dict(size=11),
+        title_font=dict(size=12),
+    )
 
 
 def render_header(title: str, meta: str, last_run_label: str) -> None:
@@ -847,7 +881,7 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
             st.warning("Please select at least 2 artists to compare")
     
     # Use tabs for different views
-    tab1, tab2, tab3 = st.tabs(["📋 Data Table", "📈 Visual Analysis", "🎯 Artist Spotlight"])
+    tab1, tab2, tab3 = st.tabs(["📋 Table", "📈 Analysis", "🎯 Spotlight"])
     
     with tab1:
         left, right = st.columns([2.2, 1.0])
@@ -875,19 +909,90 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
             )
 
         with right:
-            top_streams = leaderboard.dropna(subset=["monthly_listeners"]).nlargest(10, "monthly_listeners")
+            top_streams = leaderboard.dropna(subset=["monthly_listeners"]).nlargest(8, "monthly_listeners").copy()
             if not top_streams.empty:
+                top_streams = top_streams.sort_values("monthly_listeners", ascending=True)
+                top_streams["listener_label"] = top_streams["monthly_listeners"].apply(fmt_short)
+                avg_listeners = top_streams["monthly_listeners"].mean()
+
                 fig_bar = px.bar(
-                    top_streams.sort_values("monthly_listeners"),
+                    top_streams,
                     x="monthly_listeners",
                     y="name",
                     orientation="h",
+                    text="listener_label",
                     color="monthly_listeners",
-                    color_continuous_scale=["#4f8ef7", "#22d3a0"],
+                    custom_data=["display_country", "rank"],
+                    labels={"monthly_listeners": "Monthly listeners", "name": ""},
+                    color_continuous_scale=["#1d4ed8", "#7c3aed", "#22d3a0"],
                 )
-                fig_bar.update_layout(title="Top Artists by Monthly Listeners", coloraxis_showscale=False)
+                fig_bar.update_traces(
+                    textposition="outside",
+                    cliponaxis=False,
+                    marker_line_color="rgba(255,255,255,.18)",
+                    marker_line_width=1.1,
+                    hovertemplate=(
+                        "<b>%{y}</b><br>"
+                        "Monthly listeners: %{x:,.0f}<br>"
+                        "Top LATAM market: %{customdata[0]}<br>"
+                        "Current rank: #%{customdata[1]}<extra></extra>"
+                    ),
+                )
+                fig_bar.add_vline(
+                    x=avg_listeners,
+                    line_dash="dash",
+                    line_color="rgba(245,166,35,.9)",
+                    annotation_text=f"Avg {fmt_short(avg_listeners)}",
+                    annotation_position="top left",
+                )
+                fig_bar.update_layout(
+                    title="Top Artists by Monthly Listeners",
+                    coloraxis_showscale=False,
+                    xaxis_title="Monthly listeners",
+                    xaxis_tickformat="~s",
+                    yaxis_title="",
+                )
                 style_figure(fig_bar, 360)
                 st.plotly_chart(fig_bar, use_container_width=True, config=PLOTLY_CONFIG)
+
+                country_mix = (
+                    leaderboard.loc[leaderboard["display_country"].ne("—"), "display_country"]
+                    .value_counts()
+                    .head(6)
+                    .reset_index()
+                )
+                if not country_mix.empty:
+                    country_mix.columns = ["country", "artists"]
+                    fig_country = px.pie(
+                        country_mix,
+                        names="country",
+                        values="artists",
+                        hole=0.58,
+                        color="country",
+                        color_discrete_sequence=CHART_COLORS,
+                    )
+                    fig_country.update_traces(
+                        textposition="inside",
+                        textinfo="percent+label",
+                        hovertemplate="<b>%{label}</b><br>Artists: %{value}<extra></extra>",
+                    )
+                    fig_country.update_layout(
+                        title="LATAM Presence by Top Country",
+                        showlegend=False,
+                        annotations=[
+                            dict(
+                                text="Market<br>mix",
+                                x=0.5,
+                                y=0.5,
+                                showarrow=False,
+                                font=dict(size=13, color="#cbd5f5"),
+                            )
+                        ],
+                    )
+                    style_figure(fig_country, 290)
+                    st.plotly_chart(fig_country, use_container_width=True, config=PLOTLY_CONFIG)
+            else:
+                st.info("No monthly listener data is available for the current leaderboard selection.")
     
     with tab2:
         col_a, col_b = st.columns(2)
@@ -1418,7 +1523,7 @@ def render_ops_monitor(runs: pd.DataFrame) -> None:
     st.markdown("<br>", unsafe_allow_html=True)
     
     # Tabs for different views
-    tab1, tab2, tab3 = st.tabs(["📊 Performance Overview", "📜 Run History", "🔍 Detailed Analytics"])
+    tab1, tab2, tab3 = st.tabs(["📊 Overview", "📜 History", "🔍 Analytics"])
     
     with tab1:
         rate_df = (
