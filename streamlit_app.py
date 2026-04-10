@@ -600,6 +600,25 @@ def apply_theme() -> None:
         [data-testid="stCheckbox"] input[type="checkbox"]:checked + div {
             background: linear-gradient(135deg, #4f8ef7, #7c5cfc) !important;
         }
+
+        /* Global footer */
+        .app-footer {
+            margin-top: 2.5rem;
+            padding: 1rem 0 0.25rem;
+            border-top: 1px solid rgba(41,52,85,.7);
+            text-align: center;
+            color: var(--text2);
+            font-size: 0.86rem;
+            line-height: 1.7;
+        }
+        .app-footer a {
+            color: #b7d4ff;
+            text-decoration: none;
+        }
+        .app-footer a:hover {
+            color: #ffffff;
+            text-decoration: underline;
+        }
         </style>
         """,
         unsafe_allow_html=True,
@@ -804,6 +823,18 @@ def render_header(title: str, meta: str, last_run_label: str) -> None:
     )
 
 
+def render_footer() -> None:
+    st.markdown(
+        """
+        <div class="app-footer">
+            <div><a href="mailto:info@chromadata.com">info@chromadata.com</a></div>
+            <div>© 2026 - Chromadata. All rights reserved.</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def render_kpis(leaderboard: pd.DataFrame, runs: pd.DataFrame) -> None:
     success_rate = (runs["status"].eq("success").mean() * 100) if not runs.empty else 0
     total_monthly = leaderboard["monthly_listeners"].fillna(0).sum()
@@ -863,22 +894,68 @@ def prepare_leaderboard_table(leaderboard: pd.DataFrame, max_rows: int) -> pd.Da
     return table_df
 
 
+def set_leaderboard_view(view_name: str) -> None:
+    st.session_state.leaderboard_view = view_name
+    st.session_state.comparison_mode = False
+
+
+def toggle_comparison_mode() -> None:
+    is_enabled = not st.session_state.get("comparison_mode", False)
+    st.session_state.comparison_mode = is_enabled
+    if is_enabled:
+        st.session_state.leaderboard_view = "compare"
+    elif st.session_state.get("leaderboard_view") == "compare":
+        st.session_state.leaderboard_view = "📋 Table"
+
+
 def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: int) -> None:
     if leaderboard.empty:
         st.warning("No leaderboard data available yet. Run the scraper first.")
         return
 
     render_kpis(leaderboard, runs)
-    
+
     st.markdown("<br>", unsafe_allow_html=True)
-    
-    # Add action buttons row - left aligned
-    btn_col1, btn_col2, btn_col3, spacer = st.columns([1, 1, 1, 6])
+
+    # Keep all five controls in one row: Table, Analysis, Spotlight, Compare, Download
+    csv = leaderboard.head(max_rows).to_csv(index=False)
+    selected_view = st.session_state.get("leaderboard_view", "📋 Table")
+    btn_col1, btn_col2, btn_col3, btn_col4, btn_col5 = st.columns(5, gap="small")
     with btn_col1:
-        if st.button("📊 Compare", use_container_width=True, key="compare_btn"):
-            st.session_state.comparison_mode = not st.session_state.comparison_mode
+        st.button(
+            "📋 Table",
+            use_container_width=True,
+            type="primary" if selected_view == "📋 Table" else "secondary",
+            key="view_table_btn",
+            on_click=set_leaderboard_view,
+            args=("📋 Table",),
+        )
     with btn_col2:
-        csv = leaderboard.head(max_rows).to_csv(index=False)
+        st.button(
+            "📈 Analysis",
+            use_container_width=True,
+            type="primary" if selected_view == "📈 Analysis" else "secondary",
+            key="view_analysis_btn",
+            on_click=set_leaderboard_view,
+            args=("📈 Analysis",),
+        )
+    with btn_col3:
+        st.button(
+            "🎯 Spotlight",
+            use_container_width=True,
+            type="primary" if selected_view == "🎯 Spotlight" else "secondary",
+            key="view_spotlight_btn",
+            on_click=set_leaderboard_view,
+            args=("🎯 Spotlight",),
+        )
+    with btn_col4:
+        st.button(
+            "📊 Compare",
+            use_container_width=True,
+            key="compare_btn",
+            on_click=toggle_comparison_mode,
+        )
+    with btn_col5:
         st.download_button(
             label="⬇️ Download",
             data=csv,
@@ -887,21 +964,14 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
             use_container_width=True,
             key="download_csv_btn"
         )
-    # with btn_col3:
-    #     if st.button("🔄 " + ("ON" if st.session_state.auto_refresh else "OFF"), 
-    #                  use_container_width=True, 
-    #                  type="primary" if st.session_state.auto_refresh else "secondary",
-    #                  key="auto_refresh_btn"):
-    #         st.session_state.auto_refresh = not st.session_state.auto_refresh
-    #         st.rerun()
-    
+
     st.markdown("<br>", unsafe_allow_html=True)
-    
+
     # Comparison Mode
     if st.session_state.comparison_mode:
         st.markdown("### 🔄 Artist Comparison Mode")
         st.info("Select 2-4 artists to compare their metrics side by side")
-        
+
         available_artists = leaderboard["name"].dropna().tolist()[:20]  # Limit to top 20 for performance
         selected_for_comparison = st.multiselect(
             "Select artists to compare",
@@ -910,10 +980,10 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
             max_selections=4,
             key="comparison_artists"
         )
-        
+
         if len(selected_for_comparison) >= 2:
             comparison_data = leaderboard[leaderboard["name"].isin(selected_for_comparison)].copy()
-            
+
             # Comparison metrics
             comp_cols = st.columns(len(selected_for_comparison))
             for idx, (col, artist_name) in enumerate(zip(comp_cols, selected_for_comparison)):
@@ -926,11 +996,11 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
                     st.metric("Songs", int(songs_count) if pd.notna(songs_count) else 0)
                     countries_count = artist_data.get('countries_count', 0)
                     st.metric("LATAM Countries", int(countries_count) if pd.notna(countries_count) else 0)
-            
+
             # Visual comparison
             st.markdown("#### 📊 Visual Comparison")
             comp_col1, comp_col2 = st.columns(2)
-            
+
             with comp_col1:
                 # Monthly listeners comparison
                 fig_comp_listeners = px.bar(
@@ -944,7 +1014,7 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
                 )
                 style_figure(fig_comp_listeners, 300)
                 st.plotly_chart(fig_comp_listeners, use_container_width=True, config=PLOTLY_CONFIG)
-            
+
             with comp_col2:
                 # LATAM reach comparison
                 fig_comp_reach = px.bar(
@@ -958,11 +1028,11 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
                 )
                 style_figure(fig_comp_reach, 300)
                 st.plotly_chart(fig_comp_reach, use_container_width=True, config=PLOTLY_CONFIG)
-            
+
             # Detailed comparison table
             with st.expander("📋 View Detailed Comparison Table"):
                 comp_table = comparison_data[[
-                    'name', 'rank', 'monthly_listeners', 'peak_listeners', 
+                    'name', 'rank', 'monthly_listeners', 'peak_listeners',
                     'songs_count', 'albums_count', 'countries_count', 'top_song'
                 ]].copy()
                 comp_table.columns = [
@@ -972,11 +1042,11 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
                 st.dataframe(comp_table, use_container_width=True, hide_index=True)
         else:
             st.warning("Please select at least 2 artists to compare")
-    
-    # Use tabs for different views
-    tab1, tab2, tab3 = st.tabs(["📋 Table", "📈 Analysis", "🎯 Spotlight"])
-    
-    with tab1:
+
+    if st.session_state.comparison_mode:
+        return
+
+    if selected_view == "📋 Table":
         left, right = st.columns([2.2, 1.0])
 
         with left:
@@ -1086,10 +1156,10 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
                     st.plotly_chart(fig_country, use_container_width=True, config=PLOTLY_CONFIG)
             else:
                 st.info("No monthly listener data is available for the current leaderboard selection.")
-    
-    with tab2:
+
+    elif selected_view == "📈 Analysis":
         col_a, col_b = st.columns(2)
-        
+
         with col_a:
             # Rank distribution
             rank_dist = leaderboard.groupby(pd.cut(leaderboard['rank'], bins=[0, 5, 10, 20, 50, 100]), observed=False).size()
@@ -1103,7 +1173,7 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
             )
             style_figure(fig_dist, 350)
             st.plotly_chart(fig_dist, use_container_width=True, config=PLOTLY_CONFIG)
-        
+
         with col_b:
             # Listener vs Country reach
             scatter_data = leaderboard.dropna(subset=["monthly_listeners", "countries_count"]).head(30)
@@ -1121,11 +1191,11 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
                 )
                 style_figure(fig_scatter, 350)
                 st.plotly_chart(fig_scatter, use_container_width=True, config=PLOTLY_CONFIG)
-    
-    with tab3:
+
+    else:
         st.markdown("### 🎯 Artist Detail Spotlight")
         artists = leaderboard["name"].dropna().tolist()
-        
+
         col_search, col_select = st.columns([1, 2])
         with col_search:
             search_artist = st.text_input("🔍 Quick search", placeholder="Type artist name...")
@@ -1135,22 +1205,22 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
                 selected_artist = st.selectbox("Choose an artist", filtered_artists if filtered_artists else artists, index=0)
             else:
                 selected_artist = st.selectbox("Choose an artist", artists, index=0)
-        
+
         if selected_artist:
             row = leaderboard.loc[leaderboard["name"] == selected_artist].iloc[0]
-            
+
             # Artist metrics with icons
             c1, c2, c3, c4 = st.columns(4)
             c1.metric("🎵 Songs", int(row.get("songs_count") or 0))
             c2.metric("💿 Albums", int(row.get("albums_count") or 0))
             c3.metric("🌎 LATAM Countries", int(row.get("countries_count") or 0))
             c4.metric("👥 Monthly Listeners", fmt_short(row.get("monthly_listeners") or 0))
-            
+
             # Expandable details
             with st.expander("📋 View Top Songs", expanded=True):
                 songs_text = row.get("top_songs") or "—"
                 st.text_area("Top Songs", songs_text, height=180, label_visibility="collapsed")
-            
+
             with st.expander("🗺️ View Top Countries", expanded=True):
                 countries_text = row.get("top_countries") or "—"
                 st.text_area("Top Countries", countries_text, height=180, label_visibility="collapsed")
@@ -2213,6 +2283,7 @@ with st.sidebar:
     
 
 current_page.run()
+render_footer()
 render_chatbot_widget()
 
 # Auto-refresh functionality
