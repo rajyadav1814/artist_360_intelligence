@@ -1266,8 +1266,6 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
             style_figure(fig_dist, 350)
             st.plotly_chart(fig_dist, use_container_width=True, config=PLOTLY_CONFIG)
 
-            st.plotly_chart(fig_dist, use_container_width=True, config=PLOTLY_CONFIG)
-
             if total_artists > 0:
                 dominant_tier = rank_dist.loc[rank_dist["Artists"].idxmax()]
                 dominant_tier_name = str(dominant_tier["Rank Range"])
