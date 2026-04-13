@@ -1695,7 +1695,7 @@ def render_stream_trends(leaderboard: pd.DataFrame) -> None:
     # Data table with enhanced view
     with st.expander("📋 View Detailed Streaming Data", expanded=False):
         trends_df = top_spotify[["rank", "name", "monthly_listeners", "peak_listeners", "display_country", "countries_count"]].copy()
-        trends_df.columns = ["iTunes Rank", "Artist", "Monthly Listeners", "Peak Listeners", "Top LATAM Country", "LATAM Countries"]
+        trends_df.columns = ["Rank", "Artist", "Monthly Listeners", "Peak Listeners", "Top LATAM Country", "LATAM Countries"]
         st.dataframe(
             trends_df,
             use_container_width=True,
@@ -1703,7 +1703,7 @@ def render_stream_trends(leaderboard: pd.DataFrame) -> None:
             column_config={
                 "Monthly Listeners": st.column_config.TextColumn(width="small"),
                 "Peak Listeners": st.column_config.TextColumn(width="small"),
-                "iTunes Rank": st.column_config.NumberColumn(format="%d"),
+                "Rank": st.column_config.NumberColumn(format="%d"),
             },
         )
 
