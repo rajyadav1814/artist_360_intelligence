@@ -4,13 +4,21 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Database
-DB_CONFIG = {
-    "host": os.getenv("DB_HOST", "localhost"),
-    "port": int(os.getenv("DB_PORT", 5432)),
-    "dbname": os.getenv("DB_NAME", "kworb_db"),
-    "user": os.getenv("DB_USER", "postgres"),
-    "password": os.getenv("DB_PASSWORD", ""),
-}
+# Use DATABASE_URL if available (for Supabase), otherwise use individual DB_* variables (for local)
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+if DATABASE_URL:
+    # Use Supabase connection string
+    DB_CONFIG = {"dsn": DATABASE_URL}
+else:
+    # Use local PostgreSQL configuration
+    DB_CONFIG = {
+        "host": os.getenv("DB_HOST", "localhost"),
+        "port": int(os.getenv("DB_PORT", 5432)),
+        "dbname": os.getenv("DB_NAME", "kworb_db"),
+        "user": os.getenv("DB_USER", "postgres"),
+        "password": os.getenv("DB_PASSWORD", ""),
+    }
 
 # Scraper
 BASE_URL = "https://kworb.net"
@@ -33,3 +41,5 @@ LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 
 # Logs directory
 LOGS_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "logs")
+
+

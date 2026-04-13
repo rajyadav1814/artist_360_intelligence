@@ -1,5 +1,6 @@
-from typing import List
+from typing import List, Dict
 
+from psycopg2.extras import execute_values
 from src.database.connection import get_connection
 from src.database.models import ArtistDetail, ItunesRanking, SpotifyArtist, TrendingArtist
 from src.utils.logger import get_logger
@@ -23,145 +24,249 @@ def _upsert_artist(cur, name: str, profile_url: str = None) -> int:
     return cur.fetchone()["id"]
 
 
+def _batch_upsert_artists(cur, artist_data: List[tuple]) -> Dict[str, int]:
+    """Batch upsert artists and return a mapping of name -> artist_id.
+    
+    Args:
+        artist_data: List of (name, profile_url) tuples
+    
+    Returns:
+        Dict mapping artist name to artist_id
+    """
+    if not artist_data:
+        return {}
+    
+    # Use execute_values for efficient batch insert
+    query = """
+        INSERT INTO artists (name, profile_url, updated_at)
+        VALUES %s
+        ON CONFLICT (name) DO UPDATE SET
+            profile_url = COALESCE(EXCLUDED.profile_url, artists.profile_url),
+            updated_at = NOW()
+        RETURNING name, id
+    """
+    
+    result = execute_values(
+        cur, query, artist_data,
+        template="(%s, %s, NOW())",
+        fetch=True
+    )
+    
+    # Create mapping of artist name to ID
+    return {row["name"]: row["id"] for row in result}
+
+
 def save_itunes_rankings(rankings: List[ItunesRanking]) -> int:
-    """Bulk-save iTunes global artist rankings. Returns row count."""
+    """Bulk-save iTunes global artist rankings using batch processing. Returns row count."""
+    if not rankings:
+        return 0
+    
     conn = get_connection()
-    saved = 0
     try:
         with conn:
             with conn.cursor() as cur:
-                for r in rankings:
-                    artist_id = _upsert_artist(cur, r.artist_name, r.profile_url)
-                    cur.execute(
-                        """
-                        INSERT INTO itunes_artist_rankings
-                            (artist_id, rank, rank_change, total_points,
-                             itunes_points, spotify_points, apple_music_points,
-                             shazam_points, youtube_points, other_points,
-                             top_country, num_countries, scrape_date)
-                        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-                        """,
-                        (
-                            artist_id, r.rank, r.rank_change, r.total_points,
-                            r.itunes_points, r.spotify_points, r.apple_music_points,
-                            r.shazam_points, r.youtube_points, r.other_points,
-                            r.top_country, r.num_countries, r.scrape_date,
-                        ),
+                # Step 1: Batch upsert all artists
+                artist_data = [(r.artist_name, r.profile_url) for r in rankings]
+                artist_map = _batch_upsert_artists(cur, artist_data)
+                
+                # Step 2: Batch insert iTunes rankings
+                rankings_data = [
+                    (
+                        artist_map[r.artist_name],
+                        r.rank,
+                        r.rank_change,
+                        r.total_points,
+                        r.itunes_points,
+                        r.spotify_points,
+                        r.apple_music_points,
+                        r.shazam_points,
+                        r.youtube_points,
+                        r.other_points,
+                        r.top_country,
+                        r.num_countries,
+                        r.scrape_date
                     )
-                    saved += 1
+                    for r in rankings
+                    if r.artist_name in artist_map
+                ]
+                
+                execute_values(
+                    cur,
+                    """
+                    INSERT INTO itunes_artist_rankings
+                        (artist_id, rank, rank_change, total_points,
+                         itunes_points, spotify_points, apple_music_points,
+                         shazam_points, youtube_points, other_points,
+                         top_country, num_countries, scrape_date)
+                    VALUES %s
+                    """,
+                    rankings_data
+                )
+                
+                saved = len(rankings_data)
     finally:
         conn.close()
+    
     logger.info(f"Saved {saved} iTunes rankings to DB")
     return saved
 
 
 def save_spotify_artists(artists: List[SpotifyArtist]) -> int:
-    """Bulk-save Spotify artist listener data. Returns row count."""
+    """Bulk-save Spotify artist listener data using batch processing. Returns row count."""
+    if not artists:
+        return 0
+    
     conn = get_connection()
-    saved = 0
     try:
         with conn:
             with conn.cursor() as cur:
-                for a in artists:
-                    artist_id = _upsert_artist(cur, a.artist_name)
-                    cur.execute(
-                        """
-                        INSERT INTO spotify_artists
-                            (artist_id, monthly_listeners, peak_listeners,
-                             peak_date, scrape_date)
-                        VALUES (%s,%s,%s,%s,%s)
-                        """,
-                        (
-                            artist_id, a.monthly_listeners, a.peak_listeners,
-                            a.peak_date, a.scrape_date,
-                        ),
+                # Step 1: Batch upsert all artists
+                artist_data = [(a.artist_name, None) for a in artists]
+                artist_map = _batch_upsert_artists(cur, artist_data)
+                
+                # Step 2: Batch insert Spotify data
+                spotify_data = [
+                    (
+                        artist_map[a.artist_name],
+                        a.monthly_listeners,
+                        a.peak_listeners,
+                        a.peak_date,
+                        a.scrape_date
                     )
-                    saved += 1
+                    for a in artists
+                    if a.artist_name in artist_map
+                ]
+                
+                execute_values(
+                    cur,
+                    """
+                    INSERT INTO spotify_artists
+                        (artist_id, monthly_listeners, peak_listeners, peak_date, scrape_date)
+                    VALUES %s
+                    """,
+                    spotify_data
+                )
+                
+                saved = len(spotify_data)
     finally:
         conn.close()
+    
     logger.info(f"Saved {saved} Spotify artists to DB")
     return saved
 
 
 def save_trending_artists(trending: List[TrendingArtist]) -> int:
-    """Upsert trending artist data for a given month. Returns row count."""
+    """Upsert trending artist data for a given month using batch processing. Returns row count."""
+    if not trending:
+        return 0
+    
     conn = get_connection()
-    saved = 0
     try:
         with conn:
             with conn.cursor() as cur:
-                for t in trending:
-                    artist_id = _upsert_artist(cur, t.artist_name)
-                    cur.execute(
-                        """
-                        INSERT INTO trending_artists_monthly
-                            (artist_id, source, rank, rank_change,
-                             total_points, top_country, month)
-                        VALUES (%s,%s,%s,%s,%s,%s,%s)
-                        ON CONFLICT (artist_id, source, month)
-                        DO UPDATE SET
-                            rank         = EXCLUDED.rank,
-                            rank_change  = EXCLUDED.rank_change,
-                            total_points = EXCLUDED.total_points,
-                            top_country  = EXCLUDED.top_country,
-                            scraped_at   = NOW()
-                        """,
-                        (
-                            artist_id, t.source, t.rank, t.rank_change,
-                            t.total_points, t.top_country, t.month,
-                        ),
+                # Step 1: Batch upsert all artists
+                artist_data = [(t.artist_name, None) for t in trending]
+                artist_map = _batch_upsert_artists(cur, artist_data)
+                
+                # Step 2: Batch upsert trending data
+                trending_data = [
+                    (
+                        artist_map[t.artist_name],
+                        t.source,
+                        t.rank,
+                        t.rank_change,
+                        t.total_points,
+                        t.top_country,
+                        t.month
                     )
-                    saved += 1
+                    for t in trending
+                    if t.artist_name in artist_map
+                ]
+                
+                execute_values(
+                    cur,
+                    """
+                    INSERT INTO trending_artists_monthly
+                        (artist_id, source, rank, rank_change,
+                         total_points, top_country, month)
+                    VALUES %s
+                    ON CONFLICT (artist_id, source, month)
+                    DO UPDATE SET
+                        rank         = EXCLUDED.rank,
+                        rank_change  = EXCLUDED.rank_change,
+                        total_points = EXCLUDED.total_points,
+                        top_country  = EXCLUDED.top_country,
+                        scraped_at   = NOW()
+                    """,
+                    trending_data
+                )
+                
+                saved = len(trending_data)
     finally:
         conn.close()
+    
     logger.info(f"Saved {saved} trending artist records to DB")
     return saved
 
 
 def save_artist_details(details: List[ArtistDetail]) -> int:
-    """Upsert artist detail snapshots. Returns row count."""
+    """Upsert artist detail snapshots using batch processing. Returns row count."""
+    if not details:
+        return 0
+    
     conn = get_connection()
-    saved = 0
     try:
         with conn:
             with conn.cursor() as cur:
-                for detail in details:
-                    artist_id = _upsert_artist(cur, detail.artist_name, detail.profile_url)
-                    cur.execute(
-                        """
-                        INSERT INTO artist_details
-                            (artist_id, page_title, snapshot_text, songs_count,
-                             albums_count, countries_count, top_songs, top_albums,
-                             top_countries, scrape_date)
-                        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-                        ON CONFLICT (artist_id, scrape_date)
-                        DO UPDATE SET
-                            page_title     = EXCLUDED.page_title,
-                            snapshot_text  = EXCLUDED.snapshot_text,
-                            songs_count    = EXCLUDED.songs_count,
-                            albums_count   = EXCLUDED.albums_count,
-                            countries_count= EXCLUDED.countries_count,
-                            top_songs      = EXCLUDED.top_songs,
-                            top_albums     = EXCLUDED.top_albums,
-                            top_countries  = EXCLUDED.top_countries,
-                            scraped_at     = NOW()
-                        """,
-                        (
-                            artist_id,
-                            detail.page_title,
-                            detail.snapshot_text,
-                            detail.songs_count,
-                            detail.albums_count,
-                            detail.countries_count,
-                            detail.top_songs,
-                            detail.top_albums,
-                            detail.top_countries,
-                            detail.scrape_date,
-                        ),
+                # Step 1: Batch upsert all artists
+                artist_data = [(d.artist_name, d.profile_url) for d in details]
+                artist_map = _batch_upsert_artists(cur, artist_data)
+                
+                # Step 2: Batch upsert artist details
+                details_data = [
+                    (
+                        artist_map[d.artist_name],
+                        d.page_title,
+                        d.snapshot_text,
+                        d.songs_count,
+                        d.albums_count,
+                        d.countries_count,
+                        d.top_songs,
+                        d.top_albums,
+                        d.top_countries,
+                        d.scrape_date
                     )
-                    saved += 1
+                    for d in details
+                    if d.artist_name in artist_map
+                ]
+                
+                execute_values(
+                    cur,
+                    """
+                    INSERT INTO artist_details
+                        (artist_id, page_title, snapshot_text, songs_count,
+                         albums_count, countries_count, top_songs, top_albums,
+                         top_countries, scrape_date)
+                    VALUES %s
+                    ON CONFLICT (artist_id, scrape_date)
+                    DO UPDATE SET
+                        page_title     = EXCLUDED.page_title,
+                        snapshot_text  = EXCLUDED.snapshot_text,
+                        songs_count    = EXCLUDED.songs_count,
+                        albums_count   = EXCLUDED.albums_count,
+                        countries_count= EXCLUDED.countries_count,
+                        top_songs      = EXCLUDED.top_songs,
+                        top_albums     = EXCLUDED.top_albums,
+                        top_countries  = EXCLUDED.top_countries,
+                        scraped_at     = NOW()
+                    """,
+                    details_data
+                )
+                
+                saved = len(details_data)
     finally:
         conn.close()
+    
     logger.info(f"Saved {saved} artist detail snapshots to DB")
     return saved
 
