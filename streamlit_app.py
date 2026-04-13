@@ -10,6 +10,7 @@ import streamlit.components.v1 as st_components
 
 from src.database.connection import get_connection
 from src.scrapers.artist_details_scraper import LATIN_AMERICAN_COUNTRIES
+from skeleton import render_dashboard_skeleton
 
 
 st.set_page_config(
@@ -2160,11 +2161,18 @@ def render_chatbot_widget() -> None:
 
 apply_theme()
 
+_skeleton_slot = st.empty()
+with _skeleton_slot.container():
+    render_dashboard_skeleton()
+
 try:
     data = load_dashboard_data()
 except Exception as exc:  # pragma: no cover
+    _skeleton_slot.empty()
     st.error(f"❌ Failed to load dashboard data: {exc}")
     st.stop()
+
+_skeleton_slot.empty()
 
 leaderboard = data["leaderboard"]
 runs = data["runs"]
