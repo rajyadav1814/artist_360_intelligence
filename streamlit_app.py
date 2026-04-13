@@ -882,7 +882,12 @@ def prepare_leaderboard_table(leaderboard: pd.DataFrame, max_rows: int) -> pd.Da
             "rank_change",
         ]
     ].copy()
+    
+    # Handle missing values properly
+    table_df["monthly_listeners"] = table_df["monthly_listeners"].fillna(0)
+    table_df["peak_listeners"] = table_df["peak_listeners"].fillna(0)
     table_df["rank_change"] = table_df["rank_change"].fillna("=").replace("", "=")
+    
     table_df.columns = [
         "#",
         "Artist",
@@ -1060,7 +1065,7 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
                 table_df,
                 use_container_width=True,
                 hide_index=True,
-                height=min(35 + max_rows * 35, 620),
+                height=min(38 + len(table_df) * 35, 620),
                 column_config={
                     "#": st.column_config.NumberColumn(width="small", format="%d"),
                     "Artist": st.column_config.TextColumn(width="medium"),
