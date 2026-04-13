@@ -198,11 +198,10 @@ _HTML = """
 
   <!-- ── Tab bar ── -->
   <div class="sk-tabs">
-    <div class="sk sk-tab sk-tab-active"></div>
     <div class="sk sk-tab"></div>
     <div class="sk sk-tab"></div>
     <div class="sk sk-tab"></div>
-    <div class="sk sk-tab sk-tab-dl"></div>
+    <div class="sk sk-tab"></div>
   </div>
 
   <!-- ── Two-column body ── -->

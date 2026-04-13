@@ -953,6 +953,7 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
         st.button(
             "📊 Compare",
             use_container_width=True,
+            type="primary" if st.session_state.get("comparison_mode", False) else "secondary",
             key="compare_btn",
             on_click=toggle_comparison_mode,
         )
@@ -975,6 +976,8 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
 
         if len(selected_for_comparison) >= 2:
             comparison_data = leaderboard[leaderboard["name"].isin(selected_for_comparison)].copy()
+            comparison_data = comparison_data.sort_values("rank")
+            comparison_data["monthly_label"] = comparison_data["monthly_listeners"].apply(fmt_short)
 
             # Comparison metrics
             comp_cols = st.columns(len(selected_for_comparison))
@@ -991,7 +994,7 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
 
             # Visual comparison
             st.markdown("#### 📊 Visual Comparison")
-            comp_col1, comp_col2 = st.columns(2)
+            comp_col1, comp_col2 = st.columns(2, gap="large")
 
             with comp_col1:
                 # Monthly listeners comparison
@@ -999,11 +1002,24 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
                     comparison_data,
                     x="name",
                     y="monthly_listeners",
-                    color="name",
+                    text="monthly_label",
                     title="Monthly Listeners Comparison",
                     labels={'monthly_listeners': 'Monthly Listeners', 'name': 'Artist'},
                     color_discrete_sequence=CHART_COLORS
                 )
+                fig_comp_listeners.update_traces(
+                    marker_color=CHART_COLORS[0],
+                    textposition="outside",
+                    cliponaxis=False,
+                    hovertemplate="<b>%{x}</b><br>Monthly listeners: %{y:,.0f}<extra></extra>",
+                )
+                fig_comp_listeners.update_layout(
+                    showlegend=False,
+                    xaxis_title="",
+                    yaxis_title="Monthly listeners",
+                    margin=dict(l=8, r=8, t=64, b=8),
+                )
+                fig_comp_listeners.update_yaxes(tickformat="~s")
                 style_figure(fig_comp_listeners, 300)
                 st.plotly_chart(fig_comp_listeners, use_container_width=True, config=PLOTLY_CONFIG)
 
@@ -1013,10 +1029,22 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
                     comparison_data,
                     x="name",
                     y="countries_count",
-                    color="name",
+                    text="countries_count",
                     title="LATAM Country Reach",
                     labels={'countries_count': 'Countries', 'name': 'Artist'},
                     color_discrete_sequence=CHART_COLORS
+                )
+                fig_comp_reach.update_traces(
+                    marker_color=CHART_COLORS[1],
+                    textposition="outside",
+                    cliponaxis=False,
+                    hovertemplate="<b>%{x}</b><br>LATAM countries: %{y}<extra></extra>",
+                )
+                fig_comp_reach.update_layout(
+                    showlegend=False,
+                    xaxis_title="",
+                    yaxis_title="Countries",
+                    margin=dict(l=8, r=8, t=64, b=8),
                 )
                 style_figure(fig_comp_reach, 300)
                 st.plotly_chart(fig_comp_reach, use_container_width=True, config=PLOTLY_CONFIG)
