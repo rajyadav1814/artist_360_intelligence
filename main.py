@@ -125,8 +125,8 @@ def main():
         return
 
     if args[0] == "schedule":
-        logger.info("Scheduling daily scrape at 06:00 UTC ...")
-        sched.every().day.at("06:00").do(run_all)
+        logger.info("Scheduling daily scrape at 10:55 UTC ...")
+        sched.every().day.at("10:55").do(run_all)
         logger.info("Scheduler started. Press Ctrl+C to stop.")
         while True:
             sched.run_pending()
