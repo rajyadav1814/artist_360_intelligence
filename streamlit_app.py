@@ -2058,7 +2058,7 @@ def render_ops_monitor(runs: pd.DataFrame) -> None:
             st.plotly_chart(fig_rate, use_container_width=True, config=PLOTLY_CONFIG)
 
         with c2:
-            recent = runs[["finished_at", "source", "rows_upserted", "status"]].head(7).copy()
+            recent = runs[["finished_at", "source", "rows_upserted", "status"]]
             recent["finished_label"] = recent["finished_at"].dt.strftime("%Y-%m-%d %H:%M").fillna("in progress")
             html = ['<div class="dashboard-card"><div class="section-title">🔔 Recent Scrape Runs</div><div class="run-log">']
             for _, row in recent.iterrows():
@@ -2557,12 +2557,12 @@ app_pages = [
         icon=":material/show_chart:",
         url_path="stream-trends",
     ),
-    st.Page(
-        show_ops_monitor_page,
-        title="Ops Monitor",
-        icon=":material/tune:",
-        url_path="ops-monitor",
-    ),
+    # st.Page(
+    #     show_ops_monitor_page,
+    #     title="Ops Monitor",
+    #     icon=":material/tune:",
+    #     url_path="ops-monitor",
+    # ),
 ]
 
 with st.sidebar:
