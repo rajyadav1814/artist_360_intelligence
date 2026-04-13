@@ -883,8 +883,10 @@ def prepare_leaderboard_table(leaderboard: pd.DataFrame, max_rows: int) -> pd.Da
         ]
     ].copy()
     table_df["rank_change"] = table_df["rank_change"].fillna("=").replace("", "=")
+    table_df["monthly_listeners"] = table_df["monthly_listeners"].apply(fmt_short)
+    table_df["peak_listeners"] = table_df["peak_listeners"].apply(fmt_short)
     table_df.columns = [
-        "#",
+        "Rank",
         "Artist",
         "Top Song",
         "Top Country",
@@ -1067,7 +1069,7 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
         return
 
     if selected_view == "📋 Table":
-        left, right = st.columns([2.2, 1.0])
+        left, right = st.columns([1.8, 1.4])
 
         with left:
             st.markdown(
@@ -1081,12 +1083,12 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
                 hide_index=True,
                 height=min(35 + max_rows * 35, 620),
                 column_config={
-                    "#": st.column_config.NumberColumn(width="small", format="%d"),
-                    "Artist": st.column_config.TextColumn(width="medium"),
-                    "Top Song": st.column_config.TextColumn(width="medium"),
+                    "Rank": st.column_config.NumberColumn(width="small", format="%d"),
+                    "Artist": st.column_config.TextColumn(width="small"),
+                    "Top Song": st.column_config.TextColumn(width="small"),
                     "Top Country": st.column_config.TextColumn(width="small"),
-                    "Monthly Listeners": st.column_config.NumberColumn(format="%,d"),
-                    "Peak Listeners": st.column_config.NumberColumn(format="%,d"),
+                    "Monthly Listeners": st.column_config.TextColumn(width="small"),  # Changed to TextColumn
+                    "Peak Listeners": st.column_config.TextColumn(width="small"),     # Changed to TextColumn
                     "Trend": st.column_config.TextColumn(width="small"),
                 },
             )
@@ -1699,9 +1701,9 @@ def render_stream_trends(leaderboard: pd.DataFrame) -> None:
             use_container_width=True,
             hide_index=True,
             column_config={
-                "Monthly Listeners": st.column_config.NumberColumn(format="%,d"),
-                "Peak Listeners": st.column_config.NumberColumn(format="%,d"),
-                "iTunes Rank": st.column_config.NumberColumn(format="#%d"),
+                "Monthly Listeners": st.column_config.TextColumn(width="small"),
+                "Peak Listeners": st.column_config.TextColumn(width="small"),
+                "iTunes Rank": st.column_config.NumberColumn(format="%d"),
             },
         )
 
