@@ -882,8 +882,6 @@ def prepare_leaderboard_table(leaderboard: pd.DataFrame, max_rows: int) -> pd.Da
             "rank_change",
         ]
     ].copy()
-    table_df["monthly_listeners"] = table_df["monthly_listeners"].fillna(0)
-    table_df["peak_listeners"] = table_df["peak_listeners"].fillna(0)
     table_df["rank_change"] = table_df["rank_change"].fillna("=").replace("", "=")
     table_df["monthly_listeners"] = table_df["monthly_listeners"].apply(fmt_short)
     table_df["peak_listeners"] = table_df["peak_listeners"].apply(fmt_short)
@@ -1083,7 +1081,7 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
                 table_df,
                 use_container_width=True,
                 hide_index=True,
-                height=min(38 + len(table_df) * 35, 620),
+                height=min(35 + max_rows * 35, 620),
                 column_config={
                     "Rank": st.column_config.NumberColumn(width="small", format="%d"),
                     "Artist": st.column_config.TextColumn(width="small"),
@@ -1224,46 +1222,64 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
                 include_lowest=True,
                 right=True,
             )
-            
-            # Rank distribution - Aggregating artist names for tooltips
-            def format_artists(names):
-                name_list = names.dropna().astype(str).tolist()
-                count = len(name_list)
-                display_names = name_list[:10]
-                # Add line breaks every 3 names for readability
-                wrapped = "<br>".join([", ".join(display_names[i:i+3]) for i in range(0, len(display_names), 3)])
-                if count > 10:
-                    wrapped += f"<br>...and {count-10} more"
-                return wrapped
-
             rank_dist = (
-                analysis_df.groupby("rank_bucket", observed=False).agg(
-                    Artists=('name', 'size'),
-                    artist_list=('name', format_artists)
-                ).reindex(labels, fill_value=0)
+                analysis_df["rank_bucket"]
+                .value_counts()
+                .reindex(labels, fill_value=0)
                 .rename_axis("Rank Range")
-                .reset_index()
+                .reset_index(name="Artists")
             )
 
             total_artists = int(rank_dist["Artists"].sum())
             rank_dist["Share"] = (rank_dist["Artists"] / total_artists * 100).round(1) if total_artists else 0
-            
-            fig_dist = px.bar(
-                rank_dist,
-                y='Rank Range',
-                x='Artists',
-                orientation='h',
-                custom_data=['artist_list', 'Share'],
-                labels={'Artists': 'Number of Artists', 'Rank Range': 'Rank Range'},
-                title="Artist Distribution by Rank Range",
-                color='Artists',
-                color_continuous_scale=["#7c5cfc", "#4f8ef7", "#22d3a0"]
+            rank_dist = rank_dist.sort_values("Artists", ascending=True)
+
+            tier_colors = {
+                "Top 5": "#22d3a0",
+                "6-10": "#4f8ef7",
+                "11-20": "#7c5cfc",
+                "21-50": "#f5a623",
+                "51-100": "#e84545",
+            }
+
+            fig_dist = go.Figure(
+                data=[
+                    go.Bar(
+                        x=rank_dist["Artists"],
+                        y=rank_dist["Rank Range"],
+                        orientation="h",
+                        marker=dict(
+                            color=rank_dist["Rank Range"].map(tier_colors),
+                            line=dict(color="rgba(255,255,255,.18)", width=1),
+                        ),
+                        text=[f"{c} ({p:.1f}%)" for c, p in zip(rank_dist["Artists"], rank_dist["Share"])],
+                        textposition="outside",
+                        cliponaxis=False,
+                        customdata=rank_dist[["Share"]].to_numpy(),
+                        hovertemplate="<b>%{y}</b><br>Artists: %{x}<br>Share: %{customdata[0]:.1f}%<extra></extra>",
+                    )
+                ]
             )
-            fig_dist.update_traces(
-                hovertemplate="<b>%{y}</b><br><br>Artists: %{x}<br>Share: %{customdata[1]}%<br><br>Artists List:<br>%{customdata[0]}<extra></extra>"
+
+            if total_artists > 0:
+                expected_per_tier = total_artists / max(1, len(labels))
+                fig_dist.add_vline(
+                    x=expected_per_tier,
+                    line_dash="dot",
+                    line_color="rgba(151,163,197,.85)",
+                    annotation_text="even split",
+                    annotation_position="top right",
+                )
+
+            fig_dist.update_layout(
+                title="Rank Tier Distribution",
+                showlegend=False,
+                xaxis_title="Artists",
+                yaxis_title="",
+                margin=dict(l=8, r=12, t=64, b=8),
             )
-            fig_dist.update_layout(coloraxis_showscale=False)
-            style_figure(fig_dist, 350)
+            fig_dist.update_xaxes(dtick=1, rangemode="tozero")
+            style_figure(fig_dist, 360)
             st.plotly_chart(fig_dist, use_container_width=True, config=PLOTLY_CONFIG)
 
             if total_artists > 0:
@@ -1309,41 +1325,122 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
             scatter_data = analysis_df.dropna(subset=["monthly_listeners", "countries_count"])
             if scatter_data.empty:
                 st.info("Not enough listener and country coverage data to render analysis charts.")
-            else:
-                # Country reach vs. Monthly Listeners
-                analysis_data = scatter_data.sort_values("monthly_listeners", ascending=True).tail(20)
-                if not analysis_data.empty:
-                    fig_bar = px.bar(
-                        analysis_data,
-                        x="monthly_listeners",
-                        y="name",
-                        orientation="h",
-                        color="countries_count",
-                        hover_name="name",
-                        title="Country Reach vs. Monthly Listeners (Top 20)",
-                        labels={
-                            'countries_count': 'LATAM Reach', 
-                            'monthly_listeners': 'Monthly Listeners',
-                            'name': 'Artist'
-                        },
-                        color_continuous_scale=["#e84545", "#f5a623", "#22d3a0"],
-                        custom_data=['rank']
-                    )
-                    
-                    fig_bar.update_traces(
-                        hovertemplate="<b>%{hovertext}</b><br>Monthly Listeners: %{x:,.0f}<br>LATAM Reach: %{marker.color} countries<br>Current Rank: #%{customdata[0]}<extra></extra>"
-                    )
-                    
-                    fig_bar.update_layout(
-                        coloraxis_colorbar=dict(title="Reach"),
-                        xaxis_tickformat="~s",
-                        yaxis_title="",
-                        showlegend=False
-                    )
-                    
-                    style_figure(fig_bar, 480)
-                    st.plotly_chart(fig_bar, use_container_width=True, config=PLOTLY_CONFIG)
+            elif relationship_view == "Density Heatmap":
+                heatmap_df = scatter_data.copy()
+                heatmap_df["countries_count"] = heatmap_df["countries_count"].round().astype(int)
 
+                quantiles = min(5, int(heatmap_df["monthly_listeners"].nunique()))
+                if quantiles >= 2:
+                    heatmap_df["listener_band"] = pd.qcut(
+                        heatmap_df["monthly_listeners"],
+                        q=quantiles,
+                        duplicates="drop",
+                    )
+                    band_categories = list(heatmap_df["listener_band"].cat.categories)
+                    band_labels = {
+                        band: f"{fmt_short(band.left)}-{fmt_short(band.right)}"
+                        for band in band_categories
+                    }
+                    ordered_band_labels = [band_labels[band] for band in band_categories[::-1]]
+                    heatmap_df["listener_band_label"] = (
+                        heatmap_df["listener_band"]
+                        .map(band_labels)
+                        .astype(pd.CategoricalDtype(categories=ordered_band_labels, ordered=True))
+                    )
+                else:
+                    single_label = f"{fmt_short(heatmap_df['monthly_listeners'].min())}-{fmt_short(heatmap_df['monthly_listeners'].max())}"
+                    heatmap_df["listener_band_label"] = single_label
+
+                heatmap_matrix = heatmap_df.pivot_table(
+                    index="listener_band_label",
+                    columns="countries_count",
+                    values="rank",
+                    aggfunc="mean",
+                    observed=False,
+                ).sort_index()
+
+                fig_heatmap = go.Figure(
+                    data=[
+                        go.Heatmap(
+                            x=heatmap_matrix.columns.astype(str).tolist(),
+                            y=heatmap_matrix.index.astype(str).tolist(),
+                            z=heatmap_matrix.values,
+                            colorscale=[
+                                [0.0, "#f8d7c5"],
+                                [0.2, "#f4b8a0"],
+                                [0.4, "#ef8e71"],
+                                [0.6, "#e45d4a"],
+                                [0.8, "#c92f31"],
+                                [1.0, "#8f0f22"],
+                            ],
+                            colorbar=dict(title="Avg Rank"),
+                            xgap=1,
+                            ygap=1,
+                            hovertemplate="LATAM Countries: %{x}<br>Listener Band: %{y}<br>Avg Rank: %{z:.1f}<extra></extra>",
+                        )
+                    ]
+                )
+                fig_heatmap.update_layout(
+                    title="Reach vs. Monthly Listeners (Rank Heatmap)",
+                    xaxis_title="LATAM Countries",
+                    yaxis_title="Monthly Listener Band",
+                )
+                fig_heatmap.update_xaxes(side="top")
+                style_figure(fig_heatmap, 360)
+                st.plotly_chart(fig_heatmap, use_container_width=True, config=PLOTLY_CONFIG)
+
+                if not heatmap_matrix.empty:
+                    best_zone = heatmap_matrix.stack(future_stack=True).dropna()
+                    if not best_zone.empty:
+                        best_idx = best_zone.idxmin()
+                        best_avg_rank = float(best_zone.min())
+                        zone_listener_band = str(best_idx[0])
+                        zone_countries = int(best_idx[1])
+                        zone_artists = (
+                            heatmap_df.loc[
+                                (heatmap_df["listener_band_label"].astype(str) == zone_listener_band)
+                                & (heatmap_df["countries_count"] == zone_countries),
+                                "name",
+                            ]
+                            .dropna()
+                            .astype(str)
+                            .sort_values()
+                            .tolist()
+                        )
+                        zone_artist_preview = ", ".join(zone_artists[:6])
+                        if len(zone_artists) > 6:
+                            zone_artist_preview += f" (+{len(zone_artists) - 6} more)"
+                        st.markdown(
+                            (
+                                "<div class='small-note'>"
+                                f"Summary: The strongest zone is <b>{escape(zone_listener_band)}</b> listeners with "
+                                f"<b>{zone_countries}</b> LATAM countries, where the average rank is about "
+                                f"<b>#{best_avg_rank:.1f}</b> (lower is better). "
+                                f"Artists in this zone: <b>{escape(zone_artist_preview) if zone_artist_preview else 'N/A'}</b>."
+                                "</div>"
+                            ),
+                            unsafe_allow_html=True,
+                        )
+            else:
+                fig_scatter = px.scatter(
+                    scatter_data,
+                    x="countries_count",
+                    y="monthly_listeners",
+                    size="monthly_listeners",
+                    color="rank",
+                    hover_name="name",
+                    title="Reach vs. Monthly Listeners (Artist View)",
+                    labels={"countries_count": "LATAM Countries", "monthly_listeners": "Monthly Listeners", "rank": "Rank"},
+                    color_continuous_scale=["#22d3a0", "#f5a623", "#e84545"],
+                    size_max=26,
+                )
+                fig_scatter.update_traces(
+                    marker=dict(line=dict(color="rgba(255,255,255,.22)", width=1)),
+                    hovertemplate="<b>%{hovertext}</b><br>Countries: %{x}<br>Listeners: %{y:,.0f}<br>Rank: %{marker.color:.0f}<extra></extra>",
+                )
+                fig_scatter.update_yaxes(tickformat="~s")
+                style_figure(fig_scatter, 360)
+                st.plotly_chart(fig_scatter, use_container_width=True, config=PLOTLY_CONFIG)
 
                 reach_corr = scatter_data["countries_count"].corr(scatter_data["monthly_listeners"])
                 median_reach = float(scatter_data["countries_count"].median()) if not scatter_data.empty else 0
