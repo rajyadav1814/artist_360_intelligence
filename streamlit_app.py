@@ -1196,15 +1196,7 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
         st.markdown("### 🎯 Artist Detail Spotlight")
         artists = leaderboard["name"].dropna().tolist()
 
-        col_search, col_select = st.columns([1, 2])
-        with col_search:
-            search_artist = st.text_input("🔍 Quick search", placeholder="Type artist name...")
-        with col_select:
-            if search_artist:
-                filtered_artists = [a for a in artists if search_artist.lower() in a.lower()]
-                selected_artist = st.selectbox("Choose an artist", filtered_artists if filtered_artists else artists, index=0)
-            else:
-                selected_artist = st.selectbox("Choose an artist", artists, index=0)
+        selected_artist = st.selectbox("🔍 Choose an artist", artists, index=0)
 
         if selected_artist:
             row = leaderboard.loc[leaderboard["name"] == selected_artist].iloc[0]
@@ -1411,28 +1403,42 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
     st.plotly_chart(fig_line, use_container_width=True, config=PLOTLY_CONFIG)
 
     if not best_df.empty:
-        fig_best = px.bar(
-            best_df,
-            x="best_position",
-            y="artist",
-            orientation="h",
-            color="artist",
-            color_discrete_sequence=CHART_COLORS,
+        best_df_plot = best_df.copy()
+        max_best_position = int(best_df_plot["best_position"].max())
+        best_df_plot["position_score"] = max_best_position + 1 - best_df_plot["best_position"]
+        best_df_plot = best_df_plot.sort_values("best_position", ascending=True)
+
+        bar_colors = [CHART_COLORS[idx % len(CHART_COLORS)] for idx in range(len(best_df_plot))]
+        fig_best = go.Figure(
+            data=[
+                go.Bar(
+                    x=best_df_plot["position_score"],
+                    y=best_df_plot["artist"],
+                    orientation="h",
+                    marker=dict(color=bar_colors, line=dict(width=0)),
+                    text=[f"#{int(v)}" for v in best_df_plot["best_position"]],
+                    textposition="outside",
+                    cliponaxis=False,
+                    customdata=best_df_plot[["best_position"]].to_numpy(),
+                    hovertemplate="<b>%{y}</b><br>Score: %{x:.0f}<br>Best position: #%{customdata[0]}<extra></extra>",
+                )
+            ]
         )
-        fig_best.update_traces(
-            text=[f"#{int(v)}" for v in best_df["best_position"]],
-            textposition="outside",
-            hovertemplate="<b>%{y}</b><br>Best position: #%{x}<extra></extra>",
-        )
+        style_figure(fig_best, max(380, 34 * len(best_df) + 80))
         fig_best.update_layout(
             title=dict(text="🏆 Best Recent Positions", x=0.03, xanchor="left", font=dict(size=18)),
             showlegend=False,
-            xaxis_title="Lower is better",
             yaxis_title="",
-            margin=dict(l=40, r=20, t=70, b=40),
+            margin=dict(l=70, r=20, t=70, b=40),
+            bargap=0.35,
         )
-        fig_best.update_xaxes(autorange="reversed", dtick=1, showgrid=False)
-        style_figure(fig_best, max(380, 34 * len(best_df) + 80))
+        fig_best.update_xaxes(dtick=1, showgrid=False, range=[0, max_best_position + 1.3])
+        fig_best.update_yaxes(
+            autorange="reversed",
+            categoryorder="array",
+            categoryarray=best_df_plot["artist"].tolist(),
+            ticklabelstandoff=18,
+        )
         st.plotly_chart(fig_best, use_container_width=True, config=PLOTLY_CONFIG)
         st.download_button(
             "⬇️ Download Best Recent Positions",
@@ -2239,7 +2245,8 @@ with st.sidebar:
     
     # Collapsible advanced settings
     with st.expander("🔍 Search & Filter", expanded=True):
-        search = st.text_input("🎤 Artist search", placeholder="e.g. BTS, Drake...")
+        artist_options = ["All artists"] + sorted(leaderboard["name"].dropna().unique().tolist())
+        selected_artist = st.selectbox("🎤 Artist search", artist_options, index=0)
         latam_only = st.toggle("🌎 Latin America", value=True)
         default_countries = sorted([c for c in leaderboard["display_country"].unique().tolist() if c != "—"])
         selected_countries = st.multiselect(
@@ -2258,8 +2265,8 @@ with st.sidebar:
         filtered = filtered[filtered["latam_signal"]]
     if selected_countries:
         filtered = filtered[filtered["display_country"].isin(selected_countries)]
-    if search.strip():
-        filtered = filtered[filtered["name"].str.contains(search.strip(), case=False, na=False)]
+    if selected_artist != "All artists":
+        filtered = filtered[filtered["name"] == selected_artist]
     filtered = filtered.sort_values("rank")
     
     # Action buttons
