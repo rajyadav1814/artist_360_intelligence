@@ -1193,22 +1193,62 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
         if selected_artist:
             row = leaderboard.loc[leaderboard["name"] == selected_artist].iloc[0]
 
-            # Artist metrics with icons
-            c1, c2, c3, c4 = st.columns(4)
-            c1.metric("🎵 Songs", int(row.get("songs_count") or 0))
-            c2.metric("💿 Albums", int(row.get("albums_count") or 0))
-            c3.metric("🌎 LATAM Countries", int(row.get("countries_count") or 0))
-            c4.metric("👥 Monthly Listeners", fmt_short(row.get("monthly_listeners") or 0))
+            # Single frame containing all artist details, including counts
+            with st.expander("📋 View Artist Details", expanded=True):
+                c1, c2, c3, c4 = st.columns(4)
+                c1.metric("🎵 Songs", int(row.get("songs_count") or 0))
+                c2.metric("💿 Albums", int(row.get("albums_count") or 0))
+                c3.metric("🌎 LATAM Countries", int(row.get("countries_count") or 0))
+                c4.metric("👥 Monthly Listeners", fmt_short(row.get("monthly_listeners") or 0))
 
-            # Expandable details
-            with st.expander("📋 View Top Songs", expanded=True):
-                songs_text = row.get("top_songs") or "—"
-                st.text_area("Top Songs", songs_text, height=180, label_visibility="collapsed")
+                songs_items = [item.strip() for item in str(row.get("top_songs") or "").split("\n") if item.strip()]
+                albums_items = [item.strip() for item in str(row.get("top_albums") or "").split("\n") if item.strip()]
+                countries_items = [item.strip() for item in str(row.get("top_countries") or "").split("\n") if item.strip()]
 
-            with st.expander("🗺️ View Top Countries", expanded=True):
-                countries_text = row.get("top_countries") or "—"
-                st.text_area("Top Countries", countries_text, height=180, label_visibility="collapsed")
+                profile_title = str(row.get("page_title") or "").strip()
+                profile_snapshot = str(row.get("snapshot_text") or "").strip()
+                rank_value = int(row.get("rank")) if pd.notna(row.get("rank")) else 0
 
+                def safe_text(value: object) -> str:
+                    if value is None or pd.isna(value):
+                        return "—"
+                    text = str(value).strip()
+                    return text if text else "—"
+
+                if profile_title:
+                    st.markdown(f"#### 🪪 {escape(profile_title)}")
+                if profile_snapshot:
+                    st.caption(profile_snapshot)
+
+                meta_left, meta_right = st.columns(2)
+                with meta_left:
+                    st.markdown(f"**📈 Current Rank:** #{rank_value}")
+                    st.markdown(f"**🌍 Top Country:** {safe_text(row.get('display_country'))}")
+                with meta_right:
+                    st.markdown(f"**⭐ Total Points:** {fmt_short(row.get('total_points') or 0)}")
+                    st.markdown(f"**📊 Peak Listeners:** {fmt_short(row.get('peak_listeners') or 0)}")
+
+                left_list, mid_list, right_list = st.columns(3)
+                with left_list:
+                    st.markdown("#### 🎵 Top Songs")
+                    if songs_items:
+                        st.markdown("\n".join(f"{idx}. {item}" for idx, item in enumerate(songs_items, start=1)))
+                    else:
+                        st.caption("No songs available.")
+
+                with mid_list:
+                    st.markdown("#### 💿 Top Albums")
+                    if albums_items:
+                        st.markdown("\n".join(f"{idx}. {item}" for idx, item in enumerate(albums_items, start=1)))
+                    else:
+                        st.caption("No albums available.")
+
+                with right_list:
+                    st.markdown("#### 🗺️ Top Countries")
+                    if countries_items:
+                        st.markdown("\n".join(f"{idx}. {item}" for idx, item in enumerate(countries_items, start=1)))
+                    else:
+                        st.caption("No countries available.")
 
 def resample_tracker_pattern(pattern: list[int], days: int) -> list[int]:
     if not pattern:
