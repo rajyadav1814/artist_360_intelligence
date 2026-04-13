@@ -1616,6 +1616,8 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
         history["scraped_at"] = pd.to_datetime(history["scraped_at"], errors="coerce")
         history = history.dropna(subset=["scraped_at", "rank", "name"]).sort_values(["scraped_at", "rank"])
 
+        latest_scraped_at = None
+        window_start = None
         if not history.empty:
             latest_scraped_at = history["scraped_at"].max().normalize()
             window_start = latest_scraped_at - pd.Timedelta(days=time_window_days - 1)
@@ -1630,6 +1632,36 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
             line_df = history.rename(columns={"name": "artist", "rank": "position", "scraped_at": "date"})[
                 ["day", "date", "artist", "position"]
             ]
+
+            # Keep a full day-by-day axis for the selected range even when scrape runs are sparse.
+            if latest_scraped_at is not None and window_start is not None:
+                target_dates = pd.date_range(start=window_start.normalize(), end=latest_scraped_at.normalize(), freq="D")
+                has_sparse_days = line_df["date"].dt.normalize().nunique() < len(target_dates)
+                if has_sparse_days:
+                    daily_parts = []
+                    for artist_name, artist_rows in line_df.groupby("artist", sort=False):
+                        artist_daily = artist_rows.copy()
+                        artist_daily["date"] = artist_daily["date"].dt.normalize()
+                        artist_daily = (
+                            artist_daily.sort_values("date")
+                            .drop_duplicates(subset=["date"], keep="last")
+                            .set_index("date")
+                            .reindex(target_dates)
+                        )
+                        artist_daily["artist"] = artist_name
+                        artist_daily["position"] = pd.to_numeric(artist_daily["position"], errors="coerce")
+                        artist_daily["position"] = artist_daily["position"].interpolate(method="linear").ffill().bfill()
+                        artist_daily = artist_daily.reset_index().rename(columns={"index": "date"})
+                        artist_daily["day"] = artist_daily["date"].dt.strftime("%b %-d")
+                        daily_parts.append(artist_daily[["day", "date", "artist", "position"]])
+
+                    if daily_parts:
+                        line_df = pd.concat(daily_parts, ignore_index=True)
+                        st.info(
+                            "📊 Historical runs are sparse in this window, so missing days are interpolated for smoother day-by-day trends.",
+                            icon="ℹ️",
+                        )
+
             best_df = (
                 history.groupby("name", as_index=False)["rank"]
                 .min()
