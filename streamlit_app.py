@@ -956,29 +956,20 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
             key="compare_btn",
             on_click=toggle_comparison_mode,
         )
-    with btn_col5:
-        st.download_button(
-            label="⬇️ Download",
-            data=csv,
-            file_name="artist_leaderboard.csv",
-            mime="text/csv",
-            use_container_width=True,
-            key="download_csv_btn"
-        )
 
     st.markdown("<br>", unsafe_allow_html=True)
 
     # Comparison Mode
     if st.session_state.comparison_mode:
         st.markdown("### 🔄 Artist Comparison Mode")
-        st.info("Select 2-4 artists to compare their metrics side by side")
+        st.info("Select 2-5 artists to compare their metrics side by side")
 
         available_artists = leaderboard["name"].dropna().tolist()[:20]  # Limit to top 20 for performance
         selected_for_comparison = st.multiselect(
             "Select artists to compare",
             available_artists,
             default=available_artists[:2] if len(available_artists) >= 2 else available_artists,
-            max_selections=4,
+            max_selections=5,
             key="comparison_artists"
         )
 
@@ -1441,13 +1432,6 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
             ticklabelstandoff=18,
         )
         st.plotly_chart(fig_best, use_container_width=True, config=PLOTLY_CONFIG)
-        st.download_button(
-            "⬇️ Download Best Recent Positions",
-            data=best_df.sort_values("best_position").to_csv(index=False).encode("utf-8"),
-            file_name="best_recent_positions.csv",
-            mime="text/csv",
-            key="download_best_recent_positions",
-        )
     
     # Additional insights
     with st.expander("📊 Detailed Movement Analysis", expanded=False):
