@@ -151,7 +151,7 @@ def parse_artist_detail_page(
     )
 
 
-def scrape_artist_details(limit: int = 10) -> List[ArtistDetail]:
+def scrape_artist_details(limit: int | None = None) -> List[ArtistDetail]:
     """
     Scrape compact artist detail summaries from kworb artist profile pages.
     Country snapshots are restricted to Latin American markets only.
@@ -161,10 +161,13 @@ def scrape_artist_details(limit: int = 10) -> List[ArtistDetail]:
         logger.error("No artist rankings available for detail scraping")
         return []
 
-    limit = max(1, limit)
+    if limit is not None:
+        limit = max(1, limit)
+        rankings = rankings[:limit]
+    
     details: List[ArtistDetail] = []
 
-    for ranking in rankings[:limit]:
+    for ranking in rankings:
         if not ranking.profile_url:
             logger.warning(f"Skipping {ranking.artist_name}: missing profile URL")
             continue

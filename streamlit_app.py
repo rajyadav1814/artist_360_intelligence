@@ -35,6 +35,10 @@ PAGE_META = {
         "Artist 360 Leaderboard",
         "Top Latin artists ranked by iTunes performance, Spotify reach, and global footprint",
     ),
+    "Debut Artist": (
+        "Debut Artist",
+        "View and analyze individual artist details and chart performance",
+    ),
     "Chart Tracker": (
         "Chart Tracker",
         "Historical rank trajectories for top artists, revealing trends and momentum",
@@ -1984,6 +1988,173 @@ def render_stream_trends(leaderboard: pd.DataFrame) -> None:
         )
 
 
+def render_debut_artist_chart(leaderboard: pd.DataFrame) -> None:
+    if leaderboard.empty:
+        st.warning("No artist data available yet.")
+        return
+
+    sorted_artists = leaderboard.sort_values("rank").dropna(subset=["name", "rank"]).copy()
+    
+    sorted_artists["rank"] = sorted_artists["rank"].astype(int)
+    sorted_artists["display_label"] = sorted_artists["name"]
+    artist_options = sorted_artists["display_label"].tolist()
+    
+    st.markdown("<br>", unsafe_allow_html=True)
+    
+    col1, col2 = st.columns([1, 2])
+    with col1:
+        selected_label = st.selectbox(
+            "🎤 Select an Artist",
+            artist_options,
+            index=0 if artist_options else None,
+        )
+    
+    if not selected_label:
+        st.info("Please select an artist from the dropdown above.")
+        return
+    
+    selected_artist = selected_label.split(" - ", 1)[1] if " - " in selected_label else selected_label
+    
+    artist_data = leaderboard[leaderboard["name"] == selected_artist]
+    
+    if artist_data.empty:
+        st.warning(f"No data found for {selected_artist}.")
+        return
+    
+    row = artist_data.iloc[0]
+    
+    st.markdown("<br>", unsafe_allow_html=True)
+    
+    kpi1, kpi2, kpi3, kpi4 = st.columns(4)
+    with kpi1:
+        rank_val = int(row.get("rank")) if pd.notna(row.get("rank")) else 0
+        st.metric("📊 Current Rank", f"{rank_val}")
+    with kpi2:
+        songs_val = row.get("songs_count")
+        st.metric("🎵 Songs", int(songs_val) if pd.notna(songs_val) else 0)
+    with kpi3:
+        albums_val = row.get("albums_count")
+        st.metric("💿 Albums", int(albums_val) if pd.notna(albums_val) else 0)
+    with kpi4:
+        countries_val = row.get("countries_count")
+        st.metric("🌎 LATAM Countries", int(countries_val) if pd.notna(countries_val) else 0)
+    
+    kpi5, kpi6, kpi7, kpi8 = st.columns(4)
+    with kpi5:
+        ml_val = row.get("monthly_listeners")
+        st.metric("👥 Monthly Listeners", fmt_short(ml_val) if pd.notna(ml_val) else "—")
+    with kpi6:
+        peak_val = row.get("peak_listeners")
+        st.metric("🚀 Peak Listeners", fmt_short(peak_val) if pd.notna(peak_val) else "—")
+    with kpi7:
+        points_val = row.get("total_points")
+        st.metric("⭐ Total Points", fmt_short(points_val) if pd.notna(points_val) else "—")
+    with kpi8:
+        trend_change = str(row.get("rank_change") or "=").strip()
+        st.metric("📈 Trend", trend_change)
+    
+    st.markdown("<br>", unsafe_allow_html=True)
+    
+    with st.expander("📋 Artist Profile Details", expanded=False):
+        profile_title = str(row.get("page_title") or "").strip()
+        profile_snapshot = str(row.get("snapshot_text") or "").strip()
+        
+        if profile_title:
+            st.markdown(f"#### 🪪 {escape(profile_title)}")
+        if profile_snapshot:
+            st.caption(profile_snapshot)
+        
+        meta_left, meta_right = st.columns(2)
+        with meta_left:
+            st.markdown(f"**🌍 Top Country:** {escape(str(row.get('display_country') or '—'))}")
+            st.markdown(f"**🎵 Top Song:** {escape(str(row.get('top_song') or '—'))}")
+                
+    
+    col_songs, col_albums, col_countries = st.columns(3)
+    
+    with col_songs:
+        songs_items = [item.strip() for item in str(row.get("top_songs") or "").split("\n") if item.strip()]
+        top_n_count = len(songs_items)
+        st.markdown(f"#### 🎵 Top {top_n_count} Tracks" if top_n_count else "#### 🎵 Top Songs")
+        if songs_items:
+            for idx, item in enumerate(songs_items, start=1):
+                st.markdown(f"{idx}. {escape(item)}")
+        else:
+            st.caption("No songs available.")
+    
+    with col_albums:
+        st.markdown("#### 💿 Top Albums")
+        albums_items = [item.strip() for item in str(row.get("top_albums") or "").split("\n") if item.strip()]
+        if albums_items:
+            for idx, item in enumerate(albums_items, start=1):
+                st.markdown(f"{idx}. {escape(item)}")
+        else:
+            st.caption("No albums available.")
+    
+    with col_countries:
+        st.markdown("#### 🗺️ Top Countries")
+        countries_items = [item.strip() for item in str(row.get("top_countries") or "").split("\n") if item.strip()]
+        if countries_items:
+            for idx, item in enumerate(countries_items, start=1):
+                st.markdown(f"{idx}. {escape(item)}")
+        else:
+            st.caption("No countries available.")
+
+    if countries_items:
+        with st.expander("📊 Market Share", expanded=False):
+            total_countries = len(countries_items)
+            if total_countries > 0:
+                share_data = [{"Country": c, "Share": 1} for c in countries_items]
+                share_df = pd.DataFrame(share_data)
+                fig_share = px.pie(
+                    share_df,
+                    names="Country",
+                    values="Share",
+                    hole=0.58,
+                    color="Country",
+                    color_discrete_sequence=CHART_COLORS,
+                )
+                fig_share.update_traces(
+                    textposition="inside",
+                    textinfo="percent+label",
+                    hovertemplate="<b>%{label}</b><br>Market share<extra></extra>",
+                )
+                fig_share.update_layout(
+                    title="Market Distribution",
+                    showlegend=False,
+                    annotations=[
+                        dict(
+                            text="Share<br>by<br>country",
+                            x=0.5,
+                            y=0.5,
+                            showarrow=False,
+                            font=dict(size=11, color="#cbd5f5"),
+                        )
+                    ],
+                )
+                style_figure(fig_share, 260)
+                st.plotly_chart(fig_share, use_container_width=True, config=PLOTLY_CONFIG)
+    
+    with st.expander("📊 Performance Summary", expanded=False):
+        songs_s = row.get("songs_count")
+        albums_s = row.get("albums_count")
+        countries_s = row.get("countries_count")
+        summary_data = {
+            "Metric": ["Rank", "Monthly Listeners", "Peak Listeners", "Songs", "Albums", "LATAM Countries", "Total Points"],
+            "Value": [
+                str(rank_val),
+                str(fmt_short(row.get("monthly_listeners"))) if pd.notna(row.get("monthly_listeners")) else "—",
+                str(fmt_short(row.get("peak_listeners"))) if pd.notna(row.get("peak_listeners")) else "—",
+                str(int(songs_s)) if pd.notna(songs_s) else "0",
+                str(int(albums_s)) if pd.notna(albums_s) else "0",
+                str(int(countries_s)) if pd.notna(countries_s) else "0",
+                str(fmt_short(row.get("total_points"))) if pd.notna(row.get("total_points")) else "—",
+            ]
+        }
+        summary_df = pd.DataFrame(summary_data)
+        st.dataframe(summary_df, use_container_width=True, hide_index=True)
+
+
 def render_ops_monitor(runs: pd.DataFrame) -> None:
     if runs.empty:
         st.warning("⚠️ No scrape run logs available yet. Start the pipeline to see metrics.")
@@ -2531,10 +2702,10 @@ def show_stream_trends_page() -> None:
     render_stream_trends(filtered)
 
 
-def show_ops_monitor_page() -> None:
-    page_title, page_meta = PAGE_META["Ops Monitor"]
+def show_debut_artist_page() -> None:
+    page_title, page_meta = PAGE_META["Debut Artist"]
     render_header(page_title, page_meta, last_run_label)
-    render_ops_monitor(runs)
+    render_debut_artist_chart(filtered)
 
 
 app_pages = [
@@ -2544,6 +2715,12 @@ app_pages = [
         icon=":material/trending_up:",
         url_path="leaderboard",
         default=True,
+    ),
+    st.Page(
+        show_debut_artist_page,
+        title="Debut Artist",
+        icon=":material/artist:",
+        url_path="debut-artist",
     ),
     st.Page(
         show_chart_tracker_page,

@@ -7,7 +7,7 @@ Commands:
   python main.py scrape itunes            — iTunes global rankings only
   python main.py scrape spotify           — Spotify artist stats only
   python main.py scrape trending          — Trending artists (last month) only
-  python main.py scrape details [limit]   — Artist detail pages from kworb.net
+  python main.py scrape details [limit] — Artist detail pages from kworb.net (default: all)
   python main.py schedule                 — Run on a daily schedule
 """
 import sys
@@ -15,7 +15,6 @@ import time
 
 import schedule as sched
 
-from config.settings import ARTIST_DETAILS_LIMIT
 from src.database.repository import (
     log_scrape_run,
     save_artist_details,
@@ -68,7 +67,7 @@ def run_trending():
         logger.error(f"Trending scrape failed: {exc}")
 
 
-def run_artist_details(limit: int = 10):
+def run_artist_details(limit: int | None = None):
     logger.info("=== Starting Artist Details scrape ===")
     try:
         data = scrape_artist_details(limit=limit)
@@ -84,7 +83,7 @@ def run_all():
     run_itunes()
     run_spotify()
     run_trending()
-    run_artist_details(limit=ARTIST_DETAILS_LIMIT)
+    run_artist_details()
 
 
 def main():
@@ -104,7 +103,7 @@ def main():
 
         if target in {"details", "artist_details"}:
             try:
-                limit = int(args[2]) if len(args) > 2 else 10
+                limit = int(args[2]) if len(args) > 2 else None
             except ValueError:
                 logger.error("Artist detail limit must be an integer")
                 sys.exit(1)
