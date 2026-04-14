@@ -2052,10 +2052,10 @@ def render_debut_artist_chart(leaderboard: pd.DataFrame) -> None:
     with kpi8:
         trend_change = str(row.get("rank_change") or "=").strip()
         st.metric("📈 Trend", trend_change)
-    
+
     st.markdown("<br>", unsafe_allow_html=True)
     
-    with st.expander("📋 Artist Profile Details", expanded=False):
+    with st.expander("📋 Artist Profile Details", expanded=True):
         profile_title = str(row.get("page_title") or "").strip()
         profile_snapshot = str(row.get("snapshot_text") or "").strip()
         
@@ -2070,38 +2070,40 @@ def render_debut_artist_chart(leaderboard: pd.DataFrame) -> None:
             st.markdown(f"**🎵 Top Song:** {escape(str(row.get('top_song') or '—'))}")
                 
     
-    col_songs, col_albums, col_countries = st.columns(3)
-    
-    with col_songs:
-        songs_items = [item.strip() for item in str(row.get("top_songs") or "").split("\n") if item.strip()]
-        top_n_count = len(songs_items)
-        st.markdown(f"#### 🎵 Top {top_n_count} Tracks" if top_n_count else "#### 🎵 Top Songs")
-        if songs_items:
-            for idx, item in enumerate(songs_items, start=1):
-                st.markdown(f"{idx}. {escape(item)}")
-        else:
-            st.caption("No songs available.")
-    
-    with col_albums:
-        st.markdown("#### 💿 Top Albums")
-        albums_items = [item.strip() for item in str(row.get("top_albums") or "").split("\n") if item.strip()]
-        if albums_items:
-            for idx, item in enumerate(albums_items, start=1):
-                st.markdown(f"{idx}. {escape(item)}")
-        else:
-            st.caption("No albums available.")
-    
-    with col_countries:
-        st.markdown("#### 🗺️ Top Countries")
-        countries_items = [item.strip() for item in str(row.get("top_countries") or "").split("\n") if item.strip()]
-        if countries_items:
-            for idx, item in enumerate(countries_items, start=1):
-                st.markdown(f"{idx}. {escape(item)}")
-        else:
-            st.caption("No countries available.")
+    songs_items = [item.strip() for item in str(row.get("top_songs") or "").split("\n") if item.strip()]
+    albums_items = [item.strip() for item in str(row.get("top_albums") or "").split("\n") if item.strip()]
+    countries_items = [item.strip() for item in str(row.get("top_countries") or "").split("\n") if item.strip()]
+    top_n_count = len(songs_items)
+
+    with st.expander("🎵 Top Tracks, Albums & Countries", expanded=True):
+        col_songs, col_albums, col_countries = st.columns(3)
+
+        with col_songs:
+            st.markdown(f"#### 🎵 Top {top_n_count} Tracks" if top_n_count else "#### 🎵 Top Songs")
+            if songs_items:
+                for idx, item in enumerate(songs_items, start=1):
+                    st.markdown(f"{idx}. {escape(item)}")
+            else:
+                st.caption("No songs available.")
+
+        with col_albums:
+            st.markdown("#### 💿 Top Albums")
+            if albums_items:
+                for idx, item in enumerate(albums_items, start=1):
+                    st.markdown(f"{idx}. {escape(item)}")
+            else:
+                st.caption("No albums available.")
+
+        with col_countries:
+            st.markdown("#### 🗺️ Top Countries")
+            if countries_items:
+                for idx, item in enumerate(countries_items, start=1):
+                    st.markdown(f"{idx}. {escape(item)}")
+            else:
+                st.caption("No countries available.")
 
     if countries_items:
-        with st.expander("📊 Market Share", expanded=False):
+        with st.expander("📊 Market Share", expanded=True):
             total_countries = len(countries_items)
             if total_countries > 0:
                 share_data = [{"Country": c, "Share": 1} for c in countries_items]
@@ -2135,7 +2137,7 @@ def render_debut_artist_chart(leaderboard: pd.DataFrame) -> None:
                 style_figure(fig_share, 260)
                 st.plotly_chart(fig_share, use_container_width=True, config=PLOTLY_CONFIG)
     
-    with st.expander("📊 Performance Summary", expanded=False):
+    with st.expander("📊 Performance Summary", expanded=True):
         songs_s = row.get("songs_count")
         albums_s = row.get("albums_count")
         countries_s = row.get("countries_count")
