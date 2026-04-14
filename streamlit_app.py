@@ -2098,8 +2098,6 @@ def render_stream_trends(top_spotify: pd.DataFrame, leaderboard: pd.DataFrame, t
             avail_min = history["scraped_at"].min()
             avail_max = history["scraped_at"].max()
             days_avail = (avail_max - avail_min).days
-            if days_avail < selected_days and selected_days > 0:
-                st.info(f"💡 Limited history: Only {days_avail} days of data available in database.")
         
         # Calculate Start Position & Range Peak from History
         cutoff_date = pd.Timestamp.now(tz="UTC") - pd.Timedelta(days=selected_days)
