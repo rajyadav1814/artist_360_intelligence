@@ -1996,8 +1996,8 @@ def render_stream_trends(top_spotify: pd.DataFrame, leaderboard: pd.DataFrame, t
         with col_select:
             top_n_market = st.selectbox(
                 "Top artists",
-                options=[10, 100, 200],
-                index=2,
+                options=[10, 50, 100, 200],
+                index=1,
                 key="market_reach_top_n",
             )
 
