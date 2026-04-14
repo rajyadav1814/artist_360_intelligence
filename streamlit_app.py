@@ -2760,7 +2760,8 @@ with st.sidebar:
     
     # Collapsible advanced settings
     with st.expander("🔍 Search & Filter", expanded=True):
-        artist_options = ["All artists"] + sorted(leaderboard["name"].dropna().unique().tolist())
+        artist_rank_sorted = leaderboard.sort_values("rank")["name"].dropna().unique().tolist()
+        artist_options = ["All artists"] + [str(a) for a in artist_rank_sorted]
         selected_artist = st.selectbox("🎤 Artist search", artist_options, index=0)
         latam_only = st.toggle("🌎 Latin America", value=True)
         default_countries = sorted([c for c in leaderboard["display_country"].unique().tolist() if c != "—"])
