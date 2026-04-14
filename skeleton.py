@@ -3,7 +3,7 @@
 Mirrors the real leaderboard layout from the screenshot:
   - Page header + LIVE badge
   - 4 gradient-topped KPI cards
-  - Tab bar (Table / Analysis / Spotlight / Compare / Download)
+  - Tab bar (Table / Analysis / Compare / Download)
   - Two-column body: left = Global Chart Positions table,
                      right = two stacked chart cards
 """
