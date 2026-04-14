@@ -36,7 +36,6 @@ HEADERS = {
 }
 
 SCRAPE_DELAY = float(os.getenv("SCRAPE_DELAY_SECONDS", 2))
-ARTIST_DETAILS_LIMIT = int(os.getenv("ARTIST_DETAILS_LIMIT", 10))
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 
 # Logs directory
