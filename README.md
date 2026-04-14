@@ -36,13 +36,13 @@ python main.py migrate
 
 | Command | Description |
 |---------|-------------|
-| `python main.py scrape` | Run all scrapers |
-| `python main.py scrape itunes` | iTunes global rankings only |
-| `python main.py scrape spotify` | Spotify artist stats only |
-| `python main.py scrape trending` | Trending artists (last month) only |
-| `python main.py scrape details [limit]` | Artist detail snapshots from kworb profile pages |
-| `python main.py schedule` | Run daily at 06:00 UTC |
-| `python main.py migrate` | Apply DB migrations |
+| `python3 main.py scrape` | Run all scrapers |
+| `python3 main.py scrape itunes` | iTunes global rankings only |
+| `python3 main.py scrape spotify` | Spotify artist stats only |
+| `python3 main.py scrape trending` | Trending artists (last month) only |
+| `python3 main.py scrape details [limit]` | Artist detail snapshots from kworb profile pages |
+| `python3 main.py schedule` | Run daily at 06:00 UTC |
+| `python3 main.py migrate` | Apply DB migrations |
 
 ---
 
