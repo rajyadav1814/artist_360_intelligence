@@ -2222,7 +2222,7 @@ def render_stream_trends(top_spotify: pd.DataFrame, leaderboard: pd.DataFrame, t
                 bargap=0.35
             )
             
-            chart_box_height = 550 if len(gl_chart_df) > 15 else None
+            chart_box_height = 750 if len(gl_chart_df) > 15 else None
             with st.container(height=chart_box_height):
                 st.plotly_chart(fig_move, use_container_width=True, config=PLOTLY_CONFIG)
         
