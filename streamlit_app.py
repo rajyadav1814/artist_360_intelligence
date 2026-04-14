@@ -2077,7 +2077,7 @@ def render_stream_trends(top_spotify: pd.DataFrame, leaderboard: pd.DataFrame, t
         # Control bar for Global Charting
         gl_control1, gl_control2 = st.columns([1, 1])
         with gl_control1:
-            top_n_options = [10, 20, 50, 100, 200, 500]
+            top_n_options = [10, 20, 50, 100, 200]
             selected_n = st.selectbox("🎯 Select Top List", options=top_n_options, index=2, key="gl_chart_top_n_dropdown")
         
         with gl_control2:
@@ -2204,7 +2204,7 @@ def render_stream_trends(top_spotify: pd.DataFrame, leaderboard: pd.DataFrame, t
                 )
 
             fig_move.update_layout(
-                title=f"🏆 Range Performance Analysis ({selected_days}D Window)",
+                title=f"🏆 Range Performance Analysis ({selected_days}D)",
                 xaxis=dict(
                     title="Rank Performance Score (Based on Peak in Window)",
                     showgrid=False,
