@@ -1105,7 +1105,7 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
 
         with left:
             st.markdown(
-                "<div class='dashboard-card'><div class='section-title'>🏆 Global Chart Positions</div><div class='section-sub'>Latest leaderboard filtered to Latin American relevance</div></div>",
+                "<div class='dashboard-card'><div class='section-title'>🏆 Artist Chart Positions</div><div class='section-sub'>Latest leaderboard filtered to Latin American relevance</div></div>",
                 unsafe_allow_html=True,
             )
             table_df = prepare_leaderboard_table(leaderboard, max_rows)
