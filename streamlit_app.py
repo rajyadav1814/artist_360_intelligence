@@ -2773,7 +2773,7 @@ with st.sidebar:
 
     
     with st.expander("🎛️ Display Options", expanded=True):
-        max_rows = st.slider("📊 Table rows", min_value=10, max_value=50, value=15, step=5)
+        max_rows = st.slider("📊 Table rows", min_value=10, max_value=300, value=15, step=5)
     
     # Apply filters to create filtered dataframe
     filtered = leaderboard.copy()
