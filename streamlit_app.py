@@ -2165,9 +2165,9 @@ def render_stream_trends(top_spotify: pd.DataFrame, leaderboard: pd.DataFrame, t
             
             fig_move = go.Figure()
             
-            for _, row in gl_chart_df.iterrows():
-                # Determine color based on trend (Rising/Falling)
-                trend_color = "#22d3a0" if row["range_change"] > 0 else "#e84545" if row["range_change"] < 0 else "#4f8ef7"
+            for idx, (_, row) in enumerate(gl_chart_df.iterrows()):
+                # Use unique color for each artist from CHART_COLORS
+                unique_color = CHART_COLORS[idx % len(CHART_COLORS)]
                 
                 # Score based on Range Peak so the chart updates with time filters
                 pos_score = max_all_time_rank + 1 - row["range_peak"]
@@ -2178,7 +2178,7 @@ def render_stream_trends(top_spotify: pd.DataFrame, leaderboard: pd.DataFrame, t
                     y=[row["name"]],
                     x=[pos_score],
                     orientation="h",
-                    marker=dict(color=trend_color, line=dict(width=0)),
+                    marker=dict(color=unique_color, line=dict(width=0)),
                     hovertemplate=(
                         f"<b>{row['name']}</b><br>"
                         f"Peak in {selected_days}d: #{int(row['range_peak'])}<br>"
