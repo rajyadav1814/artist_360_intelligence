@@ -2102,40 +2102,40 @@ def render_debut_artist_chart(leaderboard: pd.DataFrame) -> None:
             else:
                 st.caption("No countries available.")
 
-    if countries_items:
-        with st.expander("📊 Market Share", expanded=True):
-            total_countries = len(countries_items)
-            if total_countries > 0:
-                share_data = [{"Country": c, "Share": 1} for c in countries_items]
-                share_df = pd.DataFrame(share_data)
-                fig_share = px.pie(
-                    share_df,
-                    names="Country",
-                    values="Share",
-                    hole=0.58,
-                    color="Country",
-                    color_discrete_sequence=CHART_COLORS,
-                )
-                fig_share.update_traces(
-                    textposition="inside",
-                    textinfo="percent+label",
-                    hovertemplate="<b>%{label}</b><br>Market share<extra></extra>",
-                )
-                fig_share.update_layout(
-                    title="Market Distribution",
-                    showlegend=False,
-                    annotations=[
-                        dict(
-                            text="Share<br>by<br>country",
-                            x=0.5,
-                            y=0.5,
-                            showarrow=False,
-                            font=dict(size=11, color="#cbd5f5"),
-                        )
-                    ],
-                )
-                style_figure(fig_share, 260)
-                st.plotly_chart(fig_share, use_container_width=True, config=PLOTLY_CONFIG)
+    # if countries_items:
+        # with st.expander("📊 Market Share", expanded=True):
+        #     total_countries = len(countries_items)
+        #     if total_countries > 0:
+        #         share_data = [{"Country": c, "Share": 1} for c in countries_items]
+        #         share_df = pd.DataFrame(share_data)
+        #         fig_share = px.pie(
+        #             share_df,
+        #             names="Country",
+        #             values="Share",
+        #             hole=0.58,
+        #             color="Country",
+        #             color_discrete_sequence=CHART_COLORS,
+        #         )
+        #         fig_share.update_traces(
+        #             textposition="inside",
+        #             textinfo="percent+label",
+        #             hovertemplate="<b>%{label}</b><br>Market share<extra></extra>",
+        #         )
+        #         fig_share.update_layout(
+        #             title="Market Distribution",
+        #             showlegend=False,
+        #             annotations=[
+        #                 dict(
+        #                     text="Share<br>by<br>country",
+        #                     x=0.5,
+        #                     y=0.5,
+        #                     showarrow=False,
+        #                     font=dict(size=11, color="#cbd5f5"),
+        #                 )
+        #             ],
+        #         )
+        #         style_figure(fig_share, 260)
+        #         st.plotly_chart(fig_share, use_container_width=True, config=PLOTLY_CONFIG)
     
     with st.expander("📊 Performance Summary", expanded=True):
         songs_s = row.get("songs_count")
