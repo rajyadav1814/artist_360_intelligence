@@ -1784,7 +1784,7 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
         st.plotly_chart(fig_best, use_container_width=True, config=PLOTLY_CONFIG)
     
     # Additional insights
-    with st.expander("📊 Detailed Movement Analysis", expanded=False):
+    with st.expander("📊 Detailed Movement Analysis", expanded=True):
         movement_data = []
         for artist in artists_tracked:
             artist_data = line_df[line_df["artist"] == artist]
@@ -1973,7 +1973,7 @@ def render_stream_trends(leaderboard: pd.DataFrame) -> None:
             st.plotly_chart(fig_compare, use_container_width=True, config=PLOTLY_CONFIG)
 
     # Data table with enhanced view
-    with st.expander("📋 View Detailed Streaming Data", expanded=False):
+    with st.expander("📋 View Detailed Streaming Data", expanded=True):
         trends_df = top_spotify[["rank", "name", "monthly_listeners", "peak_listeners", "display_country", "countries_count"]].copy()
         trends_df.columns = ["Rank", "Artist", "Monthly Listeners", "Peak Listeners", "Top LATAM Country", "LATAM Countries"]
         st.dataframe(
