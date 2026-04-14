@@ -965,7 +965,7 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # Keep all five controls in one row: Table, Analysis, Spotlight, Compare, Download
+    # Keep all five controls in one row: Table, Analysis, Compare, Download
     csv = leaderboard.head(max_rows).to_csv(index=False)
     selected_view = st.session_state.get("leaderboard_view", "📋 Table")
     btn_col1, btn_col2, btn_col3, btn_col4, btn_col5 = st.columns(5, gap="small")
@@ -987,16 +987,16 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
             on_click=set_leaderboard_view,
             args=("📈 Analysis",),
         )
+    # with btn_col3:
+    #     st.button(
+    #         "🎯 Spotlight",
+    #         use_container_width=True,
+    #         type="primary" if selected_view == "🎯 Spotlight" else "secondary",
+    #         key="view_spotlight_btn",
+    #         on_click=set_leaderboard_view,
+    #         args=("🎯 Spotlight",),
+    #     )
     with btn_col3:
-        st.button(
-            "🎯 Spotlight",
-            use_container_width=True,
-            type="primary" if selected_view == "🎯 Spotlight" else "secondary",
-            key="view_spotlight_btn",
-            on_click=set_leaderboard_view,
-            args=("🎯 Spotlight",),
-        )
-    with btn_col4:
         st.button(
             "📊 Compare",
             use_container_width=True,
