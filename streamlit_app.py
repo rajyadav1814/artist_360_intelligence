@@ -1484,7 +1484,7 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
                     hovertemplate="<b>%{hovertext}</b><br>Countries: %{x}<br>Listeners: %{y:,.0f}<br>Rank: %{marker.color:.0f}<extra></extra>",
                 )
                 fig_scatter.update_yaxes(tickformat="~s")
-                style_figure(fig_scatter, 360)
+                style_figure(fig_scatter, 300)
                 st.plotly_chart(fig_scatter, use_container_width=True, config=PLOTLY_CONFIG)
 
                 reach_corr = scatter_data["countries_count"].corr(scatter_data["monthly_listeners"])
@@ -2219,20 +2219,15 @@ def render_stream_trends(top_spotify: pd.DataFrame, leaderboard: pd.DataFrame, t
             
             fig_move = go.Figure()
             
-            for _, row in gl_chart_df.iterrows():
-                # Determine color based on trend (Rising/Falling)
-                trend_color = "#22d3a0" if row["range_change"] > 0 else "#e84545" if row["range_change"] < 0 else "#4f8ef7"
-                
-                # Score based on Range Peak so the chart updates with time filters
-                pos_score = max_all_time_rank + 1 - row["range_peak"]
-                
-                # Add the Bar
+            for idx, (_, row) in enumerate(gl_chart_df.iterrows()):
+                unique_color = CHART_COLORS[idx % len(CHART_COLORS)]
+                pos_score = max_all_time_rank + 1 - row["range_peak"]  # <-- Make sure this is here!
                 fig_move.add_trace(go.Bar(
                     name=row["name"],
                     y=[row["name"]],
                     x=[pos_score],
                     orientation="h",
-                    marker=dict(color=trend_color, line=dict(width=0)),
+                    marker=dict(color=unique_color, line=dict(width=0)),
                     hovertemplate=(
                         f"<b>{row['name']}</b><br>"
                         f"Peak in {selected_days}d: #{int(row['range_peak'])}<br>"
