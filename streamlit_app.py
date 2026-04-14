@@ -1928,7 +1928,7 @@ def render_stream_trends(top_spotify: pd.DataFrame, leaderboard: pd.DataFrame, t
     st.markdown("### 🎵 Streaming Analytics")
     metric_choice = st.radio(
         "Select metric to visualize",
-        ["Listener Momentum", "LATAM Reach", "Peak Performance", "Global Charting"],
+        ["Listener Momentum", "LATAM Reach", "Peak Performance", "Artist Performance Chart"],
         horizontal=True,
         label_visibility="collapsed"
     )
@@ -2204,7 +2204,7 @@ def render_stream_trends(top_spotify: pd.DataFrame, leaderboard: pd.DataFrame, t
                 )
 
             fig_move.update_layout(
-                title=f"🏆 Range Performance Analysis ({selected_days}D)",
+                title=f"🏆 Artist Performance Analysis ({selected_days}D)",
                 xaxis=dict(
                     title="Rank Performance Score (Based on Peak in Window)",
                     showgrid=False,
