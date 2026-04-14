@@ -667,6 +667,8 @@ def load_dashboard_data() -> dict[str, pd.DataFrame]:
                 SELECT MAX(scraped_at) AS ts FROM itunes_artist_rankings
             )
             SELECT a.name, a.profile_url, r.rank, r.rank_change, r.total_points,
+                   r.itunes_points, r.spotify_points, r.apple_music_points,
+                   r.shazam_points, r.youtube_points, r.other_points,
                    r.top_country, r.num_countries, r.scrape_date, r.scraped_at
             FROM itunes_artist_rankings r
             JOIN artists a ON a.id = r.artist_id
@@ -767,7 +769,18 @@ def load_dashboard_data() -> dict[str, pd.DataFrame]:
         how="left"
     )
 
-    for col in ["monthly_listeners", "peak_listeners", "total_points", "countries_count"]:
+    for col in [
+        "monthly_listeners",
+        "peak_listeners",
+        "total_points",
+        "countries_count",
+        "itunes_points",
+        "spotify_points",
+        "apple_music_points",
+        "shazam_points",
+        "youtube_points",
+        "other_points",
+    ]:
         if col in leaderboard.columns:
             leaderboard[col] = pd.to_numeric(leaderboard[col], errors="coerce")
 
@@ -952,7 +965,7 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # Keep all five controls in one row: Table, Analysis, Compare, Download
+    # Keep all five controls in one row: Table, Analysis, Spotlight, Compare, Download
     csv = leaderboard.head(max_rows).to_csv(index=False)
     selected_view = st.session_state.get("leaderboard_view", "📋 Table")
     btn_col1, btn_col2, btn_col3, btn_col4, btn_col5 = st.columns(5, gap="small")
@@ -974,16 +987,16 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
             on_click=set_leaderboard_view,
             args=("📈 Analysis",),
         )
-    # with btn_col3:
-    #     st.button(
-    #         "🎯 Spotlight",
-    #         use_container_width=True,
-    #         type="primary" if selected_view == "🎯 Spotlight" else "secondary",
-    #         key="view_spotlight_btn",
-    #         on_click=set_leaderboard_view,
-    #         args=("🎯 Spotlight",),
-    #    )
     with btn_col3:
+        st.button(
+            "🎯 Spotlight",
+            use_container_width=True,
+            type="primary" if selected_view == "🎯 Spotlight" else "secondary",
+            key="view_spotlight_btn",
+            on_click=set_leaderboard_view,
+            args=("🎯 Spotlight",),
+        )
+    with btn_col4:
         st.button(
             "📊 Compare",
             use_container_width=True,
@@ -1105,7 +1118,7 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
 
         with left:
             st.markdown(
-                "<div class='dashboard-card'><div class='section-title'>🏆 Artist Chart Positions</div><div class='section-sub'>Latest leaderboard filtered to Latin American relevance</div></div>",
+                "<div class='dashboard-card'><div class='section-title'>🏆 Global Chart Positions</div><div class='section-sub'>Latest leaderboard filtered to Latin American relevance</div></div>",
                 unsafe_allow_html=True,
             )
             table_df = prepare_leaderboard_table(leaderboard, max_rows)
@@ -1926,18 +1939,11 @@ def render_stream_trends(top_spotify: pd.DataFrame, leaderboard: pd.DataFrame, t
 
     # Interactive metric selector
     st.markdown("### 🎵 Streaming Analytics")
-    metric_choice = st.radio(
-        "Select metric to visualize",
-        ["Listener Momentum", "LATAM Reach", "Peak Performance", "Artist Performance Chart"],
-        horizontal=True,
-        label_visibility="collapsed"
-    )
     
-    st.markdown("<br>", unsafe_allow_html=True)
+    tab1, tab2, tab3 = st.tabs(["🎧 Listener Momentum", "🌍 Market Reach", "🏆 Artist Performance Chart"])
     
-    c1, c2 = st.columns(2)
-    
-    if metric_choice == "Listener Momentum":
+    with tab1:
+        c1, c2 = st.columns(2)
         with c1:
             fig = go.Figure()
             fig.add_bar(
@@ -1984,96 +1990,146 @@ def render_stream_trends(top_spotify: pd.DataFrame, leaderboard: pd.DataFrame, t
             )
             fig_growth.update_layout(coloraxis_showscale=False)
             style_figure(fig_growth, 420)
-            st.plotly_chart(fig_growth, use_container_width=True, config=PLOTLY_CONFIG)
     
-    elif metric_choice == "LATAM Reach":
-        with c1:
-            latam_presence = leaderboard[leaderboard["countries_count"] > 0].nlargest(10, "countries_count")
-            if not latam_presence.empty:
-                fig_latam = px.bar(
-                    latam_presence.sort_values("countries_count"),
-                    x="countries_count",
-                    y="name",
-                    orientation="h",
-                    color="countries_count",
-                    color_continuous_scale=["#7c5cfc", "#22d3a0"],
-                    title="🌎 Latin American Country Reach"
-                )
-                fig_latam.update_layout(coloraxis_showscale=False)
-                style_figure(fig_latam, 420)
-                st.plotly_chart(fig_latam, use_container_width=True, config=PLOTLY_CONFIG)
-        
-        with c2:
-            # Map-style visualization
-            if not latam_presence.empty:
-                fig_bubble = px.scatter(
-                    latam_presence,
-                    x="countries_count",
-                    y="monthly_listeners",
-                    size="monthly_listeners",
-                    color="rank",
-                    hover_name="name",
-                    title="🗺️ Geographic Spread vs Popularity",
-                    labels={'countries_count': 'LATAM Countries', 'monthly_listeners': 'Monthly Listeners'},
-                    color_continuous_scale=["#22d3a0", "#f5a623", "#e84545"]
-                )
-                style_figure(fig_bubble, 420)
-                st.plotly_chart(fig_bubble, use_container_width=True, config=PLOTLY_CONFIG)
-    
-    elif metric_choice == "Peak Performance":
-        with c1:
-            peak_data = top_spotify[top_spotify["peak_listeners"].notna()].nlargest(10, "peak_listeners")
-            if not peak_data.empty:
-                fig_peak = px.bar(
-                    peak_data.sort_values("peak_listeners"),
-                    x="peak_listeners",
-                    y="name",
-                    orientation="h",
-                    color="peak_listeners",
-                    color_continuous_scale=["#4f8ef7", "#7c5cfc"],
-                    title="🚀 Peak Listener Performance"
-                )
-                fig_peak.update_layout(coloraxis_showscale=False)
-                style_figure(fig_peak, 420)
-                st.plotly_chart(fig_peak, use_container_width=True, config=PLOTLY_CONFIG)
-        
-        with c2:
-            # Peak vs current
-            comparison_data = top_spotify[top_spotify["peak_listeners"].notna()].head(10)
-            fig_compare = go.Figure()
-            fig_compare.add_trace(go.Scatter(
-                x=comparison_data["monthly_listeners"],
-                y=comparison_data["peak_listeners"],
-                mode='markers+text',
-                marker=dict(
-                    size=15,
-                    color=comparison_data.index,
-                    colorscale='Viridis',
-                    showscale=False
-                ),
-                text=comparison_data["name"].str[:15],
-                textposition="top center",
-                hovertemplate="<b>%{text}</b><br>Current: %{x:,}<br>Peak: %{y:,}<extra></extra>"
-            ))
-            # Add diagonal line
-            max_val = max(comparison_data["monthly_listeners"].max(), comparison_data["peak_listeners"].max())
-            fig_compare.add_trace(go.Scatter(
-                x=[0, max_val],
-                y=[0, max_val],
-                mode='lines',
-                line=dict(dash='dash', color='gray'),
-                showlegend=False,
-                hoverinfo='skip'
-            ))
-            fig_compare.update_layout(
-                title="🎯 Current vs Peak Performance",
-                xaxis_title="Monthly Listeners",
-                yaxis_title="Peak Listeners"
+    with tab2:
+        col_select, col_spacer = st.columns([0.25, 0.75])
+        with col_select:
+            top_n_market = st.selectbox(
+                "Top artists",
+                options=[10, 100, 200],
+                index=2,
+                key="market_reach_top_n",
             )
-            style_figure(fig_compare, 420)
-            st.plotly_chart(fig_compare, use_container_width=True, config=PLOTLY_CONFIG)
 
-    else:  # Global Charting
+        market_scope = leaderboard.dropna(subset=["rank"]).sort_values("rank").head(top_n_market).copy()
+        if market_scope.empty:
+            market_scope = leaderboard.head(top_n_market).copy()
+
+        if len(market_scope) < top_n_market:
+            st.caption(f"Showing {len(market_scope)} artists because fewer ranked rows are available.")
+
+        point_sources = {
+            "itunes_points": "iTunes",
+            "spotify_points": "Spotify",
+            "apple_music_points": "Apple Music",
+            "shazam_points": "Shazam",
+            "youtube_points": "YouTube",
+            "other_points": "Other",
+        }
+
+        source_totals = []
+        for col_name, label in point_sources.items():
+            total_value = float(market_scope[col_name].fillna(0).sum()) if col_name in market_scope.columns else 0.0
+            source_totals.append({"source": label, "points": total_value})
+
+        source_df = pd.DataFrame(source_totals)
+        source_df = source_df[source_df["points"] > 0].sort_values("points", ascending=False)
+
+        if source_df.empty:
+            st.info("Market reach needs source point breakdown data (itunes_points, spotify_points, apple_music_points, shazam_points, youtube_points, other_points).")
+        else:
+            total_market_points = float(source_df["points"].sum())
+            dominant_row = source_df.iloc[0]
+            dominant_share = (float(dominant_row["points"]) / total_market_points * 100) if total_market_points > 0 else 0
+            other_points = float(source_df.loc[source_df["source"] == "Other", "points"].sum())
+            other_share = (other_points / total_market_points * 100) if total_market_points > 0 else 0
+
+            summary_cards = [
+                ("Total charting slots", f"{len(market_scope):,}", f"Top {top_n_market} this week", ""),
+                ("Sources represented", f"{len(source_df)}", f"across {len(market_scope):,} slots", ""),
+                ("Dominant source", str(dominant_row["source"]), f"{dominant_row['points']:,.0f} pts ({dominant_share:.0f}%)", "kpi-green"),
+                ("Other share", f"{other_share:.1f}%", f"{other_points:,.0f} of {total_market_points:,.0f} points", "kpi-amber"),
+            ]
+            card_cols = st.columns(4)
+            for col, (label, value, note, klass) in zip(card_cols, summary_cards):
+                col.markdown(
+                    f"""
+                    <div class="kpi-card {klass}">
+                        <div class="kpi-label">{escape(label)}</div>
+                        <div class="kpi-value">{escape(value)}</div>
+                        <div class="kpi-delta">{escape(note)}</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+
+            st.markdown("<div style='height: 14px;'></div>", unsafe_allow_html=True)
+
+            chart_col1, chart_col2 = st.columns(2)
+
+            with chart_col1:
+                pie_df = source_df.copy()
+                pie_df["share"] = pie_df["points"] / total_market_points * 100
+
+                fig_market_share = px.pie(
+                    pie_df,
+                    names="source",
+                    values="points",
+                    hole=0.58,
+                    color="source",
+                    custom_data=["source"],
+                    color_discrete_sequence=CHART_COLORS,
+                    title=f"Label share of Top {top_n_market} slots",
+                )
+                fig_market_share.update_traces(
+                    sort=False,
+                    textposition="inside",
+                    textinfo="percent+label",
+                    hovertemplate="<b>%{label}</b><br>Points: %{value:,.0f}<br>Share: %{percent}<extra></extra>",
+                )
+                fig_market_share.update_layout(
+                    showlegend=True,
+                    legend_title_text="",
+                    annotations=[
+                        dict(
+                            text="Market<br>mix",
+                            x=0.5,
+                            y=0.5,
+                            showarrow=False,
+                            font=dict(size=13, color="#cbd5f5"),
+                        )
+                    ],
+                )
+                style_figure(fig_market_share, 440)
+                st.plotly_chart(fig_market_share, use_container_width=True, config=PLOTLY_CONFIG)
+
+            with chart_col2:
+                bars_df = source_df.sort_values("points", ascending=True).copy()
+                bar_colors = [CHART_COLORS[idx % len(CHART_COLORS)] for idx in range(len(bars_df))]
+                
+                fig_source_bars = go.Figure(
+                    data=[
+                        go.Bar(
+                            x=bars_df["points"],
+                            y=bars_df["source"],
+                            orientation="h",
+                            marker=dict(color=bar_colors, line=dict(width=0)),
+                            text=[f"{int(v):,.0f}" for v in bars_df["points"]],
+                            textposition="outside",
+                            cliponaxis=False,
+                            hovertemplate="<b>%{y}</b><br>Points: %{x:,.0f}<extra></extra>",
+                        )
+                    ]
+                )
+                fig_source_bars.update_layout(
+                    title=dict(text=f"Points per source - Top {top_n_market}", x=0.03, xanchor="left", font=dict(size=18)),
+                    showlegend=False,
+                    xaxis_title="",
+                    yaxis_title="",
+                    margin=dict(l=70, r=20, t=70, b=40),
+                    bargap=0.35,
+                )
+                fig_source_bars.update_xaxes(showgrid=False)
+                fig_source_bars.update_yaxes(
+                    autorange="reversed",
+                    tickfont=dict(size=13, color="#e8eaf6"),
+                    ticklabelstandoff=18,
+                    showgrid=False,
+                )
+                style_figure(fig_source_bars, 440)
+                st.plotly_chart(fig_source_bars, use_container_width=True, config=PLOTLY_CONFIG)
+
+    with tab3:
         # Control bar for Global Charting
         gl_control1, gl_control2 = st.columns([1, 1])
         with gl_control1:
@@ -2163,9 +2219,9 @@ def render_stream_trends(top_spotify: pd.DataFrame, leaderboard: pd.DataFrame, t
             
             fig_move = go.Figure()
             
-            for idx, (_, row) in enumerate(gl_chart_df.iterrows()):
-                # Use unique color for each artist from CHART_COLORS
-                unique_color = CHART_COLORS[idx % len(CHART_COLORS)]
+            for _, row in gl_chart_df.iterrows():
+                # Determine color based on trend (Rising/Falling)
+                trend_color = "#22d3a0" if row["range_change"] > 0 else "#e84545" if row["range_change"] < 0 else "#4f8ef7"
                 
                 # Score based on Range Peak so the chart updates with time filters
                 pos_score = max_all_time_rank + 1 - row["range_peak"]
@@ -2176,7 +2232,7 @@ def render_stream_trends(top_spotify: pd.DataFrame, leaderboard: pd.DataFrame, t
                     y=[row["name"]],
                     x=[pos_score],
                     orientation="h",
-                    marker=dict(color=unique_color, line=dict(width=0)),
+                    marker=dict(color=trend_color, line=dict(width=0)),
                     hovertemplate=(
                         f"<b>{row['name']}</b><br>"
                         f"Peak in {selected_days}d: #{int(row['range_peak'])}<br>"
