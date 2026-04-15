@@ -921,7 +921,7 @@ def prepare_leaderboard_table(leaderboard: pd.DataFrame, max_rows: int) -> pd.Da
             "rank",
             "name",
             "top_song",
-            "display_country",
+            "top_country",
             "monthly_listeners",
             "peak_listeners",
             "rank_change",
