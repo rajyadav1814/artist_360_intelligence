@@ -52,10 +52,10 @@ PAGE_META = {
         "Stream Trends",
         "Insights into streaming performance, growth patterns, and listener demographics",
     ),
-    "Ops Monitor": (
-        "Ops Monitor",
-        "Operational telemetry and data pipeline health monitoring",
-    ),
+    # "Ops Monitor": (
+    #     "Ops Monitor",
+    #     "Operational telemetry and data pipeline health monitoring",
+    # ),
 }
 
 # 5. Data Loading
@@ -157,10 +157,10 @@ def show_debut_artist_page():
     render_header(page_title, page_meta, last_run_label)
     render_debut_artist_chart(filtered)
 
-def show_ops_monitor_page():
-    page_title, page_meta = PAGE_META["Ops Monitor"]
-    render_header(page_title, page_meta, last_run_label)
-    render_ops_monitor(runs)
+# def show_ops_monitor_page():
+#     page_title, page_meta = PAGE_META["Ops Monitor"]
+#     render_header(page_title, page_meta, last_run_label)
+#     render_ops_monitor(runs)
 
 # 9. Navigation Setup
 app_pages = [
@@ -168,7 +168,7 @@ app_pages = [
     st.Page(show_debut_artist_page, title="Debut Artist", icon=":material/artist:", url_path="debut-artist"),
     st.Page(show_chart_tracker_page, title="Chart Tracker", icon=":material/desktop_windows:", url_path="chart-tracker"),
     st.Page(show_stream_trends_page, title="Stream Trends", icon=":material/show_chart:", url_path="stream-trends"),
-    st.Page(show_ops_monitor_page, title="Ops Monitor", icon=":material/tune:", url_path="ops-monitor"),
+    # st.Page(show_ops_monitor_page, title="Ops Monitor", icon=":material/tune:", url_path="ops-monitor"),
 ]
 
 # 10. Router execution
