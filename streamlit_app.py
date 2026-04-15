@@ -1592,7 +1592,7 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
 
                 songs_items = [item.strip() for item in str(row.get("top_songs") or "").split("\n") if item.strip()]
                 albums_items = [item.strip() for item in str(row.get("top_albums") or "").split("\n") if item.strip()]
-                countries_items = [item.strip() for item in str(row.get("top_countries") or "").split("\n") if item.strip()]
+                countries_items = [item.strip() for item in str(row.get("top_country") or "").split("\n") if item.strip()]
 
                 profile_title = str(row.get("page_title") or "").strip()
                 profile_snapshot = str(row.get("snapshot_text") or "").strip()
