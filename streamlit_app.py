@@ -2137,7 +2137,7 @@ def render_stream_trends(top_spotify: pd.DataFrame, leaderboard: pd.DataFrame, t
             selected_n = st.selectbox("🎯 Select Top List", options=top_n_options, index=2, key="gl_chart_top_n_dropdown")
         
         with gl_control2:
-            time_ranges = {0: "Daily (Last Run)", 7: "7 days", 14: "14 days", 30: "30 days"}
+            time_ranges = {1: "Daily (Last Run)", 7: "7 days", 14: "14 days", 30: "30 days"}
             selected_days = st.selectbox("📅 Time Range", options=list(time_ranges.keys()), format_func=lambda x: time_ranges[x], index=0)
 
         # Filter and prepare base data
