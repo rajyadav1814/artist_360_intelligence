@@ -10,6 +10,7 @@ import streamlit.components.v1 as st_components
 
 from src.database.connection import get_connection
 from src.scrapers.artist_details_scraper import LATIN_AMERICAN_COUNTRIES
+from src.utils.image_utils import get_artist_image_url, get_fallback_avatar_url
 from skeleton import render_dashboard_skeleton
 
 
@@ -962,6 +963,37 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
         return
 
     render_kpis(leaderboard, runs)
+    
+    # --- Artist Spotlight Section (New) ---
+    if st.session_state.get("global_selected_artist") and st.session_state.global_selected_artist != "All artists":
+        artist_name = st.session_state.global_selected_artist
+        artist_data = leaderboard[leaderboard["name"] == artist_name]
+        if not artist_data.empty:
+            row = artist_data.iloc[0]
+            st.markdown("<br>", unsafe_allow_html=True)
+            with st.container():
+                st.markdown(f"<div class='dashboard-card' style='border-left: 5px solid var(--accent);'>", unsafe_allow_html=True)
+                
+                # Try to get real image URL, fallback to generated avatar
+                real_img_url = get_artist_image_url(row['name'])
+                display_img = real_img_url if real_img_url else get_fallback_avatar_url(row['name'])
+                
+                spot_col1, spot_col2, spot_col3 = st.columns([1, 3, 2])
+                with spot_col1:
+                    st.image(display_img, use_container_width=True)
+                with spot_col2:
+                    st.markdown(f"## {escape(row['name'])}")
+                    st.markdown(f"**Current Rank:** #{int(row['rank'])}")
+                    st.markdown(f"**Monthly Listeners:** {fmt_short(row.get('monthly_listeners'))}")
+                    st.markdown(f"**Top Market:** {escape(str(row.get('display_country') or '—'))}")
+                with spot_col3:
+                    st.markdown("### 📊 Quick Detail")
+                    st.markdown(f"**Songs:** {int(row.get('songs_count', 0)) if pd.notna(row.get('songs_count')) else 0}")
+                    st.markdown(f"**Albums:** {int(row.get('albums_count', 0)) if pd.notna(row.get('albums_count')) else 0}")
+                    if st.button(f"View Full Detail for {row['name']} ➔", use_container_width=True):
+                        st.switch_page(app_pages[1]) # Navigate to Debut Artist page
+                
+                st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
 
@@ -1716,6 +1748,34 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
             f"<div class='dashboard-card'><div class='section-title'>📈 Chart Tracker</div><div class='section-sub'>Clean position movement for the current top {TRACKER_TOP_ARTISTS} artists in the latest snapshot</div></div>",
             unsafe_allow_html=True,
         )
+        
+        # --- Artist Spotlight Section (New) ---
+        if st.session_state.get("global_selected_artist") and st.session_state.global_selected_artist != "All artists":
+            artist_name = st.session_state.global_selected_artist
+            # Look for history data
+            artist_history = line_df[line_df["artist"] == artist_name] if not line_df.empty else pd.DataFrame()
+            artist_data = leaderboard[leaderboard["name"] == artist_name] if not leaderboard.empty else pd.DataFrame()
+            
+            if not artist_data.empty:
+                row = artist_data.iloc[0]
+                st.markdown("<br>", unsafe_allow_html=True)
+                with st.container():
+                    st.markdown(f"<div class='dashboard-card' style='border-left: 5px solid var(--accent2);'>", unsafe_allow_html=True)
+                    
+                    spot_col1, spot_col2, spot_col3 = st.columns([1, 4, 2])
+                    with spot_col1:
+                        # Try to get real image URL, fallback to generated avatar
+                        real_img_url = get_artist_image_url(row['name'])
+                        display_img = real_img_url if real_img_url else get_fallback_avatar_url(row['name'])
+                        st.image(display_img, use_container_width=True)
+                    with spot_col2:
+                        st.markdown(f"### {escape(row['name'])}")
+                        best_pos = int(row.get('best_rank', row['rank'])) if pd.notna(row.get('best_rank', row['rank'])) else '—'
+                        st.markdown(f"**Best Recent Rank:** #{best_pos} | **Current:** #{int(row['rank'])}")
+                    with spot_col3:
+                        if st.button(f"Full Details ➔", key="tracker_detail_btn", use_container_width=True):
+                            st.switch_page(app_pages[1])
+                    st.markdown("</div>", unsafe_allow_html=True)
     with col2:
         time_range = st.selectbox("📅 Time Range", ["7 days", "14 days", "30 days"], index=1)
     with col3:
@@ -2292,13 +2352,35 @@ def render_debut_artist_chart(leaderboard: pd.DataFrame) -> None:
     
     st.markdown("<br>", unsafe_allow_html=True)
     
+    # Get global selection or default to top ranked
+    default_artist = st.session_state.get("global_selected_artist", "All artists")
+    if default_artist == "All artists" and artist_options:
+        default_artist = artist_options[0]
+        
+    try:
+        # Check if the exact label or the name is in options
+        if default_artist in artist_options:
+            default_idx = artist_options.index(default_artist)
+        else:
+            # Fallback: try to find an option that matches the artist name
+            matches = [i for i, opt in enumerate(artist_options) if default_artist in opt]
+            default_idx = matches[0] if matches else 0
+    except (ValueError, IndexError):
+        default_idx = 0
+
     col1, col2 = st.columns([1, 2])
     with col1:
         selected_label = st.selectbox(
             "🎤 Select an Artist",
             artist_options,
-            index=0 if artist_options else None,
+            index=default_idx if artist_options else None,
+            key="debut_artist_select"
         )
+    
+    # Sync global selection if changed here
+    if selected_label != st.session_state.get("global_selected_artist"):
+        st.session_state.global_selected_artist = selected_label
+        st.rerun()
     
     if not selected_label:
         st.info("Please select an artist from the dropdown above.")
@@ -2314,6 +2396,40 @@ def render_debut_artist_chart(leaderboard: pd.DataFrame) -> None:
     
     row = artist_data.iloc[0]
     
+    # --- Artist Hero Section (New) ---
+    st.markdown("<br>", unsafe_allow_html=True)
+    
+    # Try to get real image URL, fallback to generated avatar
+    real_img_url = get_artist_image_url(row['name'])
+    display_img = real_img_url if real_img_url else get_fallback_avatar_url(row['name'])
+    
+    hero_col1, hero_col2 = st.columns([1, 4])
+    with hero_col1:
+        st.markdown(
+            f"""
+            <div style="display: flex; justify-content: center; align-items: center; padding: 10px;">
+                <img src="{display_img}" style="width: 100%; max-width: 180px; border-radius: 24px; box-shadow: 0 20px 40px rgba(0,0,0,0.4); border: 2px solid var(--border);">
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+    with hero_col2:
+        st.markdown(f"<h1 style='margin-bottom: 0;'>{escape(row['name'])}</h1>", unsafe_allow_html=True)
+        if pd.notna(row.get('page_title')):
+            st.markdown(f"<p style='color: var(--text2); font-size: 1.1rem;'>{escape(str(row.get('page_title')))}</p>", unsafe_allow_html=True)
+        
+        # Action badges
+        st.markdown(
+            f"""
+            <div style="display: flex; gap: 10px; margin-top: 15px; flex-wrap: wrap;">
+                <span class="badge badge-new" style="padding: 5px 12px; font-size: 0.85rem;">Rank #{int(row['rank'])}</span>
+                <span class="badge badge-up" style="padding: 5px 12px; font-size: 0.85rem;">{escape(str(row.get('display_country') or 'Global'))}</span>
+                <span class="badge badge-same" style="padding: 5px 12px; font-size: 0.85rem;">{fmt_short(row.get('monthly_listeners'))} Monthly</span>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
     st.markdown("<br>", unsafe_allow_html=True)
     
     kpi1, kpi2, kpi3, kpi4 = st.columns(4)
@@ -2981,13 +3097,15 @@ if not runs.empty and runs["finished_at"].notna().any():
 def show_leaderboard_page() -> None:
     page_title, page_meta = PAGE_META["Leaderboard"]
     render_header(page_title, page_meta, last_run_label)
-    render_leaderboard(filtered, runs, max_rows=max_rows)
+    # Use global_filtered to allow the spotlight and full table context
+    render_leaderboard(global_filtered, runs, max_rows=max_rows)
 
 
 def show_chart_tracker_page() -> None:
     page_title, page_meta = PAGE_META["Chart Tracker"]
     render_header(page_title, page_meta, last_run_label)
-    render_chart_tracker(history, filtered)
+    # Use global_filtered to show top artists + selected artist spotlight
+    render_chart_tracker(history, global_filtered)
 
 
 def show_stream_trends_page() -> None:
@@ -2999,7 +3117,8 @@ def show_stream_trends_page() -> None:
 def show_debut_artist_page() -> None:
     page_title, page_meta = PAGE_META["Debut Artist"]
     render_header(page_title, page_meta, last_run_label)
-    render_debut_artist_chart(filtered)
+    # Use global_filtered to allow changing artists in the dropdown
+    render_debut_artist_chart(global_filtered)
 
 
 app_pages = [
@@ -3056,7 +3175,27 @@ with st.sidebar:
     with st.expander("🔍 Search & Filter", expanded=True):
         artist_rank_sorted = leaderboard.sort_values("rank")["name"].dropna().unique().tolist()
         artist_options = ["All artists"] + [str(a) for a in artist_rank_sorted]
-        selected_artist = st.selectbox("🎤 Artist search", artist_options, index=0)
+        
+        # Initialize session state if not present
+        if "global_selected_artist" not in st.session_state:
+            st.session_state.global_selected_artist = "All artists"
+            
+        try:
+            current_idx = artist_options.index(st.session_state.global_selected_artist)
+        except ValueError:
+            current_idx = 0
+            
+        selected_artist = st.selectbox(
+            "🎤 Artist search", 
+            artist_options, 
+            index=current_idx,
+            key="sidebar_artist_search"
+        )
+        
+        # Update global state
+        if selected_artist != st.session_state.global_selected_artist:
+            st.session_state.global_selected_artist = selected_artist
+            st.rerun()
         latam_only = st.toggle("🌎 Latin America", value=True)
         default_countries = sorted([c for c in leaderboard["display_country"].unique().tolist() if c != "—"])
         selected_countries = st.multiselect(
@@ -3069,12 +3208,15 @@ with st.sidebar:
     with st.expander("🎛️ Display Options", expanded=True):
         max_rows = st.slider("📊 Table rows", min_value=10, max_value=300, value=15, step=5)
     
-    # Apply filters to create filtered dataframe
-    filtered = leaderboard.copy()
+    # Apply global filters (Latam, Countries)
+    global_filtered = leaderboard.copy()
     if latam_only:
-        filtered = filtered[filtered["latam_signal"]]
+        global_filtered = global_filtered[global_filtered["latam_signal"]]
     if selected_countries:
-        filtered = filtered[filtered["display_country"].isin(selected_countries)]
+        global_filtered = global_filtered[global_filtered["display_country"].isin(selected_countries)]
+    
+    # Apply artist filter for appropriate views (Leaderboard list)
+    filtered = global_filtered.copy()
     if selected_artist != "All artists":
         filtered = filtered[filtered["name"] == selected_artist]
     filtered = filtered.sort_values("rank")
