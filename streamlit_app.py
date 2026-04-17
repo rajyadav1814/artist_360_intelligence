@@ -178,12 +178,7 @@ def apply_theme() -> None:
         }
         .page-title { font-size:2rem; font-weight:800; letter-spacing:-.03em; margin-bottom:.25rem; }
         .page-meta { color:var(--text2); font-size:.95rem; margin-bottom:1rem; }
-        .dashboard-card {
-            background:rgba(18,24,42,.96); border:1px solid var(--border); border-radius:16px;
-            padding:clamp(0.9rem, 1.2vw, 1.1rem); box-shadow:0 12px 32px rgba(0,0,0,.22);
-            margin-bottom:1rem; transition: all 0.3s ease;
-            animation: fadeIn 0.7s ease-out; min-height: 100%;
-        }
+        
         .dashboard-card:hover {
             box-shadow:0 18px 42px rgba(0,0,0,.35);
             border-color: rgba(79,142,247,.3);
