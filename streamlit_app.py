@@ -756,7 +756,7 @@ def load_dashboard_data() -> dict[str, pd.DataFrame]:
         on="name",
         how="left",
     ).merge(
-        frames["details"][["name", "songs_count", "albums_count", "countries_count", "top_songs", "top_albums", "top_countries"]],
+        frames["details"][["name", "page_title", "snapshot_text", "songs_count", "albums_count", "countries_count", "top_songs", "top_albums", "top_countries"]],
         on="name",
         how="left",
     ).merge(
@@ -959,37 +959,6 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
 
     render_kpis(leaderboard, runs)
     
-    # --- Artist Spotlight Section (New) ---
-    if st.session_state.get("global_selected_artist") and st.session_state.global_selected_artist != "All artists":
-        artist_name = st.session_state.global_selected_artist
-        artist_data = leaderboard[leaderboard["name"] == artist_name]
-        if not artist_data.empty:
-            row = artist_data.iloc[0]
-            st.markdown("<br>", unsafe_allow_html=True)
-            with st.container():
-                st.markdown(f"<div class='dashboard-card' style='border-left: 5px solid var(--accent);'>", unsafe_allow_html=True)
-                
-                # Try to get real image URL, fallback to generated avatar
-                real_img_url = get_artist_image_url(row['name'])
-                display_img = real_img_url if real_img_url else get_fallback_avatar_url(row['name'])
-                
-                spot_col1, spot_col2, spot_col3 = st.columns([1, 3, 2])
-                with spot_col1:
-                    st.image(display_img, use_container_width=True)
-                with spot_col2:
-                    st.markdown(f"## {escape(row['name'])}")
-                    st.markdown(f"**Current Rank:** #{int(row['rank'])}")
-                    st.markdown(f"**Monthly Listeners:** {fmt_short(row.get('monthly_listeners'))}")
-                    st.markdown(f"**Top Market:** {escape(str(row.get('display_country') or '—'))}")
-                with spot_col3:
-                    st.markdown("### 📊 Quick Detail")
-                    st.markdown(f"**Songs:** {int(row.get('songs_count', 0)) if pd.notna(row.get('songs_count')) else 0}")
-                    st.markdown(f"**Albums:** {int(row.get('albums_count', 0)) if pd.notna(row.get('albums_count')) else 0}")
-                    if st.button(f"View Full Detail for {row['name']} ➔", use_container_width=True):
-                        st.switch_page(app_pages[1]) # Navigate to Debut Artist page
-                
-                st.markdown("</div>", unsafe_allow_html=True)
-
     st.markdown("<br>", unsafe_allow_html=True)
 
     # Keep all five controls in one row: Table, Analysis, Compare, Download
@@ -1743,34 +1712,6 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
             f"<div class='dashboard-card'><div class='section-title'>📈 Chart Tracker</div><div class='section-sub'>Clean position movement for the current top {TRACKER_TOP_ARTISTS} artists in the latest snapshot</div></div>",
             unsafe_allow_html=True,
         )
-        
-        # --- Artist Spotlight Section (New) ---
-        if st.session_state.get("global_selected_artist") and st.session_state.global_selected_artist != "All artists":
-            artist_name = st.session_state.global_selected_artist
-            # Look for history data
-            artist_history = line_df[line_df["artist"] == artist_name] if not line_df.empty else pd.DataFrame()
-            artist_data = leaderboard[leaderboard["name"] == artist_name] if not leaderboard.empty else pd.DataFrame()
-            
-            if not artist_data.empty:
-                row = artist_data.iloc[0]
-                st.markdown("<br>", unsafe_allow_html=True)
-                with st.container():
-                    st.markdown(f"<div class='dashboard-card' style='border-left: 5px solid var(--accent2);'>", unsafe_allow_html=True)
-                    
-                    spot_col1, spot_col2, spot_col3 = st.columns([1, 4, 2])
-                    with spot_col1:
-                        # Try to get real image URL, fallback to generated avatar
-                        real_img_url = get_artist_image_url(row['name'])
-                        display_img = real_img_url if real_img_url else get_fallback_avatar_url(row['name'])
-                        st.image(display_img, use_container_width=True)
-                    with spot_col2:
-                        st.markdown(f"### {escape(row['name'])}")
-                        best_pos = int(row.get('best_rank', row['rank'])) if pd.notna(row.get('best_rank', row['rank'])) else '—'
-                        st.markdown(f"**Best Recent Rank:** #{best_pos} | **Current:** #{int(row['rank'])}")
-                    with spot_col3:
-                        if st.button(f"Full Details ➔", key="tracker_detail_btn", use_container_width=True):
-                            st.switch_page(app_pages[1])
-                    st.markdown("</div>", unsafe_allow_html=True)
     with col2:
         time_range = st.selectbox("📅 Time Range", ["7 days", "14 days", "30 days"], index=1)
     with col3:
