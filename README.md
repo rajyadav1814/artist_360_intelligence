@@ -9,6 +9,7 @@ A Python project to scrape music chart data from [kworb.net](https://kworb.net) 
 - Captures **Trending Artists for Last Month** (stored per calendar month)
 - Stores all data in PostgreSQL with full audit trail (`scrape_runs` table)
 - Daily scheduler built-in
+- Includes an **AI Analyst chatbot** in Streamlit that can query PostgreSQL and respond with narrative insights + charts
 
 ---
 
@@ -23,6 +24,14 @@ pip install -r requirements.txt
 ```bash
 cp .env.example .env
 # Edit .env with your PostgreSQL credentials
+```
+
+For the AI Analyst page in Streamlit, also set:
+
+```bash
+OPENAI_API_KEY=your_api_key_here
+# Optional
+OPENAI_MODEL=gpt-4o-mini
 ```
 
 ### 3. Run database migrations
@@ -52,3 +61,9 @@ Run the Streamlit dashboard:
 ```bash
 python3 -m streamlit run streamlit_app.py
 ```
+
+Then open the **AI Analyst** page from the sidebar to ask data questions. The assistant will:
+- Generate a safe `SELECT` SQL query against your PostgreSQL tables
+- Execute the query and return tabular results
+- Generate text insights
+- Render a chart automatically when suitable data is returned
