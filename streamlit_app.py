@@ -2304,8 +2304,8 @@ def render_debut_artist_chart(leaderboard: pd.DataFrame) -> None:
     except (ValueError, IndexError):
         default_idx = 0
 
-    col1, col2 = st.columns([1, 2])
-    with col1:
+    col1, col2 = st.columns([1.5, 1.6])
+    with col2:
         selected_label = st.selectbox(
             "🎤 Select an Artist",
             artist_options,
