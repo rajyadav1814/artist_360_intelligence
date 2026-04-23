@@ -10,6 +10,7 @@ import streamlit.components.v1 as st_components
 
 from src.database.connection import get_connection
 from src.scrapers.artist_details_scraper import LATIN_AMERICAN_COUNTRIES
+from src.utils.image_utils import get_artist_image_url, get_fallback_avatar_url
 from skeleton import render_dashboard_skeleton
 
 
@@ -177,12 +178,7 @@ def apply_theme() -> None:
         }
         .page-title { font-size:2rem; font-weight:800; letter-spacing:-.03em; margin-bottom:.25rem; }
         .page-meta { color:var(--text2); font-size:.95rem; margin-bottom:1rem; }
-        .dashboard-card {
-            background:rgba(18,24,42,.96); border:1px solid var(--border); border-radius:16px;
-            padding:clamp(0.9rem, 1.2vw, 1.1rem); box-shadow:0 12px 32px rgba(0,0,0,.22);
-            margin-bottom:1rem; transition: all 0.3s ease;
-            animation: fadeIn 0.7s ease-out; min-height: 100%;
-        }
+        
         .dashboard-card:hover {
             box-shadow:0 18px 42px rgba(0,0,0,.35);
             border-color: rgba(79,142,247,.3);
@@ -760,7 +756,7 @@ def load_dashboard_data() -> dict[str, pd.DataFrame]:
         on="name",
         how="left",
     ).merge(
-        frames["details"][["name", "songs_count", "albums_count", "countries_count", "top_songs", "top_albums", "top_countries"]],
+        frames["details"][["name", "page_title", "snapshot_text", "songs_count", "albums_count", "countries_count", "top_songs", "top_albums", "top_countries"]],
         on="name",
         how="left",
     ).merge(
@@ -921,7 +917,7 @@ def prepare_leaderboard_table(leaderboard: pd.DataFrame, max_rows: int) -> pd.Da
             "rank",
             "name",
             "top_song",
-            "display_country",
+            "top_country",
             "monthly_listeners",
             "peak_listeners",
             "rank_change",
@@ -962,10 +958,10 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
         return
 
     render_kpis(leaderboard, runs)
-
+    
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # Keep all five controls in one row: Table, Analysis, Spotlight, Compare, Download
+    # Keep all five controls in one row: Table, Analysis, Compare, Download
     csv = leaderboard.head(max_rows).to_csv(index=False)
     selected_view = st.session_state.get("leaderboard_view", "📋 Table")
     btn_col1, btn_col2, btn_col3, btn_col4, btn_col5 = st.columns(5, gap="small")
@@ -987,16 +983,16 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
             on_click=set_leaderboard_view,
             args=("📈 Analysis",),
         )
+    # with btn_col3:
+    #     st.button(
+    #         "🎯 Spotlight",
+    #         use_container_width=True,
+    #         type="primary" if selected_view == "🎯 Spotlight" else "secondary",
+    #         key="view_spotlight_btn",
+    #         on_click=set_leaderboard_view,
+    #         args=("🎯 Spotlight",),
+    #     )
     with btn_col3:
-        st.button(
-            "🎯 Spotlight",
-            use_container_width=True,
-            type="primary" if selected_view == "🎯 Spotlight" else "secondary",
-            key="view_spotlight_btn",
-            on_click=set_leaderboard_view,
-            args=("🎯 Spotlight",),
-        )
-    with btn_col4:
         st.button(
             "📊 Compare",
             use_container_width=True,
@@ -1484,7 +1480,7 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
                     hovertemplate="<b>%{hovertext}</b><br>Countries: %{x}<br>Listeners: %{y:,.0f}<br>Rank: %{marker.color:.0f}<extra></extra>",
                 )
                 fig_scatter.update_yaxes(tickformat="~s")
-                style_figure(fig_scatter, 360)
+                style_figure(fig_scatter, 300)
                 st.plotly_chart(fig_scatter, use_container_width=True, config=PLOTLY_CONFIG)
 
                 reach_corr = scatter_data["countries_count"].corr(scatter_data["monthly_listeners"])
@@ -1592,7 +1588,7 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
 
                 songs_items = [item.strip() for item in str(row.get("top_songs") or "").split("\n") if item.strip()]
                 albums_items = [item.strip() for item in str(row.get("top_albums") or "").split("\n") if item.strip()]
-                countries_items = [item.strip() for item in str(row.get("top_countries") or "").split("\n") if item.strip()]
+                countries_items = [item.strip() for item in str(row.get("top_country") or "").split("\n") if item.strip()]
 
                 profile_title = str(row.get("page_title") or "").strip()
                 profile_snapshot = str(row.get("snapshot_text") or "").strip()
@@ -1996,8 +1992,8 @@ def render_stream_trends(top_spotify: pd.DataFrame, leaderboard: pd.DataFrame, t
         with col_select:
             top_n_market = st.selectbox(
                 "Top artists",
-                options=[10, 100, 200],
-                index=2,
+                options=[10, 50, 100, 200],
+                index=1,
                 key="market_reach_top_n",
             )
 
@@ -2137,7 +2133,7 @@ def render_stream_trends(top_spotify: pd.DataFrame, leaderboard: pd.DataFrame, t
             selected_n = st.selectbox("🎯 Select Top List", options=top_n_options, index=2, key="gl_chart_top_n_dropdown")
         
         with gl_control2:
-            time_ranges = {0: "Daily (Last Run)", 7: "7 days", 14: "14 days", 30: "30 days"}
+            time_ranges = {1: "Daily (Last Run)", 7: "7 days", 14: "14 days", 30: "30 days"}
             selected_days = st.selectbox("📅 Time Range", options=list(time_ranges.keys()), format_func=lambda x: time_ranges[x], index=0)
 
         # Filter and prepare base data
@@ -2219,20 +2215,15 @@ def render_stream_trends(top_spotify: pd.DataFrame, leaderboard: pd.DataFrame, t
             
             fig_move = go.Figure()
             
-            for _, row in gl_chart_df.iterrows():
-                # Determine color based on trend (Rising/Falling)
-                trend_color = "#22d3a0" if row["range_change"] > 0 else "#e84545" if row["range_change"] < 0 else "#4f8ef7"
-                
-                # Score based on Range Peak so the chart updates with time filters
-                pos_score = max_all_time_rank + 1 - row["range_peak"]
-                
-                # Add the Bar
+            for idx, (_, row) in enumerate(gl_chart_df.iterrows()):
+                unique_color = CHART_COLORS[idx % len(CHART_COLORS)]
+                pos_score = max_all_time_rank + 1 - row["range_peak"]  # <-- Make sure this is here!
                 fig_move.add_trace(go.Bar(
                     name=row["name"],
                     y=[row["name"]],
                     x=[pos_score],
                     orientation="h",
-                    marker=dict(color=trend_color, line=dict(width=0)),
+                    marker=dict(color=unique_color, line=dict(width=0)),
                     hovertemplate=(
                         f"<b>{row['name']}</b><br>"
                         f"Peak in {selected_days}d: #{int(row['range_peak'])}<br>"
@@ -2297,13 +2288,35 @@ def render_debut_artist_chart(leaderboard: pd.DataFrame) -> None:
     
     st.markdown("<br>", unsafe_allow_html=True)
     
+    # Get global selection or default to top ranked
+    default_artist = st.session_state.get("global_selected_artist", "All artists")
+    if default_artist == "All artists" and artist_options:
+        default_artist = artist_options[0]
+        
+    try:
+        # Check if the exact label or the name is in options
+        if default_artist in artist_options:
+            default_idx = artist_options.index(default_artist)
+        else:
+            # Fallback: try to find an option that matches the artist name
+            matches = [i for i, opt in enumerate(artist_options) if default_artist in opt]
+            default_idx = matches[0] if matches else 0
+    except (ValueError, IndexError):
+        default_idx = 0
+
     col1, col2 = st.columns([1, 2])
     with col1:
         selected_label = st.selectbox(
             "🎤 Select an Artist",
             artist_options,
-            index=0 if artist_options else None,
+            index=default_idx if artist_options else None,
+            key="debut_artist_select"
         )
+    
+    # Sync global selection if changed here
+    if selected_label != st.session_state.get("global_selected_artist"):
+        st.session_state.global_selected_artist = selected_label
+        st.rerun()
     
     if not selected_label:
         st.info("Please select an artist from the dropdown above.")
@@ -2319,6 +2332,40 @@ def render_debut_artist_chart(leaderboard: pd.DataFrame) -> None:
     
     row = artist_data.iloc[0]
     
+    # --- Artist Hero Section (New) ---
+    st.markdown("<br>", unsafe_allow_html=True)
+    
+    # Try to get real image URL, fallback to generated avatar
+    real_img_url = get_artist_image_url(row['name'])
+    display_img = real_img_url if real_img_url else get_fallback_avatar_url(row['name'])
+    
+    hero_col1, hero_col2 = st.columns([1, 4])
+    with hero_col1:
+        st.markdown(
+            f"""
+            <div style="display: flex; justify-content: center; align-items: center; padding: 10px;">
+                <img src="{display_img}" style="width: 100%; max-width: 180px; border-radius: 24px; box-shadow: 0 20px 40px rgba(0,0,0,0.4); border: 2px solid var(--border);">
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+    with hero_col2:
+        st.markdown(f"<h1 style='margin-bottom: 0;'>{escape(row['name'])}</h1>", unsafe_allow_html=True)
+        if pd.notna(row.get('page_title')):
+            st.markdown(f"<p style='color: var(--text2); font-size: 1.1rem;'>{escape(str(row.get('page_title')))}</p>", unsafe_allow_html=True)
+        
+        # Action badges
+        st.markdown(
+            f"""
+            <div style="display: flex; gap: 10px; margin-top: 15px; flex-wrap: wrap;">
+                <span class="badge badge-new" style="padding: 5px 12px; font-size: 0.85rem;">Rank #{int(row['rank'])}</span>
+                <span class="badge badge-up" style="padding: 5px 12px; font-size: 0.85rem;">{escape(str(row.get('display_country') or 'Global'))}</span>
+                <span class="badge badge-same" style="padding: 5px 12px; font-size: 0.85rem;">{fmt_short(row.get('monthly_listeners'))} Monthly</span>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
     st.markdown("<br>", unsafe_allow_html=True)
     
     kpi1, kpi2, kpi3, kpi4 = st.columns(4)
@@ -2986,13 +3033,15 @@ if not runs.empty and runs["finished_at"].notna().any():
 def show_leaderboard_page() -> None:
     page_title, page_meta = PAGE_META["Leaderboard"]
     render_header(page_title, page_meta, last_run_label)
-    render_leaderboard(filtered, runs, max_rows=max_rows)
+    # Use global_filtered to allow the spotlight and full table context
+    render_leaderboard(global_filtered, runs, max_rows=max_rows)
 
 
 def show_chart_tracker_page() -> None:
     page_title, page_meta = PAGE_META["Chart Tracker"]
     render_header(page_title, page_meta, last_run_label)
-    render_chart_tracker(history, filtered)
+    # Use global_filtered to show top artists + selected artist spotlight
+    render_chart_tracker(history, global_filtered)
 
 
 def show_stream_trends_page() -> None:
@@ -3004,7 +3053,8 @@ def show_stream_trends_page() -> None:
 def show_debut_artist_page() -> None:
     page_title, page_meta = PAGE_META["Debut Artist"]
     render_header(page_title, page_meta, last_run_label)
-    render_debut_artist_chart(filtered)
+    # Use global_filtered to allow changing artists in the dropdown
+    render_debut_artist_chart(global_filtered)
 
 
 app_pages = [
@@ -3061,7 +3111,27 @@ with st.sidebar:
     with st.expander("🔍 Search & Filter", expanded=True):
         artist_rank_sorted = leaderboard.sort_values("rank")["name"].dropna().unique().tolist()
         artist_options = ["All artists"] + [str(a) for a in artist_rank_sorted]
-        selected_artist = st.selectbox("🎤 Artist search", artist_options, index=0)
+        
+        # Initialize session state if not present
+        if "global_selected_artist" not in st.session_state:
+            st.session_state.global_selected_artist = "All artists"
+            
+        try:
+            current_idx = artist_options.index(st.session_state.global_selected_artist)
+        except ValueError:
+            current_idx = 0
+            
+        selected_artist = st.selectbox(
+            "🎤 Artist search", 
+            artist_options, 
+            index=current_idx,
+            key="sidebar_artist_search"
+        )
+        
+        # Update global state
+        if selected_artist != st.session_state.global_selected_artist:
+            st.session_state.global_selected_artist = selected_artist
+            st.rerun()
         latam_only = st.toggle("🌎 Latin America", value=True)
         default_countries = sorted([c for c in leaderboard["display_country"].unique().tolist() if c != "—"])
         selected_countries = st.multiselect(
@@ -3074,12 +3144,15 @@ with st.sidebar:
     with st.expander("🎛️ Display Options", expanded=True):
         max_rows = st.slider("📊 Table rows", min_value=10, max_value=300, value=15, step=5)
     
-    # Apply filters to create filtered dataframe
-    filtered = leaderboard.copy()
+    # Apply global filters (Latam, Countries)
+    global_filtered = leaderboard.copy()
     if latam_only:
-        filtered = filtered[filtered["latam_signal"]]
+        global_filtered = global_filtered[global_filtered["latam_signal"]]
     if selected_countries:
-        filtered = filtered[filtered["display_country"].isin(selected_countries)]
+        global_filtered = global_filtered[global_filtered["display_country"].isin(selected_countries)]
+    
+    # Apply artist filter for appropriate views (Leaderboard list)
+    filtered = global_filtered.copy()
     if selected_artist != "All artists":
         filtered = filtered[filtered["name"] == selected_artist]
     filtered = filtered.sort_values("rank")
