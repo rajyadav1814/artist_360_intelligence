@@ -3,7 +3,7 @@ import os
 import re
 from typing import Any, Dict, Optional
 
-import httpx
+import anthropic
 import pandas as pd
 import streamlit as st
 from streamlit.errors import StreamlitSecretNotFoundError
@@ -152,64 +152,104 @@ def _read_secret(name: str) -> Optional[str]:
 
 
 def _resolve_api_key() -> Optional[str]:
-	return _read_secret("OPENAI_API_KEY")
+	return _read_secret("ANTHROPIC_API_KEY")
 
 
 def _resolve_model() -> str:
-	return _read_secret("OPENAI_MODEL") or "gpt-4o-mini"
+	return _read_secret("ANTHROPIC_MODEL") or "claude-opus-4-7"
 
 
-def _openai_chat_json(api_key: str, model: str, messages: list[dict[str, str]]) -> Dict[str, Any]:
-	with httpx.Client(timeout=45.0) as client:
-		response = client.post(
-			"https://api.openai.com/v1/chat/completions",
-			headers={
-				"Authorization": f"Bearer {api_key}",
-				"Content-Type": "application/json",
-			},
-			json={
-				"model": model,
-				"messages": messages,
-				"temperature": 0.1,
-				"response_format": {"type": "json_object"},
-			},
+def _anthropic_chat_json(api_key: str, model: str, messages: list[dict[str, str]]) -> Dict[str, Any]:
+	client = anthropic.Anthropic(api_key=api_key)
+	
+	try:
+		message = client.messages.create(
+			model=model,
+			max_tokens=2000,
+			messages=messages,
 		)
+		
+		content = message.content[0].text if message.content else "{}"
+		
+		# Extract JSON from markdown code blocks if present
+		if "```json" in content:
+			content = content.split("```json")[1].split("```")[0].strip()
+		elif "```" in content:
+			content = content.split("```")[1].split("```")[0].strip()
+		
+		return json.loads(content)
+	except (json.JSONDecodeError, anthropic.APIError) as e:
+		st.warning(f"API error: {str(e)}")
+		return {}
 
-	if response.status_code == 401:
-		raise PermissionError("OpenAI authentication failed (invalid API key).")
-	response.raise_for_status()
 
-	payload = response.json()
-	content = payload["choices"][0]["message"].get("content", "{}")
-	return json.loads(content)
-
-
-def _openai_chat_text(api_key: str, model: str, messages: list[dict[str, str]]) -> str:
-	with httpx.Client(timeout=45.0) as client:
-		response = client.post(
-			"https://api.openai.com/v1/chat/completions",
-			headers={
-				"Authorization": f"Bearer {api_key}",
-				"Content-Type": "application/json",
-			},
-			json={
-				"model": model,
-				"messages": messages,
-				"temperature": 0.3,
-			},
+def _anthropic_chat_text(api_key: str, model: str, messages: list[dict[str, str]]) -> str:
+	client = anthropic.Anthropic(api_key=api_key)
+	
+	try:
+		message = client.messages.create(
+			model=model,
+			max_tokens=1500,
+			messages=messages,
 		)
+		
+		return message.content[0].text if message.content else ""
+	except anthropic.APIError as e:
+		st.warning(f"API error: {str(e)}")
+		return ""
 
-	if response.status_code == 401:
-		raise PermissionError("OpenAI authentication failed (invalid API key).")
-	response.raise_for_status()
 
-	payload = response.json()
-	return payload["choices"][0]["message"].get("content", "")
+	def _find_artist_in_db(question: str) -> Optional[str]:
+		"""Try to match an artist name from the database using tokens from the question.
+
+		Returns the first matching artist name or None.
+		"""
+		tokens = [t.strip() for t in re.split(r"\W+", question) if len(t.strip()) > 2]
+		if not tokens:
+			return None
+
+		conn = get_connection()
+		try:
+			with conn.cursor() as cur:
+				for token in tokens[:6]:
+					cur.execute(
+						"SELECT name FROM artists WHERE lower(name) LIKE %s LIMIT 1",
+						(f"%{token.lower()}%",),
+					)
+					row = cur.fetchone()
+					if row:
+						return row[0]
+		finally:
+			try:
+				conn.close()
+			except Exception:
+				pass
+
+		return None
 
 
 def _local_plan(question: str) -> Dict[str, Any]:
 	"""Generate query plans locally without API calls."""
 	q = question.lower()
+
+	# Try to detect an explicit artist name in the question and return a focused plan
+	artist = _find_artist_in_db(question)
+	if artist:
+		limit = _extract_top_n(question) or 20
+		return {
+			"sql": f"""
+				SELECT a.name, i.rank, i.total_points, i.top_country
+				FROM itunes_artist_rankings i
+				JOIN artists a ON a.id = i.artist_id
+				WHERE a.name ILIKE '%{artist}%' 
+				ORDER BY i.scrape_date DESC, i.rank ASC
+				LIMIT {limit}
+			""",
+			"chart_type": "multi",
+			"x": "scrape_date",
+			"y": "total_points",
+			"title": f"Performance for {artist}",
+		}
 
 	if _is_top_intent(question):
 		return _force_rank_plan(question)
@@ -393,16 +433,22 @@ def _top_text_values(df: pd.DataFrame, column: str, limit: int = 3) -> list[str]
 
 
 def _default_dynamic_suggestions(question: str) -> list[str]:
-	"""Build non-static fallback suggestions based on the current topic."""
+	"""Build non-static fallback suggestions based on business analytics topics."""
 	pool = [
-		"Show the current top 5 artists by rank",
-		"Which countries appear most in the latest ranking snapshot?",
-		"Give me a short summary of recent scrape activity",
-		"Which artist has the highest monthly listeners right now?",
-		"Compare ranking points versus Spotify listeners",
-		"Which artists have the strongest country reach?",
-		"Show recent scrape runs with failed statuses",
-		"Summarize the latest iTunes ranking snapshot",
+		"What are the Top 5 tracks for FY2026?",
+		"What are the Top 5 songs last week with label names?",
+		"Who are the Top 20 artists by number of streams in FY2026?",
+		"What is the performance of this artist YTD across all countries?",
+		"Which artists are in Top 100 by number of tracks?",
+		"What are the number of tracks in Top 100 for each label last week?",
+		"What are the debut tracks in FY2026?",
+		"Which tracks are consistently in Top 10 over the last 10 weeks?",
+		"How many streams are required to enter Top 100 in FY2026?",
+		"Compare Top 10 artists in a table with percentage analysis",
+		"What are the Top 10 tracks in the previous 5 weeks?",
+		"Analyze last 5 weeks of track and label performance",
+		"Compare Top 5 tracks this week vs prior week",
+		"Which independent artist should be acquired and why?",
 	]
 	if not pool:
 		return []
@@ -411,62 +457,97 @@ def _default_dynamic_suggestions(question: str) -> list[str]:
 
 
 def _build_follow_up_suggestions(question: str, df: Optional[pd.DataFrame] = None) -> list[str]:
-	"""Generate contextual follow-up suggestions from the current topic and result set."""
+	"""Generate contextual follow-up suggestions focused on business analytics."""
 	q = question.lower()
 	suggestions: list[str] = []
 
 	if df is not None and not df.empty:
-		artist_names = _top_text_values(df, "name")
-		countries = _top_text_values(df, "top_country")
-		sources = _top_text_values(df, "source")
+		artist_names = _top_text_values(df, "name", limit=5)
+		track_names = _top_text_values(df, "track", limit=5)
+		labels = _top_text_values(df, "label", limit=5)
 
-		if "monthly_listeners" in df.columns:
-			if artist_names:
-				_push_suggestion(suggestions, f"Compare {artist_names[0]} and {artist_names[min(1, len(artist_names) - 1)]} by monthly listeners" if len(artist_names) > 1 else f"Give me a short profile of {artist_names[0]}")
-			_push_suggestion(suggestions, "Which artist has the highest peak listeners?")
-			_push_suggestion(suggestions, "Show current top artists by ranking points")
+		# Track-focused suggestions
+		if track_names:
+			if len(track_names) > 1:
+				_push_suggestion(suggestions, f"Compare {track_names[0]} vs {track_names[1]} performance")
+			_push_suggestion(suggestions, f"Analyze {track_names[0]} performance over the last 10 weeks")
+			_push_suggestion(suggestions, f"What is the label and metadata for {track_names[0]}?")
 
-		if "rank" in df.columns and "total_points" in df.columns:
-			if artist_names:
-				_push_suggestion(suggestions, f"Why is {artist_names[0]} ranked this high?")
-			_push_suggestion(suggestions, "Which artists have the biggest rank changes?")
-			_push_suggestion(suggestions, "Show a chart of top artists by total points")
+		# Artist-focused suggestions
+		if artist_names:
+			if len(artist_names) > 1:
+				_push_suggestion(suggestions, f"Compare {artist_names[0]} vs {artist_names[1]} by streams")
+			_push_suggestion(suggestions, f"How many tracks does {artist_names[0]} have in Top 100?")
+			_push_suggestion(suggestions, f"What is the performance of {artist_names[0]} YTD?")
 
-		if "top_country" in df.columns and "artists_count" in df.columns:
-			if countries:
-				_push_suggestion(suggestions, f"Which artists are driving the ranking in {countries[0]}?")
-				if len(countries) > 1:
-					_push_suggestion(suggestions, f"Compare artist presence in {countries[0]} and {countries[1]}")
-			_push_suggestion(suggestions, "Show the top artists by total points")
+		# Label-focused suggestions
+		if labels:
+			if len(labels) > 1:
+				_push_suggestion(suggestions, f"Compare {labels[0]} vs {labels[1]} track counts")
+			_push_suggestion(suggestions, f"Analyze {labels[0]} performance over the last 5 weeks")
+			_push_suggestion(suggestions, f"Which independent artists under {labels[0]} should be acquired?")
 
-		if "source" in df.columns and "rows_upserted" in df.columns:
-			if sources:
-				_push_suggestion(suggestions, f"Which {sources[0]} scrape run loaded the most rows?")
-			_push_suggestion(suggestions, "Show scrape runs with failed status")
-			_push_suggestion(suggestions, "Summarize overall scrape health")
+		# Data-driven suggestions
+		if "streams" in df.columns or "listeners" in df.columns:
+			_push_suggestion(suggestions, "How many streams are required to enter Top 100?")
+			_push_suggestion(suggestions, "What is the 10th ranked track's stream count?")
 
-		if "name" in df.columns and "top_country" in df.columns and artist_names:
-			_push_suggestion(suggestions, f"Tell me more about {artist_names[0]}")
-			if countries:
-				_push_suggestion(suggestions, f"Which other artists are strongest in {countries[0]}?")
+		if "rank" in df.columns:
+			_push_suggestion(suggestions, "Which tracks consistently stay in Top 10?")
+			_push_suggestion(suggestions, "What are the debut tracks this week?")
 
+	# Topic-based contextual suggestions
+	# Top tracks & rankings
+	if any(keyword in q for keyword in ["top", "rank", "track", "song"]):
+		_push_suggestion(suggestions, "What are the Top 5 tracks for FY2026?")
+		_push_suggestion(suggestions, "What are the Top 10 tracks in the previous 5 weeks?")
+
+	# Artist performance
+	if any(keyword in q for keyword in ["artist", "performer", "performance"]):
+		_push_suggestion(suggestions, "Who are the Top 20 artists by streams in FY2026?")
+		_push_suggestion(suggestions, "Compare Top 10 artists in a table with percentage analysis")
+
+	# Label analysis
+	if any(keyword in q for keyword in ["label", "independent"]):
+		_push_suggestion(suggestions, "How many tracks does each label have in Top 100?")
+		_push_suggestion(suggestions, "Analyze last 5 weeks of label performance")
+
+	# Trend analysis
+	if any(keyword in q for keyword in ["trend", "consistency", "growth", "change"]):
+		_push_suggestion(suggestions, "Which tracks are consistently in Top 10 for 10 weeks?")
+		_push_suggestion(suggestions, "Compare Top 5 tracks this week vs prior week")
+
+	# Debut and new entries
+	if any(keyword in q for keyword in ["debut", "new", "entry"]):
+		_push_suggestion(suggestions, "What are the debut tracks in FY2026?")
+		_push_suggestion(suggestions, "What are the debut tracks last week?")
+
+	# Strategic insights
+	if any(keyword in q for keyword in ["strategy", "acquire", "business", "insight"]):
+		_push_suggestion(suggestions, "Based on last 5 weeks, which artist should be acquired?")
+
+	# Greeting responses with business context
 	if any(token in q for token in ["hi", "hello", "hey", "hii"]):
-		_push_suggestion(suggestions, "Summarize the latest ranking snapshot")
-		_push_suggestion(suggestions, "Which artist has the highest monthly listeners right now?")
-		_push_suggestion(suggestions, "Show recent scrape activity")
+		_push_suggestion(suggestions, "What are the Top 5 tracks for FY2026?")
+		_push_suggestion(suggestions, "Who are the Top 20 artists by streams?")
+		_push_suggestion(suggestions, "How many tracks does each label have in Top 100?")
 
-	if "listener" in q or "spotify" in q:
-		_push_suggestion(suggestions, "Which artists are growing fastest by rank?")
-		_push_suggestion(suggestions, "Compare listener leaders with ranking leaders")
+	# Stream and listener analysis
+	if "stream" in q or "listener" in q:
+		_push_suggestion(suggestions, "How many streams are required to enter Top 100?")
+		_push_suggestion(suggestions, "What are the Top 5 tracks last week with streams?")
 
-	if "country" in q:
-		_push_suggestion(suggestions, "Which artists have the highest total points overall?")
-		_push_suggestion(suggestions, "Show the latest ranking leaders by country")
+	# Debut and new entries
+	if "debut" in q or "new" in q:
+		_push_suggestion(suggestions, "What are the debut tracks this week?")
+		_push_suggestion(suggestions, "Which tracks are new entries to Top 100?")
 
-	if "run" in q or "scrape" in q or "activity" in q:
-		_push_suggestion(suggestions, "Which source is producing the largest loads?")
-		_push_suggestion(suggestions, "Show the most recent failed scrape runs")
+	# Label and acquisition
+	if "label" in q or "independent" in q:
+		_push_suggestion(suggestions, "Which independent artists should be acquired?")
+		_push_suggestion(suggestions, "Analyze label performance over the last 5 weeks")
 
+	# Add fallback suggestions
 	for fallback in _default_dynamic_suggestions(question):
 		_push_suggestion(suggestions, fallback)
 
@@ -598,36 +679,47 @@ def _render_follow_up_suggestions(suggestions: list[str], message_key: str) -> N
 def _generate_plan(question: str, api_key: Optional[str], model: str) -> Dict[str, Any]:
 	"""Generate query plan from AI or use fallback local plan."""
 	if _is_top_intent(question):
-		return _force_rank_plan(question)
+		plan = _force_rank_plan(question)
+		plan["source"] = "local"
+		return plan
 
 	if not api_key:
-		return _local_plan(question)
+		plan = _local_plan(question)
+		plan["source"] = "local"
+		return plan
 
 	try:
-		plan = _openai_chat_json(
+		plan = _anthropic_chat_json(
 			api_key,
 			model,
 			messages=[
 				{
-					"role": "system",
-					"content": (
-						"You are a music analytics assistant. Generate a safe query plan in JSON with keys: "
-						"sql, chart_type, x, y, title. chart_type must be 'multi' for intelligent multi-chart. "
-						"Always use LIMIT with appropriate count (10-20 for top-N queries)."
-					),
-				},
-				{
 					"role": "user",
-					"content": (
-						f"{SCHEMA_CONTEXT}\n\n"
-						"Rules:\n"
-						"- Use only listed tables and columns.\n"
-						"- Use only SELECT/CTE style queries.\n"
-						"- Keep results readable.\n"
-						"- For 'top 10' queries, ensure LIMIT 10.\n"
-						f"Question: {question}"
-					),
-				},
+					"content": f"""You are a music analytics SQL expert. Generate a safe query plan in JSON format.
+					
+					Schema and Rules:
+					{SCHEMA_CONTEXT}
+
+					Safety Requirements:
+					- Use ONLY SELECT and WITH (CTE) queries
+					- Use ONLY these tables: {', '.join(sorted(ALLOWED_TABLES))}
+					- Always add LIMIT with appropriate count (10-30 for executive queries)
+					- Use aggregate functions for latest data (MAX(scrape_date))
+					- No UPDATE, INSERT, DELETE, DROP, ALTER, CREATE, TRUNCATE, GRANT, REVOKE, COPY, EXEC
+
+					Response Format (JSON):
+					{{
+					    "sql": "SELECT ... LIMIT N",
+					    "chart_type": "multi",
+					    "x": "column_name",
+					    "y": "column_name",
+					    "title": "Chart Title"
+					}}
+
+					User Question: {question}
+
+					Generate the JSON plan only, no explanation."""
+				}
 			],
 		)
 		return {
@@ -636,11 +728,14 @@ def _generate_plan(question: str, api_key: Optional[str], model: str) -> Dict[st
 			"x": plan.get("x"),
 			"y": plan.get("y"),
 			"title": plan.get("title") or "Results",
+			"source": "ai",
 		}
 	except PermissionError:
 		raise
 	except Exception:
-		return _local_plan(question)
+		plan = _local_plan(question)
+		plan["source"] = "local"
+		return plan
 
 
 def _enforce_safe_sql(candidate_sql: str) -> str:
@@ -752,30 +847,29 @@ def _summarize_results(
 
 	# AI-powered summary
 	preview_csv = df.head(20).to_csv(index=False)
-	prompt = (
-		"You are a music data analyst. Generate a concise, conversational summary in 3-4 sentences with key metrics. "
-		"Keep the tone natural and helpful, not robotic or overly cheerful. Avoid emojis unless the user used them first.\n\n"
-		f"Question: {question}\n"
-		f"Results returned: {row_count}\n"
-		f"Data preview:\n{preview_csv}"
-	)
 	try:
-		text = _openai_chat_text(
-			api_key,
-			model,
+		client = anthropic.Anthropic(api_key=api_key)
+		message = client.messages.create(
+			model=model,
+			max_tokens=800,
 			messages=[
 				{
-					"role": "system",
-					"content": "Be accurate, concise, and conversational. Include relevant statistics. Use simple markdown only when helpful.",
-				},
-				{"role": "user", "content": prompt},
+					"role": "user",
+					"content": f"""Analyze this music analytics data and provide a 3-4 sentence executive summary.
+					
+					Question: {question}
+					Total rows: {row_count}
+
+					Data preview:
+					{preview_csv}
+
+					Keep it conversational, professional, and include 1-2 key metrics. No emojis unless the user asked."""
+				}
 			],
 		)
-		if text:
-			return text
-	except PermissionError:
-		raise
-	except Exception:
+		if message.content:
+			return message.content[0].text
+	except anthropic.APIError:
 		pass
 
 	return f"I found {row_count} results. If you want, I can also turn this into a chart."
@@ -1099,6 +1193,12 @@ def render_custom_chatbot() -> None:
 
 				# Generate and execute query
 				plan = _generate_plan(question, api_key, model)
+				# Surface plan source when local heuristics are used (helps debug repeated/ generic graphs)
+				if plan.get("source") == "local":
+					st.info("Using local heuristics to build the query (AI plan not available). Results may be generic.")
+					preview_sql = str(plan.get("sql", "")).strip().replace("\n", " ")
+					if preview_sql:
+						st.caption(f"SQL preview: {preview_sql[:240]}")
 				safe_sql = _enforce_safe_sql(plan["sql"])
 				result_df = _clean_result_df(_run_query(safe_sql))
 
@@ -1151,7 +1251,7 @@ def render_custom_chatbot() -> None:
 
 			except PermissionError as e:
 				err = (
-					"OpenAI authentication failed. Please check that your API key is set correctly in the environment or Streamlit secrets."
+					"Anthropic authentication failed. Please check that your API key is set correctly in the environment or Streamlit secrets."
 				)
 				st.error(err)
 				suggestions = _build_follow_up_suggestions("artists")
