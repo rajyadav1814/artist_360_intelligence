@@ -2,18 +2,19 @@
 Music Analytics AI Agent — Production-Ready
 - 70% visual / 30% text output
 - Dynamic AI-powered SQL planning (no fixed queries)
-- OpenAI SDK (replaces Anthropic)
+- Anthropic Claude SDK (replaces OpenAI)
 - MCP-aligned architecture: plan → query → visualize → narrate
 """
 
 import json
 import os
 import re
+import datetime
 from typing import Any, Dict, List, Optional
 
 import pandas as pd
 import streamlit as st
-from openai import OpenAI, AuthenticationError, APIError
+import anthropic
 from streamlit.errors import StreamlitSecretNotFoundError
 
 from src.ai.advanced_visualizations import (
@@ -31,24 +32,28 @@ ALLOWED_TABLES = {
     "trending_artists_monthly",
     "artist_details",
     "scrape_runs",
+    "labels",
+    "tracks",
+    "track_rankings",
 }
 
 SCHEMA_CONTEXT = """
 Database schema summary:
-- artists(id, name, profile_url, created_at, updated_at)
-- itunes_artist_rankings(id, artist_id, rank, rank_change, total_points, itunes_points, spotify_points, apple_music_points, shazam_points, youtube_points, other_points, top_country, num_countries, scraped_at TIMESTAMPTZ, scrape_date DATE)
-- spotify_artists(id, artist_id, monthly_listeners, peak_listeners, peak_date, scraped_at TIMESTAMPTZ, scrape_date DATE)
-- trending_artists_monthly(id, artist_id, source, rank, rank_change, total_points, top_country, month, scraped_at TIMESTAMPTZ)
-- artist_details(id, artist_id, page_title, snapshot_text, songs_count, albums_count, countries_count, top_songs, top_albums, top_countries, scraped_at TIMESTAMPTZ, scrape_date DATE)
+- artists(id, name, profile_url)
+- labels(id, name, type, owner)
+- tracks(id, artist_id, label_id, title, release_date, duration_ms, isrc)
+- track_rankings(id, track_id, rank, streams, week_number, fiscal_year, scrape_date, chart_date)
+- itunes_artist_rankings(id, artist_id, rank, rank_change, total_points, itunes_points, spotify_points, apple_music_points, shazam_points, youtube_points, other_points, top_country, num_countries, scraped_at, scrape_date)
+- spotify_artists(id, artist_id, monthly_listeners, peak_listeners, peak_date, scraped_at, scrape_date)
+- trending_artists_monthly(id, artist_id, source, rank, rank_change, total_points, top_country, month, scraped_at)
+- artist_details(id, artist_id, page_title, snapshot_text, songs_count, albums_count, countries_count, top_songs, top_albums, top_countries, scraped_at, scrape_date)
 - scrape_runs(id, source, status, rows_upserted, error_msg, started_at, finished_at)
 
-Key notes:
-- Use scraped_at (timestamp) for precise latest data: MAX(scraped_at)
-- Use scrape_date (date) for daily aggregations
-- trending_artists_monthly has only scraped_at, no scrape_date
-
 Relationships:
-- Join metrics tables to artists using artists.id = <table>.artist_id.
+- tracks.artist_id = artists.id
+- tracks.label_id = labels.id
+- track_rankings.track_id = tracks.id
+- All artist-level metrics (itunes_artist_rankings, spotify_artists, etc.) join to artists on artist_id = artists.id.
 """.strip()
 
 DANGEROUS_SQL_RE = re.compile(
@@ -79,19 +84,17 @@ CHART_TRIGGER_PATTERNS = [
     r"\bbreakdown\b",
     r"\bover time\b",
     r"\btop\s+\d+\b",
-	r"\bexplain\b",
-    r"\bwhy\b",
-    r"\bsummary\b",
-    r"\bsummarize\b",
-    r"\btell me\b",
-    r"\bwhat does\b",
-    r"\bwhich artist\b",
-    r"\bwho is\b",
-    r"\bdetails?\b"
 ]
 
 NO_CHART_PATTERNS = [
-    
+    r"\bwho is\b",
+    r"\bwhat is\b",
+    r"\bdescribe\b",
+    r"\bprofile\b",
+    r"\bdetails?\b",
+    r"\bexplain\b",
+    r"\btell me\b",
+    r"\blist\b",
 ]
 
 TABLE_TRIGGER_PATTERNS = [
@@ -103,8 +106,8 @@ TABLE_TRIGGER_PATTERNS = [
     r"\brecords?\b",
     r"\blist\b",
     r"\bdetails?\b",
-    r"\bdownload\b",
     r"\bcolumns?\b",
+    r"\ball\b",
 ]
 
 NO_TABLE_PATTERNS = [
@@ -135,65 +138,71 @@ def _read_secret(name: str) -> Optional[str]:
 
 
 def _resolve_api_key() -> Optional[str]:
-    return _read_secret("OPENAI_API_KEY")
+    return _read_secret("CLAUDE_API_KEY")
 
 
 def _resolve_model() -> str:
-    return _read_secret("OPENAI_MODEL") or "gpt-4o"
+    return _read_secret("CLAUDE_MODEL") or "claude-3-5-sonnet-20240620"
 
 
-def _get_client(api_key: str) -> OpenAI:
-    return OpenAI(api_key=api_key)
+def _get_client(api_key: str) -> anthropic.Anthropic:
+    return anthropic.Anthropic(api_key=api_key)
 
 
-# ─── OpenAI API Calls ─────────────────────────────────────────────────────────
+# ─── Claude API Calls ─────────────────────────────────────────────────────────
 
-def _openai_chat_json(
+def _claude_chat_json(
     api_key: str,
     model: str,
     system: str,
     user: str,
     max_tokens: int = 3000,
 ) -> Dict[str, Any]:
-    """Call OpenAI and parse the response as JSON."""
+    """Call Claude and parse the response as JSON."""
     client = _get_client(api_key)
     try:
-        response = client.chat.completions.create(
+        response = client.messages.create(
             model=model,
             max_tokens=max_tokens,
-            response_format={"type": "json_object"},
+            system=system,
             messages=[
-                {"role": "system", "content": system},
                 {"role": "user", "content": user},
             ],
         )
-        content = response.choices[0].message.content or "{}"
+        content = response.content[0].text if response.content else "{}"
+        
+        # Claude might wrap JSON in backticks, let's clean it
+        if "```json" in content:
+            content = content.split("```json")[1].split("```")[0].strip()
+        elif "```" in content:
+            content = content.split("```")[1].split("```")[0].strip()
+            
         return json.loads(content)
-    except (json.JSONDecodeError, APIError) as e:
+    except (json.JSONDecodeError, anthropic.APIError) as e:
         st.warning(f"API error: {str(e)}")
         return {}
 
 
-def _openai_chat_text(
+def _claude_chat_text(
     api_key: str,
     model: str,
     system: str,
     user: str,
     max_tokens: int = 1000,
 ) -> str:
-    """Call OpenAI and return the response as plain text."""
+    """Call Claude and return the response as plain text."""
     client = _get_client(api_key)
     try:
-        response = client.chat.completions.create(
+        response = client.messages.create(
             model=model,
             max_tokens=max_tokens,
+            system=system,
             messages=[
-                {"role": "system", "content": system},
                 {"role": "user", "content": user},
             ],
         )
-        return response.choices[0].message.content or ""
-    except APIError as e:
+        return response.content[0].text if response.content else ""
+    except anthropic.APIError as e:
         st.warning(f"API error: {str(e)}")
         return ""
 
@@ -234,54 +243,323 @@ def _force_rank_plan(question: str) -> Dict[str, Any]:
     }
 
 
-def _find_artist_in_db(question: str) -> Optional[str]:
-    """Try to match an artist name from the database using tokens from the question."""
-    tokens = [t.strip() for t in re.split(r"\W+", question) if len(t.strip()) > 2]
+# Common English words that should never be matched as artist names
+_STOP_WORDS = {
+    "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for",
+    "of", "with", "by", "from", "is", "it", "as", "are", "was", "were",
+    "be", "been", "being", "have", "has", "had", "do", "does", "did",
+    "will", "would", "could", "should", "may", "might", "shall", "can",
+    "not", "no", "nor", "so", "if", "then", "than", "too", "very",
+    "just", "about", "above", "after", "again", "all", "also", "any",
+    "because", "before", "between", "both", "each", "few", "get",
+    "give", "got", "how", "into", "its", "let", "like", "long",
+    "make", "many", "more", "most", "much", "must", "new", "now",
+    "old", "only", "other", "our", "out", "over", "own", "put",
+    "same", "she", "some", "still", "such", "take", "tell", "that",
+    "their", "them", "these", "they", "this", "those", "through",
+    "under", "until", "upon", "want", "way", "what", "when", "where",
+    "which", "while", "who", "whom", "why", "you", "your",
+    # Music/data query words that should not match artist names
+    "top", "best", "songs", "song", "track", "tracks", "album", "albums",
+    "artist", "artists", "rank", "ranking", "rankings", "stream", "streams",
+    "listener", "listeners", "monthly", "country", "countries", "point",
+    "points", "chart", "charts", "show", "list", "data", "details",
+    "performance", "compare", "comparison", "trend", "trending", "analysis",
+    "analyze", "last", "week", "month", "year", "total", "number",
+    "music", "label", "labels", "spotify", "itunes", "apple", "youtube",
+    "shazam", "global", "current", "recent", "latest",
+}
+
+
+def _find_artists_in_db(question: str) -> List[str]:
+    """Identify all artists mentioned in the question using a robust multi-pass approach."""
+    # 1. Tokenize and clean
+    raw_tokens = [t.strip() for t in re.split(r"\W+", question) if len(t.strip()) > 1]
+    tokens = []
+    for t in raw_tokens:
+        t_l = t.lower()
+        if t_l in _STOP_WORDS or t_l.isdigit():
+            continue
+        # Strip possessive 's
+        if t_l.endswith('s') and len(t_l) > 2:
+            t_l = t_l[:-1]
+        tokens.append(t_l)
+    
     if not tokens:
-        return None
+        return []
+
+    found_map = {} # name -> score
     conn = get_connection()
     try:
         with conn.cursor() as cur:
-            for token in tokens[:6]:
+            # Pass 1: Try multi-word phrases (longest first)
+            for window_size in range(min(len(tokens), 4), 1, -1):
+                for i in range(len(tokens) - window_size + 1):
+                    phrase = " ".join(tokens[i:i + window_size])
+                    cur.execute(
+                        "SELECT name FROM artists WHERE lower(name) = %s LIMIT 1",
+                        (phrase.lower(),),
+                    )
+                    row = cur.fetchone()
+                    if row:
+                        name = row["name"] if isinstance(row, dict) else row[0]
+                        found_map[name] = max(found_map.get(name, 0), window_size * 10)
+
+            # Pass 2: ILIKE multi-word (e.g. "Justin Bieber" matching "Justin Bieber")
+            for window_size in range(min(len(tokens), 4), 1, -1):
+                for i in range(len(tokens) - window_size + 1):
+                    phrase = " ".join(tokens[i:i + window_size])
+                    cur.execute(
+                        "SELECT name FROM artists WHERE lower(name) ILIKE %s LIMIT 3",
+                        (f"%{phrase.lower()}%",),
+                    )
+                    for row in cur.fetchall():
+                        name = row["name"] if isinstance(row, dict) else row[0]
+                        # Only add if it contains the phrase as a full word boundary
+                        if re.search(r'\b' + re.escape(phrase.lower()) + r'\b', name.lower()):
+                            found_map[name] = max(found_map.get(name, 0), window_size * 5)
+
+            # Pass 3: Single tokens only if not already matched as part of a multi-word
+            matched_words = set()
+            for name in found_map:
+                for word in name.lower().split():
+                    matched_words.add(word)
+            
+            for t in tokens:
+                if t in matched_words:
+                    continue
                 cur.execute(
-                    "SELECT name FROM artists WHERE lower(name) LIKE %s LIMIT 1",
-                    (f"%{token.lower()}%",),
+                    "SELECT name FROM artists WHERE lower(name) = %s OR lower(name) ILIKE %s LIMIT 1",
+                    (t, f"% {t}%"), # Match exact or at start of word
                 )
                 row = cur.fetchone()
                 if row:
-                    return row[0]
+                    name = row["name"] if isinstance(row, dict) else row[0]
+                    found_map[name] = max(found_map.get(name, 0), 1)
+
     finally:
         try:
             conn.close()
         except Exception:
             pass
-    return None
+            
+    # Return names sorted by score (relevance)
+    sorted_artists = [k for k, v in sorted(found_map.items(), key=lambda item: item[1], reverse=True)]
+    # Safety: filter out generic names that might be tokens (like "Justin") if they were matched weakly
+    final = []
+    for a in sorted_artists:
+        # If it's a single word name but wasn't in the question as a standalone token, skip
+        if " " not in a and a.lower() not in tokens:
+            continue
+        final.append(a)
+    return final
+
+
+def _build_artist_profile(artist_name: str) -> Dict[str, Any]:
+    """Build a comprehensive query that gathers ALL available data for an artist from every table.
+    This is the most reliable fallback — it always returns something if the artist exists."""
+    safe_artist = artist_name.replace("'", "''")
+    return {
+        "sql": f"""
+            SELECT
+                a.name,
+                -- Rankings data
+                i.rank AS current_rank,
+                i.total_points,
+                i.itunes_points,
+                i.spotify_points,
+                i.apple_music_points,
+                i.shazam_points,
+                i.youtube_points,
+                i.top_country,
+                i.num_countries,
+                TO_CHAR(i.scrape_date, 'DD Mon YYYY') AS ranking_date,
+                -- Spotify data
+                s.monthly_listeners,
+                s.peak_listeners,
+                -- Details data
+                ad.top_songs,
+                ad.top_albums,
+                ad.top_countries,
+                ad.songs_count,
+                ad.albums_count,
+                ad.countries_count
+            FROM artists a
+            LEFT JOIN LATERAL (
+                SELECT * FROM itunes_artist_rankings
+                WHERE artist_id = a.id ORDER BY scrape_date DESC LIMIT 1
+            ) i ON true
+            LEFT JOIN LATERAL (
+                SELECT * FROM spotify_artists
+                WHERE artist_id = a.id ORDER BY scrape_date DESC LIMIT 1
+            ) s ON true
+            LEFT JOIN LATERAL (
+                SELECT * FROM artist_details
+                WHERE artist_id = a.id ORDER BY scraped_at DESC LIMIT 1
+            ) ad ON true
+            WHERE a.name ILIKE '%{safe_artist}%'
+            LIMIT 1
+        """,
+        "chart_type": "none",
+        "x": "name",
+        "y": "total_points",
+        "title": f"Complete Profile: {artist_name}",
+        "show_chart": False,
+        "show_table": True,
+        "show_summary": True,
+        "render_order": ["summary", "table"],
+    }
 
 
 def _local_plan(question: str) -> Dict[str, Any]:
     """Generate query plans locally without API calls."""
     q = question.lower()
 
-    artist = _find_artist_in_db(question)
-    if artist:
+    # Check for generic top/rank intent BEFORE trying to match artist names
+    # e.g., "Top 10 artists" should not try to find an artist named "01099"
+    if _is_top_intent(question) and not any(kw in q for kw in ["song", "album", "countr", "detail", "listener"]):
+        # Only override to artist-specific if a clear artist name is present
+        artists = _find_artists_in_db(question)
+        if not artists:
+            return _force_rank_plan(question)
+    else:
+        artists = _find_artists_in_db(question)
+
+    if artists:
         limit = _extract_top_n(question) or 20
-        return {
-            "sql": f"""
-                SELECT a.name, i.rank, i.total_points, i.top_country
-                FROM itunes_artist_rankings i
-                JOIN artists a ON a.id = i.artist_id
-                WHERE a.name ILIKE '%{artist}%'
-                ORDER BY i.scrape_date DESC, i.rank ASC
-                LIMIT {limit}
-            """,
-            "chart_type": "multi",
-            "x": "scrape_date",
-            "y": "total_points",
-            "title": f"Performance for {artist}",
-        }
+        
+        # Prepare comparison logic if multiple artists found
+        safe_artists = [a.replace("'", "''") for a in artists]
+        if len(artists) > 1:
+            artist_conditions = " OR ".join([f"a.name ILIKE '%{a}%'" for a in safe_artists])
+            where_clause = f"({artist_conditions})"
+            title = f"Comparison: {', '.join(artists)}"
+            # For multiple artists, we want the latest for EACH, so we use DISTINCT ON or similar
+            # But standard SQL for simplicity:
+            sql_limit = len(artists)
+        else:
+            artist = artists[0]
+            where_clause = f"a.name ILIKE '%{safe_artists[0]}%'"
+            title = f"Details for {artist}"
+            sql_limit = 1
+
+        # Route to the right table based on what the user is asking
+        # Prioritize points/rank even if "country" is mentioned, as people often ask for "points in country"
+        if any(kw in q for kw in ["rank", "point", "performance"]):
+            return {
+                "sql": f"""
+                    SELECT DISTINCT ON (a.id) a.name, i.rank, i.total_points, i.top_country as global_top_market,
+                           ad.top_countries as all_charting_territories, ad.top_songs
+                    FROM artists a
+                    LEFT JOIN itunes_artist_rankings i ON i.artist_id = a.id
+                    LEFT JOIN artist_details ad ON ad.artist_id = a.id
+                    WHERE {where_clause}
+                    ORDER BY a.id, i.scrape_date DESC NULLS LAST, ad.scraped_at DESC NULLS LAST
+                    LIMIT {len(artists)}
+                """,
+                "chart_type": "multi",
+                "x": "name",
+                "y": "total_points",
+                "title": f"Performance: {', '.join(artists)}",
+            }
+
+        if any(kw in q for kw in ["song", "songs", "album", "albums", "countr", "detail"]):
+            # User wants songs/albums/countries → use artist_details table
+            return {
+                "sql": f"""
+                    SELECT DISTINCT ON (a.id) a.name, ad.top_songs, ad.top_albums, ad.top_countries,
+                           ad.songs_count, ad.albums_count, ad.countries_count
+                    FROM artist_details ad
+                    JOIN artists a ON a.id = ad.artist_id
+                    WHERE {where_clause}
+                    ORDER BY a.id, ad.scraped_at DESC
+                    LIMIT {sql_limit}
+                """,
+                "chart_type": "none",
+                "x": "name",
+                "y": "songs_count",
+                "title": title,
+                "show_chart": False,
+                "show_table": True,
+                "show_summary": True,
+                "render_order": ["summary", "table"],
+            }
+
+        if any(kw in q for kw in ["listener", "listeners", "spotify", "stream"]):
+            # User wants Spotify data → use spotify_artists table
+            # If multi-artist, maybe compare latest listeners
+            if len(artists) > 1:
+                return {
+                    "sql": f"""
+                        SELECT DISTINCT ON (a.id) a.name, s.monthly_listeners, s.peak_listeners,
+                               TO_CHAR(s.scrape_date, 'DD Mon YYYY') as scrape_date
+                        FROM spotify_artists s
+                        JOIN artists a ON a.id = s.artist_id
+                        WHERE {where_clause}
+                        ORDER BY a.id, s.scrape_date DESC
+                        LIMIT {len(artists)}
+                    """,
+                    "chart_type": "multi",
+                    "x": "name",
+                    "y": "monthly_listeners",
+                    "title": f"Spotify Comparison: {', '.join(artists)}",
+                }
+            
+            return {
+                "sql": f"""
+                    SELECT a.name, s.monthly_listeners, s.peak_listeners,
+                           TO_CHAR(s.scrape_date, 'DD Mon YYYY') as scrape_date
+                    FROM spotify_artists s
+                    JOIN artists a ON a.id = s.artist_id
+                    WHERE {where_clause}
+                    ORDER BY s.scrape_date DESC
+                    LIMIT {limit}
+                """,
+                "chart_type": "multi",
+                "x": "scrape_date",
+                "y": "monthly_listeners",
+                "title": f"Spotify Listeners for {artists[0]}",
+            }
+
+        # Default for artist: comprehensive profile
+        # If multiple, we just use a generic comparison query for now
+        if len(artists) > 1:
+            return {
+                "sql": f"""
+                    SELECT DISTINCT ON (a.id) a.name, i.rank, i.total_points, i.top_country,
+                           ad.songs_count, ad.countries_count
+                    FROM artists a
+                    LEFT JOIN itunes_artist_rankings i ON i.artist_id = a.id
+                    LEFT JOIN artist_details ad ON ad.artist_id = a.id
+                    WHERE {where_clause}
+                    ORDER BY a.id, i.scrape_date DESC, ad.scraped_at DESC
+                    LIMIT {len(artists)}
+                """,
+                "chart_type": "multi",
+                "x": "name",
+                "y": "total_points",
+                "title": f"Comparison: {', '.join(artists)}",
+            }
+            
+        return _build_artist_profile(artists[0])
 
     if _is_top_intent(question):
         return _force_rank_plan(question)
+
+    if "trending" in q:
+        return {
+            "sql": """
+                SELECT a.name, t.rank, t.total_points, t.top_country, t.month
+                FROM trending_artists_monthly t
+                JOIN artists a ON a.id = t.artist_id
+                ORDER BY t.scraped_at DESC, t.rank ASC
+                LIMIT 20
+            """,
+            "chart_type": "multi",
+            "x": "name",
+            "y": "total_points",
+            "title": "Trending Artists This Month",
+        }
 
     if "listener" in q or "spotify" in q:
         return {
@@ -320,6 +598,27 @@ def _local_plan(question: str) -> Dict[str, Any]:
             "x": "top_country",
             "y": "artists_count",
             "title": "Top Countries by Artist Presence",
+        }
+
+    if "song" in q or "songs" in q:
+        # Global "top songs" query - use artist_details for rich song names
+        return {
+            "sql": """
+                SELECT a.name as artist, ad.top_songs, ad.songs_count
+                FROM artist_details ad
+                JOIN artists a ON a.id = ad.artist_id
+                WHERE ad.top_songs IS NOT NULL AND ad.top_songs <> ''
+                ORDER BY ad.songs_count DESC, ad.scraped_at DESC
+                LIMIT 10
+            """,
+            "chart_type": "none",
+            "x": "artist",
+            "y": "songs_count",
+            "title": "Popular Songs Across Top Artists",
+            "show_chart": False,
+            "show_table": True,
+            "show_summary": True,
+            "render_order": ["summary", "table"],
         }
 
     if "scrape" in q or "run" in q or "activity" in q:
@@ -385,7 +684,21 @@ PLAN_SYSTEM = f"""You are a music analytics SQL expert. Generate a safe query pl
 Schema and Rules:
 {SCHEMA_CONTEXT}
 
-Important: All data is at the artist level. Rankings, points, and metrics refer to artists, not individual tracks. There are no track-level tables in the database.
+CRITICAL DATA MODEL NOTES:
+- The 'tracks' table has ONLY 6 rows and is very limited. Do NOT use it for general song queries.
+- The 'artist_details' table is the PRIMARY source for an artist's top songs, top albums, and top countries.
+  It has text columns: top_songs, top_albums, top_countries (newline-separated lists), plus counts: songs_count, albums_count, countries_count.
+  Always use artist_details when the user asks about songs/albums/countries for a specific artist.
+- The 'itunes_artist_rankings' table has daily global rankings with platform-wise points (iTunes, Spotify, Apple Music, Shazam, YouTube). Use for ranking/performance queries.
+- The 'spotify_artists' table has daily monthly_listeners and peak_listeners. Use for listener/Spotify queries.
+- The 'trending_artists_monthly' table has monthly trending data. Use for monthly trend queries.
+
+TABLE SELECTION GUIDE:
+- "top songs by X" / "albums by X" / "countries for X" → Use artist_details (join with artists on artist_id)
+- "top artists" / "ranking" / "points" → Use itunes_artist_rankings (join with artists)
+- "listeners" / "Spotify" / "monthly listeners" → Use spotify_artists (join with artists)
+- "trending" / "monthly trend" → Use trending_artists_monthly (join with artists)
+- Only use 'tracks' + 'track_rankings' for very specific track-level chart data (rare).
 
 Safety Requirements:
 - Use ONLY SELECT and WITH (CTE) queries
@@ -394,8 +707,21 @@ Safety Requirements:
 - Use MAX(scraped_at) or MAX(scrape_date) for latest data, depending on table
 - Prefer the most relevant numeric field for the question, not always total_points.
   For streams queries use monthly_listeners, for rank-focused queries use rank,
-  for distribution questions use counts or percentages, and for time-based queries use month or scraped_at.
+  for distribution questions use counts or percentages.
+- If the user asks for a specific month (e.g., "March 2026"):
+  - ALWAYS prioritize trending_artists_monthly table (column month = 'YYYY-MM') as it has the most complete historical monthly data.
+  - Only use spotify_artists if the user specifically mentions "Spotify" or "listeners" and if scrape_date range has data.
+  - Do NOT expand this to a full year unless explicitly asked.
+- Map "streams" to monthly_listeners (spotify_artists table), streams (track_rankings table), or total_points (trending/itunes tables).
+- We NOW have label data in the 'labels' table. Join tracks to labels and artists to answer label-related questions.
+- Important: rank_change is stored as VARCHAR. If comparing numerically, use t.rank_change::integer.
+- IMPORTANT DATA CAVEAT: The 'top_country' column in itunes_artist_rankings/trending_artists_monthly tables contains ONLY the single highest-performing country for that artist globally. If the user asks "how is artist X doing in Colombia?", checking 'top_country = Colombia' will often return NO results if Colombia is not their #1 market. Instead, query artist_details.top_countries (which contains a LIST of all charting countries) to see if they are present there, and use global total_points for general performance comparison.
+- Debut tracks/artists: Only call a track a "debut" if its release_date is within the requested period. If the release_date is old (e.g., years ago), call it a "catalog hit" or "re-entry".
+- Date Formatting: ALWAYS format dates in the SQL query for display (e.g., TO_CHAR(date, 'DD Mon YYYY') or similar) so they don't appear as raw numbers/timestamps.
+- Avoid duplicate rows in tables: If multiple records exist for the same artist/track (e.g., daily scrapes), ALWAYS filter to show only the latest record (using MAX(scraped_at) or DISTINCT ON) unless a trend/history is explicitly requested.
+- CRITICAL: For "Top songs" (global or general), if track_rankings is too small, query artist_details.top_songs for multiple top artists to get a diverse list of song names.
 - No UPDATE, INSERT, DELETE, DROP, ALTER, CREATE, TRUNCATE, GRANT, REVOKE, COPY, EXEC
+- CRITICAL: If multiple artists or tracks are mentioned in the question, you MUST generate a query that retrieves data for ALL of them (use OR or IN in the WHERE clause). Do NOT limit the result to just one artist if the user is asking for a comparison.
 
 Response Format (JSON):
 {{
@@ -410,55 +736,200 @@ Response Format (JSON):
     "render_order": ["chart", "summary", "table"]
 }}
 
-The agent should decide the full response structure. If the question is visual-first, put chart before summary. If the question is detail-first, put table before summary. If the model wants only one section, use a render_order with just that section.
+The agent should decide the full response structure.
+Rules for show_chart:
+- ONLY set "show_chart": true if the question explicitly asks for a visual, trend, comparison, or distribution.
+- If the question is about a single entity ("who is X", "details for Y"), set "show_chart": false and "show_table": true.
+- If the question asks for a list or raw data, set "show_chart": false and "show_table": true.
+- Default to "show_chart": false for simple factual questions.
+
+Render order:
+- If visual-first, put chart before summary.
+- If detail-first or list-focused, put table before summary.
+- If summary is most important, put it first.
 
 Examples of queries:
-- Top tracks: SELECT a.name as artist, i.rank, i.total_points FROM itunes_artist_rankings i JOIN artists a ON i.artist_id = a.id WHERE i.scraped_at = (SELECT MAX(scraped_at) FROM itunes_artist_rankings) ORDER BY i.rank LIMIT 10
-- Artist performance: SELECT a.name, SUM(s.monthly_listeners) as total_listeners FROM spotify_artists s JOIN artists a ON s.artist_id = a.id WHERE s.scrape_date >= '2026-01-01' GROUP BY a.name ORDER BY total_listeners DESC LIMIT 20
-- Label performance: SELECT ad.top_songs as tracks FROM artist_details ad WHERE ad.scraped_at = (SELECT MAX(scraped_at) FROM artist_details) LIMIT 5
+- Top songs by artist: SELECT a.name, ad.top_songs, ad.top_albums, ad.top_countries, ad.songs_count, ad.albums_count, ad.countries_count FROM artist_details ad JOIN artists a ON a.id = ad.artist_id WHERE a.name ILIKE '%Justin Bieber%' ORDER BY ad.scraped_at DESC LIMIT 1
+- Top ranked artists: SELECT a.name, i.rank, i.total_points, i.top_country FROM itunes_artist_rankings i JOIN artists a ON i.artist_id = a.id WHERE i.scrape_date = (SELECT MAX(scrape_date) FROM itunes_artist_rankings) ORDER BY i.rank LIMIT 10
+- Spotify listeners: SELECT a.name, s.monthly_listeners, s.peak_listeners FROM spotify_artists s JOIN artists a ON s.artist_id = a.id WHERE s.scrape_date = (SELECT MAX(scrape_date) FROM spotify_artists) ORDER BY s.monthly_listeners DESC NULLS LAST LIMIT 20
+- Artist details (songs/albums/countries for a specific artist): SELECT a.name, ad.top_songs, ad.top_albums, ad.top_countries, ad.songs_count FROM artist_details ad JOIN artists a ON a.id = ad.artist_id WHERE a.name ILIKE '%Bad Bunny%' ORDER BY ad.scraped_at DESC LIMIT 1
+- Comparing multiple artists: SELECT DISTINCT ON (a.id) a.name, i.rank, i.total_points, i.top_country FROM itunes_artist_rankings i JOIN artists a ON i.artist_id = a.id WHERE a.name ILIKE '%Justin Bieber%' OR a.name ILIKE '%Taylor Swift%' ORDER BY a.id, i.scrape_date DESC LIMIT 2
+- Trending artists: SELECT a.name, t.rank, t.total_points, t.top_country, t.month FROM trending_artists_monthly t JOIN artists a ON a.id = t.artist_id ORDER BY t.scraped_at DESC, t.rank ASC LIMIT 20
 
 Generate the JSON plan only, no explanation."""
 
 
 def _generate_plan(question: str, api_key: Optional[str], model: str) -> Dict[str, Any]:
-    """Generate query plan via OpenAI or fall back to local heuristics."""
+    """Generate query plan via Claude or fall back to local heuristics."""
+    # Attempt AI plan first if key is available
+    if api_key:
+        try:
+            detected = _find_artists_in_db(question)
+            user_input = f"User Question: {question}"
+            if detected:
+                user_input += f"\nDetected Artists (include these in your SQL WHERE clause): {', '.join(detected)}"
+            
+            plan = _claude_chat_json(
+                api_key,
+                model,
+                system=PLAN_SYSTEM,
+                user=user_input,
+            )
+            if plan and plan.get("sql"):
+                sql_str = str(plan.get("sql", "")).strip()
+                # Validate SQL before returning — if it fails, fall through to local
+                try:
+                    _enforce_safe_sql(sql_str)
+                except ValueError:
+                    pass  # Bad SQL from AI, fall through to local plan
+                else:
+                    return {
+                        "sql": sql_str,
+                        "chart_type": str(plan.get("chart_type") or ("multi" if _wants_chart(question) else "none")).lower(),
+                        "x": plan.get("x"),
+                        "y": plan.get("y"),
+                        "title": plan.get("title") or "Results",
+                        "show_summary": plan.get("show_summary", True),
+                        "show_chart": plan.get("show_chart", True),
+                        "show_table": plan.get("show_table", False),
+                        "render_order": plan.get("render_order", ["summary", "chart", "table"]),
+                        "source": "ai",
+                    }
+        except Exception:
+            pass
+
+    # Fallback to local heuristics
     if _is_top_intent(question):
         plan = _force_rank_plan(question)
         plan["source"] = "local"
         return plan
 
-    if not api_key:
-        plan = _local_plan(question)
-        plan["source"] = "local"
-        return plan
+    plan = _local_plan(question)
+    plan["source"] = "local"
+    return plan
 
+
+# ─── Artist Data Availability ─────────────────────────────────────────────────
+
+def _check_artist_data_availability(artist_name: str) -> Dict[str, Any]:
+    """Check which tables have data for a given artist."""
+    conn = get_connection()
     try:
-        plan = _openai_chat_json(
-            api_key,
-            model,
-            system=PLAN_SYSTEM,
-            user=f"User Question: {question}",
-        )
-        if not plan or not plan.get("sql"):
-            raise ValueError("Empty plan returned")
+        with conn.cursor() as cur:
+            cur.execute("SELECT id FROM artists WHERE name ILIKE %s LIMIT 1", (f"%{artist_name}%",))
+            row = cur.fetchone()
+            if not row:
+                return {"found": False, "artist_id": None, "tables": {}}
+            
+            artist_id = row["id"] if isinstance(row, dict) else row[0]
+            tables_check = {
+                "itunes_artist_rankings": "Rankings (rank, points, countries)",
+                "spotify_artists": "Spotify (monthly listeners, peak)",
+                "artist_details": "Details (top songs, albums, countries)",
+                "trending_artists_monthly": "Monthly trends",
+            }
+            available = {}
+            for table, desc in tables_check.items():
+                cur.execute(f"SELECT COUNT(*) as cnt FROM {table} WHERE artist_id = %s", (artist_id,))
+                result = cur.fetchone()
+                cnt = result["cnt"] if isinstance(result, dict) else result[0]
+                if cnt > 0:
+                    available[table] = {"count": cnt, "description": desc}
+            
+            return {"found": True, "artist_id": artist_id, "artist_name": artist_name, "tables": available}
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
+def _retry_with_available_data(question: str, artist_name: str) -> Optional[Dict[str, Any]]:
+    """When primary query returns empty, try to find data from any available table for the artist."""
+    availability = _check_artist_data_availability(artist_name)
+    if not availability["found"] or not availability["tables"]:
+        return None
+    
+    safe_artist = artist_name.replace("'", "''")
+    tables = availability["tables"]
+    
+    # Try tables in priority order
+    if "artist_details" in tables:
         return {
-            "sql": str(plan.get("sql", "")).strip(),
-            "chart_type": str(plan.get("chart_type") or ("multi" if _wants_chart(question) else "none")).lower(),
-            "x": plan.get("x"),
-            "y": plan.get("y"),
-            "title": plan.get("title") or "Results",
-            "show_summary": plan.get("show_summary", True),
-            "show_chart": plan.get("show_chart", True),
-            "show_table": plan.get("show_table", False),
-            "render_order": plan.get("render_order", ["summary", "chart", "table"]),
-            "source": "ai",
+            "sql": f"""
+                SELECT a.name, ad.top_songs, ad.top_albums, ad.top_countries,
+                       ad.songs_count, ad.albums_count, ad.countries_count
+                FROM artist_details ad
+                JOIN artists a ON a.id = ad.artist_id
+                WHERE a.name ILIKE '%{safe_artist}%'
+                ORDER BY ad.scraped_at DESC
+                LIMIT 1
+            """,
+            "chart_type": "none",
+            "x": "name", "y": "songs_count",
+            "title": f"Available Details for {artist_name}",
+            "show_chart": False, "show_table": True, "show_summary": True,
+            "render_order": ["summary", "table"],
+            "source": "retry",
         }
-    except PermissionError:
-        raise
-    except Exception:
-        plan = _local_plan(question)
-        plan["source"] = "local"
-        return plan
+    
+    if "spotify_artists" in tables:
+        return {
+            "sql": f"""
+                SELECT a.name, s.monthly_listeners, s.peak_listeners,
+                       TO_CHAR(s.scrape_date, 'DD Mon YYYY') as scrape_date
+                FROM spotify_artists s
+                JOIN artists a ON a.id = s.artist_id
+                WHERE a.name ILIKE '%{safe_artist}%'
+                ORDER BY s.scrape_date DESC
+                LIMIT 10
+            """,
+            "chart_type": "multi",
+            "x": "scrape_date", "y": "monthly_listeners",
+            "title": f"Spotify Data for {artist_name}",
+            "show_chart": True, "show_table": True, "show_summary": True,
+            "render_order": ["summary", "chart", "table"],
+            "source": "retry",
+        }
+    
+    if "itunes_artist_rankings" in tables:
+        return {
+            "sql": f"""
+                SELECT a.name, i.rank, i.total_points, i.top_country,
+                       TO_CHAR(i.scrape_date, 'DD Mon YYYY') as scrape_date
+                FROM itunes_artist_rankings i
+                JOIN artists a ON a.id = i.artist_id
+                WHERE a.name ILIKE '%{safe_artist}%'
+                ORDER BY i.scrape_date DESC
+                LIMIT 10
+            """,
+            "chart_type": "multi",
+            "x": "scrape_date", "y": "total_points",
+            "title": f"Rankings for {artist_name}",
+            "show_chart": True, "show_table": True, "show_summary": True,
+            "render_order": ["summary", "chart", "table"],
+            "source": "retry",
+        }
+    
+    if "trending_artists_monthly" in tables:
+        return {
+            "sql": f"""
+                SELECT a.name, t.rank, t.total_points, t.top_country, t.month
+                FROM trending_artists_monthly t
+                JOIN artists a ON a.id = t.artist_id
+                WHERE a.name ILIKE '%{safe_artist}%'
+                ORDER BY t.scraped_at DESC
+                LIMIT 10
+            """,
+            "chart_type": "multi",
+            "x": "month", "y": "total_points",
+            "title": f"Monthly Trends for {artist_name}",
+            "show_chart": True, "show_table": True, "show_summary": True,
+            "render_order": ["summary", "chart", "table"],
+            "source": "retry",
+        }
+    
+    return None
 
 
 # ─── Data ─────────────────────────────────────────────────────────────────────
@@ -471,7 +942,11 @@ def _run_query(sql: str) -> pd.DataFrame:
             rows = cur.fetchall() or []
             if not rows:
                 return pd.DataFrame()
-            return pd.DataFrame([dict(r) for r in rows])
+            # Ensure proper string decoding if necessary
+            df = pd.DataFrame([dict(r) for r in rows])
+            for col in df.select_dtypes(include=['object']):
+                df[col] = df[col].apply(lambda x: x.encode('latin1').decode('utf-8') if isinstance(x, str) and 'Ã' in x else x)
+            return df
     finally:
         conn.close()
 
@@ -481,6 +956,16 @@ def _clean_result_df(df: pd.DataFrame) -> pd.DataFrame:
         return df
     cleaned = df.copy()
     cleaned.columns = [str(c).strip() for c in cleaned.columns]
+    
+    # Format all date/datetime columns to readable strings
+    for col in cleaned.columns:
+        if pd.api.types.is_datetime64_any_dtype(cleaned[col]) or \
+           cleaned[col].apply(lambda x: isinstance(x, (datetime.date, datetime.datetime))).all():
+            try:
+                cleaned[col] = cleaned[col].apply(lambda x: x.strftime('%d %b %Y') if pd.notnull(x) else "n/a")
+            except:
+                pass
+
     mask = pd.Series(True, index=cleaned.index)
     for col in cleaned.columns:
         mask &= cleaned[col].astype(str).str.strip().str.lower().eq(col.lower())
@@ -492,6 +977,8 @@ def _clean_result_df(df: pd.DataFrame) -> pd.DataFrame:
 def _format_value(value: Any) -> str:
     if pd.isna(value):
         return "n/a"
+    if isinstance(value, (datetime.date, datetime.datetime)):
+        return value.strftime('%d %b %Y')
     if isinstance(value, (int, float)):
         if float(value).is_integer():
             return f"{int(value):,}"
@@ -513,15 +1000,16 @@ def _generate_summary_stats(df: pd.DataFrame) -> Dict[str, Any]:
 
 # ─── Summarize ────────────────────────────────────────────────────────────────
 
-SUMMARY_SYSTEM = """You are a terse music industry analyst writing for executives.
-Produce one concise executive summary that is roughly 30% of the response; the remaining output should be visual and data-driven.
+SUMMARY_SYSTEM = """You are a professional music industry analyst.
+Produce a concise executive summary.
 Rules:
-- Keep the summary to 1-2 sentences.
+- Keep the summary to 2-3 sentences.
 - Lead with the single most important number or finding.
 - Name specific artists/tracks when visible in the data.
+- If the user asked for labels or data not in the database, briefly mention it is unavailable.
+- Do NOT output empty markdown tables or placeholders.
 - End with one forward-looking implication.
 - No bullet points. No headers.
-- Do not repeat chart metrics or over-explain the visual output.
 """
 
 
@@ -533,16 +1021,25 @@ def _summarize_results(
     model: str,
 ) -> str:
     if df.empty:
+        # Try to give a more specific message
+        artists = _find_artists_in_db(question)
+        if artists:
+            artist = artists[0] # Just use the first one for the detail check
+            avail = _check_artist_data_availability(artist)
+            if avail["found"] and not avail["tables"]:
+                return f"📊 **{artist}** exists in our database but currently has no scraped performance data (rankings, listeners, or details). The data may not have been collected yet for this artist."
+            elif not avail["found"]:
+                return f"📊 No artist matching your query was found in the database. Try checking the spelling or searching for a different artist."
         return "📊 No results found for that question. Try adjusting your filters or asking differently."
 
     if not api_key:
-        return "🤖 AI-powered analysis is required for detailed insights. Please configure your OpenAI API key to enable intelligent summaries."
+        return "🤖 AI-powered analysis is required for detailed insights. Please configure your Claude API key to enable intelligent summaries."
 
     stats = _generate_summary_stats(df)
     row_count = stats["total_rows"]
 
     preview_csv = df.head(20).to_csv(index=False)
-    return _openai_chat_text(
+    return _claude_chat_text(
         api_key,
         model,
         system=SUMMARY_SYSTEM,
@@ -571,7 +1068,7 @@ def _generate_suggestions_ai(
 ) -> List[str]:
     cols = df.columns.tolist() if not df.empty else []
     sample = df.head(5).to_csv(index=False) if not df.empty else "no data"
-    raw = _openai_chat_json(
+    raw = _claude_chat_json(
         api_key,
         model,
         system=SUGGESTION_SYSTEM,
@@ -728,41 +1225,47 @@ def _wants_data_table(question: str, df: pd.DataFrame) -> bool:
 
 
 def _choose_chart_spec(df: pd.DataFrame, plan: Dict[str, Any]) -> Dict[str, Any]:
-    columns = df.columns.tolist()
+    columns = [c.lower() for c in df.columns.tolist()]
+    orig_columns = df.columns.tolist()
+    col_map = {c.lower(): c for c in orig_columns}
+    
     numeric_cols = df.select_dtypes(include="number").columns.tolist()
+    
     x = plan.get("x")
     y = plan.get("y")
     question_hint = (plan.get("title", "") + " " + str(plan.get("sql", ""))).lower()
 
-    if x not in columns:
-        if "name" in columns:
-            x = "name"
-        elif "artist" in columns:
-            x = "artist"
-        elif "top_country" in columns:
-            x = "top_country"
-        elif "month" in columns:
-            x = "month"
-        else:
-            x = columns[0] if columns else None
+    # Try to find a good X axis (categorical/time)
+    if not x or x.lower() not in columns:
+        potential_x = ["name", "artist", "song", "track", "title", "top_country", "month", "label", "source", "scrape_date", "scraped_at"]
+        for p in potential_x:
+            if p in columns:
+                x = col_map[p]
+                break
+        if not x and orig_columns:
+            x = orig_columns[0]
 
-    if y not in columns or y is None:
+    # Try to find a good Y axis (numeric)
+    if not y or y.lower() not in columns:
+        potential_y = []
         if "stream" in question_hint or "listener" in question_hint:
-            y = "monthly_listeners" if "monthly_listeners" in columns else numeric_cols[0] if numeric_cols else None
-        elif "rank" in question_hint and "rank" in columns:
-            y = "rank"
-        elif "points" in question_hint and "total_points" in columns:
-            y = "total_points"
-        else:
-            y = numeric_cols[0] if numeric_cols else None
-
-    if y == "total_points" and "stream" in question_hint and "monthly_listeners" in columns:
-        y = "monthly_listeners"
-    if y == "total_points" and "rank" in question_hint and "rank" in columns:
-        y = "rank"
-
-    if x == y and len(columns) > 1:
-        x = next((col for col in columns if col != y), x)
+            potential_y = ["monthly_listeners", "peak_listeners"]
+        elif "rank" in question_hint:
+            potential_y = ["rank", "rank_change"]
+        elif "point" in question_hint:
+            potential_y = ["total_points", "itunes_points", "spotify_points"]
+        
+        for p in potential_y:
+            if p in columns:
+                y = col_map[p]
+                break
+        
+        if not y and numeric_cols:
+            y = numeric_cols[0]
+            
+    # Final safety check
+    if x not in orig_columns or y not in orig_columns:
+        return {"chart_type": "none", "x": None, "y": None, "title": plan.get("title")}
 
     return {
         "chart_type": str(plan.get("chart_type", "multi")).lower(),
@@ -898,7 +1401,7 @@ def _latest_assistant_index(messages: list) -> Optional[int]:
 # ─── Main Entrypoint ──────────────────────────────────────────────────────────
 
 def render_custom_chatbot() -> None:
-    """Main chatbot interface — OpenAI-powered, 70% visual."""
+    """Main chatbot interface — Claude-powered, 70% visual."""
     st.markdown(
         """
         <style>
@@ -1045,9 +1548,64 @@ def render_custom_chatbot() -> None:
 
                 # Plan → Query → Render
                 plan = _generate_plan(question, api_key, model)
+                
+                # Debug: Show detected artists if multi
+                detected = _find_artists_in_db(question)
+                if len(detected) > 1:
+                    st.info(f"🔍 Comparing **{', '.join(detected)}**")
 
                 safe_sql = _enforce_safe_sql(plan["sql"])
-                result_df = _clean_result_df(_run_query(safe_sql))
+                # Debug SQL
+                # with st.expander("🛠️ Query Plan Debug", expanded=False):
+                #     st.code(safe_sql, language="sql")
+                #     st.write(f"Detected: {', '.join(detected)}")
+                
+                try:
+                    result_df = _clean_result_df(_run_query(safe_sql))
+                except Exception:
+                    # AI-generated SQL might have syntax errors — retry with local plan
+                    result_df = pd.DataFrame()
+                    local_fallback = _local_plan(question)
+                    if local_fallback.get("sql"):
+                        try:
+                            fallback_sql = _enforce_safe_sql(local_fallback["sql"])
+                            result_df = _clean_result_df(_run_query(fallback_sql))
+                            if not result_df.empty:
+                                plan = local_fallback
+                                safe_sql = fallback_sql
+                        except Exception:
+                            pass
+
+                # Smart retry: if result is empty and we can identify an artist, try other tables
+                if result_df.empty:
+                    artist_names = _find_artists_in_db(question)
+                    if artist_names:
+                        artist_name = artist_names[0]
+                        # First try comprehensive profile
+                        profile_plan = _build_artist_profile(artist_name)
+                        try:
+                            profile_sql = _enforce_safe_sql(profile_plan["sql"])
+                            profile_df = _clean_result_df(_run_query(profile_sql))
+                            if not profile_df.empty:
+                                result_df = profile_df
+                                plan = profile_plan
+                                safe_sql = profile_sql
+                        except Exception:
+                            pass
+                        
+                        # If still empty, try retry with available data
+                        if result_df.empty:
+                            retry_plan = _retry_with_available_data(question, artist_name)
+                            if retry_plan:
+                                try:
+                                    retry_sql = _enforce_safe_sql(retry_plan["sql"])
+                                    retry_df = _clean_result_df(_run_query(retry_sql))
+                                    if not retry_df.empty:
+                                        result_df = retry_df
+                                        plan = retry_plan
+                                        safe_sql = retry_sql
+                                except Exception:
+                                    pass
 
                 chart_spec = _choose_chart_spec(result_df, plan)
                 show_chart = plan.get("show_chart") if isinstance(plan.get("show_chart"), bool) else _should_render_chart(question, result_df, chart_spec)
@@ -1090,8 +1648,8 @@ def render_custom_chatbot() -> None:
                     "question": question,
                 })
 
-            except (AuthenticationError, PermissionError):
-                err = "OpenAI authentication failed. Check that OPENAI_API_KEY is set correctly."
+            except (anthropic.AuthenticationError, anthropic.PermissionDeniedError):
+                err = "Claude authentication failed. Check that CLAUDE_API_KEY is set correctly."
                 st.error(err)
                 suggestions = _build_follow_up_suggestions("artists")
                 _render_follow_up_suggestions(suggestions, "assistant_current")
