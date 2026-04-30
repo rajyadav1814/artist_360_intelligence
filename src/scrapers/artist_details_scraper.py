@@ -4,11 +4,9 @@ from typing import Iterable, List, Optional
 from bs4 import BeautifulSoup
 
 from src.database.models import ArtistDetail
-from src.scrapers.daily_scraper import extract_track_metadata
 from src.scrapers.itunes_scraper import scrape_itunes_global_artists
 from src.utils.http_client import fetch_page
 from src.utils.logger import get_logger
-from src.database.repository import save_track_metadata
 
 logger = get_logger(__name__)
 
@@ -185,12 +183,6 @@ def scrape_artist_details(limit: int | None = None) -> List[ArtistDetail]:
             profile_url=ranking.profile_url,
         )
         details.append(detail)
-        
-        # New: Extract track metadata
-        metadata = extract_track_metadata(html, detail.artist_name)
-        if metadata:
-            save_track_metadata([metadata])
-            
         logger.info(
             "Scraped artist details for %s (%s songs, %s albums, %s Latin American countries)",
             detail.artist_name,

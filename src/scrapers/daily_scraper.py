@@ -6,7 +6,7 @@ import pandas as pd
 from bs4 import BeautifulSoup
 
 from config.settings import ITUNES_DAILY_URL, SPOTIFY_DAILY_URL, YOUTUBE_DAILY_URL
-from src.database.models import ItunesDaily, SpotifyDaily, TrackMetadata, YoutubeDaily
+from src.database.models import ItunesDaily, SpotifyDaily, YoutubeDaily
 from src.utils.http_client import fetch_page
 from src.utils.logger import get_logger
 
@@ -306,35 +306,4 @@ def scrape_youtube_daily() -> List[YoutubeDaily]:
         return []
 
 
-def extract_track_metadata(html: str, artist_name: str) -> Optional[TrackMetadata]:
-    """Extract label and owner info from artist page if available."""
-    soup = BeautifulSoup(html, "lxml")
-    
-    label = None
-    owner = None
-    
-    # Try to find Label and Owner in the text blocks
-    text = soup.get_text()
-    if "Label:" in text:
-        try:
-            label = text.split("Label:", 1)[1].strip().split("\n")[0]
-        except Exception:
-            pass
-    if "Owner:" in text:
-        try:
-            owner = text.split("Owner:", 1)[1].strip().split("\n")[0]
-        except Exception:
-            pass
-    elif "Representative Owner:" in text:
-        try:
-            owner = text.split("Representative Owner:", 1)[1].strip().split("\n")[0]
-        except Exception:
-            pass
 
-    if label or owner:
-        return TrackMetadata(
-            artist_title=artist_name,
-            label_name=label,
-            representative_owner=owner
-        )
-    return None

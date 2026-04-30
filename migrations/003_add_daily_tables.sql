@@ -1,13 +1,6 @@
 -- Migration 003: Add daily chart tables and track metadata
 
-CREATE TABLE IF NOT EXISTS track_metadata (
-    id SERIAL PRIMARY KEY,
-    artist_title VARCHAR(255) NOT NULL,
-    label_name VARCHAR(255),
-    representative_owner VARCHAR(255),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    UNIQUE (artist_title)
-);
+
 
 CREATE TABLE IF NOT EXISTS spotify_daily (
     id SERIAL PRIMARY KEY,
@@ -53,4 +46,4 @@ CREATE TABLE IF NOT EXISTS youtube_daily (
 CREATE INDEX IF NOT EXISTS idx_spotify_daily_date ON spotify_daily(date, country);
 CREATE INDEX IF NOT EXISTS idx_itunes_daily_date ON itunes_daily(date, country);
 CREATE INDEX IF NOT EXISTS idx_youtube_daily_date ON youtube_daily(date);
-CREATE INDEX IF NOT EXISTS idx_track_metadata_artist ON track_metadata(artist_title);
+

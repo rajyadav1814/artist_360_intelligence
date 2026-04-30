@@ -99,7 +99,13 @@ class YoutubeDaily:
 
 
 @dataclass
-class TrackMetadata:
-    artist_title: str
-    label_name: Optional[str] = None
-    representative_owner: Optional[str] = None
+class TrackRanking:
+    track_id: int
+    rank: int
+    week_number: int
+    fiscal_year: int
+    chart_date: date
+    streams: Optional[int] = None
+    scrape_date: date = field(default_factory=date.today)
+
+
