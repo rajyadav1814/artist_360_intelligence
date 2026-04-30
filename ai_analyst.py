@@ -11,8 +11,30 @@ load_dotenv()
 CLAUDE_API_KEY = os.getenv("CLAUDE_API_KEY")
 CLAUDE_MODEL = os.getenv("CLAUDE_MODEL", "claude-3-5-sonnet-20240620")
 
+# Fallback: read Streamlit secrets TOML if env vars not set (useful when running
+# under Streamlit Cloud or when secrets were synced to .streamlit/secrets.toml)
+if not CLAUDE_API_KEY or not CLAUDE_MODEL:
+    try:
+        import tomllib
+        secrets_path = os.path.join(os.path.dirname(__file__), ".streamlit", "secrets.toml")
+        # also check workspace-level .streamlit
+        alt_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".streamlit", "secrets.toml")
+        for p in (secrets_path, alt_path):
+            if os.path.exists(p):
+                with open(p, "rb") as fh:
+                    s = tomllib.load(fh)
+                CLAUDE_API_KEY = CLAUDE_API_KEY or s.get("CLAUDE_API_KEY")
+                CLAUDE_MODEL = CLAUDE_MODEL or s.get("CLAUDE_MODEL")
+                # also check under [ai] or top-level
+                ai_tbl = s.get("ai") or {}
+                CLAUDE_API_KEY = CLAUDE_API_KEY or ai_tbl.get("CLAUDE_API_KEY")
+                CLAUDE_MODEL = CLAUDE_MODEL or ai_tbl.get("CLAUDE_MODEL")
+                break
+    except Exception:
+        pass
+
 if not CLAUDE_API_KEY:
-    print("Error: CLAUDE_API_KEY not found in .env file.")
+    print("Error: CLAUDE_API_KEY not found in environment or .streamlit/secrets.toml.")
     sys.exit(1)
 
 client = anthropic.Anthropic(api_key=CLAUDE_API_KEY)
