@@ -61,3 +61,54 @@ class ArtistDetail:
     top_albums: Optional[str] = None
     top_countries: Optional[str] = None
     scrape_date: date = field(default_factory=date.today)
+
+
+@dataclass
+class SpotifyDaily:
+    date: date
+    country: str
+    rank: int
+    artist_title: str
+    days: Optional[int] = None
+    peak: Optional[int] = None
+    streams: Optional[int] = None
+    streams_change: Optional[int] = None
+    total_streams: Optional[int] = None
+    label: Optional[str] = None
+
+
+@dataclass
+class ItunesDaily:
+    date: date
+    country: str
+    rank: int
+    artist_title: str
+    days: Optional[int] = None
+    peak: Optional[int] = None
+    points: Optional[int] = None
+    points_change: Optional[int] = None
+    total_points: Optional[int] = None
+    label: Optional[str] = None
+
+
+@dataclass
+class YoutubeDaily:
+    date: date
+    video_title: str
+    rank: Optional[int] = None
+    views: Optional[int] = None
+    likes: Optional[int] = None
+    label: Optional[str] = None
+
+
+@dataclass
+class TrackRanking:
+    track_id: int
+    rank: int
+    week_number: int
+    fiscal_year: int
+    chart_date: date
+    streams: Optional[int] = None
+    scrape_date: date = field(default_factory=date.today)
+
+

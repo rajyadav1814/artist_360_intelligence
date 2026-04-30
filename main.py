@@ -3,11 +3,12 @@ kworb_scraper — Main entry point
 ---------------------------------
 Commands:
   python main.py migrate                  — Apply DB migrations
-  python main.py scrape                   — Run standard scrapers (iTunes + Spotify + Trending + Artist Details)
+  python main.py scrape                   — Run standard scrapers (iTunes + Spotify + Trending + Artist Details + Track Rankings + Daily)
   python main.py scrape itunes            — iTunes global rankings only
   python main.py scrape spotify           — Spotify artist stats only
   python main.py scrape trending          — Trending artists (last month) only
   python main.py scrape details [limit] — Artist detail pages from kworb.net (default: all)
+  python main.py scrape tracks            — Track rankings from kworb.net
   python main.py schedule                 — Run on a daily schedule
 """
 import sys
@@ -21,11 +22,17 @@ from src.database.repository import (
     save_itunes_rankings,
     save_spotify_artists,
     save_trending_artists,
+    save_spotify_daily,
+    save_itunes_daily,
+    save_youtube_daily,
+    save_track_rankings_from_raw,
 )
 from src.scrapers.artist_details_scraper import scrape_artist_details
 from src.scrapers.itunes_scraper import scrape_itunes_global_artists
 from src.scrapers.spotify_scraper import scrape_spotify_artists
 from src.scrapers.trending_scraper import scrape_trending_artists_last_month
+from src.scrapers.daily_scraper import scrape_spotify_daily, scrape_itunes_daily, scrape_youtube_daily
+from src.scrapers.track_rankings_scraper import scrape_itunes_tracks
 from src.utils.logger import get_logger
 
 logger = get_logger("main")
@@ -79,11 +86,61 @@ def run_artist_details(limit: int | None = None):
         logger.error(f"Artist details scrape failed: {exc}")
 
 
+def run_track_rankings():
+    logger.info("=== Starting Track Rankings scrape ===")
+    try:
+        data = scrape_itunes_tracks()
+        rows = save_track_rankings_from_raw(data)
+        log_scrape_run("track_rankings", "success", rows)
+        logger.info(f"Track rankings scrape complete: {rows} rows saved")
+    except Exception as exc:
+        log_scrape_run("track_rankings", "failed", error=str(exc))
+        logger.error(f"Track rankings scrape failed: {exc}")
+
+
+def run_daily_charts():
+    logger.info("=== Starting Daily Charts scrape (Spotify, iTunes, YouTube) ===")
+    
+    # Spotify Daily
+    for country in ["global", "us"]:
+        try:
+            data = scrape_spotify_daily(country=country)
+            rows = save_spotify_daily(data)
+            log_scrape_run(f"spotify_daily_{country}", "success", rows)
+            logger.info(f"Spotify Daily {country} complete: {rows} rows saved")
+        except Exception as exc:
+            log_scrape_run(f"spotify_daily_{country}", "failed", error=str(exc))
+            logger.error(f"Spotify Daily {country} failed: {exc}")
+
+    # iTunes Daily
+    for country in ["ww", "us"]:
+        try:
+            data = scrape_itunes_daily(country=country)
+            rows = save_itunes_daily(data)
+            log_scrape_run(f"itunes_daily_{country}", "success", rows)
+            logger.info(f"iTunes Daily {country} complete: {rows} rows saved")
+        except Exception as exc:
+            log_scrape_run(f"itunes_daily_{country}", "failed", error=str(exc))
+            logger.error(f"iTunes Daily {country} failed: {exc}")
+
+    # YouTube Daily
+    try:
+        data = scrape_youtube_daily()
+        rows = save_youtube_daily(data)
+        log_scrape_run("youtube_daily", "success", rows)
+        logger.info(f"YouTube Daily complete: {rows} rows saved")
+    except Exception as exc:
+        log_scrape_run("youtube_daily", "failed", error=str(exc))
+        logger.error(f"YouTube Daily failed: {exc}")
+
+
 def run_all():
     run_itunes()
     run_spotify()
     run_trending()
     run_artist_details()
+    run_track_rankings()
+    run_daily_charts()
 
 
 def main():
@@ -115,6 +172,8 @@ def main():
             "itunes": run_itunes,
             "spotify": run_spotify,
             "trending": run_trending,
+            "tracks": run_track_rankings,
+            "daily": run_daily_charts,
         }
         func = dispatch.get(target)
         if func is None:
