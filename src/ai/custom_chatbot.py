@@ -125,6 +125,8 @@ NO_TABLE_PATTERNS = [
 
 # ─── Secret / Config ──────────────────────────────────────────────────────────
 
+
+
 def _read_secret(name: str) -> Optional[str]:
     try:
         if name in st.secrets:
@@ -136,15 +138,51 @@ def _read_secret(name: str) -> Optional[str]:
     env_val = os.getenv(name)
     if env_val:
         return env_val.strip()
+
+    if not CLAUDE_API_KEY or not CLAUDE_MODEL:
+    try:
+        import tomllib
+        secrets_path = os.path.join(os.path.dirname(__file__), ".streamlit", "secrets.toml")
+        # also check workspace-level .streamlit
+        alt_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".streamlit", "secrets.toml")
+        for p in (secrets_path, alt_path):
+            if os.path.exists(p):
+                with open(p, "rb") as fh:
+                    s = tomllib.load(fh)
+                CLAUDE_API_KEY = CLAUDE_API_KEY or s.get("CLAUDE_API_KEY")
+                CLAUDE_MODEL = CLAUDE_MODEL or s.get("CLAUDE_MODEL")
+                # also check under [ai] or top-level
+                ai_tbl = s.get("ai") or {}
+                CLAUDE_API_KEY = CLAUDE_API_KEY or ai_tbl.get("CLAUDE_API_KEY")
+                CLAUDE_MODEL = CLAUDE_MODEL or ai_tbl.get("CLAUDE_MODEL")
+                break
+    except Exception:
+        pass
     return None
 
+def _read_from_toml() -> dict:
+    """Fallback: read from secrets.toml"""
+    paths = [
+        os.path.join(os.path.dirname(__file__), ".streamlit", "secrets.toml"),
+        os.path.join(os.path.dirname(os.path.dirname(__file__)), ".streamlit", "secrets.toml"),
+    ]
+
+    for path in paths:
+        if os.path.exists(path):
+            try:
+                with open(path, "rb") as fh:
+                    data = tomllib.load(fh)
+                return data
+            except Exception:
+                pass
+    return {}
 
 def _resolve_api_key() -> Optional[str]:
-    return _read_secret("CLAUDE_API_KEY")
+    return _read_from_toml().get("CLAUDE_API_KEY")
 
 
 def _resolve_model() -> str:
-    return _read_secret("CLAUDE_MODEL") or "claude-3-5-sonnet-20240620"
+    return _read_from_toml().get("CLAUDE_MODEL") or "claude-3-5-sonnet-20240620"
 
 
 def _get_client(api_key: str) -> anthropic.Anthropic:
