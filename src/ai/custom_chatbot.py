@@ -32,28 +32,30 @@ ALLOWED_TABLES = {
     "trending_artists_monthly",
     "artist_details",
     "scrape_runs",
-    "labels",
-    "tracks",
-    "track_rankings",
+    "spotify_daily",
+    "itunes_daily",
+    "youtube_daily",
+    "track_metadata",
 }
 
 SCHEMA_CONTEXT = """
-Database schema summary:
+Database schema summary (PostgreSQL):
 - artists(id, name, profile_url)
-- labels(id, name, type, owner)
-- tracks(id, artist_id, label_id, title, release_date, duration_ms, isrc)
-- track_rankings(id, track_id, rank, streams, week_number, fiscal_year, scrape_date, chart_date)
 - itunes_artist_rankings(id, artist_id, rank, rank_change, total_points, itunes_points, spotify_points, apple_music_points, shazam_points, youtube_points, other_points, top_country, num_countries, scraped_at, scrape_date)
 - spotify_artists(id, artist_id, monthly_listeners, peak_listeners, peak_date, scraped_at, scrape_date)
 - trending_artists_monthly(id, artist_id, source, rank, rank_change, total_points, top_country, month, scraped_at)
 - artist_details(id, artist_id, page_title, snapshot_text, songs_count, albums_count, countries_count, top_songs, top_albums, top_countries, scraped_at, scrape_date)
+- spotify_daily(id, date, country, rank, artist_title, days, peak, streams, streams_change, total_streams)
+- itunes_daily(id, date, country, rank, artist_title, days, peak, points, points_change, total_points)
+- youtube_daily(id, date, rank, video_title, views, likes)
+- track_metadata(id, artist_title, label_name, representative_owner)
 - scrape_runs(id, source, status, rows_upserted, error_msg, started_at, finished_at)
 
 Relationships:
-- tracks.artist_id = artists.id
-- tracks.label_id = labels.id
-- track_rankings.track_id = tracks.id
-- All artist-level metrics (itunes_artist_rankings, spotify_artists, etc.) join to artists on artist_id = artists.id.
+- All artist-level metrics (itunes_artist_rankings, spotify_artists, trending_artists_monthly, artist_details) join to artists on artist_id = artists.id.
+- Daily tables (spotify_daily, itunes_daily) use 'artist_title' which matches 'artists.name'.
+- track_metadata use 'artist_title' which matches 'artists.name'.
+- 'date' or 'scrape_date' column indicates when data was collected.
 """.strip()
 
 DANGEROUS_SQL_RE = re.compile(

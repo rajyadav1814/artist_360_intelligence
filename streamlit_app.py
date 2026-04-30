@@ -49,9 +49,9 @@ PAGE_META = {
         "Stream Trends",
         "Insights into streaming performance, growth patterns, and listener demographics",
     ),
-    "AI Analyst": (
-        "AI Analyst",
-        "Ask natural-language questions and get content + charts",
+    "AI Data Analyst": (
+        "AI Data Analyst",
+        "Ask natural-language questions and get content + charts (Powered by Table Details Bot)",
     ),
     "Ops Monitor": (
         "Ops Monitor",
@@ -3063,7 +3063,7 @@ def show_debut_artist_page() -> None:
 
 
 def show_ai_analyst_page() -> None:
-    page_title, page_meta = PAGE_META["AI Analyst"]
+    page_title, page_meta = PAGE_META["AI Data Analyst"]
     render_header(page_title, page_meta, last_run_label)
     render_custom_chatbot()
 
@@ -3096,9 +3096,9 @@ app_pages = [
     ),
     st.Page(
         show_ai_analyst_page,
-        title="AI Analyst",
+        title="AI Data Analyst",
         icon=":material/smart_toy:",
-        url_path="ai-analyst",
+        url_path="ai-data-analyst",
     ),
     # st.Page(
     #     show_ops_monitor_page,
