@@ -7,6 +7,32 @@ load_dotenv()
 # Use DATABASE_URL if available (for Supabase), otherwise use individual DB_* variables (for local)
 DATABASE_URL = os.getenv("DATABASE_URL")
 
+# If running under Streamlit and the app's Secrets were added as a TOML file
+# (or in Streamlit Cloud under a [database] table), load them as a fallback.
+if not DATABASE_URL:
+    try:
+        import tomllib
+        secrets_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".streamlit", "secrets.toml")
+        if os.path.exists(secrets_path):
+            with open(secrets_path, "rb") as fh:
+                st_secrets = tomllib.load(fh)
+            # top-level DATABASE_URL
+            DATABASE_URL = st_secrets.get("DATABASE_URL") or DATABASE_URL
+            # or nested under [database]
+            db_tbl = st_secrets.get("database") or {}
+            if not DATABASE_URL:
+                DATABASE_URL = db_tbl.get("DATABASE_URL") or db_tbl.get("database_url")
+            # Also populate individual DB_* if present
+            if db_tbl:
+                os.environ.setdefault("DB_HOST", db_tbl.get("DB_HOST") or db_tbl.get("db_host", os.getenv("DB_HOST")))
+                os.environ.setdefault("DB_PORT", str(db_tbl.get("DB_PORT") or db_tbl.get("db_port", os.getenv("DB_PORT"))))
+                os.environ.setdefault("DB_NAME", db_tbl.get("DB_NAME") or db_tbl.get("db_name", os.getenv("DB_NAME")))
+                os.environ.setdefault("DB_USER", db_tbl.get("DB_USER") or db_tbl.get("db_user", os.getenv("DB_USER")))
+                os.environ.setdefault("DB_PASSWORD", db_tbl.get("DB_PASSWORD") or db_tbl.get("db_password", os.getenv("DB_PASSWORD")))
+    except Exception:
+        # tomllib may not be available on very old Pythons; ignore fallback in that case
+        pass
+
 if DATABASE_URL:
     # Use Supabase connection string
     DB_CONFIG = {"dsn": DATABASE_URL}
