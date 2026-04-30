@@ -8,6 +8,7 @@ import plotly.graph_objects as go
 import streamlit as st
 import streamlit.components.v1 as st_components
 
+from src.ai.custom_chatbot import render_custom_chatbot
 from src.database.connection import get_connection
 from src.scrapers.artist_details_scraper import LATIN_AMERICAN_COUNTRIES
 from src.utils.image_utils import get_artist_image_url, get_fallback_avatar_url
@@ -47,6 +48,10 @@ PAGE_META = {
     "Stream Trends": (
         "Stream Trends",
         "Insights into streaming performance, growth patterns, and listener demographics",
+    ),
+    "AI Data Analyst": (
+        "AI Data Analyst",
+        "Ask natural-language questions and get content + charts (Powered by Table Details Bot)",
     ),
     "Ops Monitor": (
         "Ops Monitor",
@@ -3057,6 +3062,12 @@ def show_debut_artist_page() -> None:
     render_debut_artist_chart(global_filtered)
 
 
+def show_ai_analyst_page() -> None:
+    page_title, page_meta = PAGE_META["AI Data Analyst"]
+    render_header(page_title, page_meta, last_run_label)
+    render_custom_chatbot()
+
+
 app_pages = [
     st.Page(
         show_leaderboard_page,
@@ -3082,6 +3093,12 @@ app_pages = [
         title="Stream Trends",
         icon=":material/show_chart:",
         url_path="stream-trends",
+    ),
+    st.Page(
+        show_ai_analyst_page,
+        title="AI Data Analyst",
+        icon=":material/smart_toy:",
+        url_path="ai-data-analyst",
     ),
     # st.Page(
     #     show_ops_monitor_page,
@@ -3178,8 +3195,8 @@ with st.sidebar:
     
 
 current_page.run()
-render_footer()
-render_chatbot_widget()
+if getattr(current_page, "title", "") != "AI Analyst":
+    render_footer()
 
 # Auto-refresh functionality
 if st.session_state.auto_refresh:
