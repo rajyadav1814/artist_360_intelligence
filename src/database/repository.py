@@ -2,7 +2,7 @@ from typing import List, Dict
 
 from psycopg2.extras import execute_values
 from src.database.connection import get_connection
-from src.database.models import ArtistDetail, ItunesRanking, SpotifyArtist, TrendingArtist
+from src.database.models import ArtistDetail, ItunesRanking, SpotifyArtist, TrendingArtist, SpotifyDaily, ItunesDaily, YoutubeDaily, TrackMetadata
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -283,5 +283,132 @@ def log_scrape_run(source: str, status: str, rows: int = 0, error: str = None) -
                     """,
                     (source, status, rows, error),
                 )
+    finally:
+        conn.close()
+
+
+def save_spotify_daily(data: List[SpotifyDaily]) -> int:
+    """Bulk-save Spotify daily chart data."""
+    if not data:
+        return 0
+    
+    conn = get_connection()
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                rows = [
+                    (
+                        d.date, d.country, d.rank, d.artist_title,
+                        d.days, d.peak, d.streams, d.streams_change, d.total_streams
+                    )
+                    for d in data
+                ]
+                execute_values(
+                    cur,
+                    """
+                    INSERT INTO spotify_daily
+                        (date, country, rank, artist_title, days, peak, streams, streams_change, total_streams)
+                    VALUES %s
+                    ON CONFLICT (date, country, rank, artist_title) DO UPDATE SET
+                        days = EXCLUDED.days,
+                        peak = EXCLUDED.peak,
+                        streams = EXCLUDED.streams,
+                        streams_change = EXCLUDED.streams_change,
+                        total_streams = EXCLUDED.total_streams
+                    """,
+                    rows
+                )
+                return len(rows)
+    finally:
+        conn.close()
+
+
+def save_itunes_daily(data: List[ItunesDaily]) -> int:
+    """Bulk-save iTunes daily chart data."""
+    if not data:
+        return 0
+    
+    conn = get_connection()
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                rows = [
+                    (
+                        d.date, d.country, d.rank, d.artist_title,
+                        d.days, d.peak, d.points, d.points_change, d.total_points
+                    )
+                    for d in data
+                ]
+                execute_values(
+                    cur,
+                    """
+                    INSERT INTO itunes_daily
+                        (date, country, rank, artist_title, days, peak, points, points_change, total_points)
+                    VALUES %s
+                    ON CONFLICT (date, country, rank, artist_title) DO UPDATE SET
+                        days = EXCLUDED.days,
+                        peak = EXCLUDED.peak,
+                        points = EXCLUDED.points,
+                        points_change = EXCLUDED.points_change,
+                        total_points = EXCLUDED.total_points
+                    """,
+                    rows
+                )
+                return len(rows)
+    finally:
+        conn.close()
+
+
+def save_youtube_daily(data: List[YoutubeDaily]) -> int:
+    """Bulk-save YouTube daily chart data."""
+    if not data:
+        return 0
+    
+    conn = get_connection()
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                rows = [
+                    (d.date, d.rank, d.video_title, d.views, d.likes)
+                    for d in data
+                ]
+                execute_values(
+                    cur,
+                    """
+                    INSERT INTO youtube_daily (date, rank, video_title, views, likes)
+                    VALUES %s
+                    """,
+                    rows
+                )
+                return len(rows)
+    finally:
+        conn.close()
+
+
+def save_track_metadata(data: List[TrackMetadata]) -> int:
+    """Bulk-save track metadata."""
+    if not data:
+        return 0
+    
+    conn = get_connection()
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                rows = [
+                    (d.artist_title, d.label_name, d.representative_owner)
+                    for d in data
+                ]
+                execute_values(
+                    cur,
+                    """
+                    INSERT INTO track_metadata (artist_title, label_name, representative_owner)
+                    VALUES %s
+                    ON CONFLICT (artist_title) DO UPDATE SET
+                        label_name = EXCLUDED.label_name,
+                        representative_owner = EXCLUDED.representative_owner
+                    """,
+                    rows
+                )
+                return len(rows)
     finally:
         conn.close()
