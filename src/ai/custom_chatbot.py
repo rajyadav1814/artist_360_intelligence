@@ -22,6 +22,9 @@ from src.ai.advanced_visualizations import (
     render_insights_dashboard,
 )
 from src.database.connection import get_connection
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -53,8 +56,8 @@ Database schema summary (PostgreSQL):
 
 Relationships:
 - All artist-level metrics (itunes_artist_rankings, spotify_artists, trending_artists_monthly, artist_details) join to artists on artist_id = artists.id.
-- Daily tables (spotify_daily, itunes_daily) use 'artist_title' which matches 'artists.name'.
-- track_metadata use 'artist_title' which matches 'artists.name'.
+- Daily tables (spotify_daily, itunes_daily, youtube_daily) track individual SONGS. The 'artist_title' column contains the SONG name (formatted as 'Artist - Song Title'). It does NOT just contain the artist's name.
+- track_metadata use 'artist_title' which matches the song name in daily tables.
 - 'date' or 'scrape_date' column indicates when data was collected.
 """.strip()
 
@@ -260,7 +263,8 @@ _STOP_WORDS = {
     "same", "she", "some", "still", "such", "take", "tell", "that",
     "their", "them", "these", "they", "this", "those", "through",
     "under", "until", "upon", "want", "way", "what", "when", "where",
-    "which", "while", "who", "whom", "why", "you", "your",
+    "which", "while", "who", "whom", "why", "you", "your", "his", "her",
+    "him", "he", "it", "its", "hi", "hello", "hey", "the", "and", "for",
     # Music/data query words that should not match artist names
     "top", "best", "songs", "song", "track", "tracks", "album", "albums",
     "artist", "artists", "rank", "ranking", "rankings", "stream", "streams",
@@ -270,13 +274,17 @@ _STOP_WORDS = {
     "analyze", "last", "week", "month", "year", "total", "number",
     "music", "label", "labels", "spotify", "itunes", "apple", "youtube",
     "shazam", "global", "current", "recent", "latest",
+    # Time words that should not match artist names
+    "day", "days", "today", "yesterday", "previous", "daily", "weekly",
+    # Other common words
+    "name", "names", "with", "without", "give", "show", "five", "ten",
 }
 
 
 def _find_artists_in_db(question: str) -> List[str]:
     """Identify all artists mentioned in the question using a robust multi-pass approach."""
     # 1. Tokenize and clean
-    raw_tokens = [t.strip() for t in re.split(r"\W+", question) if len(t.strip()) > 1]
+    raw_tokens = [t.strip() for t in re.split(r"\W+", question) if len(t.strip()) > 2]
     tokens = []
     for t in raw_tokens:
         t_l = t.lower()
@@ -347,9 +355,22 @@ def _find_artists_in_db(question: str) -> List[str]:
             
     # Return names sorted by score (relevance)
     sorted_artists = [k for k, v in sorted(found_map.items(), key=lambda item: item[1], reverse=True)]
-    # Safety: filter out generic names that might be tokens (like "Justin") if they were matched weakly
+    
+    # NEW: Filter out collaborations if the primary artist is also present
+    # e.g. if 'Taylor Swift' and 'ZAYN & Taylor Swift' are both found, keep only 'Taylor Swift'
     final = []
-    for a in sorted_artists:
+    for i, a in enumerate(sorted_artists):
+        is_collab = any(marker in a.lower() for marker in [' & ', ' x ', ' feat', ' and ', ', '])
+        if is_collab:
+            # Check if any other higher-ranked artist is a substring of this collab
+            is_redundant = False
+            for other in sorted_artists:
+                if other != a and other.lower() in a.lower() and len(other) > 3:
+                    is_redundant = True
+                    break
+            if is_redundant:
+                continue
+        
         # If it's a single word name but wasn't in the question as a standalone token, skip
         if " " not in a and a.lower() not in tokens:
             continue
@@ -417,9 +438,43 @@ def _local_plan(question: str) -> Dict[str, Any]:
     """Generate query plans locally without API calls."""
     q = question.lower()
 
+    # ── HIGH PRIORITY: Top songs/tracks with daily/last-day scope → spotify_daily ──
+    _is_song_query = any(kw in q for kw in ["song", "songs", "track", "tracks"])
+    _is_daily_scope = any(kw in q for kw in ["last day", "yesterday", "today", "daily", "last 24"])
+    if _is_top_intent(question) and _is_song_query and _is_daily_scope:
+        limit = _extract_top_n(question) or 5
+        return {
+            "sql": f"""
+                WITH latest AS (
+                    SELECT MAX(date) AS latest_date FROM spotify_daily
+                )
+                SELECT
+                    sd.rank,
+                    sd.artist_title,
+                    tm.label_name AS label,
+                    sd.streams,
+                    sd.total_streams,
+                    TO_CHAR(sd.date, 'DD Mon YYYY') AS date
+                FROM spotify_daily sd
+                LEFT JOIN track_metadata tm ON tm.artist_title = sd.artist_title
+                WHERE sd.date = (SELECT latest_date FROM latest)
+                  AND (sd.country = 'global' OR sd.country IS NULL)
+                ORDER BY sd.streams DESC
+                LIMIT {limit}
+            """,
+            "chart_type": "multi",
+            "x": "artist_title",
+            "y": "streams",
+            "title": f"Top {limit} Songs — Last Day",
+            "show_chart": True,
+            "show_table": True,
+            "show_summary": True,
+            "render_order": ["summary", "chart", "table"],
+        }
+
     # Check for generic top/rank intent BEFORE trying to match artist names
     # e.g., "Top 10 artists" should not try to find an artist named "01099"
-    if _is_top_intent(question) and not any(kw in q for kw in ["song", "album", "countr", "detail", "listener"]):
+    if _is_top_intent(question) and not any(kw in q for kw in ["song", "album", "countr", "detail", "listener", "track"]):
         # Only override to artist-specific if a clear artist name is present
         artists = _find_artists_in_db(question)
         if not artists:
@@ -700,7 +755,9 @@ TABLE SELECTION GUIDE:
 - "top artists" / "ranking" / "points" → Use itunes_artist_rankings (join with artists)
 - "listeners" / "Spotify" / "monthly listeners" → Use spotify_artists (join with artists)
 - "trending" / "monthly trend" → Use trending_artists_monthly (join with artists)
-- Only use 'tracks' + 'track_rankings' for very specific track-level chart data (rare).
+- "top tracks", "top songs", "most streamed tracks" → Use spotify_daily. Group by artist_title and SUM(streams) to get track performance.
+- The 'spotify_daily' and 'itunes_daily' tables have HIGH-GRANULARITY daily track data. Use them for "last week", "today", or "daily" track queries.
+
 
 Safety Requirements:
 - Use ONLY SELECT and WITH (CTE) queries
@@ -714,16 +771,26 @@ Safety Requirements:
   - ALWAYS prioritize trending_artists_monthly table (column month = 'YYYY-MM') as it has the most complete historical monthly data.
   - Only use spotify_artists if the user specifically mentions "Spotify" or "listeners" and if scrape_date range has data.
   - Do NOT expand this to a full year unless explicitly asked.
-- Map "streams" to monthly_listeners (spotify_artists table), streams (track_rankings table), or total_points (trending/itunes tables).
-- We NOW have label data in the 'labels' table. Join tracks to labels and artists to answer label-related questions.
+- Map "streams" to monthly_listeners (spotify_artists table), streams (spotify_daily table), or total_points (trending/itunes tables).
+- To get "Label Names", use the 'label' column directly from 'spotify_daily', 'itunes_daily', or 'youtube_daily'. No need to JOIN tracks/labels tables.
+- "Last day" or "previous day" MUST use the max date: `date = (SELECT MAX(date) FROM spotify_daily)`.
+- "This week" or "last 7 days" MUST use: `date >= (SELECT MAX(date) FROM spotify_daily) - INTERVAL '7 days'`.
+- "2026" means `EXTRACT(YEAR FROM date) = 2026`.
+- For "percentage analysis", use window functions: `value * 100.0 / SUM(value) OVER()`.
+- "Number of tracks in Top X": use `COUNT(DISTINCT artist_title)`.
+- "Debut tracks" on a specific day/period: tracks that exist in that period but NOT before. E.g. `artist_title NOT IN (SELECT artist_title FROM spotify_daily WHERE date < (SELECT MAX(date) FROM spotify_daily))`.
+- "Consistently in Top X": use `GROUP BY artist_title HAVING MAX(rank) <= X`.
+- "Streams required to enter Top 100": use `MIN(streams) WHERE rank <= 100`.
+- For "acquisition" or "independent artists", filter by `label ILIKE '%Independent%'`.
+- Limit results to 50 unless asked for more.
 - Important: rank_change is stored as VARCHAR. If comparing numerically, use t.rank_change::integer.
 - IMPORTANT DATA CAVEAT: The 'top_country' column in itunes_artist_rankings/trending_artists_monthly tables contains ONLY the single highest-performing country for that artist globally. If the user asks "how is artist X doing in Colombia?", checking 'top_country = Colombia' will often return NO results if Colombia is not their #1 market. Instead, query artist_details.top_countries (which contains a LIST of all charting countries) to see if they are present there, and use global total_points for general performance comparison.
 - Debut tracks/artists: Only call a track a "debut" if its release_date is within the requested period. If the release_date is old (e.g., years ago), call it a "catalog hit" or "re-entry".
 - Date Formatting: ALWAYS format dates in the SQL query for display (e.g., TO_CHAR(date, 'DD Mon YYYY') or similar) so they don't appear as raw numbers/timestamps.
 - Avoid duplicate rows in tables: If multiple records exist for the same artist/track (e.g., daily scrapes), ALWAYS filter to show only the latest record (using MAX(scraped_at) or DISTINCT ON) unless a trend/history is explicitly requested.
-- CRITICAL: For "Top songs" (global or general), if track_rankings is too small, query artist_details.top_songs for multiple top artists to get a diverse list of song names.
+- CRITICAL: When the user specifies an artist by name (e.g. "Taylor Swift"), you MUST use exact matching: artists.name = 'Taylor Swift' or artist_title = 'Taylor Swift'. NEVER use partial matches (ILIKE '%...%') for specific names as it pollutes results with collaborations (e.g. "ZAYN & Taylor Swift").
+- CRITICAL: If multiple artists or tracks are mentioned in the question, you MUST generate a query that retrieves data for ALL of them (use OR or IN in the WHERE clause) using exact names.
 - No UPDATE, INSERT, DELETE, DROP, ALTER, CREATE, TRUNCATE, GRANT, REVOKE, COPY, EXEC
-- CRITICAL: If multiple artists or tracks are mentioned in the question, you MUST generate a query that retrieves data for ALL of them (use OR or IN in the WHERE clause). Do NOT limit the result to just one artist if the user is asking for a comparison.
 
 Response Format (JSON):
 {{
@@ -751,6 +818,7 @@ Render order:
 - If summary is most important, put it first.
 
 Examples of queries:
+- Top tracks for a year: SELECT artist_title, SUM(streams) as total_streams FROM spotify_daily WHERE EXTRACT(YEAR FROM date) = 2026 GROUP BY artist_title ORDER BY total_streams DESC LIMIT 5
 - Top songs by artist: SELECT a.name, ad.top_songs, ad.top_albums, ad.top_countries, ad.songs_count, ad.albums_count, ad.countries_count FROM artist_details ad JOIN artists a ON a.id = ad.artist_id WHERE a.name ILIKE '%Justin Bieber%' ORDER BY ad.scraped_at DESC LIMIT 1
 - Top ranked artists: SELECT a.name, i.rank, i.total_points, i.top_country FROM itunes_artist_rankings i JOIN artists a ON i.artist_id = a.id WHERE i.scrape_date = (SELECT MAX(scrape_date) FROM itunes_artist_rankings) ORDER BY i.rank LIMIT 10
 - Spotify listeners: SELECT a.name, s.monthly_listeners, s.peak_listeners FROM spotify_artists s JOIN artists a ON s.artist_id = a.id WHERE s.scrape_date = (SELECT MAX(scrape_date) FROM spotify_artists) ORDER BY s.monthly_listeners DESC NULLS LAST LIMIT 20
@@ -801,7 +869,10 @@ def _generate_plan(question: str, api_key: Optional[str], model: str) -> Dict[st
             pass
 
     # Fallback to local heuristics
-    if _is_top_intent(question):
+    # IMPORTANT: Only force artist rank plan if NOT a song/track query
+    q_lower = question.lower()
+    _is_song_q = any(kw in q_lower for kw in ["song", "songs", "track", "tracks"])
+    if _is_top_intent(question) and not _is_song_q:
         plan = _force_rank_plan(question)
         plan["source"] = "local"
         return plan
@@ -1552,9 +1623,9 @@ def render_custom_chatbot() -> None:
                 plan = _generate_plan(question, api_key, model)
                 
                 # Debug: Show detected artists if multi
-                detected = _find_artists_in_db(question)
-                if len(detected) > 1:
-                    st.info(f"🔍 Comparing **{', '.join(detected)}**")
+                # detected = _find_artists_in_db(question)
+                # if len(detected) > 1:
+                #     st.info(f"🔍 Comparing **{', '.join(detected)}**")
 
                 safe_sql = _enforce_safe_sql(plan["sql"])
                 # Debug SQL

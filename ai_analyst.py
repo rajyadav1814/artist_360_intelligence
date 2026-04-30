@@ -30,8 +30,11 @@ def get_db_schema():
     3. spotify_artists (artist_id, monthly_listeners, peak_listeners, peak_date, scrape_date)
        - Spotify monthly listener stats. Joined with artists.id.
     
-    4. track_metadata (artist_title, label_name, representative_owner)
-       - Metadata for tracks. 'artist_title' is unique and matches 'spotify_daily.artist_title'.
+    4. tracks (id, title, artist_id, label_id, release_date)
+       - Metadata for tracks.
+       
+    4.5. labels (id, name, type, owner)
+       - Label information. Joined with tracks.label_id.
     
     5. spotify_daily (date, country, rank, artist_title, days, peak, streams, streams_change, total_streams)
        - Daily Spotify track charts. 'artist_title' is the song name (formatted as 'Artist - Song').
@@ -48,13 +51,17 @@ def get_db_schema():
        - Detailed artist stats. Joined with artists.id.
 
     Guidelines for SQL Generation:
-    - For "performance" queries, analyze BOTH 'spotify_daily' (streams) and 'itunes_daily' (points) to give a balanced view.
-    - To get "Label Names" or "Representative Owners", ALWAYS JOIN with 'track_metadata' ON artist_title.
-    - If the user asks about "acquisition" or "independent artists", filter by label_name='Independent' in track_metadata and look at combined performance across platforms.
-    - For "Last week", use: date >= (SELECT MAX(date) FROM spotify_daily) - INTERVAL '7 days'.
-    - For "Debut tracks" on a specific date, find tracks that exist on that date but NOT before that date in the same table.
-    - For "Consistency", find tracks that appear in the Top X positions for all N consecutive days.
-    - Always use ILIKE for artist or track names to be flexible.
+    - To get "Label Names", use the 'label' column directly from 'spotify_daily', 'itunes_daily', or 'youtube_daily'. No need to JOIN tracks/labels tables.
+    - "Last day" or "previous day" MUST use the max date: `date = (SELECT MAX(date) FROM spotify_daily)`.
+    - "This week" or "last 7 days" MUST use: `date >= (SELECT MAX(date) FROM spotify_daily) - INTERVAL '7 days'`.
+    - "2026" means `EXTRACT(YEAR FROM date) = 2026`.
+    - For "percentage analysis", use window functions: `value * 100.0 / SUM(value) OVER()`.
+    - "Number of tracks in Top X": use `COUNT(DISTINCT artist_title)`.
+    - "Debut tracks" on a specific day/period: tracks that exist in that period but NOT before. E.g. `artist_title NOT IN (SELECT artist_title FROM spotify_daily WHERE date < (SELECT MAX(date) FROM spotify_daily))`.
+    - "Consistently in Top X": use `GROUP BY artist_title HAVING MAX(rank) <= X`.
+    - "Streams required to enter Top 100": use `MIN(streams) WHERE rank <= 100`.
+    - When querying a specific artist, match the start: `artist_title ILIKE 'Taylor Swift -%'` to avoid collaborations.
+    - For "acquisition" or "independent artists", filter by `label ILIKE '%Independent%'`.
     - Limit results to 50 unless asked for more.
     """
 
@@ -71,10 +78,12 @@ def ask_bot(question):
     
     Important rules:
     1. Output ONLY the raw SQL query. No markdown, no explanation.
-    2. If the user asks for "performance" or "rankings" generally, try to provide data from BOTH 'spotify_daily' and 'itunes_daily' (using a JOIN or UNION if appropriate).
-    3. If label details or acquisition insights are needed, JOIN with 'track_metadata'.
-    4. For "last week" or "previous day", use the latest date in the database as the reference point.
-    5. Always use ILIKE for text matching to ensure flexibility.
+    2. Use 'spotify_daily' as the primary table for streams and performance, unless itunes/youtube are explicitly requested.
+    3. If label details are needed, select the 'label' column directly from 'spotify_daily'.
+    4. "last day" / "previous day" / "today" MUST use `date = (SELECT MAX(date) FROM spotify_daily)`.
+    5. CRITICAL: To query a specific artist in daily tables, use `artist_title ILIKE 'ArtistName -%'` to avoid collaborations. Do NOT use `ILIKE '%ArtistName%'`.
+    6. For percentage compare, use `SUM(streams) * 100.0 / SUM(SUM(streams)) OVER()` in the SELECT clause.
+    7. For finding debut tracks on the last day, use a subquery: `WHERE artist_title NOT IN (SELECT artist_title FROM spotify_daily WHERE date < (SELECT MAX(date) FROM spotify_daily))`.
     """
     
     try:
