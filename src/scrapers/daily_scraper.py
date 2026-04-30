@@ -9,6 +9,7 @@ from config.settings import ITUNES_DAILY_URL, SPOTIFY_DAILY_URL, YOUTUBE_DAILY_U
 from src.database.models import ItunesDaily, SpotifyDaily, YoutubeDaily
 from src.utils.http_client import fetch_page
 from src.utils.logger import get_logger
+from src.utils.label_lookup import get_label
 
 logger = get_logger(__name__)
 
@@ -87,6 +88,7 @@ def scrape_spotify_daily(country: str = "global") -> List[SpotifyDaily]:
                         streams=_safe_int(row.get("Streams", 0)),
                         streams_change=_safe_int(row.get("Streams+", 0)),
                         total_streams=_safe_int(row.get("Total", 0)),
+                        label=get_label(artist_title)
                     )
                 )
             except Exception as e:
@@ -140,6 +142,7 @@ def scrape_spotify_weekly(country: str = "global") -> List[SpotifyDaily]:
                         streams=_safe_int(row.get("Streams", 0)),
                         streams_change=_safe_int(row.get("Streams+", 0)),
                         total_streams=_safe_int(row.get("Total", 0)),
+                        label=get_label(artist_title)
                     )
                 )
             except Exception:
@@ -192,6 +195,7 @@ def scrape_spotify_totals(country: str = "global") -> List[SpotifyDaily]:
                         streams=_safe_int(row.get("Streams", 0)),
                         streams_change=_safe_int(row.get("Streams+", 0)),
                         total_streams=_safe_int(row.get("Total", 0)),
+                        label=get_label(artist_title)
                     )
                 )
             except Exception:
@@ -248,6 +252,7 @@ def scrape_itunes_daily(country: str = "us") -> List[ItunesDaily]:
                         points=_safe_int(row.get("Pts", 0)),
                         points_change=_safe_int(row.get("Pts+", row.get("P+", 0))),
                         total_points=_safe_int(row.get("TPts", 0)),
+                        label=get_label(artist_title)
                     )
                 )
             except Exception as e:
@@ -294,6 +299,7 @@ def scrape_youtube_daily() -> List[YoutubeDaily]:
                         video_title=video,
                         views=views,
                         likes=likes,
+                        label=get_label(video)
                     )
                 )
             except Exception as e:

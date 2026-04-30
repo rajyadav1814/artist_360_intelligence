@@ -74,6 +74,7 @@ class SpotifyDaily:
     streams: Optional[int] = None
     streams_change: Optional[int] = None
     total_streams: Optional[int] = None
+    label: Optional[str] = None
 
 
 @dataclass
@@ -87,6 +88,7 @@ class ItunesDaily:
     points: Optional[int] = None
     points_change: Optional[int] = None
     total_points: Optional[int] = None
+    label: Optional[str] = None
 
 
 @dataclass
@@ -96,6 +98,7 @@ class YoutubeDaily:
     rank: Optional[int] = None
     views: Optional[int] = None
     likes: Optional[int] = None
+    label: Optional[str] = None
 
 
 @dataclass
