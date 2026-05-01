@@ -38,7 +38,9 @@ ALLOWED_TABLES = {
     "spotify_daily",
     "itunes_daily",
     "youtube_daily",
-    "track_metadata",
+    "tracks",
+    "labels",
+    "track_rankings"
 }
 
 SCHEMA_CONTEXT = """
@@ -51,13 +53,17 @@ Database schema summary (PostgreSQL):
 - spotify_daily(id, date, country, rank, artist_title, days, peak, streams, streams_change, total_streams)
 - itunes_daily(id, date, country, rank, artist_title, days, peak, points, points_change, total_points)
 - youtube_daily(id, date, rank, video_title, views, likes)
-- track_metadata(id, artist_title, label_name, representative_owner)
+- tracks(id, title, artist_id, label_id, release_date)
+- labels(id, name, type, owner)
+- track_rankings(id, track_id, rank, streams, fiscal_year, scrape_date)
 - scrape_runs(id, source, status, rows_upserted, error_msg, started_at, finished_at)
 
 Relationships:
-- All artist-level metrics (itunes_artist_rankings, spotify_artists, trending_artists_monthly, artist_details) join to artists on artist_id = artists.id.
-- Daily tables (spotify_daily, itunes_daily, youtube_daily) track individual SONGS. The 'artist_title' column contains the SONG name (formatted as 'Artist - Song Title'). It does NOT just contain the artist's name.
-- track_metadata use 'artist_title' which matches the song name in daily tables.
+- All artist-level metrics join to artists on artist_id = artists.id.
+- Daily tables (spotify_daily, itunes_daily) track individual SONGS. The 'artist_title' column contains 'Artist - Song Title'.
+- tracks table contains canonical song titles. To join daily tables with tracks, use: `daily.artist_title ILIKE '%' || tracks.title || '%'`.
+- track_rankings joins with tracks on tracks.id = track_rankings.track_id.
+- labels table joins with tracks on tracks.label_id = labels.id.
 - 'date' or 'scrape_date' column indicates when data was collected.
 """.strip()
 
@@ -69,6 +75,7 @@ TABLE_REF_RE = re.compile(
     r"\b(?:from|join)\s+([a-z_][a-z0-9_\.]*)(?!\s*\()",
     re.IGNORECASE,
 )
+SQL_RESERVED_FROM = {"year", "month", "day", "hour", "minute", "second", "date", "week", "quarter"}
 CTE_NAME_RE = re.compile(r"(?:with|,)\s*([a-z_][a-z0-9_]*)\s+as\s*\(", re.IGNORECASE)
 LIMIT_RE = re.compile(r"\blimit\s+\d+\b", re.IGNORECASE)
 
@@ -451,12 +458,13 @@ def _local_plan(question: str) -> Dict[str, Any]:
                 SELECT
                     sd.rank,
                     sd.artist_title,
-                    tm.label_name AS label,
+                    l.name AS label,
                     sd.streams,
                     sd.total_streams,
                     TO_CHAR(sd.date, 'DD Mon YYYY') AS date
                 FROM spotify_daily sd
-                LEFT JOIN track_metadata tm ON tm.artist_title = sd.artist_title
+                LEFT JOIN tracks t ON sd.artist_title ILIKE '%' || t.title || '%'
+                LEFT JOIN labels l ON t.label_id = l.id
                 WHERE sd.date = (SELECT latest_date FROM latest)
                   AND (sd.country = 'global' OR sd.country IS NULL)
                 ORDER BY sd.streams DESC
@@ -726,6 +734,7 @@ def _enforce_safe_sql(candidate_sql: str) -> str:
         raise ValueError("Query contains unsafe keywords.")
     cte_names = {name.lower() for name in CTE_NAME_RE.findall(sql)}
     referenced_tables = {tbl.split(".")[-1].lower() for tbl in TABLE_REF_RE.findall(sql)}
+    referenced_tables = referenced_tables.difference(SQL_RESERVED_FROM)
     unknown_tables = referenced_tables.difference(ALLOWED_TABLES.union(cte_names))
     if unknown_tables:
         raise ValueError("Query referenced unsupported tables: " + ", ".join(sorted(unknown_tables)))
@@ -755,8 +764,9 @@ TABLE SELECTION GUIDE:
 - "top artists" / "ranking" / "points" → Use itunes_artist_rankings (join with artists)
 - "listeners" / "Spotify" / "monthly listeners" → Use spotify_artists (join with artists)
 - "trending" / "monthly trend" → Use trending_artists_monthly (join with artists)
-- "top tracks", "top songs", "most streamed tracks" → Use spotify_daily. Group by artist_title and SUM(streams) to get track performance.
+- "top tracks", "top songs", "most streamed tracks" → Use spotify_daily (group by artist_title) OR track_rankings (join with tracks).
 - The 'spotify_daily' and 'itunes_daily' tables have HIGH-GRANULARITY daily track data. Use them for "last week", "today", or "daily" track queries.
+- The 'track_rankings' table contains deeper historical and performance data for tracks linked to canonical track IDs.
 
 
 Safety Requirements:
@@ -772,10 +782,13 @@ Safety Requirements:
   - Only use spotify_artists if the user specifically mentions "Spotify" or "listeners" and if scrape_date range has data.
   - Do NOT expand this to a full year unless explicitly asked.
 - Map "streams" to monthly_listeners (spotify_artists table), streams (spotify_daily table), or total_points (trending/itunes tables).
-- To get "Label Names", use the 'label' column directly from 'spotify_daily', 'itunes_daily', or 'youtube_daily'. No need to JOIN tracks/labels tables.
+- IMPORTANT: To find "independent artists" or "labels", you MUST JOIN daily tables with the `tracks` and `labels` tables.
+  The `label` column in daily tables is often NULL.
+  Example join: `FROM spotify_daily sd JOIN tracks t ON sd.artist_title ILIKE '%' || t.title || '%' JOIN labels l ON t.label_id = l.id WHERE l.type = 'Independent'`
 - "Last day" or "previous day" MUST use the max date: `date = (SELECT MAX(date) FROM spotify_daily)`.
 - "This week" or "last 7 days" MUST use: `date >= (SELECT MAX(date) FROM spotify_daily) - INTERVAL '7 days'`.
 - "2026" means `EXTRACT(YEAR FROM date) = 2026`.
+- IMPORTANT: When querying `spotify_daily` or `itunes_daily` for "top tracks" or "charts" without a specific country mentioned, ALWAYS filter by `country = 'global'` (for Spotify) or `country = 'ww'` (for iTunes) to avoid duplicate rows and double-counting.
 - For "percentage analysis", use window functions: `value * 100.0 / SUM(value) OVER()`.
 - "Number of tracks in Top X": use `COUNT(DISTINCT artist_title)`.
 - "Debut tracks" on a specific day/period: tracks that exist in that period but NOT before. E.g. `artist_title NOT IN (SELECT artist_title FROM spotify_daily WHERE date < (SELECT MAX(date) FROM spotify_daily))`.
@@ -871,7 +884,7 @@ def _generate_plan(question: str, api_key: Optional[str], model: str) -> Dict[st
     # Fallback to local heuristics
     # IMPORTANT: Only force artist rank plan if NOT a song/track query
     q_lower = question.lower()
-    _is_song_q = any(kw in q_lower for kw in ["song", "songs", "track", "tracks"])
+    _is_song_q = any(kw in q_lower for kw in ["song", "songs", "track", "tracks", "stream", "streams"])
     if _is_top_intent(question) and not _is_song_q:
         plan = _force_rank_plan(question)
         plan["source"] = "local"

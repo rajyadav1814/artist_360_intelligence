@@ -51,7 +51,8 @@ def get_db_schema():
        - Detailed artist stats. Joined with artists.id.
 
     Guidelines for SQL Generation:
-    - To get "Label Names", use the 'label' column directly from 'spotify_daily', 'itunes_daily', or 'youtube_daily'. No need to JOIN tracks/labels tables.
+    - To get "Label Names", you MUST JOIN daily tables with the `tracks` and `labels` tables as the `label` column in daily tables is often NULL.
+      Example: `FROM spotify_daily sd JOIN tracks t ON sd.artist_title ILIKE '%' || t.title || '%' JOIN labels l ON t.label_id = l.id`.
     - "Last day" or "previous day" MUST use the max date: `date = (SELECT MAX(date) FROM spotify_daily)`.
     - "This week" or "last 7 days" MUST use: `date >= (SELECT MAX(date) FROM spotify_daily) - INTERVAL '7 days'`.
     - "2026" means `EXTRACT(YEAR FROM date) = 2026`.
@@ -61,7 +62,7 @@ def get_db_schema():
     - "Consistently in Top X": use `GROUP BY artist_title HAVING MAX(rank) <= X`.
     - "Streams required to enter Top 100": use `MIN(streams) WHERE rank <= 100`.
     - When querying a specific artist, match the start: `artist_title ILIKE 'Taylor Swift -%'` to avoid collaborations.
-    - For "acquisition" or "independent artists", filter by `label ILIKE '%Independent%'`.
+    - For "acquisition" or "independent artists", JOIN with `tracks` and `labels` as explained above and filter by `l.type = 'Independent'`.
     - Limit results to 50 unless asked for more.
     """
 
