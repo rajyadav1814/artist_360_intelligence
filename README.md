@@ -226,7 +226,7 @@ For the AI Analyst page in Streamlit, also set:
 ```bash
 CLAUDE_API_KEY=your_anthropic_api_key_here
 # Optional: override the default model
-CLAUDE_MODEL=claude-3-5-sonnet-20240620
+CLAUDE_MODEL=claude-opus-4-7
 ```
 
 > **Note:** The chatbot uses **Anthropic Claude** (not OpenAI). Make sure to use `CLAUDE_API_KEY` in your `.env` or Streamlit secrets.

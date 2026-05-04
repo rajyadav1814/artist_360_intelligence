@@ -9,7 +9,7 @@ from src.database.connection import get_connection
 load_dotenv()
 
 CLAUDE_API_KEY = os.getenv("CLAUDE_API_KEY")
-CLAUDE_MODEL = os.getenv("CLAUDE_MODEL", "claude-3-5-sonnet-20240620")
+CLAUDE_MODEL = os.getenv("CLAUDE_MODEL", "claude-opus-4-7")
 
 # Fallback: read Streamlit secrets TOML if env vars not set (useful when running
 # under Streamlit Cloud or when secrets were synced to .streamlit/secrets.toml)

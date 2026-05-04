@@ -137,15 +137,29 @@ NO_TABLE_PATTERNS = [
 
 def _read_secret(name: str) -> Optional[str]:
     try:
+        # 1. Try top-level key first (e.g. CLAUDE_API_KEY = "...")
         if name in st.secrets:
             val = st.secrets.get(name)
             if val:
                 return str(val).strip()
     except StreamlitSecretNotFoundError:
         pass
+
+    try:
+        # 2. Try [ai] section (e.g. [ai] / CLAUDE_API_KEY = "...")
+        ai_section = st.secrets.get("ai", {})
+        if ai_section and name in ai_section:
+            val = ai_section[name]
+            if val:
+                return str(val).strip()
+    except (StreamlitSecretNotFoundError, Exception):
+        pass
+
+    # 3. Fall back to environment variable
     env_val = os.getenv(name)
     if env_val:
         return env_val.strip()
+
     return None
 
 
@@ -154,7 +168,7 @@ def _resolve_api_key() -> Optional[str]:
 
 
 def _resolve_model() -> str:
-    return _read_secret("CLAUDE_MODEL") or "claude-3-5-sonnet-20240620"
+    return _read_secret("CLAUDE_MODEL") or "claude-opus-4-7"
 
 
 def _get_client(api_key: str) -> anthropic.Anthropic:
