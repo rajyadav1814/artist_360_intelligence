@@ -31,44 +31,31 @@ def _build_session():
 
 @lru_cache(maxsize=1000)
 def get_label(artist_title: str) -> Optional[str]:
-    """Look up the record label for a given artist or track title using MusicBrainz."""
-    mb_contact = os.getenv("MUSICBRAINZ_EMAIL")
-    user_agent = "Artist360Intelligence/1.0 (https://github.com/rajyadav1814/artist_360_intelligence)"
-    headers = {"User-Agent": user_agent}
-    if mb_contact:
-        headers["From"] = mb_contact
-    else:
-        logger.debug("MUSICBRAINZ_EMAIL not set — consider setting it to comply with MusicBrainz policies")
+    """Look up the record label for a given artist or track title.
+    
+    In music metadata, "Label" refers to the record label (company) that released 
+    or published the song, responsible for production, marketing, and distribution.
+    
+    Currently attempts batch-optimized lookup via AI agent if possible.
+    """
+    # For single calls, we still use the agent but it's less efficient than batching
+    from src.ai.label_agent import get_labels_batch
+    results = get_labels_batch([artist_title])
+    return results.get(artist_title)
 
-    session = _build_session()
-
-    def safe_get(url, timeout=10):
-        try:
-            resp = session.get(url, headers=headers, timeout=timeout)
-            # Respect MusicBrainz polite rate: at most ~1 request per second
-            time.sleep(1)
-            return resp
-        except Exception:
-            # Let caller handle logging and retries via session
-            raise
-
-    url = f"https://musicbrainz.org/ws/2/release/?query={quote(artist_title)}&fmt=json&limit=1"
-    try:
-        resp = safe_get(url, timeout=10)
-        if resp is None:
-            return None
-        resp.raise_for_status()
-        data = resp.json()
-        releases = data.get("releases", [])
-        if not releases:
-            return None
-        first = releases[0]
-        label_info = first.get("label-info", [])
-        if label_info:
-            label_name = label_info[0].get("label", {}).get("name")
-            if label_name:
-                return label_name
-        return None
-    except Exception as e:
-        logger.error(f"Error fetching label for '{artist_title}': {e}")
-        return None
+def get_labels_batch_optimized(titles: list[str]) -> dict[str, str]:
+    """
+    Look up record labels for a list of titles in batches.
+    """
+    from src.ai.label_agent import get_labels_batch
+    
+    final_results = {}
+    # Process in chunks of 20 as requested
+    for i in range(0, len(titles), 20):
+        chunk = titles[i : i + 20]
+        # Filter out titles already in cache if needed, but for simplicity:
+        logger.info(f"Fetching labels for chunk {i//20 + 1}...")
+        batch_results = get_labels_batch(chunk)
+        final_results.update(batch_results)
+        
+    return final_results

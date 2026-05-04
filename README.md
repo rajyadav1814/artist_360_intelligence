@@ -9,7 +9,7 @@ A Python project to scrape music chart data from [kworb.net](https://kworb.net) 
 - Captures **Trending Artists for Last Month** (stored per calendar month)
 - Tracks **Daily Chart Performance** (Spotify & iTunes daily/weekly charts per country, YouTube top videos)
 - Monitors **Track Rankings** (weekly chart positions and streams via `track_rankings`)
-- Manages **Labels & Discography** (Labels, Tracks, and ISRC metadata)
+- Manages **Labels & Discography** (Tracks, ISRC metadata, and label identification via AI)
 - Stores all data in PostgreSQL with full audit trail (`scrape_runs` table)
 - Daily scheduler built-in (runs at **10:55 UTC**)
 - Includes an **AI Analyst chatbot** powered by **Anthropic Claude** in Streamlit that can query PostgreSQL and respond with narrative insights + charts
@@ -32,7 +32,6 @@ erDiagram
     artists ||--o{ youtube_videos : "features"
     artists ||--o{ track_daily_stats : "daily track stats"
     
-    labels ||--o{ tracks : "releases"
     tracks ||--o{ track_rankings : "charts"
 
     artists {
@@ -42,18 +41,10 @@ erDiagram
         timestamptz created_at
     }
 
-    labels {
-        serial id PK
-        varchar name "Unique"
-        varchar type
-        varchar owner
-    }
-
     tracks {
         serial id PK
         integer artist_id FK
         varchar title
-        integer label_id FK
         varchar isrc
         integer duration_ms
         date release_date
@@ -142,6 +133,7 @@ erDiagram
         bigint streams
         bigint streams_change
         bigint total_streams
+        varchar label
         timestamptz scraped_at
     }
 
@@ -156,6 +148,7 @@ erDiagram
         integer points
         integer points_change
         integer total_points
+        varchar label
         timestamptz scraped_at
     }
 
@@ -166,6 +159,7 @@ erDiagram
         text video_title
         bigint views
         bigint likes
+        varchar label
         timestamptz scraped_at
     }
 
@@ -184,8 +178,7 @@ erDiagram
 
 #### 1. Core Entities
 - **`artists`**: Registry of all tracked music artists.
-- **`labels`**: Metadata for record labels (Name, Type, Parent Owner).
-- **`tracks`**: Centralized track registry including ISRC, duration, and label associations.
+- **`tracks`**: Centralized track registry including ISRC, duration, and metadata. Label information is stored directly in daily charts.
 
 #### 2. Artist Performance
 - **`itunes_artist_rankings`**: Daily global weighted rankings with platform-wise points (iTunes, Spotify, Apple Music, Shazam, YouTube).
@@ -277,7 +270,7 @@ The chatbot follows an **MCP-aligned pipeline**:
 
 ### Allowed Tables (AI Query Scope)
 The AI agent is restricted to querying only these tables:
-`artists`, `itunes_artist_rankings`, `spotify_artists`, `trending_artists_monthly`, `artist_details`, `labels`, `tracks`, `track_rankings`, `scrape_runs`
+`artists`, `itunes_artist_rankings`, `spotify_artists`, `trending_artists_monthly`, `artist_details`, `tracks`, `track_rankings`, `scrape_runs`
 
 ---
 

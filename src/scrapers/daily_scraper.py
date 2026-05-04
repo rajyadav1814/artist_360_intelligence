@@ -49,6 +49,7 @@ def _get_column(row: pd.Series, possible_names: List[str]) -> Optional[str]:
 
 def scrape_spotify_daily(country: str = "global") -> List[SpotifyDaily]:
     """Scrape Spotify daily chart for a specific country."""
+    from src.utils.label_lookup import get_labels_batch_optimized
     url = SPOTIFY_DAILY_URL.format(country=country)
     logger.info(f"Scraping Spotify {country} Daily from {url}...")
     
@@ -64,19 +65,28 @@ def scrape_spotify_daily(country: str = "global") -> List[SpotifyDaily]:
 
         df = pd.read_html(io.StringIO(str(table)))[0]
         today = date.today()
-        results = []
-
+        
+        # Pre-extract titles for batch label lookup
+        titles = []
+        rows_to_process = []
         for _, row in df.iterrows():
+            artist_title = _get_column(row, ["Artist and Title", "Artist - Title", "Video"])
+            if artist_title:
+                titles.append(artist_title)
+                rows_to_process.append(row)
+        
+        # Batch lookup labels
+        labels_map = get_labels_batch_optimized(titles)
+        
+        results = []
+        for i, row in enumerate(rows_to_process):
             try:
                 rank_raw = _get_column(row, ["Pos"])
                 if not rank_raw or not rank_raw.isdigit():
                     continue
                 rank = int(rank_raw)
-
-                artist_title = _get_column(row, ["Artist and Title", "Artist - Title", "Video"])
-                if not artist_title:
-                    continue
-
+                
+                artist_title = titles[i]
                 results.append(
                     SpotifyDaily(
                         date=today,
@@ -88,10 +98,10 @@ def scrape_spotify_daily(country: str = "global") -> List[SpotifyDaily]:
                         streams=_safe_int(row.get("Streams", 0)),
                         streams_change=_safe_int(row.get("Streams+", 0)),
                         total_streams=_safe_int(row.get("Total", 0)),
-                        label=get_label(artist_title)
+                        label=labels_map.get(artist_title)
                     )
                 )
-            except Exception as e:
+            except Exception:
                 continue
 
         logger.info(f"Scraped {len(results)} rows for Spotify {country}")
@@ -103,6 +113,7 @@ def scrape_spotify_daily(country: str = "global") -> List[SpotifyDaily]:
 
 def scrape_spotify_weekly(country: str = "global") -> List[SpotifyDaily]:
     """Scrape Spotify weekly chart for a specific country."""
+    from src.utils.label_lookup import get_labels_batch_optimized
     url = f"https://kworb.net/spotify/country/{country}_weekly.html"
     logger.info(f"Scraping Spotify {country} Weekly from {url}...")
     
@@ -118,19 +129,28 @@ def scrape_spotify_weekly(country: str = "global") -> List[SpotifyDaily]:
 
         df = pd.read_html(io.StringIO(str(table)))[0]
         today = date.today()
-        results = []
-
+        
+        # Pre-extract titles
+        titles = []
+        rows_to_process = []
         for _, row in df.iterrows():
+            artist_title = _get_column(row, ["Artist and Title", "Artist - Title", "Video"])
+            if artist_title:
+                titles.append(artist_title)
+                rows_to_process.append(row)
+
+        # Batch lookup labels
+        labels_map = get_labels_batch_optimized(titles)
+        
+        results = []
+        for i, row in enumerate(rows_to_process):
             try:
                 rank_raw = _get_column(row, ["Pos"])
                 if not rank_raw or not rank_raw.isdigit():
                     continue
                 rank = int(rank_raw)
 
-                artist_title = _get_column(row, ["Artist and Title", "Artist - Title", "Video"])
-                if not artist_title:
-                    continue
-
+                artist_title = titles[i]
                 results.append(
                     SpotifyDaily(
                         date=today,
@@ -142,7 +162,7 @@ def scrape_spotify_weekly(country: str = "global") -> List[SpotifyDaily]:
                         streams=_safe_int(row.get("Streams", 0)),
                         streams_change=_safe_int(row.get("Streams+", 0)),
                         total_streams=_safe_int(row.get("Total", 0)),
-                        label=get_label(artist_title)
+                        label=labels_map.get(artist_title)
                     )
                 )
             except Exception:
@@ -157,6 +177,7 @@ def scrape_spotify_weekly(country: str = "global") -> List[SpotifyDaily]:
 
 def scrape_spotify_totals(country: str = "global") -> List[SpotifyDaily]:
     """Scrape Spotify daily chart totals (all-time stats for the day's tracks)."""
+    from src.utils.label_lookup import get_labels_batch_optimized
     url = f"https://kworb.net/spotify/country/{country}_daily_totals.html"
     logger.info(f"Scraping Spotify {country} Totals from {url}...")
     
@@ -172,18 +193,27 @@ def scrape_spotify_totals(country: str = "global") -> List[SpotifyDaily]:
 
         df = pd.read_html(io.StringIO(str(table)))[0]
         today = date.today()
-        results = []
-
+        
+        # Pre-extract titles
+        titles = []
+        rows_to_process = []
         for _, row in df.iterrows():
+            artist_title = _get_column(row, ["Artist and Title", "Artist - Title", "Track"])
+            if artist_title:
+                titles.append(artist_title)
+                rows_to_process.append(row)
+
+        # Batch lookup labels
+        labels_map = get_labels_batch_optimized(titles)
+        
+        results = []
+        for i, row in enumerate(rows_to_process):
             try:
                 rank_raw = _get_column(row, ["Pos"])
                 # In totals table, rank might be different or missing, use index if needed
                 rank = int(rank_raw) if rank_raw and rank_raw.isdigit() else 0
 
-                artist_title = _get_column(row, ["Artist and Title", "Artist - Title", "Track"])
-                if not artist_title:
-                    continue
-
+                artist_title = titles[i]
                 results.append(
                     SpotifyDaily(
                         date=today,
@@ -195,7 +225,7 @@ def scrape_spotify_totals(country: str = "global") -> List[SpotifyDaily]:
                         streams=_safe_int(row.get("Streams", 0)),
                         streams_change=_safe_int(row.get("Streams+", 0)),
                         total_streams=_safe_int(row.get("Total", 0)),
-                        label=get_label(artist_title)
+                        label=labels_map.get(artist_title)
                     )
                 )
             except Exception:
@@ -210,6 +240,7 @@ def scrape_spotify_totals(country: str = "global") -> List[SpotifyDaily]:
 
 def scrape_itunes_daily(country: str = "us") -> List[ItunesDaily]:
     """Scrape iTunes daily chart for a specific country."""
+    from src.utils.label_lookup import get_labels_batch_optimized
     if country == "ww":
         url = "https://kworb.net/ww/"
     else:
@@ -228,19 +259,28 @@ def scrape_itunes_daily(country: str = "us") -> List[ItunesDaily]:
 
         df = pd.read_html(io.StringIO(str(table)))[0]
         today = date.today()
-        results = []
-
+        
+        # Pre-extract titles
+        titles = []
+        rows_to_process = []
         for _, row in df.iterrows():
+            artist_title = _get_column(row, ["Artist and Title", "Artist - Title"])
+            if artist_title:
+                titles.append(artist_title)
+                rows_to_process.append(row)
+
+        # Batch lookup labels
+        labels_map = get_labels_batch_optimized(titles)
+        
+        results = []
+        for i, row in enumerate(rows_to_process):
             try:
                 rank_raw = _get_column(row, ["Pos"])
                 if not rank_raw or not rank_raw.isdigit():
                     continue
                 rank = int(rank_raw)
 
-                artist_title = _get_column(row, ["Artist and Title", "Artist - Title"])
-                if not artist_title:
-                    continue
-
+                artist_title = titles[i]
                 results.append(
                     ItunesDaily(
                         date=today,
@@ -252,7 +292,7 @@ def scrape_itunes_daily(country: str = "us") -> List[ItunesDaily]:
                         points=_safe_int(row.get("Pts", 0)),
                         points_change=_safe_int(row.get("Pts+", row.get("P+", 0))),
                         total_points=_safe_int(row.get("TPts", 0)),
-                        label=get_label(artist_title)
+                        label=labels_map.get(artist_title)
                     )
                 )
             except Exception as e:
@@ -267,6 +307,7 @@ def scrape_itunes_daily(country: str = "us") -> List[ItunesDaily]:
 
 def scrape_youtube_daily() -> List[YoutubeDaily]:
     """Scrape YouTube top videos chart."""
+    from src.utils.label_lookup import get_labels_batch_optimized
     logger.info(f"Scraping YouTube Daily from {YOUTUBE_DAILY_URL}...")
     html = fetch_page(YOUTUBE_DAILY_URL)
     if not html:
@@ -280,15 +321,25 @@ def scrape_youtube_daily() -> List[YoutubeDaily]:
 
         df = pd.read_html(io.StringIO(str(table)))[0]
         today = date.today()
-        results = []
-
+        
+        # Pre-extract titles
+        titles = []
+        rows_to_process = []
         for index, row in df.iterrows():
+            video = _get_column(row, ["Video", "Artist and Title"])
+            if not video or video == "Video":
+                continue
+            titles.append(video)
+            rows_to_process.append((index, row))
+
+        # Batch lookup labels
+        labels_map = get_labels_batch_optimized(titles)
+        
+        results = []
+        for i, (index, row) in enumerate(rows_to_process):
             try:
                 rank = index + 1
-                video = _get_column(row, ["Video", "Artist and Title"])
-                if not video or video == "Video":
-                    continue
-
+                video = titles[i]
                 views = _safe_int(row.get("Views", 0))
                 likes = _safe_int(row.get("Likes", 0))
 
@@ -299,7 +350,7 @@ def scrape_youtube_daily() -> List[YoutubeDaily]:
                         video_title=video,
                         views=views,
                         likes=likes,
-                        label=get_label(video)
+                        label=labels_map.get(video)
                     )
                 )
             except Exception as e:

@@ -39,7 +39,6 @@ ALLOWED_TABLES = {
     "itunes_daily",
     "youtube_daily",
     "tracks",
-    "labels",
     "track_rankings"
 }
 
@@ -50,11 +49,10 @@ Database schema summary (PostgreSQL):
 - spotify_artists(id, artist_id, monthly_listeners, peak_listeners, peak_date, scraped_at, scrape_date)
 - trending_artists_monthly(id, artist_id, source, rank, rank_change, total_points, top_country, month, scraped_at)
 - artist_details(id, artist_id, page_title, snapshot_text, songs_count, albums_count, countries_count, top_songs, top_albums, top_countries, scraped_at, scrape_date)
-- spotify_daily(id, date, country, rank, artist_title, days, peak, streams, streams_change, total_streams)
-- itunes_daily(id, date, country, rank, artist_title, days, peak, points, points_change, total_points)
-- youtube_daily(id, date, rank, video_title, views, likes)
-- tracks(id, title, artist_id, label_id, release_date)
-- labels(id, name, type, owner)
+- spotify_daily(id, date, country, rank, artist_title, days, peak, streams, streams_change, total_streams, label)
+- itunes_daily(id, date, country, rank, artist_title, days, peak, points, points_change, total_points, label)
+- youtube_daily(id, date, rank, video_title, views, likes, label)
+- tracks(id, title, artist_id, release_date)
 - track_rankings(id, track_id, rank, streams, fiscal_year, scrape_date)
 - scrape_runs(id, source, status, rows_upserted, error_msg, started_at, finished_at)
 
@@ -63,8 +61,8 @@ Relationships:
 - Daily tables (spotify_daily, itunes_daily) track individual SONGS. The 'artist_title' column contains 'Artist - Song Title'.
 - tracks table contains canonical song titles. To join daily tables with tracks, use: `daily.artist_title ILIKE '%' || tracks.title || '%'`.
 - track_rankings joins with tracks on tracks.id = track_rankings.track_id.
-- labels table joins with tracks on tracks.label_id = labels.id.
 - 'date' or 'scrape_date' column indicates when data was collected.
+- Record labels are available directly in the 'label' column of spotify_daily, itunes_daily, and youtube_daily.
 """.strip()
 
 DANGEROUS_SQL_RE = re.compile(
@@ -472,13 +470,11 @@ def _local_plan(question: str) -> Dict[str, Any]:
                 SELECT
                     sd.rank,
                     sd.artist_title,
-                    l.name AS label,
+                    sd.label,
                     sd.streams,
                     sd.total_streams,
                     TO_CHAR(sd.date, 'DD Mon YYYY') AS date
                 FROM spotify_daily sd
-                LEFT JOIN tracks t ON sd.artist_title ILIKE '%' || t.title || '%'
-                LEFT JOIN labels l ON t.label_id = l.id
                 WHERE sd.date = (SELECT latest_date FROM latest)
                   AND (sd.country = 'global' OR sd.country IS NULL)
                 ORDER BY sd.streams DESC
@@ -761,6 +757,12 @@ def _enforce_safe_sql(candidate_sql: str) -> str:
 
 PLAN_SYSTEM = f"""You are a music analytics SQL expert. Generate a safe query plan in JSON format.
 
+In music metadata, "Label" means the record label (company) that released or published the song. 
+A label is the company responsible for:
+- Producing the music
+- Marketing & promotion
+- Distribution (Spotify, Apple Music, etc.)
+
 Schema and Rules:
 {SCHEMA_CONTEXT}
 
@@ -796,9 +798,8 @@ Safety Requirements:
   - Only use spotify_artists if the user specifically mentions "Spotify" or "listeners" and if scrape_date range has data.
   - Do NOT expand this to a full year unless explicitly asked.
 - Map "streams" to monthly_listeners (spotify_artists table), streams (spotify_daily table), or total_points (trending/itunes tables).
-- IMPORTANT: To find "independent artists" or "labels", you MUST JOIN daily tables with the `tracks` and `labels` tables.
-  The `label` column in daily tables is often NULL.
-  Example join: `FROM spotify_daily sd JOIN tracks t ON sd.artist_title ILIKE '%' || t.title || '%' JOIN labels l ON t.label_id = l.id WHERE l.type = 'Independent'`
+- IMPORTANT: To find "independent artists" or "labels", use the `label` column directly from daily tables.
+  Example: `SELECT artist_title, label FROM spotify_daily WHERE label ILIKE '%Independent%'`
 - "Last day" or "previous day" MUST use the max date: `date = (SELECT MAX(date) FROM spotify_daily)`.
 - "This week" or "last 7 days" MUST use: `date >= (SELECT MAX(date) FROM spotify_daily) - INTERVAL '7 days'`.
 - "2026" means `EXTRACT(YEAR FROM date) = 2026`.
@@ -1190,7 +1191,7 @@ def _top_text_values(df: pd.DataFrame, column: str, limit: int = 3) -> List[str]
 def _default_dynamic_suggestions(question: str) -> List[str]:
     pool = [
         "What are the Top 5 tracks for FY2026?",
-        "What are the Top 5 songs last week with label names?",
+        "What are the Top 5 songs last week with labels?",
         "Who are the Top 20 artists by number of streams in FY2026?",
         "What is the performance of this artist YTD across all countries?",
         "Which artists are in Top 100 by number of tracks?",

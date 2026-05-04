@@ -52,29 +52,29 @@ def get_db_schema():
     3. spotify_artists (artist_id, monthly_listeners, peak_listeners, peak_date, scrape_date)
        - Spotify monthly listener stats. Joined with artists.id.
     
-    4. tracks (id, title, artist_id, label_id, release_date)
+    4. tracks (id, title, artist_id, release_date)
        - Metadata for tracks.
        
-    4.5. labels (id, name, type, owner)
-       - Label information. Joined with tracks.label_id.
     
-    5. spotify_daily (date, country, rank, artist_title, days, peak, streams, streams_change, total_streams)
+    5. spotify_daily (date, country, rank, artist_title, days, peak, streams, streams_change, total_streams, label)
        - Daily Spotify track charts. 'artist_title' is the song name (formatted as 'Artist - Song').
+       - 'label' column contains the record label name.
        - Common countries: 'global', 'us'.
     
-    6. itunes_daily (date, country, rank, artist_title, days, peak, points, points_change, total_points)
+    6. itunes_daily (date, country, rank, artist_title, days, peak, points, points_change, total_points, label)
        - Daily iTunes track charts. 'artist_title' is formatted as 'Artist - Song'.
+       - 'label' column contains the record label name.
        - Common countries: 'ww' (Worldwide), 'us'.
     
-    7. youtube_daily (date, rank, video_title, views, likes)
+    7. youtube_daily (date, rank, video_title, views, likes, label)
        - Daily YouTube charts.
+       - 'label' column contains the record label name.
     
     8. artist_details (artist_id, page_title, songs_count, albums_count, countries_count, top_songs, top_albums, top_countries, scrape_date)
        - Detailed artist stats. Joined with artists.id.
 
     Guidelines for SQL Generation:
-    - To get "Label Names", you MUST JOIN daily tables with the `tracks` and `labels` tables as the `label` column in daily tables is often NULL.
-      Example: `FROM spotify_daily sd JOIN tracks t ON sd.artist_title ILIKE '%' || t.title || '%' JOIN labels l ON t.label_id = l.id`.
+    - To get "Label Names", use the `label` column directly from `spotify_daily`, `itunes_daily`, or `youtube_daily`.
     - "Last day" or "previous day" MUST use the max date: `date = (SELECT MAX(date) FROM spotify_daily)`.
     - "This week" or "last 7 days" MUST use: `date >= (SELECT MAX(date) FROM spotify_daily) - INTERVAL '7 days'`.
     - "2026" means `EXTRACT(YEAR FROM date) = 2026`.
@@ -84,7 +84,7 @@ def get_db_schema():
     - "Consistently in Top X": use `GROUP BY artist_title HAVING MAX(rank) <= X`.
     - "Streams required to enter Top 100": use `MIN(streams) WHERE rank <= 100`.
     - When querying a specific artist, match the start: `artist_title ILIKE 'Taylor Swift -%'` to avoid collaborations.
-    - For "acquisition" or "independent artists", JOIN with `tracks` and `labels` as explained above and filter by `l.type = 'Independent'`.
+    - For "acquisition" or "independent artists", filter by `label ILIKE '%Independent%'`.
     - Limit results to 50 unless asked for more.
     """
 
