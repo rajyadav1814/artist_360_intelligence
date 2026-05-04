@@ -1413,12 +1413,15 @@ def _small_talk_response(question: str) -> Optional[str]:
 
 def _queue_follow_up_question(question: str) -> None:
     st.session_state.ai_pending_question = question
+    st.session_state.ai_is_processing = True
 
 
 def _reset_chat_session() -> None:
     st.session_state.ai_chat_messages = []
     st.session_state.ai_pending_question = None
     st.session_state.ai_chat_title = None
+    st.session_state.ai_is_processing = False
+    st.session_state.ai_active_question = None
 
 
 def _derive_chat_title(question: str) -> str:
@@ -1443,7 +1446,7 @@ def _render_chat_shell(has_messages: bool, title: Optional[str]) -> None:
         )
     with right_col:
         st.button("+ New chat", key="ai_new_chat_button", use_container_width=True,
-                  on_click=_reset_chat_session, disabled=not has_messages)
+                  on_click=_reset_chat_session, disabled=not has_messages or st.session_state.get("ai_is_processing", False))
 
 
 def _render_empty_state() -> None:
@@ -1464,8 +1467,9 @@ def _render_empty_state() -> None:
                 "Start a conversation",
                 placeholder="Ask about artists, listeners, rankings, countries, or trends",
                 label_visibility="collapsed",
+                disabled=st.session_state.get("ai_is_processing", False)
             )
-            submitted = st.form_submit_button("Ask")
+            submitted = st.form_submit_button("Ask", disabled=st.session_state.get("ai_is_processing", False))
             if submitted and question.strip():
                 _queue_follow_up_question(question.strip())
                 st.rerun()
@@ -1475,7 +1479,8 @@ def _render_empty_state() -> None:
         for idx, prompt in enumerate(starter_prompts):
             with starter_cols[idx]:
                 st.button(prompt, key=f"starter_prompt_{idx}", use_container_width=True,
-                          on_click=_queue_follow_up_question, args=(prompt,))
+                          on_click=_queue_follow_up_question, args=(prompt,),
+                          disabled=st.session_state.get("ai_is_processing", False))
         st.markdown("</div></div>", unsafe_allow_html=True)
 
 
@@ -1489,7 +1494,8 @@ def _render_follow_up_suggestions(suggestions: List[str], message_key: str) -> N
         with cols[idx]:
             st.button(suggestion, key=f"{message_key}_suggestion_{idx}",
                       use_container_width=True, help="Click to explore this question",
-                      on_click=_queue_follow_up_question, args=(suggestion,))
+                      on_click=_queue_follow_up_question, args=(suggestion,),
+                      disabled=st.session_state.get("ai_is_processing", False))
 
 
 def _latest_assistant_index(messages: list) -> Optional[int]:
@@ -1553,18 +1559,21 @@ def render_custom_chatbot() -> None:
     ss.setdefault("ai_chat_messages", [])
     ss.setdefault("ai_pending_question", None)
     ss.setdefault("ai_chat_title", None)
+    ss.setdefault("ai_is_processing", False)
+    ss.setdefault("ai_active_question", None)
 
     api_key = _resolve_api_key()
     model = _resolve_model()
 
-    pending_question = ss.ai_pending_question
-    if pending_question:
+    # Handle pending question from buttons/form
+    if ss.ai_pending_question:
+        ss.ai_active_question = ss.ai_pending_question
         ss.ai_pending_question = None
+        ss.ai_is_processing = True
 
-    question: Optional[str] = None
     _render_chat_shell(bool(ss.ai_chat_messages), ss.ai_chat_title)
 
-    if not ss.ai_chat_messages and not pending_question:
+    if not ss.ai_chat_messages and not ss.ai_active_question:
         _render_empty_state()
     else:
         st.caption("Ask data questions in plain language. Charts and visuals appear automatically.")
@@ -1611,7 +1620,7 @@ def render_custom_chatbot() -> None:
             if (
                 message["role"] == "assistant"
                 and msg_idx == latest_assistant_idx
-                and not pending_question
+                and not ss.ai_pending_question
             ):
                 _render_follow_up_suggestions(
                     message.get("suggestions", []),
@@ -1619,10 +1628,14 @@ def render_custom_chatbot() -> None:
                 )
 
     # Input
-    if ss.ai_chat_messages or pending_question:
-        question = st.chat_input("Ask about artists, listeners, rankings, countries, or trends")
-    if not question:
-        question = pending_question
+    if ss.ai_chat_messages or ss.ai_active_question:
+        chat_val = st.chat_input("Ask about artists, listeners, rankings, countries, or trends", disabled=ss.ai_is_processing)
+        if chat_val:
+            ss.ai_active_question = chat_val
+            ss.ai_is_processing = True
+            st.rerun()
+
+    question = ss.ai_active_question
     if not question:
         return
 
@@ -1645,7 +1658,9 @@ def render_custom_chatbot() -> None:
                     ss.ai_chat_messages.append({
                         "role": "assistant", "content": small_talk, "suggestions": suggestions,
                     })
-                    return
+                    ss.ai_is_processing = False
+                    ss.ai_active_question = None
+                    st.rerun()
 
                 # Plan → Query → Render
                 plan = _generate_plan(question, api_key, model)
@@ -1762,3 +1777,7 @@ def render_custom_chatbot() -> None:
                 suggestions = _build_follow_up_suggestions(question)
                 _render_follow_up_suggestions(suggestions, "assistant_current")
                 ss.ai_chat_messages.append({"role": "assistant", "content": err, "suggestions": suggestions})
+
+            ss.ai_is_processing = False
+            ss.ai_active_question = None
+            st.rerun()
