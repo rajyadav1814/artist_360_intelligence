@@ -37,8 +37,8 @@ PAGE_META = {
         "Artist 360 Leaderboard",
         "Top Latin artists ranked by iTunes performance, Spotify reach, and global footprint",
     ),
-    "Debut Artist": (
-        "Debut Artist",
+    "Artist Spotlight": (
+        "Artist Spotlight",
         "View and analyze individual artist details and chart performance",
     ),
     "Chart Tracker": (
@@ -3056,7 +3056,7 @@ def show_stream_trends_page() -> None:
 
 
 def show_debut_artist_page() -> None:
-    page_title, page_meta = PAGE_META["Debut Artist"]
+    page_title, page_meta = PAGE_META["Artist Spotlight"]
     render_header(page_title, page_meta, last_run_label)
     # Use global_filtered to allow changing artists in the dropdown
     render_debut_artist_chart(global_filtered)
@@ -3078,9 +3078,9 @@ app_pages = [
     ),
     st.Page(
         show_debut_artist_page,
-        title="Debut Artist",
+        title="Artist Spotlight",
         icon=":material/artist:",
-        url_path="debut-artist",
+        url_path="artist-spotlight",
     ),
     st.Page(
         show_chart_tracker_page,
@@ -3195,7 +3195,7 @@ with st.sidebar:
     
 
 current_page.run()
-if getattr(current_page, "title", "") != "AI Analyst":
+if getattr(current_page, "title", "") != "AI Data Analyst":
     render_footer()
 
 # Auto-refresh functionality
