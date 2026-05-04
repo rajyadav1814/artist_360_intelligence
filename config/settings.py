@@ -39,11 +39,11 @@ if DATABASE_URL:
 else:
     # Use local PostgreSQL configuration
     DB_CONFIG = {
-        "host": os.getenv("DB_HOST", "ep-crimson-bird-am5ez25h-pooler.c-5.us-east-1.aws.neon.tech"),
+        "host": os.getenv("DB_HOST", "localhost"),
         "port": int(os.getenv("DB_PORT", 5432)),
         "dbname": os.getenv("DB_NAME", "artist"),
-        "user": os.getenv("DB_USER", "neondb_owner"),
-        "password": os.getenv("DB_PASSWORD", "npg_b3lREgINh6Dk"),
+        "user": os.getenv("DB_USER", "postgres"),
+        "password": os.getenv("DB_PASSWORD", "password"),
     }
 
 # Scraper
