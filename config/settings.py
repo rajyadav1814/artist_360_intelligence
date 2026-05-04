@@ -7,19 +7,60 @@ load_dotenv()
 # Use DATABASE_URL if available (for Supabase), otherwise use individual DB_* variables (for local)
 DATABASE_URL = os.getenv("DATABASE_URL")
 
+# If running under Streamlit and the app's Secrets were added as a TOML file
+# (or in Streamlit Cloud under a [database] table), load them as a fallback.
+# 1. Try Streamlit secrets API first (works when actually deployed on Streamlit Cloud)
+if not DATABASE_URL:
+    try:
+        import streamlit as st
+        # Top-level: DATABASE_URL = "..."
+        DATABASE_URL = st.secrets.get("DATABASE_URL") or DATABASE_URL
+
+        # Nested under [database]
+        if not DATABASE_URL:
+            db_tbl = st.secrets.get("database") or {}
+            DATABASE_URL = db_tbl.get("DATABASE_URL") or db_tbl.get("database_url")
+            if db_tbl:
+                os.environ.setdefault("DB_HOST", str(db_tbl.get("DB_HOST") or db_tbl.get("db_host") or os.getenv("DB_HOST", "")))
+                os.environ.setdefault("DB_PORT", str(db_tbl.get("DB_PORT") or db_tbl.get("db_port") or os.getenv("DB_PORT", "5432")))
+                os.environ.setdefault("DB_NAME", str(db_tbl.get("DB_NAME") or db_tbl.get("db_name") or os.getenv("DB_NAME", "")))
+                os.environ.setdefault("DB_USER", str(db_tbl.get("DB_USER") or db_tbl.get("db_user") or os.getenv("DB_USER", "")))
+                os.environ.setdefault("DB_PASSWORD", str(db_tbl.get("DB_PASSWORD") or db_tbl.get("db_password") or os.getenv("DB_PASSWORD", "")))
+    except Exception:
+        pass
+
+# 2. Fall back to reading secrets.toml directly (local dev without `streamlit run`)
+if not DATABASE_URL:
+    try:
+        import tomllib
+        secrets_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".streamlit", "secrets.toml")
+        if os.path.exists(secrets_path):
+            with open(secrets_path, "rb") as fh:
+                st_secrets = tomllib.load(fh)
+            DATABASE_URL = st_secrets.get("DATABASE_URL") or DATABASE_URL
+            db_tbl = st_secrets.get("database") or {}
+            if not DATABASE_URL:
+                DATABASE_URL = db_tbl.get("DATABASE_URL") or db_tbl.get("database_url")
+            if db_tbl:
+                os.environ.setdefault("DB_HOST", str(db_tbl.get("DB_HOST") or db_tbl.get("db_host") or os.getenv("DB_HOST", "")))
+                os.environ.setdefault("DB_PORT", str(db_tbl.get("DB_PORT") or db_tbl.get("db_port") or os.getenv("DB_PORT", "5432")))
+                os.environ.setdefault("DB_NAME", str(db_tbl.get("DB_NAME") or db_tbl.get("db_name") or os.getenv("DB_NAME", "")))
+                os.environ.setdefault("DB_USER", str(db_tbl.get("DB_USER") or db_tbl.get("db_user") or os.getenv("DB_USER", "")))
+                os.environ.setdefault("DB_PASSWORD", str(db_tbl.get("DB_PASSWORD") or db_tbl.get("db_password") or os.getenv("DB_PASSWORD", "")))
+    except Exception:
+        pass
+
 if DATABASE_URL:
-    # Use Supabase connection string
     DB_CONFIG = {"dsn": DATABASE_URL}
 else:
-    # Use local PostgreSQL configuration
     DB_CONFIG = {
         "host": os.getenv("DB_HOST", "localhost"),
         "port": int(os.getenv("DB_PORT", 5432)),
-        "dbname": os.getenv("DB_NAME", "kworb_db"),
+        "dbname": os.getenv("DB_NAME", "artist"),
         "user": os.getenv("DB_USER", "postgres"),
-        "password": os.getenv("DB_PASSWORD", ""),
+        "password": os.getenv("DB_PASSWORD", "password"),
     }
-
+    
 # Scraper
 BASE_URL = "https://kworb.net"
 ITUNES_ARTISTS_URL = f"{BASE_URL}/itunes/"
