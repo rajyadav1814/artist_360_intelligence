@@ -1619,7 +1619,7 @@ def render_custom_chatbot() -> None:
                 )
 
     # Input
-    if ss.ai_chat_messages:
+    if ss.ai_chat_messages or pending_question:
         question = st.chat_input("Ask about artists, listeners, rankings, countries, or trends")
     if not question:
         question = pending_question

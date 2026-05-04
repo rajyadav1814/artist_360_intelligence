@@ -3195,7 +3195,7 @@ with st.sidebar:
     
 
 current_page.run()
-if getattr(current_page, "title", "") != "AI Analyst":
+if getattr(current_page, "title", "") != "AI Data Analyst":
     render_footer()
 
 # Auto-refresh functionality
