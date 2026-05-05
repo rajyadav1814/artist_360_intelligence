@@ -830,7 +830,6 @@ Response Format (JSON):
     "show_summary": true,
     "show_chart": true,
     "show_table": false,
-    "render_order": ["chart", "summary", "table"]
 }}
 
 The agent should decide the full response structure.
