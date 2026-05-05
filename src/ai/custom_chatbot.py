@@ -1075,8 +1075,7 @@ def _default_dynamic_suggestions(question: str) -> List[str]:
         "Compare Top 10 artists in a table with percentage analysis",
         "What are the Top 10 tracks in the previous 5 weeks?",
         "Analyze last 5 weeks of track and label performance",
-        "Compare Top 5 tracks this week vs prior week",
-        "Which independent artist should be acquired and why?",
+        "Compare Top 5 tracks this week vs prior week"
     ]
     start = abs(hash(question.strip().lower() or "music")) % len(pool)
     return [pool[(start + offset) % len(pool)] for offset in range(3)]
