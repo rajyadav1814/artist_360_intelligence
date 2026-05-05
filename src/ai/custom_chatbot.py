@@ -830,7 +830,6 @@ Response Format (JSON):
     "show_summary": true,
     "show_chart": true,
     "show_table": false,
-    "render_order": ["chart", "summary", "table"]
 }}
 
 The agent should decide the full response structure.
@@ -1389,8 +1388,6 @@ def _render_data_table(df: pd.DataFrame, max_rows: int = 10) -> None:
         hide_index=True,
         column_config={col: st.column_config.TextColumn(width="medium") for col in display_df.columns},
     )
-    if len(df) > max_rows:
-        st.caption(f"Showing {max_rows} of {len(df)} results")
 
 
 # ─── Small Talk ───────────────────────────────────────────────────────────────

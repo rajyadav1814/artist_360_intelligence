@@ -538,20 +538,6 @@ def render_insights_dashboard(df: pd.DataFrame, x_col: str, y_col: str) -> None:
     if numeric_y.empty:
         return
 
-    col1, col2, col3, col4 = st.columns(4)
-
-    with col1:
-        st.metric("Total Records", f"{len(df):,}", delta=None, delta_color="off")
-
-    with col2:
-        st.metric("Average Value", f"{numeric_y.mean():,.0f}", delta=None, delta_color="off")
-
-    with col3:
-        st.metric("Max Value", f"{numeric_y.max():,.0f}", delta=None, delta_color="off")
-
-    with col4:
-        st.metric("Min Value", f"{numeric_y.min():,.0f}", delta=None, delta_color="off")
-
     st.subheader("📊 Distribution Insights")
     col_a, col_b, col_c = st.columns(3)
 
