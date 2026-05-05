@@ -25,7 +25,7 @@ def get_labels_batch(titles: List[str]) -> Dict[str, str]:
 
     client = _get_client()
     if not client:
-        return {title: "Unknown" for title in titles}
+        return {title: "Independent" for title in titles}
 
     model = os.getenv("CLAUDE_MODEL", "claude-3-5-sonnet-20240620")
     
@@ -45,7 +45,7 @@ def get_labels_batch(titles: List[str]) -> Dict[str, str]:
     1. Identify the primary record label (e.g., Columbia, Atlantic, Interscope, Republic).
     2. If it's an independent release, return "Independent" or the specific indie label name.
     3. Return the result ONLY as a JSON object where the key is the exact input string and the value is the label name.
-    4. If you are unsure, return "Unknown".
+    4. If you are unsure, return "Independent".
     5. Do not include any explanation or extra text.
     """
 
@@ -72,10 +72,10 @@ def get_labels_batch(titles: List[str]) -> Dict[str, str]:
         # Ensure all requested titles have an entry
         final_map = {}
         for title in titles:
-            final_map[title] = labels_map.get(title, "Unknown")
+            final_map[title] = labels_map.get(title, "Independent")
             
         return final_map
         
     except Exception as e:
         logger.error(f"Error in batch label lookup: {e}")
-        return {title: "Unknown" for title in titles}
+        return {title: "Independent" for title in titles}
