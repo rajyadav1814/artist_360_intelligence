@@ -443,7 +443,7 @@ def _apply_dark_theme(fig: go.Figure) -> None:
     )
 
 
-def render_multi_chart_view(df: pd.DataFrame, x_col: str, y_col: str, question: str) -> None:
+def render_multi_chart_view(df: pd.DataFrame, x_col: str, y_col: str, question: str, key_prefix: str = "") -> None:
     """Render multiple intelligent chart views based on data."""
     if df.empty or x_col not in df.columns or y_col not in df.columns:
         st.info("📊 No data available for visualization")
@@ -487,7 +487,7 @@ def render_multi_chart_view(df: pd.DataFrame, x_col: str, y_col: str, question: 
                 st.plotly_chart(
                     fig,
                     use_container_width=True,
-                    key=f"chart_{idx}_{question}",
+                    key=f"{key_prefix}_chart_{idx}_{question}",
                     config={"displaylogo": False, "toImageButtonOptions": {"format": "png"}},
                 )
                 st.caption(f"📈 {chart_info['description']}")
