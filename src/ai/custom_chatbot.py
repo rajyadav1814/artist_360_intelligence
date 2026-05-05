@@ -1341,8 +1341,8 @@ def _render_chat_shell(has_messages: bool, title: Optional[str]) -> None:
             </div>""",
             unsafe_allow_html=True,
         )
-        if has_messages:
-            _render_token_badge()
+        # if has_messages:
+        #     _render_token_badge()
     with right_col:
         st.button("+ New chat", key="ai_new_chat_button", use_container_width=True,
                   on_click=_reset_chat_session, disabled=not has_messages or st.session_state.get("ai_is_processing", False))
