@@ -887,7 +887,6 @@ def render_kpis(leaderboard: pd.DataFrame, runs: pd.DataFrame) -> None:
     total_monthly = leaderboard["monthly_listeners"].fillna(0).sum()
     latam_artists = int(leaderboard["latam_signal"].sum()) if "latam_signal" in leaderboard else 0
     new_entries = int(leaderboard["rank_change"].fillna("").eq("NEW").sum())
-    tracked_jobs = int(runs["source"].nunique()) if not runs.empty else 0
 
     # Calculate progress percentages
     max_listeners = 100_000_000  # Adjust based on your data
@@ -898,7 +897,6 @@ def render_kpis(leaderboard: pd.DataFrame, runs: pd.DataFrame) -> None:
         ("Total Monthly Listeners", fmt_short(total_monthly), "Live Spotify monthly listener sum", "", listener_progress),
         ("Artists with LATAM Signals", str(latam_artists), "Currently visible in the regional cut", "kpi-green", artist_progress),
         ("New Chart Entries", str(new_entries), "Fresh NEW movements in the latest run", "kpi-amber", 0),
-        ("Jobs Tracked", str(tracked_jobs), f"Pipeline success rate {success_rate:.0f}%", "kpi-red", success_rate),
     ]
     cols = st.columns(4)
     for col, (label, value, delta, klass, progress) in zip(cols, cards):
@@ -3174,18 +3172,6 @@ with st.sidebar:
         filtered = filtered[filtered["name"] == selected_artist]
     filtered = filtered.sort_values("rank")
     
-    # Action buttons
-    st.markdown("### 🔄 Actions")
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("🔄 Refresh", use_container_width=True):
-            st.cache_data.clear()
-            st.rerun()
-    
-    # Auto-refresh toggle
-    auto_refresh_sidebar = st.toggle("⏱️ Auto-refresh (30s)", value=st.session_state.auto_refresh)
-    if auto_refresh_sidebar != st.session_state.auto_refresh:
-        st.session_state.auto_refresh = auto_refresh_sidebar
     
     # Status indicator
     status_color = "status-good" if len(runs) > 0 else "muted"
