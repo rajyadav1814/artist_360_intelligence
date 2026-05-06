@@ -217,28 +217,37 @@ def apply_theme() -> None:
             box-shadow: 0 6px 20px rgba(79,142,247,.4);
         }
         .kpi-card {
-            background:linear-gradient(180deg, rgba(19,26,45,1) 0%, rgba(16,21,37,1) 100%);
-            border:1px solid var(--border); border-radius:14px; padding:1rem 1rem .9rem 1rem;
-            min-height:clamp(108px, 12vw, 132px); position:relative; overflow:visible; height: 100%;
+            background: #111827;
+            border: 1px solid #1e2d47;
+            border-radius: 12px;
+            padding: 24px 20px 18px;
+            min-height: 158px;
+            width: 100%;
+            position: relative; 
+            overflow: visible; 
+            height: 100%;
+            display: flex;
+            flex-direction: column;
             transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
             animation: fadeIn 0.6s ease-out;
         }
         .kpi-card:hover {
             transform: translateY(-4px);
-            box-shadow: 0 12px 28px rgba(79,142,247,.2);
-            border-color: rgba(79,142,247,.4);
+            box-shadow: 0 12px 32px rgba(0,0,0,.4);
+            border-color: rgba(79,142,247,.3);
         }
         .kpi-card::before {
-            content:''; position:absolute; top:0; left:0; right:0; height:3px;
-            background:linear-gradient(90deg,var(--accent),var(--accent2));
+            content:''; position:absolute; top:0; left:0; right:0; height:4px;
+            border-radius: 12px 12px 0 0;
+            background: linear-gradient(90deg, var(--accent), var(--accent2));
             transition: height 0.3s ease;
         }
         .kpi-card:hover::before {
-            height: 4px;
+            height: 5px;
         }
-        .kpi-green::before { background:linear-gradient(90deg,var(--accent3),#16a34a); }
-        .kpi-amber::before { background:linear-gradient(90deg,var(--warn),#f97316); }
-        .kpi-red::before { background:linear-gradient(90deg,var(--danger),#be123c); }
+        .kpi-green::before { background: linear-gradient(90deg, var(--accent3), #16a34a); }
+        .kpi-amber::before { background: linear-gradient(90deg, var(--warn), #f97316); }
+        .kpi-red::before { background: linear-gradient(90deg, var(--danger), #be123c); }
         .kpi-label { 
             color:var(--text2); font-size:.76rem; text-transform:uppercase; 
             letter-spacing:.08em; margin-bottom: 0.5rem;
@@ -255,7 +264,7 @@ def apply_theme() -> None:
         /* Progress bars */
         .progress-bar {
             width: 100%; height: 6px; background: rgba(151,163,197,.15);
-            border-radius: 999px; overflow: hidden; margin-top: 0.5rem;
+            border-radius: 999px; overflow: hidden; margin-top: auto;
         }
         .progress-fill {
             height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent3));
@@ -311,6 +320,7 @@ def apply_theme() -> None:
         }
         .tooltip .tooltiptext {
             visibility: hidden;
+            width: 320px;
             background-color: rgba(9, 17, 39, 0.98);
             color: var(--text);
             text-align: left;
@@ -331,8 +341,17 @@ def apply_theme() -> None:
             min-width: 180px;
         }
         .tooltip:hover .tooltiptext {
-            visibility: visible;
-            opacity: 1;
+            visibility: visible; opacity: 1; transform: translateX(-50%) translateY(-10px);
+        }
+        .tooltip .tooltiptext::after {
+            content: ""; position: absolute; top: 100%; left: 50%;
+            margin-left: -6px; border-width: 6px; border-style: solid;
+            border-color: var(--surface3) transparent transparent transparent;
+        }
+        .tooltip .tooltiptext::before {
+            content: ""; position: absolute; top: 100%; left: 50%;
+            margin-left: -7px; border-width: 7px; border-style: solid;
+            border-color: var(--border) transparent transparent transparent;
         }
         textarea, input, [data-baseweb="select"] > div {
             background:var(--surface2) !important; color:var(--text) !important; border-color:var(--border) !important;
@@ -934,11 +953,13 @@ def render_kpis(leaderboard: pd.DataFrame, runs: pd.DataFrame) -> None:
     artist_progress = min(100, (latam_artists / len(leaderboard) * 100)) if len(leaderboard) > 0 else 0
 
     cards = [
-        ("Spotify Monthly Listeners", fmt_short(total_monthly), "Live Spotify monthly listener sum", "", listener_progress, ""),
-        ("Artists with LATAM Signals", str(latam_artists), "Currently visible in the regional cut", "kpi-green", artist_progress, ""),
+        ("Spotify Monthly Listeners", fmt_short(total_monthly), "Live Spotify monthly listener sum", "", listener_progress, 
+         "<b>Total Ecosystem Reach</b><br>Combined monthly listeners across all tracked artists. This represents the total potential audience reach within the current dataset."),
+        ("Artists with LATAM Signals", str(latam_artists), "Currently visible in the regional cut", "kpi-green", artist_progress, 
+         "<b>Regional Market Presence</b><br>Count of artists currently appearing on charts in Latin American countries (Mexico, Colombia, Brazil, Argentina, etc.)."),
         ("New Chart Entries", str(new_entries), "Fresh NEW movements in the latest run", "kpi-amber", 0, new_entries_details),
     ]
-    cols = st.columns(4)
+    cols = st.columns(len(cards))
     for col, (label, value, delta, klass, progress, tooltip_text) in zip(cols, cards):
         tooltip_html = f'<div class="tooltiptext">{tooltip_text}</div>' if tooltip_text else ''
         tooltip_class = 'tooltip' if tooltip_text else ''
