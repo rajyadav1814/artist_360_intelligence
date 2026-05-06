@@ -1279,7 +1279,7 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
                 index=0,
                 key="analysis_relationship_view",
             )
-        with control_col2:
+        with control_col1:
             top_n = int(
                 st.slider(
                     "Artists to include (default: all)",
@@ -1579,7 +1579,7 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
                 fig_thresh_pts.update_traces(
                     textposition="top center",
                     texttemplate="%{y:.2s}",
-                    hovertemplate="<b>%{x}</b><br>Required Points: %{y:,.0f}<br>Tier Artist: %{customdata}<extra></extra>",
+                    hovertemplate="<b>%{x}</b><br>Required Points: %{y:,.0f}<br><extra></extra>",
                     customdata=thresh_df["Artist"]
                 )
                 style_figure(fig_thresh_pts, 320)
@@ -1595,7 +1595,7 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
                 fig_thresh_ls.update_traces(
                     textposition="top center",
                     texttemplate="%{y:.2s}",
-                    hovertemplate="<b>%{x}</b><br>Required Listeners: %{y:,.0f}<br>Tier Artist: %{customdata}<extra></extra>",
+                    hovertemplate="<b>%{x}</b><br>Required Listeners: %{y:,.0f}<br><extra></extra>",
                     customdata=thresh_df["Artist"]
                 )
                 style_figure(fig_thresh_ls, 320)
@@ -1603,7 +1603,7 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
             
             with st.expander("📋 View Threshold Data Points"):
                 st.dataframe(
-                    thresh_df[["Tier", "Points", "Listeners", "Artist"]],
+                    thresh_df[["Tier", "Points", "Listeners"]],
                     use_container_width=True,
                     hide_index=True,
                     column_config={
