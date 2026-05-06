@@ -219,7 +219,7 @@ def apply_theme() -> None:
         .kpi-card {
             background:linear-gradient(180deg, rgba(19,26,45,1) 0%, rgba(16,21,37,1) 100%);
             border:1px solid var(--border); border-radius:14px; padding:1rem 1rem .9rem 1rem;
-            min-height:clamp(108px, 12vw, 132px); position:relative; overflow:hidden; height: 100%;
+            min-height:clamp(108px, 12vw, 132px); position:relative; overflow:visible; height: 100%;
             transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
             animation: fadeIn 0.6s ease-out;
         }
@@ -311,21 +311,24 @@ def apply_theme() -> None:
         }
         .tooltip .tooltiptext {
             visibility: hidden;
-            background-color: rgba(18,24,42,0.98);
+            background-color: rgba(9, 17, 39, 0.98);
             color: var(--text);
-            text-align: center;
-            border-radius: 8px;
-            padding: 8px 12px;
+            text-align: left;
+            border-radius: 10px;
+            padding: 12px 15px;
             position: absolute;
             z-index: 1000;
-            bottom: 125%;
+            bottom: 110%;
             left: 50%;
-            margin-left: -60px;
+            transform: translateX(-50%);
             opacity: 0;
-            transition: opacity 0.3s;
-            border: 1px solid var(--border);
-            box-shadow: 0 8px 20px rgba(0,0,0,.4);
-            font-size: 0.8rem;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            border: 1px solid rgba(79, 142, 247, 0.3);
+            box-shadow: 0 12px 30px rgba(0,0,0,.5);
+            font-size: 0.85rem;
+            line-height: 1.5;
+            pointer-events: none;
+            min-width: 180px;
         }
         .tooltip:hover .tooltiptext {
             visibility: visible;
@@ -886,7 +889,19 @@ def render_kpis(leaderboard: pd.DataFrame, runs: pd.DataFrame) -> None:
     success_rate = (runs["status"].eq("success").mean() * 100) if not runs.empty else 0
     total_monthly = leaderboard["monthly_listeners"].fillna(0).sum()
     latam_artists = int(leaderboard["latam_signal"].sum()) if "latam_signal" in leaderboard else 0
-    new_entries = int(leaderboard["rank_change"].fillna("").eq("NEW").sum())
+    
+    # Identify new entries
+    new_mask = leaderboard["rank_change"].fillna("").eq("NEW")
+    new_entries = int(new_mask.sum())
+    
+    # Details for tooltip
+    new_entries_details = ""
+    if new_entries > 0:
+        new_df = leaderboard[new_mask].sort_values("rank")
+        details = []
+        for _, row in new_df.iterrows():
+            details.append(f"<div style='display:flex;justify-content:space-between;gap:1rem;'><span>{escape(row['name'])}</span><span style='color:var(--accent3);font-weight:700;'>#{int(row['rank'])}</span></div>")
+        new_entries_details = "<div style='margin-bottom:8px;font-weight:800;font-size:0.75rem;text-transform:uppercase;color:var(--text2);letter-spacing:0.05em;'>New Chart Entries</div>" + "".join(details)
 
     # Calculate progress percentages
     max_listeners = 100_000_000  # Adjust based on your data
@@ -894,24 +909,26 @@ def render_kpis(leaderboard: pd.DataFrame, runs: pd.DataFrame) -> None:
     artist_progress = min(100, (latam_artists / len(leaderboard) * 100)) if len(leaderboard) > 0 else 0
 
     cards = [
-        ("Total Monthly Listeners", fmt_short(total_monthly), "Live Spotify monthly listener sum", "", listener_progress),
-        ("Artists with LATAM Signals", str(latam_artists), "Currently visible in the regional cut", "kpi-green", artist_progress),
-        ("New Chart Entries", str(new_entries), "Fresh NEW movements in the latest run", "kpi-amber", 0),
+        ("Total Monthly Listeners", fmt_short(total_monthly), "Live Spotify monthly listener sum", "", listener_progress, ""),
+        ("Artists with LATAM Signals", str(latam_artists), "Currently visible in the regional cut", "kpi-green", artist_progress, ""),
+        ("New Chart Entries", str(new_entries), "Fresh NEW movements in the latest run", "kpi-amber", 0, new_entries_details),
     ]
     cols = st.columns(4)
-    for col, (label, value, delta, klass, progress) in zip(cols, cards):
+    for col, (label, value, delta, klass, progress, tooltip_text) in zip(cols, cards):
+        tooltip_html = f'<div class="tooltiptext">{tooltip_text}</div>' if tooltip_text else ''
+        tooltip_class = 'tooltip' if tooltip_text else ''
         progress_html = f'<div class="progress-bar"><div class="progress-fill" style="width:{progress}%"></div></div>' if progress > 0 else ''
-        col.markdown(
-            f"""
-            <div class="kpi-card {klass}">
-                <div class="kpi-label">{escape(label)}</div>
-                <div class="kpi-value">{escape(value)}</div>
-                <div class="kpi-delta">{escape(delta)}</div>
-                {progress_html}
-            </div>
-            """,
-            unsafe_allow_html=True,
+        
+        # Build the HTML string without leading spaces to avoid markdown code block interpretation
+        card_html = (
+            f'<div class="kpi-card {klass} {tooltip_class}">'
+            f'<div class="kpi-label">{escape(label)}</div>'
+            f'<div class="kpi-value">{escape(value)}</div>'
+            f'<div class="kpi-delta">{escape(delta)}</div>'
+            f'{progress_html}{tooltip_html}'
+            f'</div>'
         )
+        col.markdown(card_html, unsafe_allow_html=True)
 
 
 def prepare_leaderboard_table(leaderboard: pd.DataFrame, max_rows: int) -> pd.DataFrame:
