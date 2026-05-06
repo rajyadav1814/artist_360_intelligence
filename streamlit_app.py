@@ -638,6 +638,8 @@ def fmt_short(value: float | int | None) -> str:
     if value is None or pd.isna(value):
         return "—"
     value = float(value)
+    if abs(value) >= 1_000_000_000:
+        return f"{value / 1_000_000_000:.2f}B"
     if abs(value) >= 1_000_000:
         return f"{value / 1_000_000:.2f}M"
     if abs(value) >= 1_000:
@@ -887,7 +889,30 @@ def render_footer() -> None:
 
 def render_kpis(leaderboard: pd.DataFrame, runs: pd.DataFrame) -> None:
     success_rate = (runs["status"].eq("success").mean() * 100) if not runs.empty else 0
-    total_monthly = leaderboard["monthly_listeners"].fillna(0).sum()
+    
+    try:
+        from src.database.connection import get_connection
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    WITH latest_run AS (
+                        SELECT MAX(scraped_at) AS ts FROM spotify_artists
+                    ),
+                    top_artists AS (
+                        SELECT monthly_listeners
+                        FROM spotify_artists
+                        WHERE scraped_at = (SELECT ts FROM latest_run)
+                        ORDER BY monthly_listeners DESC NULLS LAST
+                        LIMIT 300
+                    )
+                    SELECT SUM(monthly_listeners) 
+                    FROM top_artists
+                """)
+                result = cur.fetchone()
+                total_monthly = result[0] if result and result[0] else 0
+    except Exception:
+        total_monthly = leaderboard.nlargest(300, "monthly_listeners")["monthly_listeners"].fillna(0).sum()    
+        
     latam_artists = int(leaderboard["latam_signal"].sum()) if "latam_signal" in leaderboard else 0
     
     # Identify new entries
@@ -903,13 +928,13 @@ def render_kpis(leaderboard: pd.DataFrame, runs: pd.DataFrame) -> None:
             details.append(f"<div style='display:flex;justify-content:space-between;gap:1rem;'><span>{escape(row['name'])}</span><span style='color:var(--accent3);font-weight:700;'>#{int(row['rank'])}</span></div>")
         new_entries_details = "<div style='margin-bottom:8px;font-weight:800;font-size:0.75rem;text-transform:uppercase;color:var(--text2);letter-spacing:0.05em;'>New Chart Entries</div>" + "".join(details)
 
-    # Calculate progress percentages
-    max_listeners = 100_000_000  # Adjust based on your data
+    # Calculate progress percentages — top 300 artists sum ~24–30B
+    max_listeners = 30_000_000_000
     listener_progress = min(100, (total_monthly / max_listeners * 100))
     artist_progress = min(100, (latam_artists / len(leaderboard) * 100)) if len(leaderboard) > 0 else 0
 
     cards = [
-        ("Total Monthly Listeners", fmt_short(total_monthly), "Live Spotify monthly listener sum", "", listener_progress, ""),
+        ("Spotify Monthly Listeners", fmt_short(total_monthly), "Live Spotify monthly listener sum", "", listener_progress, ""),
         ("Artists with LATAM Signals", str(latam_artists), "Currently visible in the regional cut", "kpi-green", artist_progress, ""),
         ("New Chart Entries", str(new_entries), "Fresh NEW movements in the latest run", "kpi-amber", 0, new_entries_details),
     ]

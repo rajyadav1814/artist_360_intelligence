@@ -18,12 +18,11 @@ def _safe_int(value: str) -> int | None:
 
 def scrape_spotify_artists() -> List[SpotifyArtist]:
     """
-    Scrape Spotify artist listener stats from kworb.net/spotify/artists.html
-    Columns: Artist | Monthly Listeners | Peak Listeners | Peak Date
+    Scrape Spotify artist listener stats from kworb.net/spotify/listeners.html
     """
-    html = fetch_page(SPOTIFY_ARTISTS_URL)
+    html = fetch_page(SPOTIFY_LISTENERS_URL)
     if not html:
-        logger.error("Failed to fetch Spotify artists page")
+        logger.error("Failed to fetch Spotify listeners page")
         return []
 
     soup = BeautifulSoup(html, "lxml")
@@ -31,29 +30,24 @@ def scrape_spotify_artists() -> List[SpotifyArtist]:
 
     table = soup.find("table")
     if not table:
-        logger.error("No table found on Spotify artists page")
+        logger.error("No table found on Spotify listeners page")
         return []
 
     rows = table.find_all("tr")
     for row in rows:
         cells = row.find_all("td")
-        if len(cells) < 2:
+        if len(cells) < 3:
             continue
 
         texts = [c.get_text(strip=True) for c in cells]
-        artist_name = texts[0]
+        artist_name = texts[1]
         if not artist_name:
             continue
 
-        monthly = _safe_int(texts[1]) if len(texts) > 1 else None
-        peak = _safe_int(texts[2]) if len(texts) > 2 else None
+        monthly = _safe_int(texts[2]) if len(texts) > 2 else None
+        peak = _safe_int(texts[5]) if len(texts) > 5 else None
 
         peak_date = None
-        if len(texts) > 3 and texts[3]:
-            try:
-                peak_date = datetime.strptime(texts[3], "%Y-%m-%d").date()
-            except ValueError:
-                pass
 
         artists.append(
             SpotifyArtist(
