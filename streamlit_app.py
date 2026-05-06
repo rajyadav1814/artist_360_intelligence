@@ -1294,13 +1294,6 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
 
         control_col1, control_col2 = st.columns([1.3, 1.3])
         with control_col1:
-            relationship_view = st.selectbox(
-                "Relationship View",
-                ["Density Heatmap", "Bubble Scatter"],
-                index=0,
-                key="analysis_relationship_view",
-            )
-        with control_col1:
             top_n = int(
                 st.slider(
                     "Artists to include (default: all)",
@@ -1319,7 +1312,7 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
 
         col_a, col_b = st.columns(2)
 
-        with col_a:
+        with col_b:
             bins = [0, 5, 10, 20, 50, 100]
             labels = ["Top 5", "6-10", "11-20", "21-50", "51-100"]
             analysis_df["rank_bucket"] = pd.cut(
@@ -1428,11 +1421,11 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
                     unsafe_allow_html=True,
                 )
 
-        with col_b:
+        with col_a:
             scatter_data = analysis_df.dropna(subset=["monthly_listeners", "countries_count"])
             if scatter_data.empty:
                 st.info("Not enough listener and country coverage data to render analysis charts.")
-            elif relationship_view == "Density Heatmap":
+            else:
                 heatmap_df = scatter_data.copy()
                 heatmap_df["countries_count"] = heatmap_df["countries_count"].round().astype(int)
 
@@ -1528,42 +1521,6 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
                             ),
                             unsafe_allow_html=True,
                         )
-            else:
-                fig_scatter = px.scatter(
-                    scatter_data,
-                    x="countries_count",
-                    y="monthly_listeners",
-                    size="monthly_listeners",
-                    color="rank",
-                    hover_name="name",
-                    title="Reach vs. Monthly Listeners (Artist View)",
-                    labels={"countries_count": "LATAM Countries", "monthly_listeners": "Monthly Listeners", "rank": "Rank"},
-                    color_continuous_scale=["#22d3a0", "#f5a623", "#e84545"],
-                    size_max=26,
-                )
-                fig_scatter.update_traces(
-                    marker=dict(line=dict(color="rgba(255,255,255,.22)", width=1)),
-                    hovertemplate="<b>%{hovertext}</b><br>Countries: %{x}<br>Listeners: %{y:,.0f}<br>Rank: %{marker.color:.0f}<extra></extra>",
-                )
-                fig_scatter.update_yaxes(tickformat="~s")
-                style_figure(fig_scatter, 300)
-                st.plotly_chart(fig_scatter, use_container_width=True, config=PLOTLY_CONFIG)
-
-                reach_corr = scatter_data["countries_count"].corr(scatter_data["monthly_listeners"])
-                median_reach = float(scatter_data["countries_count"].median()) if not scatter_data.empty else 0
-                max_reach = int(scatter_data["countries_count"].max()) if not scatter_data.empty else 0
-                if pd.notna(reach_corr):
-                    corr_text = "positive" if reach_corr > 0 else "negative" if reach_corr < 0 else "flat"
-                    st.markdown(
-                        (
-                            "<div class='small-note'>"
-                            f"Summary: This view shows a <b>{corr_text}</b> relationship between LATAM reach and monthly listeners "
-                            f"(correlation {reach_corr:.2f}). Median reach is <b>{median_reach:.0f}</b> countries, "
-                            f"with a maximum of <b>{max_reach}</b>."
-                            "</div>"
-                        ),
-                        unsafe_allow_html=True,
-                    )
 
         # New Threshold Analysis Row
         st.markdown("<br>", unsafe_allow_html=True)
@@ -1623,13 +1580,16 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
                 st.plotly_chart(fig_thresh_ls, use_container_width=True, config=PLOTLY_CONFIG)
             
             with st.expander("📋 View Threshold Data Points"):
+                display_df = thresh_df[["Tier", "Points", "Listeners"]].copy()
+                display_df["Points"] = display_df["Points"].apply(fmt_short)
+                display_df["Listeners"] = display_df["Listeners"].apply(fmt_short)
                 st.dataframe(
-                    thresh_df[["Tier", "Points", "Listeners"]],
+                    display_df,
                     use_container_width=True,
                     hide_index=True,
                     column_config={
-                        "Points": st.column_config.NumberColumn(format="%d"),
-                        "Listeners": st.column_config.NumberColumn(format="%d"),
+                        "Points": st.column_config.TextColumn(),
+                        "Listeners": st.column_config.TextColumn(),
                     }
                 )
         else:
