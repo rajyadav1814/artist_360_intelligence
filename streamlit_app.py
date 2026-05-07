@@ -3171,12 +3171,15 @@ with st.sidebar:
             st.session_state.global_selected_artist = selected_artist
             st.rerun()
         latam_only = st.toggle("🌎 Latin America", value=True)
-        default_countries = sorted([c for c in leaderboard["display_country"].unique().tolist() if c != "—"])
-        selected_countries = st.multiselect(
-            "📍 Countries",
-            default_countries or LATAM_COUNTRIES,
-            default=default_countries or LATAM_COUNTRIES[:6],
-        )
+        
+        selected_countries = []
+        if latam_only:
+            default_countries = sorted([c for c in leaderboard["display_country"].unique().tolist() if c != "—"])
+            selected_countries = st.multiselect(
+                "📍 Countries",
+                default_countries or LATAM_COUNTRIES,
+                default=default_countries or LATAM_COUNTRIES[:6],
+            )
 
     
     with st.expander("🎛️ Display Options", expanded=True):
@@ -3186,8 +3189,8 @@ with st.sidebar:
     global_filtered = leaderboard.copy()
     if latam_only:
         global_filtered = global_filtered[global_filtered["latam_signal"]]
-    if selected_countries:
-        global_filtered = global_filtered[global_filtered["display_country"].isin(selected_countries)]
+        if selected_countries:
+            global_filtered = global_filtered[global_filtered["display_country"].isin(selected_countries)]
     
     # Apply artist filter for appropriate views (Leaderboard list)
     filtered = global_filtered.copy()
