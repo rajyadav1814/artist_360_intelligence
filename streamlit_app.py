@@ -986,10 +986,10 @@ def prepare_leaderboard_table(leaderboard: pd.DataFrame, max_rows: int) -> pd.Da
             "top_country",
             "monthly_listeners",
             "peak_listeners",
-            "rank_change",
+            # "rank_change",
         ]
     ].copy()
-    table_df["rank_change"] = table_df["rank_change"].fillna("=").replace("", "=")
+    # table_df["rank_change"] = table_df["rank_change"].fillna("=").replace("", "=")
     table_df["monthly_listeners"] = table_df["monthly_listeners"].apply(fmt_short)
     table_df["peak_listeners"] = table_df["peak_listeners"].apply(fmt_short)
     table_df.columns = [
@@ -999,7 +999,7 @@ def prepare_leaderboard_table(leaderboard: pd.DataFrame, max_rows: int) -> pd.Da
         "Top Country",
         "Monthly Listeners",
         "Peak Listeners",
-        "Trend",
+        # "Trend",
     ]
     return table_df
 
@@ -1196,7 +1196,7 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
                     "Top Country": st.column_config.TextColumn(width="small"),
                     "Monthly Listeners": st.column_config.TextColumn(width="small"),  # Changed to TextColumn
                     "Peak Listeners": st.column_config.TextColumn(width="small"),     # Changed to TextColumn
-                    "Trend": st.column_config.TextColumn(width="small"),
+                    # "Trend": st.column_config.TextColumn(width="small"),
                 },
             )
 
