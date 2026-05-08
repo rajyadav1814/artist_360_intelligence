@@ -105,7 +105,7 @@ def apply_theme() -> None:
         .block-container {
             width: min(100%, 1680px);
             max-width: 1680px;
-            padding-top: 1rem;
+            padding-top: 3.5rem; /* Balanced gap for tooltips */
             padding-right: clamp(0.85rem, 1.8vw, 1.6rem);
             padding-left: clamp(0.85rem, 1.8vw, 1.6rem);
             padding-bottom: 2rem;
@@ -235,6 +235,7 @@ def apply_theme() -> None:
             transform: translateY(-4px);
             box-shadow: 0 12px 32px rgba(0,0,0,.4);
             border-color: rgba(79,142,247,.3);
+            z-index: 1000; /* Ensure hovered card and its tooltip are on top */
         }
         .kpi-card::before {
             content:''; position:absolute; top:0; left:0; right:0; height:4px;
@@ -320,38 +321,64 @@ def apply_theme() -> None:
         }
         .tooltip .tooltiptext {
             visibility: hidden;
-            width: 320px;
-            background-color: rgba(9, 17, 39, 0.98);
+            width: 360px;
+            background-color: rgba(13, 20, 38, 0.99);
+            backdrop-filter: blur(12px);
             color: var(--text);
             text-align: left;
-            border-radius: 10px;
-            padding: 12px 15px;
+            border-radius: 12px;
+            padding: 16px 20px;
             position: absolute;
-            z-index: 1000;
-            bottom: 110%;
+            z-index: 99999;
+            top: 100%;
             left: 50%;
-            transform: translateX(-50%);
+            transform: translateX(-50%) translateY(0);
             opacity: 0;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            border: 1px solid rgba(79, 142, 247, 0.3);
-            box-shadow: 0 12px 30px rgba(0,0,0,.5);
-            font-size: 0.85rem;
-            line-height: 1.5;
-            pointer-events: none;
-            min-width: 180px;
+            transition: opacity 0.3s ease, transform 0.3s ease;
+            border: 1px solid rgba(79, 142, 247, 0.4);
+            box-shadow: 0 25px 60px rgba(0,0,0,0.8);
+            font-size: 0.86rem;
+            line-height: 1.6;
+            pointer-events: auto;
+            max-height: 320px;
+            overflow-y: auto;
+            overscroll-behavior: contain;
+            scrollbar-width: thin;
+            scrollbar-color: var(--accent) transparent;
         }
         .tooltip:hover .tooltiptext {
-            visibility: visible; opacity: 1; transform: translateX(-50%) translateY(-10px);
+            visibility: visible; 
+            opacity: 1; 
+            transform: translateX(-50%) translateY(10px);
         }
         .tooltip .tooltiptext::after {
-            content: ""; position: absolute; top: 100%; left: 50%;
-            margin-left: -6px; border-width: 6px; border-style: solid;
-            border-color: var(--surface3) transparent transparent transparent;
+            content: ""; position: absolute; bottom: 100%; left: 50%;
+            margin-left: -10px; border-width: 10px; border-style: solid;
+            border-color: transparent transparent rgba(13, 20, 38, 0.99) transparent;
         }
         .tooltip .tooltiptext::before {
-            content: ""; position: absolute; top: 100%; left: 50%;
-            margin-left: -7px; border-width: 7px; border-style: solid;
-            border-color: var(--border) transparent transparent transparent;
+            content: "";
+            position: absolute;
+            bottom: 100%;
+            left: 0;
+            width: 100%;
+            height: 25px;
+            background: transparent;
+        }
+        /* Crucial: Prevent Streamlit from clipping the tooltips */
+        [data-testid="stHorizontalBlock"], [data-testid="column"], [data-testid="stVerticalBlock"], [data-testid="stVerticalBlockBorderWrapper"] {
+            overflow: visible !important;
+        }
+        
+        .tooltip .tooltiptext::-webkit-scrollbar {
+            width: 5px;
+        }
+        .tooltip .tooltiptext::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .tooltip .tooltiptext::-webkit-scrollbar-thumb {
+            background: rgba(79, 142, 247, 0.4);
+            border-radius: 10px;
         }
         textarea, input, [data-baseweb="select"] > div {
             background:var(--surface2) !important; color:var(--text) !important; border-color:var(--border) !important;
@@ -942,10 +969,21 @@ def render_kpis(leaderboard: pd.DataFrame, runs: pd.DataFrame) -> None:
     new_entries_details = ""
     if new_entries > 0:
         new_df = leaderboard[new_mask].sort_values("rank")
+        top_new_rank = int(new_df["rank"].iloc[0])
         details = []
         for _, row in new_df.iterrows():
-            details.append(f"<div style='display:flex;justify-content:space-between;gap:1rem;'><span>{escape(row['name'])}</span><span style='color:var(--accent3);font-weight:700;'>#{int(row['rank'])}</span></div>")
-        new_entries_details = "<div style='margin-bottom:8px;font-weight:800;font-size:0.75rem;text-transform:uppercase;color:var(--text2);letter-spacing:0.05em;'>New Chart Entries</div>" + "".join(details)
+            details.append(f"<div style='display:flex;justify-content:space-between;gap:1.5rem;padding:2px 0;margin-bottom:2px;'><span>{escape(row['name'])}</span><span style='color:var(--accent3);font-weight:700;'>#{int(row['rank'])}</span></div>")
+        
+        new_entries_title = "New Chart Entries"
+        header_html = "<div style='display:flex;justify-content:space-between;padding:2px 0 6px;margin-bottom:6px;border-bottom:1px solid rgba(79,142,247,0.1);font-size:0.65rem;text-transform:uppercase;letter-spacing:0.03em;color:var(--accent);font-weight:700;'><span>Artist</span><span>Artist Rank</span></div>"
+        new_entries_details = (
+            "<div style='position:sticky;top:-16px;background:rgba(13,20,38,1);padding:4px 0 12px;margin-bottom:12px;font-weight:800;font-size:0.75rem;text-transform:uppercase;color:var(--text2);letter-spacing:0.05em;z-index:10;border-bottom:1px solid rgba(79,142,247,0.15);'>"
+            "New Chart Entries</div>"
+            f"{header_html}"
+            "<div>" + "".join(details) + "</div>"
+        )
+    else:
+        new_entries_title = "New Chart Entries"
 
     # Calculate progress percentages — top 300 artists sum ~24–30B
     max_listeners = 30_000_000_000
@@ -957,7 +995,7 @@ def render_kpis(leaderboard: pd.DataFrame, runs: pd.DataFrame) -> None:
          "<b>Total Ecosystem Reach</b><br>Combined monthly listeners across all tracked artists. This represents the total potential audience reach within the current dataset."),
         ("Artists with LATAM Signals", str(latam_artists), "Currently visible in the regional cut", "kpi-green", artist_progress, 
          "<b>Regional Market Presence</b><br>Count of artists currently appearing on charts in Latin American countries (Mexico, Colombia, Brazil, Argentina, etc.)."),
-        ("New Chart Entries", str(new_entries), "Fresh NEW movements in the latest run", "kpi-amber", 0, new_entries_details),
+        (new_entries_title, str(new_entries), "Fresh NEW movements in the latest run", "kpi-amber", 0, new_entries_details),
     ]
     cols = st.columns(len(cards))
     for col, (label, value, delta, klass, progress, tooltip_text) in zip(cols, cards):
@@ -2384,7 +2422,7 @@ def render_debut_artist_chart(leaderboard: pd.DataFrame) -> None:
         st.markdown(
             f"""
             <div style="display: flex; gap: 10px; margin-top: 15px; flex-wrap: wrap;">
-                <span class="badge badge-new" style="padding: 5px 12px; font-size: 0.85rem;">Rank #{int(row['rank'])}</span>
+                <span class="badge badge-new" style="padding: 5px 12px; font-size: 0.85rem;">#{int(row['rank'])}</span>
                 <span class="badge badge-up" style="padding: 5px 12px; font-size: 0.85rem;">{escape(str(row.get('display_country') or 'Global'))}</span>
                 <span class="badge badge-same" style="padding: 5px 12px; font-size: 0.85rem;">{fmt_short(row.get('monthly_listeners'))} Monthly</span>
             </div>
