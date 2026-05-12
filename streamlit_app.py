@@ -105,7 +105,7 @@ def apply_theme() -> None:
         .block-container {
             width: min(100%, 1680px);
             max-width: 1680px;
-            padding-top: 1rem;
+            padding-top: 3.5rem; /* Balanced gap for tooltips */
             padding-right: clamp(0.85rem, 1.8vw, 1.6rem);
             padding-left: clamp(0.85rem, 1.8vw, 1.6rem);
             padding-bottom: 2rem;
@@ -217,28 +217,38 @@ def apply_theme() -> None:
             box-shadow: 0 6px 20px rgba(79,142,247,.4);
         }
         .kpi-card {
-            background:linear-gradient(180deg, rgba(19,26,45,1) 0%, rgba(16,21,37,1) 100%);
-            border:1px solid var(--border); border-radius:14px; padding:1rem 1rem .9rem 1rem;
-            min-height:clamp(108px, 12vw, 132px); position:relative; overflow:hidden; height: 100%;
+            background: #111827;
+            border: 1px solid #1e2d47;
+            border-radius: 12px;
+            padding: 24px 20px 18px;
+            min-height: 158px;
+            width: 100%;
+            position: relative; 
+            overflow: visible; 
+            height: 100%;
+            display: flex;
+            flex-direction: column;
             transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
             animation: fadeIn 0.6s ease-out;
         }
         .kpi-card:hover {
             transform: translateY(-4px);
-            box-shadow: 0 12px 28px rgba(79,142,247,.2);
-            border-color: rgba(79,142,247,.4);
+            box-shadow: 0 12px 32px rgba(0,0,0,.4);
+            border-color: rgba(79,142,247,.3);
+            z-index: 1000; /* Ensure hovered card and its tooltip are on top */
         }
         .kpi-card::before {
-            content:''; position:absolute; top:0; left:0; right:0; height:3px;
-            background:linear-gradient(90deg,var(--accent),var(--accent2));
+            content:''; position:absolute; top:0; left:0; right:0; height:4px;
+            border-radius: 12px 12px 0 0;
+            background: linear-gradient(90deg, var(--accent), var(--accent2));
             transition: height 0.3s ease;
         }
         .kpi-card:hover::before {
-            height: 4px;
+            height: 5px;
         }
-        .kpi-green::before { background:linear-gradient(90deg,var(--accent3),#16a34a); }
-        .kpi-amber::before { background:linear-gradient(90deg,var(--warn),#f97316); }
-        .kpi-red::before { background:linear-gradient(90deg,var(--danger),#be123c); }
+        .kpi-green::before { background: linear-gradient(90deg, var(--accent3), #16a34a); }
+        .kpi-amber::before { background: linear-gradient(90deg, var(--warn), #f97316); }
+        .kpi-red::before { background: linear-gradient(90deg, var(--danger), #be123c); }
         .kpi-label { 
             color:var(--text2); font-size:.76rem; text-transform:uppercase; 
             letter-spacing:.08em; margin-bottom: 0.5rem;
@@ -255,7 +265,7 @@ def apply_theme() -> None:
         /* Progress bars */
         .progress-bar {
             width: 100%; height: 6px; background: rgba(151,163,197,.15);
-            border-radius: 999px; overflow: hidden; margin-top: 0.5rem;
+            border-radius: 999px; overflow: hidden; margin-top: auto;
         }
         .progress-fill {
             height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent3));
@@ -311,25 +321,64 @@ def apply_theme() -> None:
         }
         .tooltip .tooltiptext {
             visibility: hidden;
-            background-color: rgba(18,24,42,0.98);
+            width: 360px;
+            background-color: rgba(13, 20, 38, 0.99);
+            backdrop-filter: blur(12px);
             color: var(--text);
-            text-align: center;
-            border-radius: 8px;
-            padding: 8px 12px;
+            text-align: left;
+            border-radius: 12px;
+            padding: 16px 20px;
             position: absolute;
-            z-index: 1000;
-            bottom: 125%;
+            z-index: 99999;
+            top: 100%;
             left: 50%;
-            margin-left: -60px;
+            transform: translateX(-50%) translateY(0);
             opacity: 0;
-            transition: opacity 0.3s;
-            border: 1px solid var(--border);
-            box-shadow: 0 8px 20px rgba(0,0,0,.4);
-            font-size: 0.8rem;
+            transition: opacity 0.3s ease, transform 0.3s ease;
+            border: 1px solid rgba(79, 142, 247, 0.4);
+            box-shadow: 0 25px 60px rgba(0,0,0,0.8);
+            font-size: 0.86rem;
+            line-height: 1.6;
+            pointer-events: auto;
+            max-height: 320px;
+            overflow-y: auto;
+            overscroll-behavior: contain;
+            scrollbar-width: thin;
+            scrollbar-color: var(--accent) transparent;
         }
         .tooltip:hover .tooltiptext {
-            visibility: visible;
-            opacity: 1;
+            visibility: visible; 
+            opacity: 1; 
+            transform: translateX(-50%) translateY(10px);
+        }
+        .tooltip .tooltiptext::after {
+            content: ""; position: absolute; bottom: 100%; left: 50%;
+            margin-left: -10px; border-width: 10px; border-style: solid;
+            border-color: transparent transparent rgba(13, 20, 38, 0.99) transparent;
+        }
+        .tooltip .tooltiptext::before {
+            content: "";
+            position: absolute;
+            bottom: 100%;
+            left: 0;
+            width: 100%;
+            height: 25px;
+            background: transparent;
+        }
+        /* Crucial: Prevent Streamlit from clipping the tooltips */
+        [data-testid="stHorizontalBlock"], [data-testid="column"], [data-testid="stVerticalBlock"], [data-testid="stVerticalBlockBorderWrapper"] {
+            overflow: visible !important;
+        }
+        
+        .tooltip .tooltiptext::-webkit-scrollbar {
+            width: 5px;
+        }
+        .tooltip .tooltiptext::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .tooltip .tooltiptext::-webkit-scrollbar-thumb {
+            background: rgba(79, 142, 247, 0.4);
+            border-radius: 10px;
         }
         textarea, input, [data-baseweb="select"] > div {
             background:var(--surface2) !important; color:var(--text) !important; border-color:var(--border) !important;
@@ -635,6 +684,8 @@ def fmt_short(value: float | int | None) -> str:
     if value is None or pd.isna(value):
         return "—"
     value = float(value)
+    if abs(value) >= 1_000_000_000:
+        return f"{value / 1_000_000_000:.2f}B"
     if abs(value) >= 1_000_000:
         return f"{value / 1_000_000:.2f}M"
     if abs(value) >= 1_000:
@@ -884,36 +935,84 @@ def render_footer() -> None:
 
 def render_kpis(leaderboard: pd.DataFrame, runs: pd.DataFrame) -> None:
     success_rate = (runs["status"].eq("success").mean() * 100) if not runs.empty else 0
-    total_monthly = leaderboard["monthly_listeners"].fillna(0).sum()
+    
+    try:
+        from src.database.connection import get_connection
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    WITH latest_run AS (
+                        SELECT MAX(scraped_at) AS ts FROM spotify_artists
+                    ),
+                    top_artists AS (
+                        SELECT monthly_listeners
+                        FROM spotify_artists
+                        WHERE scraped_at = (SELECT ts FROM latest_run)
+                        ORDER BY monthly_listeners DESC NULLS LAST
+                        LIMIT 300
+                    )
+                    SELECT SUM(monthly_listeners) 
+                    FROM top_artists
+                """)
+                result = cur.fetchone()
+                total_monthly = result[0] if result and result[0] else 0
+    except Exception:
+        total_monthly = leaderboard.nlargest(300, "monthly_listeners")["monthly_listeners"].fillna(0).sum()    
+        
     latam_artists = int(leaderboard["latam_signal"].sum()) if "latam_signal" in leaderboard else 0
-    new_entries = int(leaderboard["rank_change"].fillna("").eq("NEW").sum())
-    tracked_jobs = int(runs["source"].nunique()) if not runs.empty else 0
+    
+    # Identify new entries
+    new_mask = leaderboard["rank_change"].fillna("").eq("NEW")
+    new_entries = int(new_mask.sum())
+    
+    # Details for tooltip
+    new_entries_details = ""
+    if new_entries > 0:
+        new_df = leaderboard[new_mask].sort_values("rank")
+        top_new_rank = int(new_df["rank"].iloc[0])
+        details = []
+        for _, row in new_df.iterrows():
+            details.append(f"<div style='display:flex;justify-content:space-between;gap:1.5rem;padding:2px 0;margin-bottom:2px;'><span>{escape(row['name'])}</span><span style='color:var(--accent3);font-weight:700;'>#{int(row['rank'])}</span></div>")
+        
+        new_entries_title = "New Chart Entries"
+        header_html = "<div style='display:flex;justify-content:space-between;padding:2px 0 6px;margin-bottom:6px;border-bottom:1px solid rgba(79,142,247,0.1);font-size:0.65rem;text-transform:uppercase;letter-spacing:0.03em;color:var(--accent);font-weight:700;'><span>Artist</span><span>Artist Rank</span></div>"
+        new_entries_details = (
+            "<div style='position:sticky;top:-16px;background:rgba(13,20,38,1);padding:4px 0 12px;margin-bottom:12px;font-weight:800;font-size:0.75rem;text-transform:uppercase;color:var(--text2);letter-spacing:0.05em;z-index:10;border-bottom:1px solid rgba(79,142,247,0.15);'>"
+            "New Chart Entries</div>"
+            f"{header_html}"
+            "<div>" + "".join(details) + "</div>"
+        )
+    else:
+        new_entries_title = "New Chart Entries"
 
-    # Calculate progress percentages
-    max_listeners = 100_000_000  # Adjust based on your data
+    # Calculate progress percentages — top 300 artists sum ~24–30B
+    max_listeners = 30_000_000_000
     listener_progress = min(100, (total_monthly / max_listeners * 100))
     artist_progress = min(100, (latam_artists / len(leaderboard) * 100)) if len(leaderboard) > 0 else 0
 
     cards = [
-        ("Total Monthly Listeners", fmt_short(total_monthly), "Live Spotify monthly listener sum", "", listener_progress),
-        ("Artists with LATAM Signals", str(latam_artists), "Currently visible in the regional cut", "kpi-green", artist_progress),
-        ("New Chart Entries", str(new_entries), "Fresh NEW movements in the latest run", "kpi-amber", 0),
-        ("Jobs Tracked", str(tracked_jobs), f"Pipeline success rate {success_rate:.0f}%", "kpi-red", success_rate),
+        ("Spotify Monthly Listeners", fmt_short(total_monthly), "Live Spotify monthly listener sum", "", listener_progress, 
+         "<b>Total Ecosystem Reach</b><br>Combined monthly listeners across all tracked artists. This represents the total potential audience reach within the current dataset."),
+        ("Artists with LATAM Signals", str(latam_artists), "Currently visible in the regional cut", "kpi-green", artist_progress, 
+         "<b>Regional Market Presence</b><br>Count of artists currently appearing on charts in Latin American countries (Mexico, Colombia, Brazil, Argentina, etc.)."),
+        (new_entries_title, str(new_entries), "Fresh NEW movements in the latest run", "kpi-amber", 0, new_entries_details),
     ]
-    cols = st.columns(4)
-    for col, (label, value, delta, klass, progress) in zip(cols, cards):
+    cols = st.columns(len(cards))
+    for col, (label, value, delta, klass, progress, tooltip_text) in zip(cols, cards):
+        tooltip_html = f'<div class="tooltiptext">{tooltip_text}</div>' if tooltip_text else ''
+        tooltip_class = 'tooltip' if tooltip_text else ''
         progress_html = f'<div class="progress-bar"><div class="progress-fill" style="width:{progress}%"></div></div>' if progress > 0 else ''
-        col.markdown(
-            f"""
-            <div class="kpi-card {klass}">
-                <div class="kpi-label">{escape(label)}</div>
-                <div class="kpi-value">{escape(value)}</div>
-                <div class="kpi-delta">{escape(delta)}</div>
-                {progress_html}
-            </div>
-            """,
-            unsafe_allow_html=True,
+        
+        # Build the HTML string without leading spaces to avoid markdown code block interpretation
+        card_html = (
+            f'<div class="kpi-card {klass} {tooltip_class}">'
+            f'<div class="kpi-label">{escape(label)}</div>'
+            f'<div class="kpi-value">{escape(value)}</div>'
+            f'<div class="kpi-delta">{escape(delta)}</div>'
+            f'{progress_html}{tooltip_html}'
+            f'</div>'
         )
+        col.markdown(card_html, unsafe_allow_html=True)
 
 
 def prepare_leaderboard_table(leaderboard: pd.DataFrame, max_rows: int) -> pd.DataFrame:
@@ -925,10 +1024,10 @@ def prepare_leaderboard_table(leaderboard: pd.DataFrame, max_rows: int) -> pd.Da
             "top_country",
             "monthly_listeners",
             "peak_listeners",
-            "rank_change",
+            # "rank_change",
         ]
     ].copy()
-    table_df["rank_change"] = table_df["rank_change"].fillna("=").replace("", "=")
+    # table_df["rank_change"] = table_df["rank_change"].fillna("=").replace("", "=")
     table_df["monthly_listeners"] = table_df["monthly_listeners"].apply(fmt_short)
     table_df["peak_listeners"] = table_df["peak_listeners"].apply(fmt_short)
     table_df.columns = [
@@ -938,7 +1037,7 @@ def prepare_leaderboard_table(leaderboard: pd.DataFrame, max_rows: int) -> pd.Da
         "Top Country",
         "Monthly Listeners",
         "Peak Listeners",
-        "Trend",
+        # "Trend",
     ]
     return table_df
 
@@ -1135,7 +1234,7 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
                     "Top Country": st.column_config.TextColumn(width="small"),
                     "Monthly Listeners": st.column_config.TextColumn(width="small"),  # Changed to TextColumn
                     "Peak Listeners": st.column_config.TextColumn(width="small"),     # Changed to TextColumn
-                    "Trend": st.column_config.TextColumn(width="small"),
+                    # "Trend": st.column_config.TextColumn(width="small"),
                 },
             )
 
@@ -1233,13 +1332,6 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
 
         control_col1, control_col2 = st.columns([1.3, 1.3])
         with control_col1:
-            relationship_view = st.selectbox(
-                "Relationship View",
-                ["Density Heatmap", "Bubble Scatter"],
-                index=0,
-                key="analysis_relationship_view",
-            )
-        with control_col2:
             top_n = int(
                 st.slider(
                     "Artists to include (default: all)",
@@ -1258,7 +1350,7 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
 
         col_a, col_b = st.columns(2)
 
-        with col_a:
+        with col_b:
             bins = [0, 5, 10, 20, 50, 100]
             labels = ["Top 5", "6-10", "11-20", "21-50", "51-100"]
             analysis_df["rank_bucket"] = pd.cut(
@@ -1367,11 +1459,11 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
                     unsafe_allow_html=True,
                 )
 
-        with col_b:
+        with col_a:
             scatter_data = analysis_df.dropna(subset=["monthly_listeners", "countries_count"])
             if scatter_data.empty:
                 st.info("Not enough listener and country coverage data to render analysis charts.")
-            elif relationship_view == "Density Heatmap":
+            else:
                 heatmap_df = scatter_data.copy()
                 heatmap_df["countries_count"] = heatmap_df["countries_count"].round().astype(int)
 
@@ -1467,42 +1559,6 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
                             ),
                             unsafe_allow_html=True,
                         )
-            else:
-                fig_scatter = px.scatter(
-                    scatter_data,
-                    x="countries_count",
-                    y="monthly_listeners",
-                    size="monthly_listeners",
-                    color="rank",
-                    hover_name="name",
-                    title="Reach vs. Monthly Listeners (Artist View)",
-                    labels={"countries_count": "LATAM Countries", "monthly_listeners": "Monthly Listeners", "rank": "Rank"},
-                    color_continuous_scale=["#22d3a0", "#f5a623", "#e84545"],
-                    size_max=26,
-                )
-                fig_scatter.update_traces(
-                    marker=dict(line=dict(color="rgba(255,255,255,.22)", width=1)),
-                    hovertemplate="<b>%{hovertext}</b><br>Countries: %{x}<br>Listeners: %{y:,.0f}<br>Rank: %{marker.color:.0f}<extra></extra>",
-                )
-                fig_scatter.update_yaxes(tickformat="~s")
-                style_figure(fig_scatter, 300)
-                st.plotly_chart(fig_scatter, use_container_width=True, config=PLOTLY_CONFIG)
-
-                reach_corr = scatter_data["countries_count"].corr(scatter_data["monthly_listeners"])
-                median_reach = float(scatter_data["countries_count"].median()) if not scatter_data.empty else 0
-                max_reach = int(scatter_data["countries_count"].max()) if not scatter_data.empty else 0
-                if pd.notna(reach_corr):
-                    corr_text = "positive" if reach_corr > 0 else "negative" if reach_corr < 0 else "flat"
-                    st.markdown(
-                        (
-                            "<div class='small-note'>"
-                            f"Summary: This view shows a <b>{corr_text}</b> relationship between LATAM reach and monthly listeners "
-                            f"(correlation {reach_corr:.2f}). Median reach is <b>{median_reach:.0f}</b> countries, "
-                            f"with a maximum of <b>{max_reach}</b>."
-                            "</div>"
-                        ),
-                        unsafe_allow_html=True,
-                    )
 
         # New Threshold Analysis Row
         st.markdown("<br>", unsafe_allow_html=True)
@@ -1539,7 +1595,7 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
                 fig_thresh_pts.update_traces(
                     textposition="top center",
                     texttemplate="%{y:.2s}",
-                    hovertemplate="<b>%{x}</b><br>Required Points: %{y:,.0f}<br>Tier Artist: %{customdata}<extra></extra>",
+                    hovertemplate="<b>%{x}</b><br>Required Points: %{y:,.0f}<br><extra></extra>",
                     customdata=thresh_df["Artist"]
                 )
                 style_figure(fig_thresh_pts, 320)
@@ -1555,20 +1611,23 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
                 fig_thresh_ls.update_traces(
                     textposition="top center",
                     texttemplate="%{y:.2s}",
-                    hovertemplate="<b>%{x}</b><br>Required Listeners: %{y:,.0f}<br>Tier Artist: %{customdata}<extra></extra>",
+                    hovertemplate="<b>%{x}</b><br>Required Listeners: %{y:,.0f}<br><extra></extra>",
                     customdata=thresh_df["Artist"]
                 )
                 style_figure(fig_thresh_ls, 320)
                 st.plotly_chart(fig_thresh_ls, use_container_width=True, config=PLOTLY_CONFIG)
             
             with st.expander("📋 View Threshold Data Points"):
+                display_df = thresh_df[["Tier", "Points", "Listeners"]].copy()
+                display_df["Points"] = display_df["Points"].apply(fmt_short)
+                display_df["Listeners"] = display_df["Listeners"].apply(fmt_short)
                 st.dataframe(
-                    thresh_df[["Tier", "Points", "Listeners", "Artist"]],
+                    display_df,
                     use_container_width=True,
                     hide_index=True,
                     column_config={
-                        "Points": st.column_config.NumberColumn(format="%d"),
-                        "Listeners": st.column_config.NumberColumn(format="%d"),
+                        "Points": st.column_config.TextColumn(),
+                        "Listeners": st.column_config.TextColumn(),
                     }
                 )
         else:
@@ -2363,7 +2422,7 @@ def render_debut_artist_chart(leaderboard: pd.DataFrame) -> None:
         st.markdown(
             f"""
             <div style="display: flex; gap: 10px; margin-top: 15px; flex-wrap: wrap;">
-                <span class="badge badge-new" style="padding: 5px 12px; font-size: 0.85rem;">Rank #{int(row['rank'])}</span>
+                <span class="badge badge-new" style="padding: 5px 12px; font-size: 0.85rem;">#{int(row['rank'])}</span>
                 <span class="badge badge-up" style="padding: 5px 12px; font-size: 0.85rem;">{escape(str(row.get('display_country') or 'Global'))}</span>
                 <span class="badge badge-same" style="padding: 5px 12px; font-size: 0.85rem;">{fmt_short(row.get('monthly_listeners'))} Monthly</span>
             </div>
@@ -3150,12 +3209,15 @@ with st.sidebar:
             st.session_state.global_selected_artist = selected_artist
             st.rerun()
         latam_only = st.toggle("🌎 Latin America", value=True)
-        default_countries = sorted([c for c in leaderboard["display_country"].unique().tolist() if c != "—"])
-        selected_countries = st.multiselect(
-            "📍 Countries",
-            default_countries or LATAM_COUNTRIES,
-            default=default_countries or LATAM_COUNTRIES[:6],
-        )
+        
+        selected_countries = []
+        if latam_only:
+            default_countries = sorted([c for c in leaderboard["display_country"].unique().tolist() if c != "—"])
+            selected_countries = st.multiselect(
+                "📍 Countries",
+                default_countries or LATAM_COUNTRIES,
+                default=default_countries or LATAM_COUNTRIES[:6],
+            )
 
     
     with st.expander("🎛️ Display Options", expanded=True):
@@ -3165,8 +3227,8 @@ with st.sidebar:
     global_filtered = leaderboard.copy()
     if latam_only:
         global_filtered = global_filtered[global_filtered["latam_signal"]]
-    if selected_countries:
-        global_filtered = global_filtered[global_filtered["display_country"].isin(selected_countries)]
+        if selected_countries:
+            global_filtered = global_filtered[global_filtered["display_country"].isin(selected_countries)]
     
     # Apply artist filter for appropriate views (Leaderboard list)
     filtered = global_filtered.copy()
@@ -3174,18 +3236,6 @@ with st.sidebar:
         filtered = filtered[filtered["name"] == selected_artist]
     filtered = filtered.sort_values("rank")
     
-    # Action buttons
-    st.markdown("### 🔄 Actions")
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("🔄 Refresh", use_container_width=True):
-            st.cache_data.clear()
-            st.rerun()
-    
-    # Auto-refresh toggle
-    auto_refresh_sidebar = st.toggle("⏱️ Auto-refresh (30s)", value=st.session_state.auto_refresh)
-    if auto_refresh_sidebar != st.session_state.auto_refresh:
-        st.session_state.auto_refresh = auto_refresh_sidebar
     
     # Status indicator
     status_color = "status-good" if len(runs) > 0 else "muted"

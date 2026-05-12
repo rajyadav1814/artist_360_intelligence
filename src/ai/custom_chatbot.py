@@ -1,5 +1,5 @@
 """
-Music Analytics AI Agent — Token-Optimized
+Music Analytics AI Agent — Token-Optimized with Categorized Suggestions
 Changes from original:
 1. PLAN_SYSTEM reduced ~60%: removed verbose examples, collapsed rules into compact bullets
 2. SCHEMA_CONTEXT trimmed ~40%: removed redundant relationship prose, kept only join keys
@@ -7,6 +7,8 @@ Changes from original:
 4. _claude_chat_json: max_tokens default 3000→1200 (SQL plan never needs 3000)
 5. Question pre-routing: simple/common questions skip the AI plan call entirely
 6. SUMMARY_SYSTEM trimmed: removed redundant rules
+7. NEW: CATEGORIZED_SUGGESTIONS bank with 5 categories shown in empty state
+8. NEW: _render_empty_state rebuilt with category grid (Performance, Trending, Rankings, Cross-platform, Geography)
 All accuracy-critical logic (SQL safety, artist detection, retry, fallback) is unchanged.
 """
 
@@ -46,9 +48,6 @@ ALLOWED_TABLES = {
     "track_rankings"
 }
 
-# ── OPTIMIZATION 1: Schema context trimmed ~40% ──
-# Removed: verbose relationship prose, redundant join explanations
-# Kept: table names, columns, and the one join pattern that AI needs
 SCHEMA_CONTEXT = """
 Tables (PostgreSQL):
 artists(id,name,profile_url)
@@ -132,9 +131,6 @@ NO_TABLE_PATTERNS = [
     r"\bquick\b",
 ]
 
-# ── OPTIMIZATION 2: Question complexity classifier ──
-# These patterns identify questions that local heuristics handle perfectly.
-# Matching questions SKIP the AI plan call entirely → saves ~800-1000 input tokens.
 LOCAL_PLAN_PATTERNS = [
     r"\btop\s+\d+\s+artist",
     r"\btrending\b",
@@ -144,6 +140,63 @@ LOCAL_PLAN_PATTERNS = [
     r"\brank(ing)?\b",
     r"\btop countr",
 ]
+
+# ─── Categorized Suggestion Bank ──────────────────────────────────────────────
+
+CATEGORIZED_SUGGESTIONS = {
+    "performance": {
+        "label": "Performance",
+        "icon": "📈",
+        "questions": [
+            "Who are the top 10 artists by total Spotify streams right now, and how have their stream counts changed day over day?",
+            "What is the cumulative total streams for each track on Spotify — which song has the highest all-time stream count?",
+            "On YouTube, which tracks have the most views today and what is the average daily view growth rate for the top 10?",
+            "What is the average chart lifespan of a top-10 iTunes track before it drops out of the top 50?",
+            "Which tracks on Spotify had the biggest single-day stream drop — possible signs of fading momentum?",
+        ],
+    },
+    "trending": {
+        "label": "Trending",
+        "icon": "🔥",
+        "questions": [
+            "What are the fastest-rising tracks on iTunes in the last 7 days — which songs gained the most chart positions?",
+            "Who are the trending artists this month, and which of them were outside the top 50 last month?",
+            "How do new track releases perform in their first week? Show debut stream numbers vs. week-1 average across all tracks.",
+            "Show the monthly trending movement for artists — who gained the most rank positions month over month on iTunes global?",
+            "Identify breakout artists: who had zero iTunes presence last month but entered the top 100 this month?",
+        ],
+    },
+    "rankings": {
+        "label": "Rankings",
+        "icon": "🏆",
+        "questions": [
+            "Which artists maintained a stable rank (no change) on iTunes for 3+ consecutive days — who has the most chart consistency?",
+            "Which artists have the highest follower counts on Spotify, and how does follower count correlate with daily stream volume?",
+            "Which artist has the most tracks simultaneously charting across all platforms today?",
+            "What is the rank distribution of tracks by artist — do certain artists cluster at the top or spread across positions?",
+            "Which songs are ranked #1 globally on both Spotify and iTunes today?",
+        ],
+    },
+    "cross_platform": {
+        "label": "Cross-platform",
+        "icon": "🌐",
+        "questions": [
+            "Which songs are ranked #1 globally on both Spotify and iTunes today — and which artists dominate both platforms simultaneously?",
+            "Compare Spotify streams vs. YouTube views for the same tracks — which platform performs better for each artist?",
+            "Build a cross-platform performance score for each artist using Spotify streams, iTunes rank, and YouTube views — who tops the leaderboard?",
+            "Which artist has the most tracks simultaneously charting across Spotify, iTunes, and YouTube today?",
+        ],
+    },
+    "geography": {
+        "label": "Geography",
+        "icon": "🗺️",
+        "questions": [
+            "Which artists appear in the top 20 on iTunes across the most countries — who has the broadest global reach?",
+            "Which countries produce the most iTunes chart entries — what are the top 5 markets by artist representation?",
+            "Which artists are charting in 10 or more countries on iTunes — who are the truly global acts in this dataset?",
+        ],
+    },
+}
 
 
 # ─── Secret / Config ──────────────────────────────────────────────────────────
@@ -207,7 +260,7 @@ def _claude_chat_json(
     model: str,
     system: str,
     user: str,
-    max_tokens: int = 1200,  # OPTIMIZATION 3: was 3000 — SQL plan JSON never needs 3000 tokens
+    max_tokens: int = 1200,
 ) -> Dict[str, Any]:
     client = _get_client(api_key)
     try:
@@ -722,11 +775,6 @@ def _enforce_safe_sql(candidate_sql: str) -> str:
 
 # ─── Query Plan ───────────────────────────────────────────────────────────────
 
-# ── OPTIMIZATION 4: PLAN_SYSTEM trimmed ~60% ──
-# Strategy: keep rules, cut prose. Replaced verbose paragraphs with compact bullets.
-# Removed: 12 long example queries (each ~30 tokens). Added 4 short inline examples.
-# Removed: redundant safety reminders already covered by _enforce_safe_sql().
-# Removed: verbose "TABLE SELECTION GUIDE" section → merged into compact bullets.
 PLAN_SYSTEM = f"""You are a music analytics SQL expert. Return ONLY a JSON query plan.
 
 Schema:
@@ -768,15 +816,10 @@ JSON response format (no explanation, no markdown):
 
 
 def _is_locally_handleable(question: str) -> bool:
-    """
-    OPTIMIZATION 5: Skip AI plan for questions the local router handles perfectly.
-    Returns True if question matches a simple pattern → use _local_plan() directly.
-    """
     q = question.lower()
     for pattern in LOCAL_PLAN_PATTERNS:
         if re.search(pattern, q):
             return True
-    # If artist is detected AND question uses simple intent words → local is fine
     if _find_artists_in_db(question):
         simple_intents = ["listener", "song", "album", "rank", "point", "countr", "stream", "detail", "profile"]
         if any(kw in q for kw in simple_intents):
@@ -786,8 +829,6 @@ def _is_locally_handleable(question: str) -> bool:
 
 def _generate_plan(question: str, api_key: Optional[str], model: str) -> Dict[str, Any]:
     """Generate query plan via Claude or fall back to local heuristics."""
-
-    # OPTIMIZATION 5: Route simple questions directly to local plan (no API call)
     if _is_locally_handleable(question):
         plan = _local_plan(question)
         plan["source"] = "local"
@@ -805,7 +846,7 @@ def _generate_plan(question: str, api_key: Optional[str], model: str) -> Dict[st
                 model,
                 system=PLAN_SYSTEM,
                 user=user_input,
-                max_tokens=1200,  # SQL plan JSON fits easily in 1200 tokens
+                max_tokens=1200,
             )
             if plan and plan.get("sql"):
                 sql_str = str(plan.get("sql", "")).strip()
@@ -1006,9 +1047,6 @@ def _generate_summary_stats(df: pd.DataFrame) -> Dict[str, Any]:
 
 # ─── Summarize ────────────────────────────────────────────────────────────────
 
-# ── OPTIMIZATION 6: SUMMARY_SYSTEM trimmed ~35% ──
-# Removed: redundant rules that were obvious from context
-# Kept: all accuracy-critical instructions
 SUMMARY_SYSTEM = """Music industry analyst. Write a 2-3 sentence executive summary.
 - Lead with the single most important number or finding.
 - Name specific artists/tracks from the data.
@@ -1040,15 +1078,13 @@ def _summarize_results(
 
     stats = _generate_summary_stats(df)
     row_count = stats["total_rows"]
-
-    # OPTIMIZATION 7: 3 rows preview (was 5) + tighter prompt = ~40 fewer input tokens per summary
     preview_csv = df.head(3).to_csv(index=False)
     return _claude_chat_text(
         api_key,
         model,
         system=SUMMARY_SYSTEM,
         user=f"Q: {question}\nRows: {row_count}\nData:\n{preview_csv}",
-        max_tokens=150,  # was 200 — 2-3 sentence summary never needs 200 tokens
+        max_tokens=150,
     ) or f"Found {row_count} results."
 
 
@@ -1062,24 +1098,12 @@ def _top_text_values(df: pd.DataFrame, column: str, limit: int = 3) -> List[str]
 
 
 def _default_dynamic_suggestions(question: str) -> List[str]:
-    pool = [
-        "What are the Top 5 tracks for FY2026?",
-        "What are the Top 5 songs last week with labels?",
-        "Who are the Top 20 artists by number of streams in FY2026?",
-        "What is the performance of this artist YTD across all countries?",
-        "Which artists are in Top 100 by number of tracks?",
-        "What are the number of tracks in Top 100 for each label last week?",
-        "What are the debut tracks in FY2026?",
-        "Which tracks are consistently in Top 10 over the last 10 weeks?",
-        "How many streams are required to enter Top 100 in FY2026?",
-        "Compare Top 10 artists in a table with percentage analysis",
-        "What are the Top 10 tracks in the previous 5 weeks?",
-        "Analyze last 5 weeks of track and label performance",
-        "Compare Top 5 tracks this week vs prior week",
-        "Which independent artist should be acquired and why?",
-    ]
-    start = abs(hash(question.strip().lower() or "music")) % len(pool)
-    return [pool[(start + offset) % len(pool)] for offset in range(3)]
+    """Return 3 starter suggestions cycling through all categories."""
+    all_questions = []
+    for cat in ["performance", "trending", "rankings", "cross_platform", "geography"]:
+        all_questions.extend(CATEGORIZED_SUGGESTIONS[cat]["questions"])
+    start = abs(hash(question.strip().lower() or "music")) % len(all_questions)
+    return [all_questions[(start + offset) % len(all_questions)] for offset in range(3)]
 
 
 def _push_suggestion(suggestions: List[str], suggestion: Optional[str], limit: int = 3) -> None:
@@ -1278,6 +1302,7 @@ def _reset_chat_session() -> None:
     st.session_state.ai_is_processing = False
     st.session_state.ai_active_question = None
     st.session_state.ai_token_usage = {"input_tokens": 0, "output_tokens": 0}
+    st.session_state.ai_selected_suggestion_category = "performance"
 
 
 def _derive_chat_title(question: str) -> str:
@@ -1341,18 +1366,22 @@ def _render_chat_shell(has_messages: bool, title: Optional[str]) -> None:
             </div>""",
             unsafe_allow_html=True,
         )
-        # if has_messages:
-        #     _render_token_badge()
     with right_col:
-        st.button("+ New chat", key="ai_new_chat_button", use_container_width=True,
-                  on_click=_reset_chat_session, disabled=not has_messages or st.session_state.get("ai_is_processing", False))
+        st.button(
+            "+ New chat",
+            key="ai_new_chat_button",
+            use_container_width=True,
+            on_click=_reset_chat_session,
+            disabled=not has_messages or st.session_state.get("ai_is_processing", False),
+        )
 
 
 def _render_empty_state() -> None:
-    starter_prompts = _default_dynamic_suggestions("start")
     _, center_col, _ = st.columns([1.2, 3.6, 1.2])
     with center_col:
         st.markdown('<div class="ai-empty-stage">', unsafe_allow_html=True)
+
+        # ── Hero headline ────────────────────────────────────────────────────
         st.markdown(
             """<div class="ai-hero-shell">
                 <div class="ai-hero-badge">AI Analyst</div>
@@ -1361,26 +1390,124 @@ def _render_empty_state() -> None:
             </div>""",
             unsafe_allow_html=True,
         )
+
+        # ── Search / prompt form ─────────────────────────────────────────────
         with st.form("ai_centered_prompt_form", clear_on_submit=True, border=False):
             question = st.text_input(
                 "Start a conversation",
                 placeholder="Ask about artists, listeners, rankings, countries, or trends",
                 label_visibility="collapsed",
-                disabled=st.session_state.get("ai_is_processing", False)
+                disabled=st.session_state.get("ai_is_processing", False),
             )
-            submitted = st.form_submit_button("Ask", disabled=st.session_state.get("ai_is_processing", False))
+            submitted = st.form_submit_button(
+                "Ask", disabled=st.session_state.get("ai_is_processing", False)
+            )
             if submitted and question.strip():
                 _queue_follow_up_question(question.strip())
                 st.rerun()
 
-        st.markdown('<div class="ai-starter-grid">', unsafe_allow_html=True)
-        starter_cols = st.columns(len(starter_prompts))
-        for idx, prompt in enumerate(starter_prompts):
-            with starter_cols[idx]:
-                st.button(prompt, key=f"starter_prompt_{idx}", use_container_width=True,
-                          on_click=_queue_follow_up_question, args=(prompt,),
-                          disabled=st.session_state.get("ai_is_processing", False))
-        st.markdown("</div></div>", unsafe_allow_html=True)
+        # ── Category suggestion grid ─────────────────────────────────────────
+        st.markdown(
+            """
+            <style>
+            .cat-container {
+                margin-top: 1.5rem;
+            }
+            .cat-buttons {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 0.5rem;
+                margin-bottom: 1rem;
+            }
+            .question-capsules {
+                display: flex;
+                overflow-x: auto;
+                gap: 0.6rem;
+                padding-bottom: 0.8rem;
+                scrollbar-width: thin;
+                scrollbar-color: rgba(130, 146, 219, .3) transparent;
+            }
+            .question-capsules::-webkit-scrollbar {
+                height: 4px;
+            }
+            .question-capsules::-webkit-scrollbar-thumb {
+                background: rgba(130, 146, 219, .3);
+                border-radius: 10px;
+            }
+            
+            /* Category buttons styling */
+            div.cat-btn-wrapper > div[data-testid="stButton"] > button {
+                border-radius: 20px !important;
+                padding: 0.4rem 1rem !important;
+                font-size: 0.85rem !important;
+                border: 1px solid rgba(130, 146, 219, .2) !important;
+                background: rgba(30, 38, 68, 0.4) !important;
+                color: #e5ebff !important;
+            }
+            div.cat-btn-wrapper > div[data-testid="stButton"] > button:hover {
+                border-color: rgba(130, 146, 219, .6) !important;
+                background: rgba(30, 38, 68, 0.8) !important;
+            }
+            div.cat-btn-active > div[data-testid="stButton"] > button {
+                background: rgba(123, 145, 255, 0.2) !important;
+                border-color: rgba(123, 145, 255, 0.5) !important;
+                color: #ffffff !important;
+                font-weight: 600 !important;
+            }
+
+            /* Question capsules styling */
+            div.q-capsule-wrapper > div[data-testid="stButton"] > button {
+                border-radius: 30px !important;
+                white-space: nowrap !important;
+                padding: 0.5rem 1.2rem !important;
+                font-size: 0.8rem !important;
+                background: rgba(18, 24, 43, 0.9) !important;
+                border: 1px solid rgba(130, 146, 219, 0.15) !important;
+                color: #cbd5f5 !important;
+                height: auto !important;
+                min-height: 0 !important;
+            }
+            div.q-capsule-wrapper > div[data-testid="stButton"] > button:hover {
+                border-color: rgba(123, 145, 255, 0.4) !important;
+                color: #ffffff !important;
+            }
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        if "ai_selected_suggestion_category" not in st.session_state or st.session_state.ai_selected_suggestion_category is None:
+            st.session_state.ai_selected_suggestion_category = "performance"
+
+        disabled = st.session_state.get("ai_is_processing", False)
+
+        # Render Category Buttons
+        cat_cols = st.columns(len(CATEGORIZED_SUGGESTIONS))
+        for idx, (cat_key, cat_data) in enumerate(CATEGORIZED_SUGGESTIONS.items()):
+            is_active = st.session_state.ai_selected_suggestion_category == cat_key
+            with cat_cols[idx]:
+                st.markdown(f'<div class="cat-btn-wrapper {"cat-btn-active" if is_active else ""}">', unsafe_allow_html=True)
+                if st.button(f"{cat_data['icon']} {cat_data['label']}", key=f"btn_cat_{cat_key}", use_container_width=True):
+                    st.session_state.ai_selected_suggestion_category = cat_key
+                    st.rerun()
+                st.markdown('</div>', unsafe_allow_html=True)
+
+        selected_cat = st.session_state.ai_selected_suggestion_category
+        if selected_cat and selected_cat in CATEGORIZED_SUGGESTIONS:
+            questions = CATEGORIZED_SUGGESTIONS[selected_cat]["questions"]
+            
+            # Show questions in rows of 3
+            for i in range(0, len(questions), 3):
+                batch = questions[i:i+3]
+                q_cols = st.columns(3)
+                for idx, q_text in enumerate(batch):
+                    with q_cols[idx]:
+                        st.markdown('<div class="q-capsule-wrapper">', unsafe_allow_html=True)
+                        if st.button(q_text, key=f"q_cap_{selected_cat}_{i+idx}", on_click=_queue_follow_up_question, args=(q_text,), disabled=disabled, use_container_width=True):
+                            pass
+                        st.markdown('</div>', unsafe_allow_html=True)
+
+        st.markdown("</div>", unsafe_allow_html=True)
 
 
 def _render_follow_up_suggestions(suggestions: List[str], message_key: str) -> None:
@@ -1391,10 +1518,15 @@ def _render_follow_up_suggestions(suggestions: List[str], message_key: str) -> N
     cols = st.columns(len(suggestions))
     for idx, suggestion in enumerate(suggestions):
         with cols[idx]:
-            st.button(suggestion, key=f"{message_key}_suggestion_{idx}",
-                      use_container_width=True, help="Click to explore this question",
-                      on_click=_queue_follow_up_question, args=(suggestion,),
-                      disabled=st.session_state.get("ai_is_processing", False))
+            st.button(
+                suggestion,
+                key=f"{message_key}_suggestion_{idx}",
+                use_container_width=True,
+                help="Click to explore this question",
+                on_click=_queue_follow_up_question,
+                args=(suggestion,),
+                disabled=st.session_state.get("ai_is_processing", False),
+            )
 
 
 def _latest_assistant_index(messages: list) -> Optional[int]:
@@ -1444,8 +1576,6 @@ def render_custom_chatbot() -> None:
         div[data-testid="stChatInput"]{padding-top:.85rem}
         div[data-testid="stChatInput"] textarea,div[data-testid="stChatInput"] input{border-radius:22px;
             background:rgba(24,29,50,.96);border:1px solid rgba(130,146,219,.12)}
-        div[data-testid="stButton"]>button[kind="secondary"]{border-radius:999px;
-            background:rgba(18,24,43,.92);border:1px solid rgba(130,146,219,.16);color:#e5ebff;font-weight:600}
         @media(max-height:860px){.ai-starter-grid{display:none}}
         </style>
         """,
@@ -1485,7 +1615,7 @@ def render_custom_chatbot() -> None:
                     try:
                         render_order = json.loads(render_order)
                     except Exception:
-                        render_order = [section.strip().lower() for section in render_order.split(",") if section.strip()]
+                        render_order = [s.strip().lower() for s in render_order.split(",") if s.strip()]
                 if not isinstance(render_order, list):
                     render_order = ["summary", "chart", "table"]
 
@@ -1522,7 +1652,10 @@ def render_custom_chatbot() -> None:
                 )
 
     if ss.ai_chat_messages or ss.ai_active_question:
-        chat_val = st.chat_input("Ask about artists, listeners, rankings, countries, or trends", disabled=ss.ai_is_processing)
+        chat_val = st.chat_input(
+            "Ask about artists, listeners, rankings, countries, or trends",
+            disabled=ss.ai_is_processing,
+        )
         if chat_val:
             ss.ai_active_question = chat_val
             ss.ai_is_processing = True
@@ -1548,7 +1681,9 @@ def render_custom_chatbot() -> None:
                     st.markdown(small_talk)
                     _render_follow_up_suggestions(suggestions, "assistant_current")
                     ss.ai_chat_messages.append({
-                        "role": "assistant", "content": small_talk, "suggestions": suggestions,
+                        "role": "assistant",
+                        "content": small_talk,
+                        "suggestions": suggestions,
                     })
                     ss.ai_is_processing = False
                     ss.ai_active_question = None
@@ -1601,20 +1736,36 @@ def render_custom_chatbot() -> None:
                                     pass
 
                 chart_spec = _choose_chart_spec(result_df, plan)
-                show_chart = plan.get("show_chart") if isinstance(plan.get("show_chart"), bool) else _should_render_chart(question, result_df, chart_spec)
-                show_table = plan.get("show_table") if isinstance(plan.get("show_table"), bool) else _wants_data_table(question, result_df)
-                show_summary = plan.get("show_summary") if isinstance(plan.get("show_summary"), bool) else True
+                show_chart = (
+                    plan.get("show_chart")
+                    if isinstance(plan.get("show_chart"), bool)
+                    else _should_render_chart(question, result_df, chart_spec)
+                )
+                show_table = (
+                    plan.get("show_table")
+                    if isinstance(plan.get("show_table"), bool)
+                    else _wants_data_table(question, result_df)
+                )
+                show_summary = (
+                    plan.get("show_summary")
+                    if isinstance(plan.get("show_summary"), bool)
+                    else True
+                )
 
                 render_order = plan.get("render_order", ["chart", "summary", "table"])
                 if isinstance(render_order, str):
                     try:
                         render_order = json.loads(render_order)
                     except Exception:
-                        render_order = [section.strip().lower() for section in render_order.split(",") if section.strip()]
+                        render_order = [s.strip().lower() for s in render_order.split(",") if s.strip()]
                 if not isinstance(render_order, list):
                     render_order = ["summary", "chart", "table"]
 
-                answer = _summarize_results(question, safe_sql, result_df, api_key, model) if show_summary else ""
+                answer = (
+                    _summarize_results(question, safe_sql, result_df, api_key, model)
+                    if show_summary
+                    else ""
+                )
                 suggestions = _build_follow_up_suggestions(question, result_df, api_key, model)
 
                 for section in render_order:
@@ -1646,14 +1797,22 @@ def render_custom_chatbot() -> None:
                 st.error(err)
                 suggestions = _build_follow_up_suggestions("artists")
                 _render_follow_up_suggestions(suggestions, "assistant_current")
-                ss.ai_chat_messages.append({"role": "assistant", "content": err, "suggestions": suggestions})
+                ss.ai_chat_messages.append({
+                    "role": "assistant",
+                    "content": err,
+                    "suggestions": suggestions,
+                })
 
             except Exception as exc:
                 err = f"I couldn't complete that request: {str(exc)}"
                 st.error(err)
                 suggestions = _build_follow_up_suggestions(question)
                 _render_follow_up_suggestions(suggestions, "assistant_current")
-                ss.ai_chat_messages.append({"role": "assistant", "content": err, "suggestions": suggestions})
+                ss.ai_chat_messages.append({
+                    "role": "assistant",
+                    "content": err,
+                    "suggestions": suggestions,
+                })
 
             ss.ai_is_processing = False
             ss.ai_active_question = None
