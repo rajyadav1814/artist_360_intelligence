@@ -43,7 +43,6 @@ ALLOWED_TABLES = {
     "scrape_runs",
     "spotify_daily",
     "itunes_daily",
-    "youtube_daily",
     "tracks",
     "track_rankings"
 }
@@ -57,7 +56,6 @@ trending_artists_monthly(id,artist_id,source,rank,rank_change,total_points,top_c
 artist_details(id,artist_id,page_title,snapshot_text,songs_count,albums_count,countries_count,top_songs,top_albums,top_countries,scraped_at,scrape_date)
 spotify_daily(id,date,country,rank,artist_title,days,peak,streams,streams_change,total_streams,label)
 itunes_daily(id,date,country,rank,artist_title,days,peak,points,points_change,total_points,label)
-youtube_daily(id,date,rank,video_title,views,likes,label)
 tracks(id,title,artist_id,release_date) [only 6 rows — avoid for general queries]
 track_rankings(id,track_id,rank,streams,fiscal_year,scrape_date)
 scrape_runs(id,source,status,rows_upserted,error_msg,started_at,finished_at)
@@ -150,7 +148,6 @@ CATEGORIZED_SUGGESTIONS = {
         "questions": [
             "Who are the top 10 artists by total Spotify streams right now, and how have their stream counts changed day over day?",
             "What is the cumulative total streams for each track on Spotify — which song has the highest all-time stream count?",
-            "On YouTube, which tracks have the most views today and what is the average daily view growth rate for the top 10?",
             "What is the average chart lifespan of a top-10 iTunes track before it drops out of the top 50?",
             "Which tracks on Spotify had the biggest single-day stream drop — possible signs of fading momentum?",
         ],
@@ -182,9 +179,8 @@ CATEGORIZED_SUGGESTIONS = {
         "icon": "🌐",
         "questions": [
             "Which songs are ranked #1 globally on both Spotify and iTunes today — and which artists dominate both platforms simultaneously?",
-            "Compare Spotify streams vs. YouTube views for the same tracks — which platform performs better for each artist?",
-            "Build a cross-platform performance score for each artist using Spotify streams, iTunes rank, and YouTube views — who tops the leaderboard?",
-            "Which artist has the most tracks simultaneously charting across Spotify, iTunes, and YouTube today?",
+            "Build a cross-platform performance score for each artist using Spotify streams and iTunes rank — who tops the leaderboard?",
+            "Which artist has the most tracks simultaneously charting across Spotify and iTunes today?",
         ],
     },
     "geography": {

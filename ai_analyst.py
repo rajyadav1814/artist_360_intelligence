@@ -66,15 +66,11 @@ def get_db_schema():
        - 'label' column contains the record label name.
        - Common countries: 'ww' (Worldwide), 'us'.
     
-    7. youtube_daily (date, rank, video_title, views, likes, label)
-       - Daily YouTube charts.
-       - 'label' column contains the record label name.
-    
-    8. artist_details (artist_id, page_title, songs_count, albums_count, countries_count, top_songs, top_albums, top_countries, scrape_date)
+    7. artist_details (artist_id, page_title, songs_count, albums_count, countries_count, top_songs, top_albums, top_countries, scrape_date)
        - Detailed artist stats. Joined with artists.id.
 
     Guidelines for SQL Generation:
-    - To get "Label Names", use the `label` column directly from `spotify_daily`, `itunes_daily`, or `youtube_daily`.
+    - To get "Label Names", use the `label` column directly from `spotify_daily` or `itunes_daily`.
     - "Last day" or "previous day" MUST use the max date: `date = (SELECT MAX(date) FROM spotify_daily)`.
     - "This week" or "last 7 days" MUST use: `date >= (SELECT MAX(date) FROM spotify_daily) - INTERVAL '7 days'`.
     - "2026" means `EXTRACT(YEAR FROM date) = 2026`.
@@ -101,7 +97,7 @@ def ask_bot(question):
     
     Important rules:
     1. Output ONLY the raw SQL query. No markdown, no explanation.
-    2. Use 'spotify_daily' as the primary table for streams and performance, unless itunes/youtube are explicitly requested.
+    2. Use 'spotify_daily' as the primary table for streams and performance, unless iTunes is explicitly requested.
     3. If label details are needed, select the 'label' column directly from 'spotify_daily'.
     4. "last day" / "previous day" / "today" MUST use `date = (SELECT MAX(date) FROM spotify_daily)`.
     5. CRITICAL: To query a specific artist in daily tables, use `artist_title ILIKE 'ArtistName -%'` to avoid collaborations. Do NOT use `ILIKE '%ArtistName%'`.

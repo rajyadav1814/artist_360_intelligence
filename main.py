@@ -24,14 +24,13 @@ from src.database.repository import (
     save_trending_artists,
     save_spotify_daily,
     save_itunes_daily,
-    save_youtube_daily,
     save_track_rankings_from_raw,
 )
 from src.scrapers.artist_details_scraper import scrape_artist_details
 from src.scrapers.itunes_scraper import scrape_itunes_global_artists
 from src.scrapers.spotify_scraper import scrape_spotify_artists
 from src.scrapers.trending_scraper import scrape_trending_artists_last_month
-from src.scrapers.daily_scraper import scrape_spotify_daily, scrape_itunes_daily, scrape_youtube_daily
+from src.scrapers.daily_scraper import scrape_spotify_daily, scrape_itunes_daily
 from src.scrapers.track_rankings_scraper import scrape_itunes_tracks
 from src.utils.logger import get_logger
 
@@ -99,7 +98,7 @@ def run_track_rankings():
 
 
 def run_daily_charts():
-    logger.info("=== Starting Daily Charts scrape (Spotify, iTunes, YouTube) ===")
+    logger.info("=== Starting Daily Charts scrape (Spotify, iTunes) ===")
     
     # Spotify Daily
     for country in ["global", "us"]:
@@ -122,16 +121,6 @@ def run_daily_charts():
         except Exception as exc:
             log_scrape_run(f"itunes_daily_{country}", "failed", error=str(exc))
             logger.error(f"iTunes Daily {country} failed: {exc}")
-
-    # YouTube Daily
-    try:
-        data = scrape_youtube_daily()
-        rows = save_youtube_daily(data)
-        log_scrape_run("youtube_daily", "success", rows)
-        logger.info(f"YouTube Daily complete: {rows} rows saved")
-    except Exception as exc:
-        log_scrape_run("youtube_daily", "failed", error=str(exc))
-        logger.error(f"YouTube Daily failed: {exc}")
 
 
 def run_all():

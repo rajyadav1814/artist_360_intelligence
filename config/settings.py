@@ -69,7 +69,6 @@ SPOTIFY_ARTISTS_URL = f"{BASE_URL}/spotify/artists.html"
 SPOTIFY_LISTENERS_URL = f"{BASE_URL}/spotify/listeners.html"
 SPOTIFY_DAILY_URL = f"{BASE_URL}/spotify/country/{{country}}_daily.html"
 ITUNES_DAILY_URL = f"{BASE_URL}/charts/itunes/{{country}}.html"
-YOUTUBE_DAILY_URL = f"{BASE_URL}/youtube/"
 
 HEADERS = {
     "User-Agent": (

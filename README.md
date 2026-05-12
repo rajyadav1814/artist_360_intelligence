@@ -7,7 +7,7 @@ A Python project to scrape music chart data from [kworb.net](https://kworb.net) 
 - Scrapes **Spotify Artists** (monthly listeners, peak data)
 - Scrapes **Artist Details** (songs, albums, **Latin American countries** snapshot)
 - Captures **Trending Artists for Last Month** (stored per calendar month)
-- Tracks **Daily Chart Performance** (Spotify & iTunes daily/weekly charts per country, YouTube top videos)
+- Tracks **Daily Chart Performance** (Spotify & iTunes daily/weekly charts per country)
 - Monitors **Track Rankings** (weekly chart positions and streams via `track_rankings`)
 - Manages **Labels & Discography** (Tracks, ISRC metadata, and label identification via AI)
 - Stores all data in PostgreSQL with full audit trail (`scrape_runs` table)
@@ -29,7 +29,6 @@ erDiagram
     artists ||--o{ trending_artists_monthly : "monthly trends"
     artists ||--o{ artist_details : "snapshots"
     artists ||--o{ tracks : "owns"
-    artists ||--o{ youtube_videos : "features"
     artists ||--o{ track_daily_stats : "daily track stats"
     
     tracks ||--o{ track_rankings : "charts"
@@ -70,15 +69,6 @@ erDiagram
         date chart_date
         date scrape_date
         timestamptz scraped_at
-    }
-
-    youtube_videos {
-        serial id PK
-        integer artist_id FK
-        text video_title
-        bigint views
-        bigint likes
-        date scrape_date
     }
 
     itunes_artist_rankings {
@@ -152,17 +142,6 @@ erDiagram
         timestamptz scraped_at
     }
 
-    youtube_daily {
-        serial id PK
-        date date
-        integer rank
-        text video_title
-        bigint views
-        bigint likes
-        varchar label
-        timestamptz scraped_at
-    }
-
     scrape_runs {
         serial id PK
         varchar source
@@ -181,16 +160,14 @@ erDiagram
 - **`tracks`**: Centralized track registry including ISRC, duration, and metadata. Label information is stored directly in daily charts.
 
 #### 2. Artist Performance
-- **`itunes_artist_rankings`**: Daily global weighted rankings with platform-wise points (iTunes, Spotify, Apple Music, Shazam, YouTube).
+- **`itunes_artist_rankings`**: Daily global weighted rankings with platform-wise points (iTunes, Spotify, Apple Music, Shazam).
 - **`spotify_artists`**: Monthly listeners and peak audience metrics.
 - **`trending_artists_monthly`**: Historical monthly leaderboards.
 - **`artist_details`**: Comprehensive snapshots (songs, albums, top countries, and counts).
-- **`youtube_videos`**: Video-level engagement metrics (views/likes) per artist.
 
 #### 3. Daily Chart Tables
 - **`spotify_daily`**: Daily Spotify chart entries per country (rank, streams, peak, streak days).
 - **`itunes_daily`**: Daily iTunes chart entries per country (rank, points, peak, streak days).
-- **`youtube_daily`**: Daily YouTube top video entries (rank, views, likes).
 
 #### 4. Track Performance
 - **`track_daily_stats`**: High-frequency performance data for specific tracks across platforms.
@@ -241,7 +218,7 @@ python3 main.py migrate
 | `python3 main.py scrape trending` | Trending artists (last month) only |
 | `python3 main.py scrape details [limit]` | Artist detail snapshots from kworb profile pages |
 | `python3 main.py scrape tracks` | Track rankings from kworb.net |
-| `python3 main.py scrape daily` | Daily charts (Spotify global/US, iTunes ww/US, YouTube) |
+| `python3 main.py scrape daily` | Daily charts (Spotify global/US, iTunes ww/US) |
 | `python3 main.py schedule` | Run daily at **10:55 UTC** |
 | `python3 main.py migrate` | Apply DB migrations |
 
@@ -280,5 +257,5 @@ The AI agent is restricted to querying only these tables:
 |------|-------------|
 | `001_create_tables.sql` | Core tables: `artists`, `itunes_artist_rankings`, `spotify_artists`, `trending_artists_monthly`, `scrape_runs` |
 | `002_create_artist_details.sql` | `artist_details` table |
-| `003_add_daily_tables.sql` | Daily chart tables: `spotify_daily`, `itunes_daily`, `youtube_daily` |
+| `003_add_daily_tables.sql` | Daily chart tables: `spotify_daily`, `itunes_daily` |
 | `004_create_track_rankings.sql` | `track_rankings` table with weekly chart data |

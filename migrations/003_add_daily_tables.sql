@@ -32,18 +32,7 @@ CREATE TABLE IF NOT EXISTS itunes_daily (
     UNIQUE (date, country, rank, artist_title)
 );
 
-CREATE TABLE IF NOT EXISTS youtube_daily (
-    id SERIAL PRIMARY KEY,
-    date DATE NOT NULL,
-    rank INTEGER,
-    video_title TEXT NOT NULL,
-    views BIGINT,
-    likes BIGINT,
-    scraped_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_spotify_daily_date ON spotify_daily(date, country);
 CREATE INDEX IF NOT EXISTS idx_itunes_daily_date ON itunes_daily(date, country);
-CREATE INDEX IF NOT EXISTS idx_youtube_daily_date ON youtube_daily(date);
 
