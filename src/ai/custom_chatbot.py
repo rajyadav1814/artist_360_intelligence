@@ -58,7 +58,7 @@ artist_details(id,artist_id,page_title,snapshot_text,songs_count,albums_count,co
 spotify_daily(id,date,country,rank,artist_title,days,peak,streams,streams_change,total_streams,label)
 itunes_daily(id,date,country,rank,artist_title,days,peak,points,points_change,total_points,label)
 youtube_daily(id,date,rank,video_title,views,likes,label)
-tracks(id,title,artist_id,release_date) [only 6 rows — avoid for general queries]
+tracks(id,title,artist_id,release_date)
 track_rankings(id,track_id,rank,streams,fiscal_year,scrape_date)
 scrape_runs(id,source,status,rows_upserted,error_msg,started_at,finished_at)
 
@@ -71,10 +71,10 @@ DANGEROUS_SQL_RE = re.compile(
     re.IGNORECASE,
 )
 TABLE_REF_RE = re.compile(
-    r"\b(?:from|join)\s+([a-z_][a-z0-9_\.]*)(?!\s*\()",
+    r"\b(?:from|join)\s+([a-z_][a-z0-9_\.]*)\b(?!\s*\()",
     re.IGNORECASE,
 )
-SQL_RESERVED_FROM = {"year", "month", "day", "hour", "minute", "second", "date", "week", "quarter"}
+SQL_RESERVED_FROM = {"year", "month", "day", "hour", "minute", "second", "date", "week", "quarter", "lateral"}
 CTE_NAME_RE = re.compile(r"(?:with|,)\s*([a-z_][a-z0-9_]*)\s+as\s*\(", re.IGNORECASE)
 LIMIT_RE = re.compile(r"\blimit\s+\d+\b", re.IGNORECASE)
 
@@ -508,7 +508,7 @@ def _local_plan(question: str) -> Dict[str, Any]:
     """Generate query plans locally without API calls."""
     q = question.lower()
 
-    _is_song_query = any(kw in q for kw in ["song", "songs", "track", "tracks"])
+    _is_song_query = any(kw in q for kw in ["song", "songs", "track", "tracks", "stream", "streams"])
     _is_daily_scope = any(kw in q for kw in ["last day", "yesterday", "today", "daily", "last 24"])
     if _is_top_intent(question) and _is_song_query and _is_daily_scope:
         limit = _extract_top_n(question) or 5
@@ -527,6 +527,68 @@ def _local_plan(question: str) -> Dict[str, Any]:
             "x": "artist_title",
             "y": "streams",
             "title": f"Top {limit} Songs — Last Day",
+            "show_chart": True,
+            "show_table": True,
+            "show_summary": True,
+            "render_order": ["summary", "chart", "table"],
+        }
+    
+    _is_fy_query = "fy" in q or "fiscal year" in q
+    _is_threshold_query = any(kw in q for kw in ["required", "threshold", "minimum", "need", "enter"])
+    
+    if _is_threshold_query and "top" in q and ("stream" in q or "listener" in q):
+        limit = _extract_top_n(question) or 100
+        if _is_fy_query:
+            year_match = re.search(r"\d{4}", q)
+            year = year_match.group(0) if year_match else "2026"
+            return {
+                "sql": f"""
+                    SELECT streams as streams_required, fiscal_year, rank
+                    FROM track_rankings
+                    WHERE fiscal_year = {year} AND rank = {limit}
+                    ORDER BY streams DESC
+                    LIMIT 1
+                """,
+                "title": f"Streams required for Top {limit} in FY{year}",
+                "show_chart": False,
+                "show_table": True,
+                "show_summary": True,
+                "render_order": ["summary", "table"],
+            }
+        else:
+            return {
+                "sql": f"""
+                    SELECT streams as streams_required, TO_CHAR(date, 'DD Mon YYYY') as date, rank
+                    FROM spotify_daily
+                    WHERE (country = 'global' OR country IS NULL) AND rank = {limit}
+                    ORDER BY date DESC
+                    LIMIT 1
+                """,
+                "title": f"Streams required for Top {limit} (Latest)",
+                "show_chart": False,
+                "show_table": True,
+                "show_summary": True,
+                "render_order": ["summary", "table"],
+            }
+
+    if _is_top_intent(question) and _is_song_query and _is_fy_query:
+        year_match = re.search(r"\d{4}", q)
+        year = year_match.group(0) if year_match else "2026"
+        limit = _extract_top_n(question) or 5
+        return {
+            "sql": f"""
+                SELECT DISTINCT ON (t.id) t.title, a.name as artist, tr.streams, tr.rank, tr.fiscal_year
+                FROM track_rankings tr
+                JOIN tracks t ON tr.track_id = t.id
+                JOIN artists a ON t.artist_id = a.id
+                WHERE tr.fiscal_year = {year}
+                ORDER BY t.id, tr.streams DESC
+                LIMIT {limit}
+            """,
+            "chart_type": "multi",
+            "x": "title",
+            "y": "streams",
+            "title": f"Top {limit} Tracks for FY{year}",
             "show_chart": True,
             "show_table": True,
             "show_summary": True,
@@ -788,7 +850,7 @@ Table routing:
 - daily track charts → spotify_daily (global: country='global') or itunes_daily (global: country='ww')
 - track history → track_rankings JOIN tracks
 - scrape activity → scrape_runs
-- NEVER use tracks table for general queries (only 6 rows)
+- tracks table contains track metadata (join with artists on artist_id)
 
 Key SQL rules:
 - SELECT/WITH only. LIMIT 10-30 default.
@@ -804,8 +866,8 @@ Key SQL rules:
 - Independent artists: label ILIKE '%Independent%'
 - rank_change is VARCHAR — cast to integer for numeric comparison
 - top_country = single best market; for full market list use artist_details.top_countries
-- Debut = release_date within requested period; else call it "catalog hit"
-- Percentage: value*100.0/SUM(value) OVER()
+- Debut/New entry: use days=1 in daily tables; 'release_date' is metadata only.
+- Percentage analysis: always include a column `value * 100.0 / SUM(value) OVER() AS percentage_share` in the SELECT clause.
 
 show_chart=true only if question asks for visual/trend/comparison/distribution.
 show_table=true for list/detail/raw data questions.
@@ -1078,7 +1140,7 @@ def _summarize_results(
 
     stats = _generate_summary_stats(df)
     row_count = stats["total_rows"]
-    preview_csv = df.head(3).to_csv(index=False)
+    preview_csv = df.head(15).to_csv(index=False)
     return _claude_chat_text(
         api_key,
         model,
@@ -1593,10 +1655,10 @@ def render_custom_chatbot() -> None:
     api_key = _resolve_api_key()
     model = _resolve_model()
 
-    if ss.ai_pending_question:
-        ss.ai_active_question = ss.ai_pending_question
-        ss.ai_pending_question = None
-        ss.ai_is_processing = True
+    if ss["ai_pending_question"]:
+        ss["ai_active_question"] = ss["ai_pending_question"]
+        ss["ai_pending_question"] = None
+        ss["ai_is_processing"] = True
 
     _render_chat_shell(bool(ss.ai_chat_messages), ss.ai_chat_title)
 
@@ -1644,31 +1706,31 @@ def render_custom_chatbot() -> None:
             if (
                 message["role"] == "assistant"
                 and msg_idx == latest_assistant_idx
-                and not ss.ai_pending_question
+                and not ss["ai_pending_question"]
             ):
                 _render_follow_up_suggestions(
                     message.get("suggestions", []),
                     message_key=f"assistant_{msg_idx}",
                 )
 
-    if ss.ai_chat_messages or ss.ai_active_question:
+    if ss["ai_chat_messages"] or ss["ai_active_question"]:
         chat_val = st.chat_input(
             "Ask about artists, listeners, rankings, countries, or trends",
-            disabled=ss.ai_is_processing,
+            disabled=ss["ai_is_processing"],
         )
         if chat_val:
-            ss.ai_active_question = chat_val
-            ss.ai_is_processing = True
+            ss["ai_active_question"] = chat_val
+            ss["ai_is_processing"] = True
             st.rerun()
 
-    question = ss.ai_active_question
+    question = ss["ai_active_question"]
     if not question:
         return
 
-    if not ss.ai_chat_messages:
-        ss.ai_chat_title = _derive_chat_title(question)
+    if not ss["ai_chat_messages"]:
+        ss["ai_chat_title"] = _derive_chat_title(question)
 
-    ss.ai_chat_messages.append({"role": "user", "content": question})
+    ss["ai_chat_messages"].append({"role": "user", "content": question})
     with st.chat_message("user", avatar="👤"):
         st.markdown(question)
 
@@ -1680,13 +1742,13 @@ def render_custom_chatbot() -> None:
                     suggestions = _build_follow_up_suggestions(question)
                     st.markdown(small_talk)
                     _render_follow_up_suggestions(suggestions, "assistant_current")
-                    ss.ai_chat_messages.append({
+                    ss["ai_chat_messages"].append({
                         "role": "assistant",
                         "content": small_talk,
                         "suggestions": suggestions,
                     })
-                    ss.ai_is_processing = False
-                    ss.ai_active_question = None
+                    ss["ai_is_processing"] = False
+                    ss["ai_active_question"] = None
                     st.rerun()
 
                 plan = _generate_plan(question, api_key, model)
@@ -1779,7 +1841,7 @@ def render_custom_chatbot() -> None:
 
                 _render_follow_up_suggestions(suggestions, "assistant_current")
 
-                ss.ai_chat_messages.append({
+                ss["ai_chat_messages"].append({
                     "role": "assistant",
                     "content": answer,
                     "chart_data": result_df.to_dict(orient="records"),
@@ -1797,7 +1859,7 @@ def render_custom_chatbot() -> None:
                 st.error(err)
                 suggestions = _build_follow_up_suggestions("artists")
                 _render_follow_up_suggestions(suggestions, "assistant_current")
-                ss.ai_chat_messages.append({
+                ss["ai_chat_messages"].append({
                     "role": "assistant",
                     "content": err,
                     "suggestions": suggestions,
@@ -1808,12 +1870,12 @@ def render_custom_chatbot() -> None:
                 st.error(err)
                 suggestions = _build_follow_up_suggestions(question)
                 _render_follow_up_suggestions(suggestions, "assistant_current")
-                ss.ai_chat_messages.append({
+                ss["ai_chat_messages"].append({
                     "role": "assistant",
                     "content": err,
                     "suggestions": suggestions,
                 })
 
-            ss.ai_is_processing = False
-            ss.ai_active_question = None
+            ss["ai_is_processing"] = False
+            ss["ai_active_question"] = None
             st.rerun()
