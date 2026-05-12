@@ -2,7 +2,7 @@ name: Daily Scrape
 
 on:
   schedule:
-    - cron: "15 12 * * *"  # 11:30 UTC daily
+    - cron: "0 * * * *"   # Runs every hour at minute 0
   workflow_dispatch:
 
 jobs:
@@ -31,5 +31,7 @@ jobs:
       - name: Run scraping pipeline
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          CLAUDE_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
+          CLAUDE_MODEL: ${{ secrets.CLAUDE_MODEL }}
           LOG_LEVEL: INFO
         run: python main.py scrape

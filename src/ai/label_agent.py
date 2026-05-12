@@ -1,5 +1,7 @@
 import json
 import os
+import time
+import random
 from typing import Dict, List, Optional
 import anthropic
 from dotenv import load_dotenv
@@ -49,16 +51,34 @@ def get_labels_batch(titles: List[str]) -> Dict[str, str]:
     5. Do not include any explanation or extra text.
     """
 
+    def _is_retryable_error(exc: Exception) -> bool:
+        message = str(exc).lower()
+        if hasattr(exc, "status_code") and getattr(exc, "status_code") in {429, 500, 502, 503, 504}:
+            return True
+        return any(token in message for token in ["overloaded", "rate limit", "timeout", "temporarily unavailable", "busy"])
+
+    def _create_with_retries(max_retries: int = 3):
+        for attempt in range(1, max_retries + 1):
+            try:
+                return client.messages.create(
+                    model=model,
+                    max_tokens=2000,
+                    system=system_prompt,
+                    messages=[
+                        {"role": "user", "content": f"Provide record labels for these titles:\n{titles_str}"}
+                    ]
+                )
+            except Exception as exc:
+                if attempt == max_retries or not _is_retryable_error(exc):
+                    raise
+                delay = (2 ** (attempt - 1)) + random.random()
+                logger.warning(
+                    f"Claude API retryable error on attempt {attempt}/{max_retries}: {exc}. Retrying in {delay:.1f}s."
+                )
+                time.sleep(delay)
+
     try:
-        response = client.messages.create(
-            model=model,
-            max_tokens=2000,
-            system=system_prompt,
-            messages=[
-                {"role": "user", "content": f"Provide record labels for these titles:\n{titles_str}"}
-            ]
-        )
-        
+        response = _create_with_retries()
         content = response.content[0].text if response.content else "{}"
         
         # Clean potential markdown formatting
