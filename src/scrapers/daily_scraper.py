@@ -5,8 +5,8 @@ from typing import List, Optional
 import pandas as pd
 from bs4 import BeautifulSoup
 
-from config.settings import ITUNES_DAILY_URL, SPOTIFY_DAILY_URL, YOUTUBE_DAILY_URL
-from src.database.models import ItunesDaily, SpotifyDaily, YoutubeDaily
+from config.settings import ITUNES_DAILY_URL, SPOTIFY_DAILY_URL
+from src.database.models import ItunesDaily, SpotifyDaily
 from src.utils.http_client import fetch_page
 from src.utils.logger import get_logger
 from src.utils.label_lookup import get_label
@@ -302,64 +302,6 @@ def scrape_itunes_daily(country: str = "us") -> List[ItunesDaily]:
         return results
     except Exception as e:
         logger.error(f"Failed to parse iTunes {country}: {e}")
-        return []
-
-
-def scrape_youtube_daily() -> List[YoutubeDaily]:
-    """Scrape YouTube top videos chart."""
-    from src.utils.label_lookup import get_labels_batch_optimized
-    logger.info(f"Scraping YouTube Daily from {YOUTUBE_DAILY_URL}...")
-    html = fetch_page(YOUTUBE_DAILY_URL)
-    if not html:
-        return []
-
-    try:
-        soup = BeautifulSoup(html, "lxml")
-        table = soup.find("table")
-        if not table:
-            return []
-
-        df = pd.read_html(io.StringIO(str(table)))[0]
-        today = date.today()
-        
-        # Pre-extract titles
-        titles = []
-        rows_to_process = []
-        for index, row in df.iterrows():
-            video = _get_column(row, ["Video", "Artist and Title"])
-            if not video or video == "Video":
-                continue
-            titles.append(video)
-            rows_to_process.append((index, row))
-
-        # Batch lookup labels
-        labels_map = get_labels_batch_optimized(titles)
-        
-        results = []
-        for i, (index, row) in enumerate(rows_to_process):
-            try:
-                rank = index + 1
-                video = titles[i]
-                views = _safe_int(row.get("Views", 0))
-                likes = _safe_int(row.get("Likes", 0))
-
-                results.append(
-                    YoutubeDaily(
-                        date=today,
-                        rank=rank,
-                        video_title=video,
-                        views=views,
-                        likes=likes,
-                        label=labels_map.get(video)
-                    )
-                )
-            except Exception as e:
-                continue
-
-        logger.info(f"Scraped {len(results)} rows for YouTube Daily")
-        return results
-    except Exception as e:
-        logger.error(f"Failed to parse YouTube Daily: {e}")
         return []
 
 

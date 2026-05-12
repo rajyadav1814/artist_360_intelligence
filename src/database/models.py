@@ -92,16 +92,6 @@ class ItunesDaily:
 
 
 @dataclass
-class YoutubeDaily:
-    date: date
-    video_title: str
-    rank: Optional[int] = None
-    views: Optional[int] = None
-    likes: Optional[int] = None
-    label: Optional[str] = None
-
-
-@dataclass
 class TrackRanking:
     track_id: int
     rank: int

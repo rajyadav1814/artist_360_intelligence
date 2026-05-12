@@ -9,6 +9,7 @@ import streamlit as st
 import streamlit.components.v1 as st_components
 
 from src.ai.custom_chatbot import render_custom_chatbot
+from src.ai.label_dashboard import render_label_dashboard
 from src.database.connection import get_connection
 from src.scrapers.artist_details_scraper import LATIN_AMERICAN_COUNTRIES
 from src.utils.image_utils import get_artist_image_url, get_fallback_avatar_url
@@ -52,6 +53,10 @@ PAGE_META = {
     "AI Data Analyst": (
         "AI Data Analyst",
         "Ask natural-language questions and get content + charts (Powered by Table Details Bot)",
+    ),
+    "Label Dashboard": (
+        "Label Market Pulse",
+        "Track performance by record label, market acquisition, and chart movement",
     ),
     "Ops Monitor": (
         "Ops Monitor",
@@ -3127,6 +3132,11 @@ def show_ai_analyst_page() -> None:
     render_custom_chatbot()
 
 
+def show_label_dashboard_page() -> None:
+    """Wrapper function for Label Dashboard page"""
+    render_label_dashboard()
+
+
 app_pages = [
     st.Page(
         show_leaderboard_page,
@@ -3152,6 +3162,12 @@ app_pages = [
         title="Stream Trends",
         icon=":material/show_chart:",
         url_path="stream-trends",
+    ),
+    st.Page(
+        show_label_dashboard_page,
+        title="Label Dashboard",
+        icon=":material/label:",
+        url_path="label-dashboard",
     ),
     st.Page(
         show_ai_analyst_page,
