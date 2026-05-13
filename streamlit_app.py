@@ -13,6 +13,7 @@ from src.database.connection import get_connection
 from src.scrapers.artist_details_scraper import LATIN_AMERICAN_COUNTRIES
 from src.utils.image_utils import get_artist_image_url, get_fallback_avatar_url
 from skeleton import render_dashboard_skeleton
+import requests
 
 
 st.set_page_config(
@@ -52,6 +53,10 @@ PAGE_META = {
     "AI Data Analyst": (
         "AI Data Analyst",
         "Ask natural-language questions and get content + charts (Powered by Table Details Bot)",
+    ),
+    "Artist Analysis": (
+        "Artist Analysis",
+        "Deep dive into artist performance, label distribution, market movement, and acquisition metrics",
     ),
     "Ops Monitor": (
         "Ops Monitor",
@@ -763,7 +768,7 @@ def load_dashboard_data() -> dict[str, pd.DataFrame]:
                 JOIN latest_run lr ON r.scraped_at = lr.ts
                 WHERE r.rank <= {TRACKER_TOP_ARTISTS}
             )
-            SELECT a.name, r.rank, r.scraped_at
+            SELECT a.name, r.rank, r.total_points, r.num_countries, r.scraped_at
             FROM itunes_artist_rankings r
             JOIN artists a ON a.id = r.artist_id
             WHERE r.artist_id IN (SELECT artist_id FROM top_artists)
@@ -788,6 +793,13 @@ def load_dashboard_data() -> dict[str, pd.DataFrame]:
             JOIN artists a ON a.id = r.artist_id
             WHERE r.rank = 1
             ORDER BY r.scrape_date DESC
+        """,
+        "raw_benchmarks": """
+            SELECT date as chart_date, rank, streams
+            FROM spotify_daily
+            WHERE country = 'global'
+            AND date >= (SELECT MAX(date) FROM spotify_daily) - INTERVAL '30 days'
+            ORDER BY date DESC, rank ASC
         """
     }
 
@@ -806,6 +818,8 @@ def load_dashboard_data() -> dict[str, pd.DataFrame]:
         frames["top_history"]["scrape_date"] = pd.to_datetime(frames["top_history"]["scrape_date"], errors="coerce")
     if not frames["longevity"].empty:
         frames["longevity"]["last_day_at_top"] = pd.to_datetime(frames["longevity"]["last_day_at_top"], errors="coerce")
+    if not frames["raw_benchmarks"].empty:
+        frames["raw_benchmarks"]["chart_date"] = pd.to_datetime(frames["raw_benchmarks"]["chart_date"], errors="coerce")
 
     leaderboard = frames["itunes"].merge(
         frames["spotify"][["name", "monthly_listeners", "peak_listeners"]],
@@ -836,6 +850,11 @@ def load_dashboard_data() -> dict[str, pd.DataFrame]:
         if col in leaderboard.columns:
             leaderboard[col] = pd.to_numeric(leaderboard[col], errors="coerce")
 
+    # Clean up page_title by removing redundant suffix
+    if "page_title" in leaderboard.columns:
+        suffix = " on Spotify, Apple Music and Other Streaming Services"
+        leaderboard["page_title"] = leaderboard["page_title"].str.replace(suffix, "", case=False, regex=False)
+
     leaderboard["top_song"] = leaderboard["top_songs"].fillna("").apply(
         lambda value: value.split("\n")[0].strip() if str(value).strip() else "—"
     )
@@ -863,6 +882,48 @@ def load_dashboard_data() -> dict[str, pd.DataFrame]:
     leaderboard["display_country"] = leaderboard["display_country"].replace("", "—")
     frames["leaderboard"] = leaderboard.sort_values("rank")
     return frames
+
+
+@st.cache_data(ttl=3600)
+def get_wikipedia_data(artist_name: str) -> dict | None:
+    """Fetch artist summary and metadata from Wikipedia."""
+    # 1. Search for the artist to get the exact title
+    search_url = "https://en.wikipedia.org/w/api.php"
+    search_params = {
+        "action": "query",
+        "list": "search",
+        "srsearch": f"{artist_name} musician",  # Add 'musician' to narrow down
+        "format": "json",
+        "srlimit": 1
+    }
+    
+    headers = {
+        "User-Agent": "Artist360Intelligence/1.0 (https://artist360.example.com; contact@example.com)"
+    }
+    
+    try:
+        r = requests.get(search_url, params=search_params, headers=headers, timeout=10)
+        r.raise_for_status()
+        search_results = r.json()
+        
+        if not search_results.get("query", {}).get("search"):
+            # Try without 'musician' if no results
+            search_params["srsearch"] = artist_name
+            r = requests.get(search_url, params=search_params, headers=headers, timeout=10)
+            search_results = r.json()
+            if not search_results.get("query", {}).get("search"):
+                return None
+            
+        title = search_results["query"]["search"][0]["title"]
+        
+        # 2. Get summary and metadata
+        summary_url = f"https://en.wikipedia.org/api/rest_v1/page/summary/{title.replace(' ', '_')}"
+        r = requests.get(summary_url, headers=headers, timeout=10)
+        r.raise_for_status()
+        return r.json()
+    except Exception as e:
+        # Silently fail or log, don't break the UI
+        return None
 
 
 def latest_source_rows(runs: pd.DataFrame) -> pd.DataFrame:
@@ -2476,6 +2537,42 @@ def render_debut_artist_chart(leaderboard: pd.DataFrame) -> None:
             st.markdown(f"**🌍 Top Country:** {escape(str(row.get('display_country') or '—'))}")
             st.markdown(f"**🎵 Top Song:** {escape(str(row.get('top_song') or '—'))}")
                 
+    # --- Wikipedia Bio Section (New) ---
+    wiki_data = get_wikipedia_data(row['name'])
+    if wiki_data:
+        with st.expander("📖 Wikipedia Biography & Background", expanded=True):
+            w_col1, w_col2 = st.columns([1, 2.5])
+            
+            with w_col1:
+                image_url = wiki_data.get("originalimage", {}).get("source") or wiki_data.get("thumbnail", {}).get("source")
+                if image_url:
+                    st.markdown(
+                        f"""
+                        <div style="border-radius: 12px; overflow: hidden; border: 1px solid var(--border); box-shadow: 0 10px 25px rgba(0,0,0,0.3); max-height: 320px; background: rgba(0,0,0,0.2); display: flex; justify-content: center;">
+                            <img src="{image_url}" style="max-width: 100%; max-height: 320px; object-fit: contain; display: block;">
+                        </div>
+                        """, 
+                        unsafe_allow_html=True
+                    )
+                    st.markdown("<br>", unsafe_allow_html=True)
+                
+                desc = wiki_data.get("description")
+                if desc:
+                    st.markdown(f"**Role:** {desc}")
+                
+                source_url = wiki_data.get("content_urls", {}).get("desktop", {}).get("page")
+                if source_url:
+                    st.markdown(f"[View on Wikipedia ↗️]({source_url})")
+
+            with w_col2:
+                st.markdown(f"#### {wiki_data.get('title')}")
+                extract = wiki_data.get("extract")
+                if extract:
+                    st.markdown(f"<div style='font-size: 0.95rem; line-height: 1.6; color: var(--text);'>{extract}</div>", unsafe_allow_html=True)
+                else:
+                    st.info("Detailed biography is currently being summarized...")
+
+    st.markdown("<br>", unsafe_allow_html=True)
     
     songs_items = [item.strip() for item in str(row.get("top_songs") or "").split("\n") if item.strip()]
     albums_items = [item.strip() for item in str(row.get("top_albums") or "").split("\n") if item.strip()]
@@ -3088,10 +3185,14 @@ leaderboard = data["leaderboard"]
 runs = data["runs"]
 history = data["history"]
 top_history = data.get("top_history", pd.DataFrame())
+raw_benchmarks = data.get("raw_benchmarks", pd.DataFrame())
 
 last_run_label = "n/a"
 if not runs.empty and runs["finished_at"].notna().any():
     last_run_label = runs["finished_at"].dropna().max().strftime("%Y-%m-%d %H:%M")
+
+
+
 
 
 def show_leaderboard_page() -> None:
@@ -3127,6 +3228,674 @@ def show_ai_analyst_page() -> None:
     render_custom_chatbot()
 
 
+def show_artist_analysis_page() -> None:
+    global raw_benchmarks
+    page_title, page_meta = PAGE_META["Artist Analysis"]
+    render_header(page_title, page_meta, last_run_label)
+    
+    # Create the requested sub-menu using tabs
+    tabs = st.tabs(["📊 Ranking", "👤 Artist", "🏷️ Label", "📈 Movement", "💰 Acquisition"])
+    
+    with tabs[0]:
+        # Calculate and Display Aggregate Streaming Metrics
+        if not raw_benchmarks.empty:
+            latest_date = raw_benchmarks['chart_date'].max()
+            latest_bench = raw_benchmarks[raw_benchmarks['chart_date'] == latest_date]
+            
+            t20_streams = latest_bench[latest_bench['rank'] <= 20]['streams'].sum()
+            t50_streams = latest_bench[latest_bench['rank'] <= 50]['streams'].sum()
+            t100_streams = latest_bench[latest_bench['rank'] <= 100]['streams'].sum()
+            
+            st.markdown(f"""
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 30px; margin-top: 10px;">
+                <div style="background: linear-gradient(135deg, rgba(79, 142, 247, 0.12) 0%, rgba(79, 142, 247, 0.05) 100%); border: 1px solid rgba(79, 142, 247, 0.25); border-radius: 16px; padding: 22px; text-align: center; box-shadow: 0 8px 32px rgba(0,0,0,0.15); transition: transform 0.3s ease;">
+                    <div style="color: #4f8ef7; font-size: 0.8rem; font-weight: 700; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 1.5px; opacity: 0.9;">Top 20 Total Streams</div>
+                    <div style="font-size: 2.2rem; font-weight: 800; color: #ffffff; text-shadow: 0 2px 4px rgba(0,0,0,0.3);">{fmt_short(t20_streams)}</div>
+                    <div style="color: #8fa3ad; font-size: 0.85rem; margin-top: 8px; font-weight: 500;">Market Leaders Volume</div>
+                </div>
+                <div style="background: linear-gradient(135deg, rgba(34, 211, 160, 0.12) 0%, rgba(34, 211, 160, 0.05) 100%); border: 1px solid rgba(34, 211, 160, 0.25); border-radius: 16px; padding: 22px; text-align: center; box-shadow: 0 8px 32px rgba(0,0,0,0.15); transition: transform 0.3s ease;">
+                    <div style="color: #22d3a0; font-size: 0.8rem; font-weight: 700; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 1.5px; opacity: 0.9;">Top 50 Total Streams</div>
+                    <div style="font-size: 2.2rem; font-weight: 800; color: #ffffff; text-shadow: 0 2px 4px rgba(0,0,0,0.3);">{fmt_short(t50_streams)}</div>
+                    <div style="color: #8fa3ad; font-size: 0.85rem; margin-top: 8px; font-weight: 500;">Mid-Chart Momentum</div>
+                </div>
+                <div style="background: linear-gradient(135deg, rgba(124, 92, 252, 0.12) 0%, rgba(124, 92, 252, 0.05) 100%); border: 1px solid rgba(124, 92, 252, 0.25); border-radius: 16px; padding: 22px; text-align: center; box-shadow: 0 8px 32px rgba(0,0,0,0.15); transition: transform 0.3s ease;">
+                    <div style="color: #7c5cfc; font-size: 0.8rem; font-weight: 700; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 1.5px; opacity: 0.9;">Top 100 Total Streams</div>
+                    <div style="font-size: 2.2rem; font-weight: 800; color: #ffffff; text-shadow: 0 2px 4px rgba(0,0,0,0.3);">{fmt_short(t100_streams)}</div>
+                    <div style="color: #8fa3ad; font-size: 0.85rem; margin-top: 8px; font-weight: 500;">Total Chart Reach</div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+        st.markdown("### 📊 Top Artist Rankings")
+        # Global filter already applied to 'leaderboard' via 'global_filtered' if we want consistency
+        # but here we use the full leaderboard for a broader view
+        top_n = st.slider("Show top N artists", 10, 100, 20)
+        top_df = leaderboard.sort_values("total_points", ascending=False).head(top_n)
+        
+        fig = px.bar(
+            top_df,
+            x="total_points",
+            y="name",
+            orientation="h",
+            title=f"Top {top_n} Artists by Total Points",
+            color="total_points",
+            color_continuous_scale="Blues",
+            labels={"total_points": "Points", "name": "Artist"}
+        )
+        fig.update_layout(yaxis={'categoryorder':'total ascending'})
+        style_figure(fig, 500)
+        st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CONFIG)
+        
+        st.markdown("#### 🏆 Artist Ranking List")
+        
+        # Professional Ranking Table with interactive buttons for reliable redirection
+        # Header
+        h1, h2, h3, h4, h5 = st.columns([0.6, 2, 1.2, 1.2, 1.2])
+        with h1: st.markdown("**Rank**")
+        with h2: st.markdown("**Artist Name**")
+        with h3: st.markdown("**Listeners**")
+        with h4: st.markdown("**Spotify Pts**")
+        with h5: st.markdown("**Action**")
+        
+        st.divider()
+        
+        # Display rows in a scrollable container for better UI
+        container_height = 500
+        with st.container(height=container_height):
+            for _, row in top_df.iterrows():
+                r1, r2, r3, r4, r5 = st.columns([0.6, 2, 1.2, 1.2, 1.2])
+                with r1: st.markdown(f"**#{row['rank']}**")
+                with r2: st.markdown(f"{row['name']}")
+                with r3: st.write(f"{fmt_short(row['monthly_listeners'])}" if pd.notna(row['monthly_listeners']) else "—")
+                with r4: st.write(f"{fmt_short(row['spotify_points'])}" if pd.notna(row['spotify_points']) else "—")
+                with r5:
+                    if st.button("Get Details ➔", key=f"btn_rank_{row['name']}", use_container_width=True):
+                        st.session_state.global_selected_artist = row['name']
+                        # Clear specific page state to ensure the dropdown updates
+                        if "debut_artist_select" in st.session_state:
+                            del st.session_state["debut_artist_select"]
+                        st.switch_page(app_pages[1])
+
+        
+        
+    with tabs[1]:
+        st.markdown("### 👤 Artist Performance Analysis")
+        selected = st.session_state.get("global_selected_artist", "All artists")
+        
+        if selected == "All artists":
+            st.markdown("#### 📋 Artist Directory")
+            st.info("Click on a top artist below or use the sidebar search to analyze specific performance metrics.")
+            
+            # Searchable inventory
+            search_q = st.text_input("🔍 Filter Artist List", placeholder="Search by name...", key="tab_artist_search")
+            
+            display_df = leaderboard.copy()
+            if search_q:
+                display_df = display_df[display_df["name"].str.contains(search_q, case=False, na=False)]
+            
+            st.dataframe(
+                display_df[["rank", "name", "display_country", "total_points", "monthly_listeners"]].sort_values("rank"),
+                column_config={
+                    "rank": "Rank",
+                    "name": "Artist Name",
+                    "display_country": "Market",
+                    "total_points": "Points",
+                    "monthly_listeners": "Listeners"
+                },
+                use_container_width=True,
+                hide_index=True,
+                height=400
+            )
+            
+            st.markdown("#### 🌟 Quick Analysis Select")
+            quick_cols = st.columns(4)
+            for idx, (_, row) in enumerate(leaderboard.head(12).iterrows()):
+                with quick_cols[idx % 4]:
+                    if st.button(f"{row['name']}", key=f"quick_tab_{row['name']}", use_container_width=True):
+                        st.session_state.global_selected_artist = row['name']
+                        st.rerun()
+        else:
+            artist_rows = leaderboard[leaderboard["name"] == selected]
+            if not artist_rows.empty:
+                row = artist_rows.iloc[0]
+                col1, col2, col3, col4 = st.columns(4)
+                col1.metric("Global Rank", f"#{row['rank']}")
+                col2.metric("Total Points", f"{row['total_points']:,}")
+                col3.metric("Monthly Listeners", fmt_short(row['monthly_listeners']) if pd.notna(row['monthly_listeners']) else "—")
+                col4.metric("Market Reach", f"{row['countries_count']} countries")
+                
+                # Wikipedia Bio (New)
+                wiki_data = get_wikipedia_data(selected)
+                if wiki_data:
+                    with st.expander("📖 Wikipedia Biography", expanded=False):
+                        w_c1, w_c2 = st.columns([1, 3])
+                        with w_c1:
+                            img_url = wiki_data.get("originalimage", {}).get("source") or wiki_data.get("thumbnail", {}).get("source")
+                            if img_url:
+                                st.markdown(
+                                    f"""
+                                    <div style="border-radius: 10px; overflow: hidden; border: 1px solid var(--border); max-height: 220px; background: rgba(0,0,0,0.2); display: flex; justify-content: center;">
+                                        <img src="{img_url}" style="max-width: 100%; max-height: 220px; object-fit: contain;">
+                                    </div>
+                                    """,
+                                    unsafe_allow_html=True
+                                )
+                        with w_c2:
+                            st.markdown(f"**{wiki_data.get('description', 'Artist')}**")
+                            st.write(wiki_data.get("extract", ""))
+                            if "content_urls" in wiki_data:
+                                st.markdown(f"[Read more on Wikipedia]({wiki_data['content_urls']['desktop']['page']})")
+
+                # Show history if available
+                artist_hist = history[history["name"] == selected]
+                if not artist_hist.empty:
+                    fig_hist = px.line(
+                        artist_hist, 
+                        x="scraped_at", 
+                        y="rank", 
+                        title=f"Rank Trajectory: {selected}",
+                        markers=True
+                    )
+                    fig_hist.update_yaxes(autorange="reversed")
+                    style_figure(fig_hist, 400)
+                    st.plotly_chart(fig_hist, use_container_width=True, config=PLOTLY_CONFIG)
+            else:
+                st.error(f"Data not found for {selected}")
+        
+    with tabs[2]:
+        st.markdown("### 🏷️ Label Market Intelligence")
+        st.info("Distribution of top artists across major record labels and independent groups.")
+        
+        # Artist-Label Mapping (Heuristic-based for Top Artists)
+        ARTIST_LABELS = {
+            "Bad Bunny": "Rimas Entertainment",
+            "Karol G": "Universal Music Latino",
+            "Shakira": "Sony Music Latin",
+            "J Balvin": "Universal Music Latino",
+            "Maluma": "Sony Music Latin",
+            "Rauw Alejandro": "Sony Music Latin",
+            "Peso Pluma": "Double P Records",
+            "Feid": "Universal Music Latino",
+            "Myke Towers": "Warner Music Latina",
+            "Anuel AA": "Real Hasta la Muerte",
+            "Daddy Yankee": "Universal Music Latino",
+            "Rosalía": "Sony Music (Columbia)",
+            "Bizarrap": "Dale Play Records",
+            "Ozuna": "Sony Music Latin",
+            "Farruko": "Sony Music Latin",
+            "Camilo": "Sony Music Latin",
+            "Sebastian Yatra": "Universal Music Latino",
+            "Christian Nodal": "Sony Music Latin",
+            "Luis Miguel": "Warner Music Latina",
+            "Enrique Iglesias": "Sony Music Latin",
+            "Marc Anthony": "Sony Music Latin",
+            "Ricky Martin": "Sony Music Latin",
+            "Romeo Santos": "Sony Music Latin",
+            "Prince Royce": "Sony Music Latin",
+            "Becky G": "Sony Music Latin",
+            "Natti Natasha": "Sony Music Latin",
+            "Junior H": "Warner Music Latina",
+            "Natanael Cano": "Warner Music Latina",
+            "Fuerza Regida": "Sony Music Latin",
+            "Eslabon Armado": "DEL Records",
+            "Young Miko": "The Wave Music Group",
+            "Tini": "Sony Music Latin",
+            "Maria Becerra": "Warner Music Latina",
+        }
+        
+        # Apply labels to leaderboard
+        label_df = leaderboard.copy()
+        label_df["label"] = label_df["name"].map(ARTIST_LABELS).fillna("Independent / Other")
+        
+        # Summarize by Label
+        label_summary = label_df.groupby("label").agg({
+            "name": "count",
+            "total_points": "sum"
+        }).reset_index().rename(columns={"name": "artist_count"})
+        
+        l_col1, l_col2 = st.columns([1, 1.2])
+        
+        with l_col1:
+            st.markdown("#### 📊 Market Share by Points")
+            fig_label = px.pie(
+                label_summary, 
+                values="total_points", 
+                names="label", 
+                hole=0.4,
+                color_discrete_sequence=CHART_COLORS
+            )
+            style_figure(fig_label, 350)
+            st.plotly_chart(fig_label, use_container_width=True, config=PLOTLY_CONFIG)
+            
+        with l_col2:
+            st.markdown("#### 🏢 Label Directory")
+            selected_label = st.selectbox("Select a Label to view Artists", ["All Labels"] + sorted(label_summary["label"].tolist()))
+            
+            if selected_label == "All Labels":
+                st.dataframe(label_summary.sort_values("artist_count", ascending=False), use_container_width=True, hide_index=True)
+            else:
+                artists_under_label = label_df[label_df["label"] == selected_label].sort_values("rank")
+                st.markdown(f"**Artists under {selected_label}:**")
+                for _, a_row in artists_under_label.iterrows():
+                    st.markdown(f"- **{a_row['name']}** (Rank #{a_row['rank']})")
+                    
+        st.divider()
+        st.markdown("#### 📈 Top Label Performance (Drill-down)")
+        st.info("Click on a label to see its full roster and top track performance.")
+        
+        # Sort labels by total points
+        sorted_labels = label_summary.sort_values("total_points", ascending=False)
+        
+        for _, l_row in sorted_labels.iterrows():
+            label_name = l_row["label"]
+            with st.expander(f"🏢 {label_name} — {l_row['artist_count']} Artists | {fmt_short(l_row['total_points'])} Points"):
+                label_artists = label_df[label_df["label"] == label_name].sort_values("rank")
+                
+                # Create a clean details table for the label
+                details_data = []
+                for _, a_row in label_artists.iterrows():
+                    details_data.append({
+                        "Artist": a_row["name"],
+                        "Top Track": a_row.get("top_song", "—"),
+                        "Total Streams (Pts)": f"{a_row['total_points']:,}"
+                    })
+                
+                st.dataframe(
+                    pd.DataFrame(details_data),
+                    use_container_width=True,
+                    hide_index=True
+                )
+                
+                if label_name != "Independent / Other":
+                    st.caption(f"💡 {label_name} currently manages {l_row['artist_count']} of the top 100 global Latin artists.")
+        
+    with tabs[3]:
+        st.markdown("### 📈 Market Movement")
+        st.info("Tracking momentum and significant rank shifts within the last 24 hours.")
+        
+        # Calculate some movement if possible
+        if "rank_change" in leaderboard.columns:
+            gainers = leaderboard[leaderboard["rank_change"].str.startswith("+", na=False)].copy()
+            if not gainers.empty:
+                gainers["change_val"] = pd.to_numeric(gainers["rank_change"].str.replace("+", "", regex=False), errors="coerce")
+                top_gainers = gainers.dropna(subset=["change_val"]).sort_values("change_val", ascending=False).head(10)
+                if not top_gainers.empty:
+                    st.markdown("#### 🚀 Top Gainers")
+                    st.dataframe(top_gainers[["name", "rank", "rank_change", "total_points"]], use_container_width=True, hide_index=True)
+            
+            # Top Losers
+            losers = leaderboard[leaderboard["rank_change"].str.startswith("-", na=False)].copy()
+            if not losers.empty:
+                losers["change_val"] = pd.to_numeric(losers["rank_change"].str.replace("-", "", regex=False), errors="coerce")
+                top_losers = losers.dropna(subset=["change_val"]).sort_values("change_val", ascending=False).head(10)
+                if not top_losers.empty:
+                    st.markdown("#### 📉 Top Losers")
+                    st.dataframe(top_losers[["name", "rank", "rank_change", "total_points"]], use_container_width=True, hide_index=True)
+            
+            if gainers.empty and losers.empty:
+                st.write("No significant movement detected in the current snapshot.")
+        
+        st.divider()
+        st.markdown("#### 🌊 Streaming Chart")
+        st.info("Daily stream counts required to enter specific chart positions.")
+        
+        # Using global raw_benchmarks
+        if not raw_benchmarks.empty:
+            # Row for filters
+            f_col1, f_col2 = st.columns([1, 1.2])
+            with f_col1:
+                rank_threshold = st.selectbox(
+                    "🎯 Select Chart Threshold",
+                    options=[10, 20, 50, 100, 200],
+                    index=3,
+                    help="Select the chart position to analyze (e.g., Top 100)."
+                )
+            with f_col2:
+                num_days = st.number_input(
+                    "📅 Days to analyze (1 = Today)",
+                    min_value=1,
+                    max_value=30,
+                    value=7,
+                    help="1 means only today, 2 means today & yesterday, etc."
+                )
+            
+            # Calculate benchmarks based on selection
+            benchmarks_full = raw_benchmarks[raw_benchmarks["rank"] <= rank_threshold].groupby("chart_date").agg(
+                min_streams_val=("streams", "min"),
+                max_streams_val=("streams", "max"),
+                avg_streams_val=("streams", "mean")
+            ).reset_index().rename(columns={
+                "min_streams_val": f"min_streams_top{rank_threshold}",
+                "max_streams_val": f"max_streams_top{rank_threshold}",
+                "avg_streams_val": f"avg_streams_top{rank_threshold}"
+            })
+            
+            # 1. Custom Metric Cards (Today vs Yesterday)
+            bench_sorted = benchmarks_full.sort_values("chart_date", ascending=False)
+            if len(bench_sorted) >= 2:
+                val_col = f"min_streams_top{rank_threshold}"
+                today_val = bench_sorted.iloc[0][val_col]
+                yesterday_val = bench_sorted.iloc[1][val_col]
+                avg_val = bench_sorted.iloc[0][f"avg_streams_top{rank_threshold}"]
+                max_val = bench_sorted.iloc[0][f"max_streams_top{rank_threshold}"]
+                delta = today_val - yesterday_val
+                
+                delta_color = "#ff4b4b" if delta > 0 else "#22d3a0" # Red for harder barrier, Green for easier
+                delta_icon = "↑" if delta > 0 else "↓"
+                
+                st.markdown(f"""
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 25px;">
+                    <div style="background: rgba(79, 142, 247, 0.05); border: 1px solid rgba(79, 142, 247, 0.2); border-radius: 12px; padding: 20px; text-align: center;">
+                        <div style="color: #4f8ef7; font-size: 0.85rem; font-weight: 600; margin-bottom: 8px;">TOP {rank_threshold} BARRIER</div>
+                        <div style="font-size: 1.8rem; font-weight: 700; color: white;">{int(today_val):,}</div>
+                        <div style="color: {delta_color}; font-size: 0.9rem; font-weight: 500; margin-top: 5px;">
+                            {delta_icon} {abs(int(delta)):,} <span style="color: #a1a1a1; font-size: 0.8rem;">vs yesterday</span>
+                        </div>
+                    </div>
+                    <div style="background: rgba(34, 211, 160, 0.05); border: 1px solid rgba(34, 211, 160, 0.2); border-radius: 12px; padding: 20px; text-align: center;">
+                        <div style="color: #22d3a0; font-size: 0.85rem; font-weight: 600; margin-bottom: 8px;">AVG TOP {rank_threshold} STREAMS</div>
+                        <div style="font-size: 1.8rem; font-weight: 700; color: white;">{int(avg_val):,}</div>
+                        <div style="color: #a1a1a1; font-size: 0.8rem; margin-top: 5px;">Current Global Momentum</div>
+                    </div>
+                    <div style="background: rgba(161, 161, 161, 0.05); border: 1px solid rgba(161, 161, 161, 0.2); border-radius: 12px; padding: 20px; text-align: center;">
+                        <div style="color: #a1a1a1; font-size: 0.85rem; font-weight: 600; margin-bottom: 8px;">GLOBAL #1 TRACK</div>
+                        <div style="font-size: 1.8rem; font-weight: 700; color: white;">{int(max_val):,}</div>
+                        <div style="color: #a1a1a1; font-size: 0.8rem; margin-top: 5px;">Peak Performance Benchmark</div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                st.info(f"💡 Entry Barrier Analysis: To crack the Top {rank_threshold} today, a track needs at least **{int(today_val):,}** streams.")
+            
+            # Apply time range filter for charts
+            benchmarks = benchmarks_full.sort_values("chart_date", ascending=False).head(int(num_days)).copy()
+            
+            # Horizontal Bar Chart
+            benchmarks["date_str"] = benchmarks["chart_date"].dt.strftime("%d %b %Y")
+            val_col = f"min_streams_top{rank_threshold}"
+            
+            fig_bench = px.bar(
+                benchmarks,
+                x=val_col,
+                y="date_str",
+                orientation="h",
+                title=f"Ranking: Min Streams Top{rank_threshold}",
+                color=val_col,
+                color_continuous_scale="Blues",
+                labels={val_col: "min_streams", "date_str": "chart_date"}
+            )
+            fig_bench.update_traces(
+                hovertemplate="<b>%{y}</b><br>Min Streams: %{x:,.0f}<extra></extra>"
+            )
+            fig_bench.update_layout(
+                yaxis={'categoryorder': 'total ascending'},
+                coloraxis_showscale=False
+            )
+            style_figure(fig_bench, 500)
+            st.plotly_chart(fig_bench, use_container_width=True, config=PLOTLY_CONFIG)
+            
+            # Secondary Charts: Trend analysis
+            period_label = f"{int(num_days)} Day{'s' if num_days > 1 else ''}"
+            st.markdown(f"#### 📈 Top {rank_threshold} Stream Trends ({period_label})")
+            fig_trend = px.line(
+                benchmarks.sort_values("chart_date"), 
+                x="chart_date", 
+                y=[f"min_streams_top{rank_threshold}", f"avg_streams_top{rank_threshold}"],
+                markers=True,
+                title=f"Min vs Avg Streams for Top {rank_threshold}",
+                labels={"value": "Streams", "variable": "Metric", "chart_date": "Date"}
+            )
+            fig_trend.update_layout(legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
+            style_figure(fig_trend, 350)
+            st.plotly_chart(fig_trend, use_container_width=True, config=PLOTLY_CONFIG)
+
+            # Prepare a clean dataframe for display
+            table_df = benchmarks[[
+                "chart_date", 
+                f"min_streams_top{rank_threshold}", 
+                f"max_streams_top{rank_threshold}", 
+                f"avg_streams_top{rank_threshold}"
+            ]].copy()
+            
+            table_df.columns = ["Date", "Min Streams", "Max Streams", "Avg Streams"]
+            table_df = table_df.dropna(subset=["Date"]).reset_index(drop=True)
+            table_df["Date"] = table_df["Date"].dt.strftime("%d %b %Y")
+
+            # 3. Custom Premium Data Table
+            st.markdown(f"#### 📋 Top {rank_threshold} Market Benchmarks")
+            st.caption(f"**Entry Barrier**: Min streams to enter Top {rank_threshold} | **Peak**: Global #1 track performance")
+            
+            # HTML for the data rows (No leading spaces to avoid markdown code block issues)
+            rows_html = ""
+            for _, row in table_df.iterrows():
+                rows_html += f"<tr>" \
+                             f"<td style='padding: 12px; font-style: italic; color: #a1a1a1;'>{row['Date']}</td>" \
+                             f"<td style='padding: 12px; text-align: right; font-weight: 600; color: #4f8ef7;'>{int(row['Min Streams']):,}</td>" \
+                             f"<td style='padding: 12px; text-align: right;'>{int(row['Max Streams']):,}</td>" \
+                             f"<td style='padding: 12px; text-align: right; color: #22d3a0;'>{int(row['Avg Streams']):,}</td>" \
+                             f"</tr>"
+            
+            table_html = f"""<div style="background: rgba(28, 32, 45, 0.4); border-radius: 12px; border: 1px solid rgba(151,163,197,0.1); padding: 10px; overflow-x: auto;">
+<table style="width: 100%; border-collapse: collapse; color: white; font-family: 'Inter', sans-serif; font-size: 0.95rem;">
+<thead>
+<tr style="border-bottom: 2px solid rgba(151,163,197,0.2); font-weight: bold;">
+<th style="padding: 12px; text-align: left; color: #a1a1a1;">📅 DATE</th>
+<th style="padding: 12px; text-align: right; color: #4f8ef7;">📉 ENTRY BARRIER</th>
+<th style="padding: 12px; text-align: right; color: #ffffff;">🚀 RANK #1 PEAK</th>
+<th style="padding: 12px; text-align: right; color: #22d3a0;">📊 TOP {rank_threshold} AVG</th>
+</tr>
+</thead>
+<tbody>
+{rows_html}
+</tbody>
+</table>
+</div>"""
+            st.markdown(table_html, unsafe_allow_html=True)
+        else:
+            st.warning("No benchmark data available. Please ensure the daily scraper is running.")
+        
+    with tabs[4]:
+        st.markdown("### 💰 Acquisition & Growth Intelligence")
+        st.info("Analyzing how effectively artists are acquiring new fans and expanding into global markets.")
+        
+        selected_artist = st.session_state.get("global_selected_artist", "All artists")
+        
+        # 1. Growth Velocity Summary
+        if selected_artist == "All artists":
+            st.markdown("#### 🚀 Global Growth Velocity")
+            # Calculate daily change in points for top artists
+            if not history.empty:
+                # Get latest and previous snapshot dates
+                dates = sorted(history["scraped_at"].unique())
+                if len(dates) >= 2:
+                    latest_date = dates[-1]
+                    prev_date = dates[-2]
+                    
+                    latest_snap = history[history["scraped_at"] == latest_date]
+                    prev_snap = history[history["scraped_at"] == prev_date]
+                    
+                    growth_df = latest_snap.merge(
+                        prev_snap[["name", "total_points", "num_countries"]], 
+                        on="name", 
+                        suffixes=("_now", "_prev")
+                    )
+                    growth_df["points_delta"] = growth_df["total_points_now"] - growth_df["total_points_prev"]
+                    growth_df["country_delta"] = growth_df["num_countries_now"] - growth_df["num_countries_prev"]
+                    
+                    top_growers = growth_df.sort_values("points_delta", ascending=False).head(10)
+                    
+                    c1, c2 = st.columns([2, 1])
+                    with c1:
+                        fig_growers = px.bar(
+                            top_growers,
+                            x="points_delta",
+                            y="name",
+                            orientation="h",
+                            title="Top 10 Points Gainers (Last 24h)",
+                            color="points_delta",
+                            color_continuous_scale="Viridis",
+                            labels={"points_delta": "Points Gained", "name": "Artist"}
+                        )
+                        style_figure(fig_growers, 400)
+                        st.plotly_chart(fig_growers, use_container_width=True, config=PLOTLY_CONFIG)
+                    
+                    with c2:
+                        st.markdown("#### 🌍 Market Expansion")
+                        new_markets = growth_df[growth_df["country_delta"] > 0].sort_values("country_delta", ascending=False)
+                        if not new_markets.empty:
+                            st.success(f"**{len(new_markets)}** artists acquired new countries!")
+                            for _, m_row in new_markets.head(5).iterrows():
+                                st.markdown(f"**{m_row['name']}**: +{int(m_row['country_delta'])} countries")
+                        else:
+                            st.write("No new market acquisitions detected in the last snapshot.")
+                else:
+                    st.warning("Insufficient historical data to calculate growth velocity.")
+            
+            st.divider()
+        
+        else:
+            # Artist-specific Acquisition
+            st.markdown(f"#### 👤 {selected_artist}: Acquisition Profile")
+            
+            artist_history = history[history["name"] == selected_artist]
+            if not artist_history.empty:
+                a_c1, a_c2 = st.columns(2)
+                
+                with a_c1:
+                    # Market Expansion Chart
+                    fig_market = px.line(
+                        artist_history,
+                        x="scraped_at",
+                        y="num_countries",
+                        title="Market Footprint (Country Count)",
+                        markers=True,
+                        color_discrete_sequence=["#22d3a0"]
+                    )
+                    style_figure(fig_market, 350)
+                    st.plotly_chart(fig_market, use_container_width=True, config=PLOTLY_CONFIG)
+                
+                with a_c2:
+                    # Points Growth Chart
+                    fig_points = px.area(
+                        artist_history,
+                        x="scraped_at",
+                        y="total_points",
+                        title="Points Accumulation Trend",
+                        color_discrete_sequence=["#4f8ef7"]
+                    )
+                    style_figure(fig_points, 350)
+                    st.plotly_chart(fig_points, use_container_width=True, config=PLOTLY_CONFIG)
+                
+                # ROI Metrics Table
+                st.markdown("#### 📊 ROI & Efficiency Metrics")
+                row = leaderboard[leaderboard["name"] == selected_artist].iloc[0]
+                
+                m1, m2, m3, m4 = st.columns(4)
+                
+                # Efficiency: Points per 1M Listeners
+                efficiency = (row['total_points'] / (row['monthly_listeners'] / 1_000_000)) if pd.notna(row['monthly_listeners']) and row['monthly_listeners'] > 0 else 0
+                m1.metric("Fan Efficiency", f"{efficiency:.1f}", help="Points generated per 1 million listeners.")
+                
+                # Market Penetration
+                penetration = row['num_countries']
+                m2.metric("Market Reach", f"{penetration} countries")
+                
+                # Best Rank Achieved
+                best = row.get('best_rank', row['rank'])
+                m3.metric("Peak Rank", f"#{best}")
+                
+                # Longevity
+                weeks = row.get('weeks_on_chart', 1)
+                m4.metric("Chart Longevity", f"{weeks} weeks")
+                
+                st.markdown(
+                    f"""
+                    <div style='background: rgba(79, 142, 247, 0.1); border: 1px solid rgba(79, 142, 247, 0.2); border-radius: 12px; padding: 20px; margin-top: 15px;'>
+                        <div style='font-weight: 600; color: #4f8ef7; margin-bottom: 10px;'>💡 Acquisition Insight</div>
+                        <div style='color: white; font-size: 0.95rem;'>
+                            {selected_artist} is currently maintaining a <b>{efficiency:.1f}</b> efficiency score across <b>{penetration}</b> countries. 
+                            The growth trajectory suggests a <b>{'positive' if len(artist_history) > 1 and artist_history.iloc[-1]['total_points'] > artist_history.iloc[0]['total_points'] else 'stable'}</b> 
+                            acquisition momentum over the last {len(artist_history)} snapshots.
+                        </div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
+            else:
+                st.warning(f"Historical acquisition data for {selected_artist} is still being collected.")
+
+        st.divider()
+        
+        # 4. 🛒 Quick Acquisition List
+        st.markdown("#### 🛒 Quick Acquisition Opportunities")
+        
+        # Add Day Filter
+        lookback_days = st.selectbox(
+            "📅 Analyze Growth Over",
+            options=[1, 7, 14, 30],
+            format_func=lambda x: f"Last {x} Day{'s' if x > 1 else ''}",
+            index=0,
+            help="Compare current performance with data from N days ago to identify growth trends."
+        )
+        
+        st.caption(f"Direct list of trending artists sorted by {lookback_days}d point accumulation for rapid decision-making.")
+        
+        # Logic to find the snapshot from N days ago
+        if not history.empty:
+            h_dates = sorted(history["scraped_at"].unique())
+            latest_d = h_dates[-1]
+            target_date = latest_d - pd.Timedelta(days=lookback_days)
+            past_dates = [d for d in h_dates if d <= target_date]
+            
+            if not past_dates:
+                prev_d = h_dates[0]
+                actual_days = (latest_d - prev_d).days
+            else:
+                prev_d = past_dates[-1]
+                actual_days = (latest_d - prev_d).days
+
+            # IMPORTANT: Use leaderboard as base to get ALL current artists
+            prev_h = history[history["scraped_at"] == prev_d]
+            
+            # Merge leaderboard with historical snapshot
+            acq_df = leaderboard.merge(
+                prev_h[["name", "total_points", "rank"]], 
+                on="name", 
+                how="left",
+                suffixes=("", "_prev")
+            )
+            
+            # Fill NaN for new entries
+            acq_df["total_points_prev"] = acq_df["total_points_prev"].fillna(0)
+            acq_df["monthly_listeners"] = acq_df["monthly_listeners"].fillna(0)
+            acq_df["rank"] = acq_df["rank"].fillna(0)
+            acq_df["pts_delta"] = acq_df["total_points"] - acq_df["total_points_prev"]
+            
+            # Sort by growth - showing ALL
+            acq_list = acq_df.sort_values("pts_delta", ascending=False)
+            
+            # HTML for the data rows
+            # HTML for the data rows - COMPACT & LEFT-ALIGNED
+            acq_rows_html = ""
+            for _, a_row in acq_list.iterrows():
+                color = "#22d3a0" if a_row['pts_delta'] > 0 else "#ff4b4b"
+                icon = "▲" if a_row['pts_delta'] > 0 else "▼"
+                ml = a_row['monthly_listeners']
+                if ml >= 1_000_000: listeners = f"{ml/1_000_000:.1f}M"
+                elif ml > 0: listeners = f"{int(ml/1000)}K"
+                else: listeners = "---"
+                
+                acq_rows_html += f"<tr style='border-bottom: 1px solid rgba(151,163,197,0.08);'><td style='padding: 16px 12px; color: #6e7681; font-weight: 700; width: 80px;'>#{int(a_row['rank'])}</td><td style='padding: 16px 12px; font-weight: 600; color: #ffffff;'>{a_row['name']}</td><td style='padding: 16px 12px; color: #4f8ef7; font-weight: 600;'>{listeners}</td><td style='padding: 16px 12px; text-align: right; color: {color}; font-weight: 700;'><span style='margin-right: 4px;'>{icon}</span>{int(a_row['pts_delta']):,} pts</td></tr>"
+            
+            # Full Table - COMPACT & LEFT-ALIGNED
+            acq_table_html = f"<div style='height: 600px; overflow-y: auto; border: 1px solid rgba(151,163,197,0.15); border-radius: 16px; background: #0d1117;'><table style='width: 100%; border-collapse: collapse; font-family: sans-serif;'><thead style='position: sticky; top: 0; background: #161b22; z-index: 10; border-bottom: 2px solid rgba(151,163,197,0.2);'><tr><th style='padding: 18px 12px; text-align: left; color: #8b949e; font-size: 0.75rem; text-transform: uppercase;'>Rank</th><th style='padding: 18px 12px; text-align: left; color: #8b949e; font-size: 0.75rem; text-transform: uppercase;'>Artist</th><th style='padding: 18px 12px; text-align: left; color: #8b949e; font-size: 0.75rem; text-transform: uppercase;'>Listeners</th><th style='padding: 18px 12px; text-align: right; color: #8b949e; font-size: 0.75rem; text-transform: uppercase;'>Growth ({actual_days}d)</th></tr></thead><tbody>{acq_rows_html}</tbody></table></div>"
+            
+            st.markdown(acq_table_html, unsafe_allow_html=True)
+        else:
+            st.warning("Historical data snapshots are currently unavailable. Please check back later.")
+
+
+# Define app pages after functions are defined
 app_pages = [
     st.Page(
         show_leaderboard_page,
@@ -3159,13 +3928,14 @@ app_pages = [
         icon=":material/smart_toy:",
         url_path="ai-data-analyst",
     ),
-    # st.Page(
-    #     show_ops_monitor_page,
-    #     title="Ops Monitor",
-    #     icon=":material/tune:",
-    #     url_path="ops-monitor",
-    # ),
+    st.Page(
+        show_artist_analysis_page,
+        title="Artist Analysis",
+        icon=":material/analytics:",
+        url_path="artist-analysis",
+    ),
 ]
+
 
 with st.sidebar:
     st.markdown(
