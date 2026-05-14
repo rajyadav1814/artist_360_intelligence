@@ -3406,7 +3406,8 @@ def show_artist_analysis_page() -> None:
                 with r5:
                     if st.button("Get Details ➔", key=f"btn_rank_{row['name']}", use_container_width=True):
                         st.session_state.global_selected_artist = row['name']
-                        st.session_state.analysis_sub_tab = "👤 Artist" # Direct to Artist tab
+                        # Set redirection flag for Artist Spotlight page
+                        st.session_state.redirect_to_page = "Artist Spotlight"
                         # Clear specific page state to ensure the dropdown updates
                         if "debut_artist_select" in st.session_state:
                             del st.session_state["debut_artist_select"]
@@ -4370,6 +4371,13 @@ with st.sidebar:
     
     # Proper sidebar routing for all dashboard views
     current_page = st.navigation(app_pages, position="sidebar", expanded=True)
+    
+    # Handle page redirection requests
+    if st.session_state.get("redirect_to_page"):
+        target_page_title = st.session_state.pop("redirect_to_page")
+        for pg in app_pages:
+            if getattr(pg, "title", "") == target_page_title:
+                st.switch_page(pg)
     
     # Collapsible advanced settings
     with st.expander("🔍 Search & Filter", expanded=True):
