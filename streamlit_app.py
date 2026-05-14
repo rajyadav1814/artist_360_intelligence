@@ -10,6 +10,7 @@ import streamlit.components.v1 as st_components
 
 from src.ai.custom_chatbot import render_custom_chatbot
 from src.ai.label_dashboard import render_pulse_report
+from src.ai.debut_dashboard import render_debut_tab
 from src.database.connection import get_connection
 from src.scrapers.artist_details_scraper import LATIN_AMERICAN_COUNTRIES
 from src.utils.image_utils import get_artist_image_url, get_fallback_avatar_url
@@ -26,8 +27,6 @@ st.set_page_config(
 # Initialize session state for interactivity
 if "auto_refresh" not in st.session_state:
     st.session_state.auto_refresh = False
-if "comparison_mode" not in st.session_state:
-    st.session_state.comparison_mode = False
 if "selected_artists" not in st.session_state:
     st.session_state.selected_artists = []
 if "show_advanced" not in st.session_state:
@@ -38,18 +37,18 @@ PAGE_META = {
         "Artist 360 Leaderboard",
         "Top Latin artists ranked by iTunes performance, Spotify reach, and global footprint",
     ),
-    "Artist Spotlight": (
-        "Artist Spotlight",
-        "View and analyze individual artist details and chart performance",
-    ),
+    # "Artist Spotlight": (
+    #     "Artist Spotlight",
+    #     "View and analyze individual artist details and chart performance",
+    # ),
     "Chart Tracker": (
         "Chart Tracker",
         "Historical rank trajectories for top artists, revealing trends and momentum",
     ),
-    "Stream Trends": (
-        "Stream Trends",
-        "Insights into streaming performance, growth patterns, and listener demographics",
-    ),
+    # "Stream Trends": (
+    #     "Stream Trends",
+    #     "Insights into streaming performance, growth patterns, and listener demographics",
+    # ),
     "AI Data Analyst": (
         "AI Data Analyst",
         "Ask natural-language questions and get content + charts (Powered by Table Details Bot)",
@@ -61,6 +60,10 @@ PAGE_META = {
     "Ops Monitor": (
         "Ops Monitor",
         "Operational dashboard showing recent data collection runs, their status, and performance metrics",
+    ),
+    "Debut Report": (
+        "Debut Report",
+        "Tracks all new chart entries across Spotify and iTunes for the current week",
     ),
 }
 
@@ -197,7 +200,70 @@ def apply_theme() -> None:
             font-size:1rem; font-weight:700; margin-bottom:.2rem;
             display: flex; align-items: center; gap: 0.5rem;
         }
-        .section-sub { color:var(--text2); font-size:.82rem; margin-bottom:.9rem; }
+        .section-sub { color:var(--text2); font-size:.82rem; margin-bottom:1rem; }
+        .dashboard-card {
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            padding: 1rem 1.15rem;
+            transition: all 0.25s ease;
+            box-shadow: 0 18px 36px rgba(0,0,0,.12);
+            margin-bottom: 1.5rem;
+        }
+        .dashboard-card a {
+            color: inherit;
+            text-decoration: none;
+        }
+        .artist-link {
+            color: var(--text);
+            text-decoration: none;
+            font-weight: 700;
+        }
+        .artist-link:hover {
+            color: #ffffff;
+            text-decoration: underline;
+        }
+        .table-wrap { margin-top: 1rem; overflow-x:auto; overflow-y:auto; max-height:620px; }
+        .leader-table { width:100%; border-collapse:collapse; font-size:.92rem; }
+        .leader-table thead th {
+            text-align:left; padding:.85rem .85rem; color:var(--text2); font-size:.72rem;
+            letter-spacing:.06em; text-transform:uppercase; border-bottom:1px solid var(--border);
+        }
+        .leader-table tbody td {
+            padding:.75rem .85rem; border-bottom:1px solid rgba(41,52,85,.72); vertical-align:middle;
+        }
+        .leader-table tbody tr:hover { 
+            background:rgba(79,142,247,.08); 
+            transform: scale(1.004);
+            box-shadow: 0 8px 20px rgba(79,142,247,.08);
+        }
+        .leader-table tbody tr {
+            transition: all 0.18s ease;
+        }
+        .pos-cell { color:#dbe4ff; font-weight:800; width:46px; }
+        .artist-cell { font-weight:700; }
+        .num-cell { text-align:right; font-variant-numeric:tabular-nums; }
+        .country-pill {
+            display:inline-block; padding:4px 10px; border-radius:999px; background:rgba(34,211,160,.12);
+            color:#8ff0cf; font-size:.75rem; font-weight:700;
+        }
+        .badge { 
+            display:inline-block; padding:6px 10px; border-radius:999px; 
+            font-size:.72rem; font-weight:800; transition: all 0.2s ease;
+            cursor: default;
+        }
+        .badge:hover {
+            transform: scale(1.05);
+        }
+        .badge-up { background:rgba(34,211,160,.14); color:#8ff0cf; }
+        .badge-up:hover { background:rgba(34,211,160,.25); }
+        .badge-dn { background:rgba(232,69,69,.14); color:#ff9c9c; }
+        .badge-dn:hover { background:rgba(232,69,69,.25); }
+        .badge-same { background:rgba(151,163,197,.14); color:#c4d0f3; }
+        .badge-new { 
+            background:rgba(79,142,247,.16); color:#b7d4ff;
+            animation: pulse 2s infinite;
+        }
         
         /* Interactive buttons */
         .action-btn {
@@ -276,19 +342,37 @@ def apply_theme() -> None:
             height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent3));
             border-radius: 999px; transition: width 1.5s cubic-bezier(0.4, 0, 0.2, 1);
         }
-        .table-wrap { overflow-x:auto; }
+        .table-wrap { margin-top: 1rem; overflow-x:auto; overflow-y:auto; max-height:640px; padding-right: 0.25rem; }
         table.leader-table { width:100%; border-collapse:collapse; font-size:.92rem; }
         .leader-table thead th {
-            text-align:left; padding:.7rem .75rem; color:var(--text2); font-size:.73rem;
-            letter-spacing:.06em; text-transform:uppercase; border-bottom:1px solid var(--border);
+            position: sticky;
+            top: 0;
+            z-index: 3;
+            text-align:left;
+            padding:.85rem .85rem;
+            color:var(--text2);
+            font-size:.73rem;
+            letter-spacing:.06em;
+            text-transform:uppercase;
+            border-bottom:1px solid var(--border);
+            background: rgba(9,17,39,0.95);
+            backdrop-filter: blur(5px);
         }
         .leader-table tbody td {
-            padding:.72rem .75rem; border-bottom:1px solid rgba(41,52,85,.72); vertical-align:middle;
+            padding:.75rem .85rem;
+            border-bottom:1px solid rgba(41,52,85,.72);
+            vertical-align:middle;
+        }
+        .leader-table tbody tr:nth-child(even) {
+            background: rgba(255,255,255,.02);
         }
         .leader-table tbody tr:hover { 
-            background:rgba(79,142,247,.10); 
-            transform: scale(1.01);
-            box-shadow: 0 4px 12px rgba(79,142,247,.15);
+            background:rgba(79,142,247,.14);
+            transform: none;
+            box-shadow: none;
+        }
+        .leader-table tbody tr {
+            transition: background 0.2s ease;
         }
         .leader-table tbody tr {
             transition: all 0.2s ease;
@@ -524,6 +608,18 @@ def apply_theme() -> None:
         .stPlotlyChart, div[data-testid="stDataFrame"], div[data-testid="stTable"] {
             width: 100% !important;
         }
+        .stPlotlyChart {
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            padding: 1rem;
+            box-shadow: 0 18px 36px rgba(0,0,0,.12);
+            margin-top: 1.25rem;
+            margin-bottom: 1.5rem;
+        }
+        .stPlotlyChart > div {
+            background: transparent !important;
+        }
         
         /* Buttons enhancement */
         .stButton button {
@@ -588,7 +684,7 @@ def apply_theme() -> None:
                 font-size: 0.88rem;
             }
             .dashboard-card {
-                padding: 0.9rem;
+                padding: 0.1rem;
                 border-radius: 14px;
             }
             .kpi-card {
@@ -911,10 +1007,10 @@ def style_figure(fig, height: int) -> None:
 def render_header(title: str, meta: str, last_run_label: str) -> None:
     st.markdown(
         f"""
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-            <div>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; gap: 1rem; flex-wrap: wrap;">
+            <div style="min-width: 320px;">
                 <div class='page-title' style='animation: slideIn 0.5s ease-out;'>{escape(title)}</div>
-                <div class='page-meta'>{escape(meta)}</div>
+                <div class='page-meta'>{escape(meta)} · Last run: {escape(last_run_label)}</div>
             </div>
             <div class="live-indicator">
                 <span class="live-dot"></span>
@@ -964,60 +1060,81 @@ def render_kpis(leaderboard: pd.DataFrame, runs: pd.DataFrame) -> None:
     except Exception:
         total_monthly = leaderboard.nlargest(300, "monthly_listeners")["monthly_listeners"].fillna(0).sum()    
         
+    total_artists = len(leaderboard)
     latam_artists = int(leaderboard["latam_signal"].sum()) if "latam_signal" in leaderboard else 0
-    
-    # Identify new entries
+    avg_listeners = float(leaderboard["monthly_listeners"].mean()) if total_artists > 0 else 0.0
+    top_markets = leaderboard["display_country"].replace("—", pd.NA).dropna().unique().tolist()
+    unique_markets = len(top_markets)
+
     new_mask = leaderboard["rank_change"].fillna("").eq("NEW")
     new_entries = int(new_mask.sum())
     
-    # Details for tooltip
     new_entries_details = ""
     if new_entries > 0:
         new_df = leaderboard[new_mask].sort_values("rank")
-        top_new_rank = int(new_df["rank"].iloc[0])
         details = []
         for _, row in new_df.iterrows():
-            details.append(f"<div style='display:flex;justify-content:space-between;gap:1.5rem;padding:2px 0;margin-bottom:2px;'><span>{escape(row['name'])}</span><span style='color:var(--accent3);font-weight:700;'>#{int(row['rank'])}</span></div>")
-        
-        new_entries_title = "New Chart Entries"
-        header_html = "<div style='display:flex;justify-content:space-between;padding:2px 0 6px;margin-bottom:6px;border-bottom:1px solid rgba(79,142,247,0.1);font-size:0.65rem;text-transform:uppercase;letter-spacing:0.03em;color:var(--accent);font-weight:700;'><span>Artist</span><span>Artist Rank</span></div>"
+            details.append(
+                f"<div style='display:flex;justify-content:space-between;gap:1.5rem;padding:4px 0;margin-bottom:4px;'>"
+                f"<span>{escape(str(row['name']))}</span>"
+                f"<span style='color:var(--accent3);font-weight:700;'>#{int(row['rank'])}</span>"
+                f"</div>"
+            )
+
+        header_html = "<div style='display:flex;justify-content:space-between;padding:2px 0 8px;margin-bottom:8px;border-bottom:1px solid rgba(79,142,247,0.1);font-size:0.72rem;text-transform:uppercase;letter-spacing:0.04em;color:var(--accent);font-weight:700;'><span>Artist</span><span>Rank</span></div>"
         new_entries_details = (
-            "<div style='position:sticky;top:-16px;background:rgba(13,20,38,1);padding:4px 0 12px;margin-bottom:12px;font-weight:800;font-size:0.75rem;text-transform:uppercase;color:var(--text2);letter-spacing:0.05em;z-index:10;border-bottom:1px solid rgba(79,142,247,0.15);'>"
+            "<div style='padding:0.85rem 0 0.35rem;color:var(--text2);font-size:0.78rem;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;'>"
             "New Chart Entries</div>"
             f"{header_html}"
             "<div>" + "".join(details) + "</div>"
         )
-    else:
-        new_entries_title = "New Chart Entries"
 
-    # Calculate progress percentages — top 300 artists sum ~24–30B
-    max_listeners = 30_000_000_000
-    listener_progress = min(100, (total_monthly / max_listeners * 100))
-    artist_progress = min(100, (latam_artists / len(leaderboard) * 100)) if len(leaderboard) > 0 else 0
-
-    cards = [
-        ("Spotify Monthly Listeners", fmt_short(total_monthly), "Live Spotify monthly listener sum", "", listener_progress, 
-         "<b>Total Ecosystem Reach</b><br>Combined monthly listeners across all tracked artists. This represents the total potential audience reach within the current dataset."),
-        ("Artists with LATAM Signals", str(latam_artists), "Currently visible in the regional cut", "kpi-green", artist_progress, 
-         "<b>Regional Market Presence</b><br>Count of artists currently appearing on charts in Latin American countries (Mexico, Colombia, Brazil, Argentina, etc.)."),
-        (new_entries_title, str(new_entries), "Fresh NEW movements in the latest run", "kpi-amber", 0, new_entries_details),
+    card_cols = st.columns([1, 1, 1, 1], gap='large')
+    card_defs = [
+        {
+            'label': 'Active artists',
+            'value': f"{total_artists:,}",
+            'style': 'kpi-green',
+            'note': f"{unique_markets} LATAM markets"
+        },
+        {
+            'label': 'LATAM signal',
+            'value': f"{latam_artists:,}",
+            'style': 'kpi-amber',
+            'note': f"{fmt_short(avg_listeners)} avg listeners"
+        },
+        {
+            'label': 'New entries',
+            'value': str(new_entries),
+            'style': 'kpi-red' if new_entries else 'kpi-green',
+            'note': 'Fresh chart momentum' if new_entries else 'No new entries'
+        },
+        {
+            'label': 'Pipeline health',
+            'value': f"{success_rate:.0f}%",
+            'style': 'kpi-green' if success_rate >= 90 else 'kpi-amber',
+            'note': f"{len(runs)} recent runs"
+        },
     ]
-    cols = st.columns(len(cards))
-    for col, (label, value, delta, klass, progress, tooltip_text) in zip(cols, cards):
-        tooltip_html = f'<div class="tooltiptext">{tooltip_text}</div>' if tooltip_text else ''
-        tooltip_class = 'tooltip' if tooltip_text else ''
-        progress_html = f'<div class="progress-bar"><div class="progress-fill" style="width:{progress}%"></div></div>' if progress > 0 else ''
-        
-        # Build the HTML string without leading spaces to avoid markdown code block interpretation
-        card_html = (
-            f'<div class="kpi-card {klass} {tooltip_class}">'
-            f'<div class="kpi-label">{escape(label)}</div>'
-            f'<div class="kpi-value">{escape(value)}</div>'
-            f'<div class="kpi-delta">{escape(delta)}</div>'
-            f'{progress_html}{tooltip_html}'
-            f'</div>'
+
+    for col, card in zip(card_cols, card_defs):
+        col.markdown(
+            f"""
+            <div class='kpi-card {card['style']}'>
+                <div class='kpi-label'>{escape(card['label'])}</div>
+                <div class='kpi-value'>{escape(card['value'])}</div>
+                <div class='kpi-delta'>{escape(card['note'])}</div>
+                <div class='progress-bar'><div class='progress-fill' style='width:{min(100, (total_monthly / 30_000_000_000 * 100) if card['label'] == 'Active artists' else (success_rate if card['label'] == 'Pipeline health' else 100))}%;'></div></div>
+            </div>
+            """,
+            unsafe_allow_html=True,
         )
-        col.markdown(card_html, unsafe_allow_html=True)
+
+    if new_entries > 0:
+        with st.expander(f"📌 {new_entries} new leaderboard entries", expanded=False):
+            st.markdown(new_entries_details, unsafe_allow_html=True)
+    else:
+        st.info("No new chart entries were added in the latest scrape.")
 
 
 def prepare_leaderboard_table(leaderboard: pd.DataFrame, max_rows: int) -> pd.DataFrame:
@@ -1029,10 +1146,8 @@ def prepare_leaderboard_table(leaderboard: pd.DataFrame, max_rows: int) -> pd.Da
             "top_country",
             "monthly_listeners",
             "peak_listeners",
-            # "rank_change",
         ]
     ].copy()
-    # table_df["rank_change"] = table_df["rank_change"].fillna("=").replace("", "=")
     table_df["monthly_listeners"] = table_df["monthly_listeners"].apply(fmt_short)
     table_df["peak_listeners"] = table_df["peak_listeners"].apply(fmt_short)
     table_df.columns = [
@@ -1042,23 +1157,69 @@ def prepare_leaderboard_table(leaderboard: pd.DataFrame, max_rows: int) -> pd.Da
         "Top Country",
         "Monthly Listeners",
         "Peak Listeners",
-        # "Trend",
     ]
     return table_df
 
 
-def set_leaderboard_view(view_name: str) -> None:
-    st.session_state.leaderboard_view = view_name
-    st.session_state.comparison_mode = False
+def render_leaderboard_table_html(leaderboard: pd.DataFrame, max_rows: int) -> None:
+    table_df = leaderboard.head(max_rows).copy()
+    rows_html = []
+    for _, row in table_df.iterrows():
+        rank = int(row["rank"]) if pd.notna(row["rank"]) else "—"
+        rank_change = trend_badge_html(str(row.get("rank_change") or ""))
+        artist_name = str(row.get("name") or "—")
+        artist_link = str(row.get("profile_url") or "")
+        artist_html = (
+            f"<a href=\"{escape(artist_link)}\" target=\"_blank\" class=\"artist-link\">{escape(artist_name)}</a>"
+            if artist_link
+            else escape(artist_name)
+        )
+        top_song = str(row.get("top_song") or "—").strip()
+        top_song_label = escape(top_song if len(top_song) <= 40 else top_song[:38] + "…")
+        top_song_html = f"<span title=\"{escape(top_song)}\">{top_song_label}</span>"
+        country = str(row.get("display_country") or "—").strip()
+        country_html = f"<span class='country-pill'>{escape(country)}</span>" if country and country != "—" else "—"
+        monthly = fmt_short(row.get("monthly_listeners"))
+        peak = fmt_short(row.get("peak_listeners"))
+        points = fmt_short(row.get("total_points"))
 
+        rows_html.append(
+            f"<tr>"
+            f"<td class='pos-cell'>{rank}</td>"
+            f"<td class='artist-cell'>{artist_html}<div class='small-note'>{rank_change}</div></td>"
+            f"<td>{top_song_html}</td>"
+            f"<td>{country_html}</td>"
+            f"<td class='num-cell'>{monthly}</td>"
+            f"<td class='num-cell'>{peak}</td>"
+            f"<td class='num-cell'>{points}</td>"
+            f"</tr>"
+        )
 
-def toggle_comparison_mode() -> None:
-    is_enabled = not st.session_state.get("comparison_mode", False)
-    st.session_state.comparison_mode = is_enabled
-    if is_enabled:
-        st.session_state.leaderboard_view = "compare"
-    elif st.session_state.get("leaderboard_view") == "compare":
-        st.session_state.leaderboard_view = "📋 Table"
+    html = f"""
+    <div class='dashboard-card'>
+        <div class='section-title'>📊 Leaderboard table</div>
+        <div class='section-sub'>Scroll through the latest rank, listener, and points data in one place.</div>
+        <div class='table-wrap' style='max-height:620px; overflow-x:auto; overflow-y:auto;'>
+            <table class='leader-table'>
+                <thead>
+                    <tr>
+                        <th>Rank</th>
+                        <th>Artist</th>
+                        <th>Top song</th>
+                        <th>Top market</th>
+                        <th>Monthly listeners</th>
+                        <th>Peak listeners</th>
+                        <th>Points</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {''.join(rows_html)}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    """
+    st.markdown(html, unsafe_allow_html=True)
 
 
 def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: int) -> None:
@@ -1066,184 +1227,82 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
         st.warning("No leaderboard data available yet. Run the scraper first.")
         return
 
-    render_kpis(leaderboard, runs)
-    
-    st.markdown("<br>", unsafe_allow_html=True)
+    left, right = st.columns([1.8, 1.4], gap="large")
 
-    # Keep all five controls in one row: Table, Analysis, Compare, Download
-    csv = leaderboard.head(max_rows).to_csv(index=False)
-    selected_view = st.session_state.get("leaderboard_view", "📋 Table")
-    btn_col1, btn_col2, btn_col3, btn_col4, btn_col5 = st.columns(5, gap="small")
-    with btn_col1:
-        st.button(
-            "📋 Table",
-            use_container_width=True,
-            type="primary" if selected_view == "📋 Table" else "secondary",
-            key="view_table_btn",
-            on_click=set_leaderboard_view,
-            args=("📋 Table",),
+    with left:
+        total_artists = len(leaderboard)
+        avg_listeners = fmt_short(float(leaderboard["monthly_listeners"].mean())) if total_artists else "—"
+        top_markets = [c for c in leaderboard["display_country"].unique().tolist() if c and c != "—"]
+        market_text = f"{len(top_markets)} LATAM markets" if top_markets else "No market data"
+
+        st.markdown(
+            f"<div class='dashboard-card'><div class='section-title'>📌 Leaderboard snapshot</div><div class='section-sub'>Showing <strong>{total_artists}</strong> artists, across <strong>{len(top_markets)}</strong> Latin American markets, with an average reach of <strong>{escape(str(avg_listeners))}</strong> listeners.</div></div>",
+            unsafe_allow_html=True,
         )
-    with btn_col2:
-        st.button(
-            "📈 Analysis",
-            use_container_width=True,
-            type="primary" if selected_view == "📈 Analysis" else "secondary",
-            key="view_analysis_btn",
-            on_click=set_leaderboard_view,
-            args=("📈 Analysis",),
-        )
-    # with btn_col3:
-    #     st.button(
-    #         "🎯 Spotlight",
-    #         use_container_width=True,
-    #         type="primary" if selected_view == "🎯 Spotlight" else "secondary",
-    #         key="view_spotlight_btn",
-    #         on_click=set_leaderboard_view,
-    #         args=("🎯 Spotlight",),
-    #     )
-    with btn_col3:
-        st.button(
-            "📊 Compare",
-            use_container_width=True,
-            type="primary" if st.session_state.get("comparison_mode", False) else "secondary",
-            key="compare_btn",
-            on_click=toggle_comparison_mode,
-        )
+        render_leaderboard_table_html(leaderboard, max_rows)
 
-    st.markdown("<br>", unsafe_allow_html=True)
-
-    # Comparison Mode
-    if st.session_state.comparison_mode:
-        st.markdown("### 🔄 Artist Comparison Mode")
-        st.info("Select 2-5 artists to compare their metrics side by side")
-
-        available_artists = leaderboard["name"].dropna().tolist()[:20]  # Limit to top 20 for performance
-        selected_for_comparison = st.multiselect(
-            "Select artists to compare",
-            available_artists,
-            default=available_artists[:2] if len(available_artists) >= 2 else available_artists,
-            max_selections=5,
-            key="comparison_artists"
-        )
-
-        if len(selected_for_comparison) >= 2:
-            comparison_data = leaderboard[leaderboard["name"].isin(selected_for_comparison)].copy()
-            comparison_data = comparison_data.sort_values("rank")
-            comparison_data["monthly_label"] = comparison_data["monthly_listeners"].apply(fmt_short)
-
-            # Comparison metrics
-            comp_cols = st.columns(len(selected_for_comparison))
-            for idx, (col, artist_name) in enumerate(zip(comp_cols, selected_for_comparison)):
-                artist_data = comparison_data[comparison_data["name"] == artist_name].iloc[0]
-                with col:
-                    st.markdown(f"#### {artist_name}")
-                    st.metric("Rank", f"#{int(artist_data['rank'])}")
-                    st.metric("Monthly Listeners", fmt_short(artist_data.get('monthly_listeners', 0)))
-                    songs_count = artist_data.get('songs_count', 0)
-                    st.metric("Songs", int(songs_count) if pd.notna(songs_count) else 0)
-                    countries_count = artist_data.get('countries_count', 0)
-                    st.metric("LATAM Countries", int(countries_count) if pd.notna(countries_count) else 0)
-
-            # Visual comparison
-            st.markdown("#### 📊 Visual Comparison")
-            comp_col1, comp_col2 = st.columns(2, gap="large")
-
-            with comp_col1:
-                # Monthly listeners comparison
-                fig_comp_listeners = px.bar(
-                    comparison_data,
-                    x="name",
-                    y="monthly_listeners",
-                    text="monthly_label",
-                    title="Monthly Listeners Comparison",
-                    labels={'monthly_listeners': 'Monthly Listeners', 'name': 'Artist'},
-                    color_discrete_sequence=CHART_COLORS
-                )
-                fig_comp_listeners.update_traces(
-                    marker_color=CHART_COLORS[0],
-                    textposition="outside",
-                    cliponaxis=False,
-                    hovertemplate="<b>%{x}</b><br>Monthly listeners: %{y:,.0f}<extra></extra>",
-                )
-                fig_comp_listeners.update_layout(
-                    showlegend=False,
-                    xaxis_title="",
-                    yaxis_title="Monthly listeners",
-                    margin=dict(l=8, r=8, t=64, b=8),
-                )
-                fig_comp_listeners.update_yaxes(tickformat="~s")
-                style_figure(fig_comp_listeners, 300)
-                st.plotly_chart(fig_comp_listeners, use_container_width=True, config=PLOTLY_CONFIG)
-
-            with comp_col2:
-                # LATAM reach comparison
-                fig_comp_reach = px.bar(
-                    comparison_data,
-                    x="name",
-                    y="countries_count",
-                    text="countries_count",
-                    title="LATAM Country Reach",
-                    labels={'countries_count': 'Countries', 'name': 'Artist'},
-                    color_discrete_sequence=CHART_COLORS
-                )
-                fig_comp_reach.update_traces(
-                    marker_color=CHART_COLORS[1],
-                    textposition="outside",
-                    cliponaxis=False,
-                    hovertemplate="<b>%{x}</b><br>LATAM countries: %{y}<extra></extra>",
-                )
-                fig_comp_reach.update_layout(
-                    showlegend=False,
-                    xaxis_title="",
-                    yaxis_title="Countries",
-                    margin=dict(l=8, r=8, t=64, b=8),
-                )
-                style_figure(fig_comp_reach, 300)
-                st.plotly_chart(fig_comp_reach, use_container_width=True, config=PLOTLY_CONFIG)
-
-            # Detailed comparison table
-            with st.expander("📋 View Detailed Comparison Table"):
-                comp_table = comparison_data[[
-                    'name', 'rank', 'monthly_listeners', 'peak_listeners',
-                    'songs_count', 'albums_count', 'countries_count', 'top_song'
-                ]].copy()
-                comp_table.columns = [
-                    'Artist', 'Rank', 'Monthly Listeners', 'Peak Listeners',
-                    'Songs', 'Albums', 'LATAM Countries', 'Top Song'
-                ]
-                st.dataframe(comp_table, use_container_width=True, hide_index=True)
-        else:
-            st.warning("Please select at least 2 artists to compare")
-
-    if st.session_state.comparison_mode:
-        return
-
-    if selected_view == "📋 Table":
-        left, right = st.columns([1.8, 1.4])
-
-        with left:
+    with right:
             st.markdown(
-                "<div class='dashboard-card'><div class='section-title'>🏆 Global Chart Positions</div><div class='section-sub'>Latest leaderboard filtered to Latin American relevance</div></div>",
+                "<div class='dashboard-card'><div class='section-title'>📈 Leaderboard Insights</div><div class='section-sub'>Concentration and market reach metrics for the current leaderboard.</div>",
                 unsafe_allow_html=True,
             )
-            table_df = prepare_leaderboard_table(leaderboard, max_rows)
-            st.dataframe(
-                table_df,
-                use_container_width=True,
-                hide_index=True,
-                height=min(35 + max_rows * 35, 620),
-                column_config={
-                    "Rank": st.column_config.NumberColumn(width="small", format="%d"),
-                    "Artist": st.column_config.TextColumn(width="small"),
-                    "Top Song": st.column_config.TextColumn(width="small"),
-                    "Top Country": st.column_config.TextColumn(width="small"),
-                    "Monthly Listeners": st.column_config.TextColumn(width="small"),  # Changed to TextColumn
-                    "Peak Listeners": st.column_config.TextColumn(width="small"),     # Changed to TextColumn
-                    # "Trend": st.column_config.TextColumn(width="small"),
-                },
+
+            analysis_df = leaderboard.dropna(subset=["rank"]).sort_values("rank").copy()
+            analysis_df["rank"] = pd.to_numeric(analysis_df["rank"], errors="coerce")
+            analysis_df["monthly_listeners"] = pd.to_numeric(analysis_df["monthly_listeners"], errors="coerce")
+            analysis_df["countries_count"] = pd.to_numeric(analysis_df["countries_count"], errors="coerce")
+
+            bins = [0, 5, 10, 20, 50, 100]
+            labels = ["Top 5", "6-10", "11-20", "21-50", "51-100"]
+            analysis_df["rank_bucket"] = pd.cut(
+                analysis_df["rank"],
+                bins=bins,
+                labels=labels,
+                include_lowest=True,
+                right=True,
+            )
+            rank_dist = (
+                analysis_df["rank_bucket"]
+                .value_counts()
+                .reindex(labels, fill_value=0)
+                .rename_axis("Rank Range")
+                .reset_index(name="Artists")
+            )
+            total_artists = int(rank_dist["Artists"].sum())
+            rank_dist["Share"] = (rank_dist["Artists"] / total_artists * 100).round(1) if total_artists else 0
+
+            if total_artists > 0:
+                dominant_tier = rank_dist.loc[rank_dist["Artists"].idxmax()]
+                dominant_tier_name = str(dominant_tier["Rank Range"])
+                top_10_count = int(
+                    rank_dist.loc[rank_dist["Rank Range"].isin(["Top 5", "6-10"]), "Artists"].sum()
+                )
+                top_10_share = (top_10_count / total_artists * 100) if total_artists else 0
+            else:
+                dominant_tier_name = "N/A"
+                top_10_count = 0
+                top_10_share = 0
+                dominant_tier = pd.Series({"Rank Range": "N/A", "Artists": 0, "Share": 0})
+
+            dominant_tier_artists = (
+                analysis_df.loc[analysis_df["rank_bucket"].astype(str) == dominant_tier_name, "name"]
+                .dropna()
+                .astype(str)
+                .sort_values()
+                .tolist()
+            )
+            dominant_preview = ", ".join(dominant_tier_artists[:6])
+            if len(dominant_tier_artists) > 6:
+                dominant_preview += f" (+{len(dominant_tier_artists) - 6} more)"
+
+            scatter_data = analysis_df.dropna(subset=["monthly_listeners", "countries_count"])
+            avg_countries = float(scatter_data["countries_count"].mean()) if not scatter_data.empty else 0.0
+            median_listeners = float(scatter_data["monthly_listeners"].median()) if not scatter_data.empty else 0.0
+            top_reach_artists = (
+                scatter_data.sort_values(["countries_count", "monthly_listeners"], ascending=[False, False])
+                .head(6)
             )
 
-        with right:
             top_streams = leaderboard.dropna(subset=["monthly_listeners"]).nlargest(8, "monthly_listeners").copy()
             if not top_streams.empty:
                 top_streams = top_streams.sort_values("monthly_listeners", ascending=True)
@@ -1289,357 +1348,82 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
                 )
                 style_figure(fig_bar, 360)
                 st.plotly_chart(fig_bar, use_container_width=True, config=PLOTLY_CONFIG)
-
-                country_mix = (
-                    leaderboard.loc[leaderboard["display_country"].ne("—"), "display_country"]
-                    .value_counts()
-                    .head(6)
-                    .reset_index()
-                )
-                if not country_mix.empty:
-                    country_mix.columns = ["country", "artists"]
-                    fig_country = px.pie(
-                        country_mix,
-                        names="country",
-                        values="artists",
-                        hole=0.58,
-                        color="country",
-                        color_discrete_sequence=CHART_COLORS,
-                    )
-                    fig_country.update_traces(
-                        textposition="inside",
-                        textinfo="percent+label",
-                        hovertemplate="<b>%{label}</b><br>Artists: %{value}<extra></extra>",
-                    )
-                    fig_country.update_layout(
-                        title="LATAM Presence by Top Country",
-                        showlegend=False,
-                        annotations=[
-                            dict(
-                                text="Market<br>mix",
-                                x=0.5,
-                                y=0.5,
-                                showarrow=False,
-                                font=dict(size=13, color="#cbd5f5"),
-                            )
-                        ],
-                    )
-                    style_figure(fig_country, 290)
-                    st.plotly_chart(fig_country, use_container_width=True, config=PLOTLY_CONFIG)
             else:
                 st.info("No monthly listener data is available for the current leaderboard selection.")
 
-    elif selected_view == "📈 Analysis":
-        st.markdown(
-            "<div class='section-sub'>Explore cleaner views of leaderboard concentration and market reach.</div>",
-            unsafe_allow_html=True,
-        )
+            st.markdown("</div>", unsafe_allow_html=True)
 
-        control_col1, control_col2 = st.columns([1.3, 1.3])
-        with control_col1:
-            top_n = int(
-                st.slider(
-                    "Artists to include (default: all)",
-                    min_value=1,
-                    max_value=max(1, len(leaderboard)),
-                    value=max(1, len(leaderboard)),
-                    step=1,
-                    key="analysis_top_n",
-                )
-            )
-
-        analysis_df = leaderboard.dropna(subset=["rank"]).sort_values("rank").head(max(1, top_n)).copy()
-        analysis_df["rank"] = pd.to_numeric(analysis_df["rank"], errors="coerce")
-        analysis_df["monthly_listeners"] = pd.to_numeric(analysis_df["monthly_listeners"], errors="coerce")
-        analysis_df["countries_count"] = pd.to_numeric(analysis_df["countries_count"], errors="coerce")
-
-        col_a, col_b = st.columns(2)
-
-        with col_b:
-            bins = [0, 5, 10, 20, 50, 100]
-            labels = ["Top 5", "6-10", "11-20", "21-50", "51-100"]
-            analysis_df["rank_bucket"] = pd.cut(
-                analysis_df["rank"],
-                bins=bins,
-                labels=labels,
-                include_lowest=True,
-                right=True,
-            )
-            rank_dist = (
-                analysis_df["rank_bucket"]
-                .value_counts()
-                .reindex(labels, fill_value=0)
-                .rename_axis("Rank Range")
-                .reset_index(name="Artists")
-            )
-
-            total_artists = int(rank_dist["Artists"].sum())
-            rank_dist["Share"] = (rank_dist["Artists"] / total_artists * 100).round(1) if total_artists else 0
-            rank_dist = rank_dist.sort_values("Artists", ascending=True)
-
-            tier_colors = {
-                "Top 5": "#22d3a0",
-                "6-10": "#4f8ef7",
-                "11-20": "#7c5cfc",
-                "21-50": "#f5a623",
-                "51-100": "#e84545",
-            }
-
-            fig_dist = go.Figure(
-                data=[
-                    go.Bar(
-                        x=rank_dist["Artists"],
-                        y=rank_dist["Rank Range"],
-                        orientation="h",
-                        marker=dict(
-                            color=rank_dist["Rank Range"].map(tier_colors),
-                            line=dict(color="rgba(255,255,255,.18)", width=1),
-                        ),
-                        text=[f"{c} ({p:.1f}%)" for c, p in zip(rank_dist["Artists"], rank_dist["Share"])],
-                        textposition="outside",
-                        cliponaxis=False,
-                        customdata=rank_dist[["Share"]].to_numpy(),
-                        hovertemplate="<b>%{y}</b><br>Artists: %{x}<br>Share: %{customdata[0]:.1f}%<extra></extra>",
-                    )
-                ]
-            )
-
-            if total_artists > 0:
-                expected_per_tier = total_artists / max(1, len(labels))
-                fig_dist.add_vline(
-                    x=expected_per_tier,
-                    line_dash="dot",
-                    line_color="rgba(151,163,197,.85)",
-                    annotation_text="even split",
-                    annotation_position="top right",
-                )
-
-            fig_dist.update_layout(
-                title="Rank Tier Distribution",
-                showlegend=False,
-                xaxis_title="Artists",
-                yaxis_title="",
-                margin=dict(l=8, r=12, t=64, b=8),
-            )
-            fig_dist.update_xaxes(dtick=1, rangemode="tozero")
-            style_figure(fig_dist, 360)
-            st.plotly_chart(fig_dist, use_container_width=True, config=PLOTLY_CONFIG)
-
-            if total_artists > 0:
-                dominant_tier = rank_dist.loc[rank_dist["Artists"].idxmax()]
-                dominant_tier_name = str(dominant_tier["Rank Range"])
-                top_10_count = int(
-                    rank_dist.loc[rank_dist["Rank Range"].isin(["Top 5", "6-10"]), "Artists"].sum()
-                )
-                top_10_share = (top_10_count / total_artists * 100) if total_artists else 0
-
-                dominant_tier_artists = (
-                    analysis_df.loc[analysis_df["rank_bucket"].astype(str) == dominant_tier_name, "name"]
-                    .dropna()
-                    .astype(str)
-                    .sort_values()
-                    .tolist()
-                )
-                top_10_artists = (
-                    analysis_df.loc[analysis_df["rank_bucket"].astype(str).isin(["Top 5", "6-10"]), ["rank", "name"]]
-                    .dropna(subset=["name", "rank"])
-                    .sort_values("rank")
-                )
-
-                dominant_preview = ", ".join(dominant_tier_artists[:6])
-                if len(dominant_tier_artists) > 6:
-                    dominant_preview += f" (+{len(dominant_tier_artists) - 6} more)"
-
-                top_10_names = ", ".join(top_10_artists["name"].astype(str).tolist())
-                st.markdown(
-                    (
-                        "<div class='small-note'>"
-                        f"Summary: Most artists are in <b>{escape(dominant_tier_name)}</b> "
-                        f"({int(dominant_tier['Artists'])} artists, {float(dominant_tier['Share']):.1f}%). "
-                        f"Artists in this tier: <b>{escape(dominant_preview) if dominant_preview else 'N/A'}</b>. "
-                        f"Overall, <b>{top_10_count}</b> artists ({top_10_share:.1f}%) are in the top 10 tiers: "
-                        f"<b>{escape(top_10_names) if top_10_names else 'N/A'}</b>."
-                        "</div>"
-                    ),
-                    unsafe_allow_html=True,
-                )
-
-        with col_a:
-            scatter_data = analysis_df.dropna(subset=["monthly_listeners", "countries_count"])
-            if scatter_data.empty:
-                st.info("Not enough listener and country coverage data to render analysis charts.")
-            else:
-                heatmap_df = scatter_data.copy()
-                heatmap_df["countries_count"] = heatmap_df["countries_count"].round().astype(int)
-
-                quantiles = min(5, int(heatmap_df["monthly_listeners"].nunique()))
-                if quantiles >= 2:
-                    heatmap_df["listener_band"] = pd.qcut(
-                        heatmap_df["monthly_listeners"],
-                        q=quantiles,
-                        duplicates="drop",
-                    )
-                    band_categories = list(heatmap_df["listener_band"].cat.categories)
-                    band_labels = {
-                        band: f"{fmt_short(band.left)}-{fmt_short(band.right)}"
-                        for band in band_categories
-                    }
-                    ordered_band_labels = [band_labels[band] for band in band_categories[::-1]]
-                    heatmap_df["listener_band_label"] = (
-                        heatmap_df["listener_band"]
-                        .map(band_labels)
-                        .astype(pd.CategoricalDtype(categories=ordered_band_labels, ordered=True))
-                    )
-                else:
-                    single_label = f"{fmt_short(heatmap_df['monthly_listeners'].min())}-{fmt_short(heatmap_df['monthly_listeners'].max())}"
-                    heatmap_df["listener_band_label"] = single_label
-
-                heatmap_matrix = heatmap_df.pivot_table(
-                    index="listener_band_label",
-                    columns="countries_count",
-                    values="rank",
-                    aggfunc="mean",
-                    observed=False,
-                ).sort_index()
-
-                fig_heatmap = go.Figure(
-                    data=[
-                        go.Heatmap(
-                            x=heatmap_matrix.columns.astype(str).tolist(),
-                            y=heatmap_matrix.index.astype(str).tolist(),
-                            z=heatmap_matrix.values,
-                            colorscale=[
-                                [0.0, "#f8d7c5"],
-                                [0.2, "#f4b8a0"],
-                                [0.4, "#ef8e71"],
-                                [0.6, "#e45d4a"],
-                                [0.8, "#c92f31"],
-                                [1.0, "#8f0f22"],
-                            ],
-                            colorbar=dict(title="Avg Rank"),
-                            xgap=1,
-                            ygap=1,
-                            hovertemplate="LATAM Countries: %{x}<br>Listener Band: %{y}<br>Avg Rank: %{z:.1f}<extra></extra>",
-                        )
-                    ]
-                )
-                fig_heatmap.update_layout(
-                    title="Reach vs. Monthly Listeners (Rank Heatmap)",
-                    xaxis_title="LATAM Countries",
-                    yaxis_title="Monthly Listener Band",
-                )
-                fig_heatmap.update_xaxes(side="top")
-                style_figure(fig_heatmap, 360)
-                st.plotly_chart(fig_heatmap, use_container_width=True, config=PLOTLY_CONFIG)
-
-                if not heatmap_matrix.empty:
-                    best_zone = heatmap_matrix.stack(future_stack=True).dropna()
-                    if not best_zone.empty:
-                        best_idx = best_zone.idxmin()
-                        best_avg_rank = float(best_zone.min())
-                        zone_listener_band = str(best_idx[0])
-                        zone_countries = int(best_idx[1])
-                        zone_artists = (
-                            heatmap_df.loc[
-                                (heatmap_df["listener_band_label"].astype(str) == zone_listener_band)
-                                & (heatmap_df["countries_count"] == zone_countries),
-                                "name",
-                            ]
-                            .dropna()
-                            .astype(str)
-                            .sort_values()
-                            .tolist()
-                        )
-                        zone_artist_preview = ", ".join(zone_artists[:6])
-                        if len(zone_artists) > 6:
-                            zone_artist_preview += f" (+{len(zone_artists) - 6} more)"
-                        st.markdown(
-                            (
-                                "<div class='small-note'>"
-                                f"Summary: The strongest zone is <b>{escape(zone_listener_band)}</b> listeners with "
-                                f"<b>{zone_countries}</b> LATAM countries, where the average rank is about "
-                                f"<b>#{best_avg_rank:.1f}</b> (lower is better). "
-                                f"Artists in this zone: <b>{escape(zone_artist_preview) if zone_artist_preview else 'N/A'}</b>."
-                                "</div>"
-                            ),
-                            unsafe_allow_html=True,
-                        )
-
-        # New Threshold Analysis Row
-        st.markdown("<br>", unsafe_allow_html=True)
-        st.markdown(
-            "<div class='dashboard-card'><div class='section-title'>⚡ Chart Entry Thresholds</div><div class='section-sub'>Points and listeners required to reach specific leaderboard tiers</div></div>",
-            unsafe_allow_html=True,
-        )
+    # New Threshold Analysis Row
+    st.markdown(
+        "<div class='dashboard-card'><div class='section-title'>⚡ Chart Entry Thresholds</div><div class='section-sub'>Points and listeners required to reach specific leaderboard tiers</div></div>",
+        unsafe_allow_html=True,
+    )
+    
+    target_ranks = [10, 20, 50, 100, 150, 200]
+    threshold_records = []
+    for r_val in target_ranks:
+        # Find the artist at or just below this rank to define the entry threshold
+        match_row = leaderboard[leaderboard["rank"] >= r_val].sort_values("rank").head(1)
+        if not match_row.empty:
+            threshold_records.append({
+                "Tier": f"Top {r_val}",
+                "Rank": r_val,
+                "Points": float(match_row.iloc[0].get("total_points", 0)),
+                "Listeners": float(match_row.iloc[0].get("monthly_listeners", 0)),
+                "Artist": match_row.iloc[0]["name"]
+            })
+    
+    if threshold_records:
+        thresh_df = pd.DataFrame(threshold_records)
+        t_col1, t_col2 = st.columns(2)
         
-        target_ranks = [10, 20, 50, 100, 150, 200]
-        threshold_records = []
-        for r_val in target_ranks:
-            # Find the artist at or just below this rank to define the entry threshold
-            match_row = leaderboard[leaderboard["rank"] >= r_val].sort_values("rank").head(1)
-            if not match_row.empty:
-                threshold_records.append({
-                    "Tier": f"Top {r_val}",
-                    "Rank": r_val,
-                    "Points": float(match_row.iloc[0].get("total_points", 0)),
-                    "Listeners": float(match_row.iloc[0].get("monthly_listeners", 0)),
-                    "Artist": match_row.iloc[0]["name"]
-                })
+        with t_col1:
+            fig_thresh_pts = px.line(
+                thresh_df, x="Tier", y="Points",
+                markers=True, text="Points",
+                title="Required Total Points by Tier",
+                color_discrete_sequence=["#7c5cfc"]
+            )
+            fig_thresh_pts.update_traces(
+                textposition="top center",
+                texttemplate="%{y:.2s}",
+                hovertemplate="<b>%{x}</b><br>Required Points: %{y:,.0f}<br><extra></extra>",
+                customdata=thresh_df["Artist"]
+            )
+            style_figure(fig_thresh_pts, 320)
+            st.plotly_chart(fig_thresh_pts, use_container_width=True, config=PLOTLY_CONFIG)
+            
+        with t_col2:
+            fig_thresh_ls = px.line(
+                thresh_df, x="Tier", y="Listeners",
+                markers=True, text="Listeners",
+                title="Required Monthly Listeners by Tier",
+                color_discrete_sequence=["#22d3a0"]
+            )
+            fig_thresh_ls.update_traces(
+                textposition="top center",
+                texttemplate="%{y:.2s}",
+                hovertemplate="<b>%{x}</b><br>Required Listeners: %{y:,.0f}<br><extra></extra>",
+                customdata=thresh_df["Artist"]
+            )
+            style_figure(fig_thresh_ls, 320)
+            st.plotly_chart(fig_thresh_ls, use_container_width=True, config=PLOTLY_CONFIG)
         
-        if threshold_records:
-            thresh_df = pd.DataFrame(threshold_records)
-            t_col1, t_col2 = st.columns(2)
-            
-            with t_col1:
-                fig_thresh_pts = px.line(
-                    thresh_df, x="Tier", y="Points",
-                    markers=True, text="Points",
-                    title="Required Total Points by Tier",
-                    color_discrete_sequence=["#7c5cfc"]
-                )
-                fig_thresh_pts.update_traces(
-                    textposition="top center",
-                    texttemplate="%{y:.2s}",
-                    hovertemplate="<b>%{x}</b><br>Required Points: %{y:,.0f}<br><extra></extra>",
-                    customdata=thresh_df["Artist"]
-                )
-                style_figure(fig_thresh_pts, 320)
-                st.plotly_chart(fig_thresh_pts, use_container_width=True, config=PLOTLY_CONFIG)
-                
-            with t_col2:
-                fig_thresh_ls = px.line(
-                    thresh_df, x="Tier", y="Listeners",
-                    markers=True, text="Listeners",
-                    title="Required Monthly Listeners by Tier",
-                    color_discrete_sequence=["#22d3a0"]
-                )
-                fig_thresh_ls.update_traces(
-                    textposition="top center",
-                    texttemplate="%{y:.2s}",
-                    hovertemplate="<b>%{x}</b><br>Required Listeners: %{y:,.0f}<br><extra></extra>",
-                    customdata=thresh_df["Artist"]
-                )
-                style_figure(fig_thresh_ls, 320)
-                st.plotly_chart(fig_thresh_ls, use_container_width=True, config=PLOTLY_CONFIG)
-            
-            with st.expander("📋 View Threshold Data Points"):
-                display_df = thresh_df[["Tier", "Points", "Listeners"]].copy()
-                display_df["Points"] = display_df["Points"].apply(fmt_short)
-                display_df["Listeners"] = display_df["Listeners"].apply(fmt_short)
-                st.dataframe(
-                    display_df,
-                    use_container_width=True,
-                    hide_index=True,
-                    column_config={
-                        "Points": st.column_config.TextColumn(),
-                        "Listeners": st.column_config.TextColumn(),
-                    }
-                )
-        else:
-            st.info("Not enough data to calculate thresholds for the requested ranks.")
-
+        with st.expander("📋 View Threshold Data Points",expanded=True):
+            display_df = thresh_df[["Tier", "Points", "Listeners"]].copy()
+            display_df["Points"] = display_df["Points"].apply(fmt_short)
+            display_df["Listeners"] = display_df["Listeners"].apply(fmt_short)
+            st.dataframe(
+                display_df,
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "Points": st.column_config.TextColumn(),
+                    "Listeners": st.column_config.TextColumn(),
+                }
+            )
     else:
-        st.markdown("### 🎯 Artist Detail Spotlight")
+        st.info("Not enough data to calculate thresholds for the requested ranks.")
         artists = leaderboard["name"].dropna().tolist()
 
         selected_artist = st.selectbox("🔍 Choose an artist", artists, index=0)
@@ -3106,6 +2890,105 @@ def show_leaderboard_page() -> None:
     render_leaderboard(global_filtered, runs, max_rows=max_rows)
 
 
+def show_compare_page() -> None:
+    render_header("Compare", "Compare leaderboard artists side by side.", last_run_label)
+    st.markdown("### 🔄 Artist Comparison")
+    st.info("Select 2-5 artists to compare their leaderboard metrics.")
+
+    available_artists = leaderboard["name"].dropna().tolist()[:20]
+    selected_for_comparison = st.multiselect(
+        "Select artists to compare",
+        available_artists,
+        default=available_artists[:2] if len(available_artists) >= 2 else available_artists,
+        max_selections=5,
+        key="comparison_artists"
+    )
+
+    if len(selected_for_comparison) >= 2:
+        comparison_data = leaderboard[leaderboard["name"].isin(selected_for_comparison)].copy()
+        comparison_data = comparison_data.sort_values("rank")
+        comparison_data["monthly_label"] = comparison_data["monthly_listeners"].apply(fmt_short)
+
+        comp_cols = st.columns(len(selected_for_comparison))
+        for idx, (col, artist_name) in enumerate(zip(comp_cols, selected_for_comparison)):
+            artist_data = comparison_data[comparison_data["name"] == artist_name].iloc[0]
+            with col:
+                st.markdown(f"#### {artist_name}")
+                st.metric("Rank", f"#{int(artist_data['rank'])}")
+                st.metric("Monthly Listeners", fmt_short(artist_data.get('monthly_listeners', 0)))
+                songs_count = artist_data.get('songs_count', 0)
+                st.metric("Songs", int(songs_count) if pd.notna(songs_count) else 0)
+                countries_count = artist_data.get('countries_count', 0)
+                st.metric("LATAM Countries", int(countries_count) if pd.notna(countries_count) else 0)
+
+        st.markdown("#### 📊 Visual Comparison")
+        comp_col1, comp_col2 = st.columns(2, gap="large")
+
+        with comp_col1:
+            fig_comp_listeners = px.bar(
+                comparison_data,
+                x="name",
+                y="monthly_listeners",
+                text="monthly_label",
+                title="Monthly Listeners Comparison",
+                labels={'monthly_listeners': 'Monthly Listeners', 'name': 'Artist'},
+                color_discrete_sequence=CHART_COLORS
+            )
+            fig_comp_listeners.update_traces(
+                marker_color=CHART_COLORS[0],
+                textposition="outside",
+                cliponaxis=False,
+                hovertemplate="<b>%{x}</b><br>Monthly listeners: %{y:,.0f}<extra></extra>",
+            )
+            fig_comp_listeners.update_layout(
+                showlegend=False,
+                xaxis_title="",
+                yaxis_title="Monthly listeners",
+                margin=dict(l=8, r=8, t=64, b=8),
+            )
+            fig_comp_listeners.update_yaxes(tickformat="~s")
+            style_figure(fig_comp_listeners, 300)
+            st.plotly_chart(fig_comp_listeners, use_container_width=True, config=PLOTLY_CONFIG)
+
+        with comp_col2:
+            fig_comp_reach = px.bar(
+                comparison_data,
+                x="name",
+                y="countries_count",
+                text="countries_count",
+                title="LATAM Country Reach",
+                labels={'countries_count': 'Countries', 'name': 'Artist'},
+                color_discrete_sequence=CHART_COLORS
+            )
+            fig_comp_reach.update_traces(
+                marker_color=CHART_COLORS[1],
+                textposition="outside",
+                cliponaxis=False,
+                hovertemplate="<b>%{x}</b><br>LATAM countries: %{y}<extra></extra>",
+            )
+            fig_comp_reach.update_layout(
+                showlegend=False,
+                xaxis_title="",
+                yaxis_title="Countries",
+                margin=dict(l=8, r=8, t=64, b=8),
+            )
+            style_figure(fig_comp_reach, 300)
+            st.plotly_chart(fig_comp_reach, use_container_width=True, config=PLOTLY_CONFIG)
+
+        with st.expander("📋 View Detailed Comparison Table"):
+            comp_table = comparison_data[[
+                'name', 'rank', 'monthly_listeners', 'peak_listeners',
+                'songs_count', 'albums_count', 'countries_count', 'top_song'
+            ]].copy()
+            comp_table.columns = [
+                'Artist', 'Rank', 'Monthly Listeners', 'Peak Listeners',
+                'Songs', 'Albums', 'LATAM Countries', 'Top Song'
+            ]
+            st.dataframe(comp_table, use_container_width=True, hide_index=True)
+    else:
+        st.warning("Please select at least 2 artists to compare")
+
+
 def show_chart_tracker_page() -> None:
     page_title, page_meta = PAGE_META["Chart Tracker"]
     render_header(page_title, page_meta, last_run_label)
@@ -3119,11 +3002,11 @@ def show_stream_trends_page() -> None:
     render_stream_trends(filtered, leaderboard, top_history, history)
 
 
-def show_debut_artist_page() -> None:
-    page_title, page_meta = PAGE_META["Artist Spotlight"]
-    render_header(page_title, page_meta, last_run_label)
-    # Use global_filtered to allow changing artists in the dropdown
-    render_debut_artist_chart(global_filtered)
+# def show_debut_artist_page() -> None:
+#     page_title, page_meta = PAGE_META["Artist Spotlight"]
+#     render_header(page_title, page_meta, last_run_label)
+#     # Use global_filtered to allow changing artists in the dropdown
+#     render_debut_artist_chart(global_filtered)
 
 
 def show_ai_analyst_page() -> None:
@@ -3137,6 +3020,11 @@ def show_pulse_report_page() -> None:
     render_pulse_report()
 
 
+def show_debut_report_page() -> None:
+    """Wrapper function for Debut Report page"""
+    render_debut_tab()
+
+
 app_pages = [
     st.Page(
         show_leaderboard_page,
@@ -3146,23 +3034,29 @@ app_pages = [
         default=True,
     ),
     st.Page(
-        show_debut_artist_page,
-        title="Artist Spotlight",
-        icon=":material/artist:",
-        url_path="artist-spotlight",
+        show_compare_page,
+        title="Compare",
+        icon=":material/compare_arrows:",
+        url_path="compare",
     ),
+    # st.Page(
+    #     show_debut_artist_page,
+    #     title="Artist Spotlight",
+    #     icon=":material/artist:",
+    #     url_path="artist-spotlight",
+    # ),
     st.Page(
         show_chart_tracker_page,
         title="Chart Tracker",
         icon=":material/desktop_windows:",
         url_path="chart-tracker",
     ),
-    st.Page(
-        show_stream_trends_page,
-        title="Stream Trends",
-        icon=":material/show_chart:",
-        url_path="stream-trends",
-    ),
+    # st.Page(
+    #     show_stream_trends_page,
+    #     title="Stream Trends",
+    #     icon=":material/show_chart:",
+    #     url_path="stream-trends",
+    # ),
     st.Page(
         show_pulse_report_page,
         title="Pulse Report",
@@ -3174,6 +3068,12 @@ app_pages = [
         title="AI Data Analyst",
         icon=":material/smart_toy:",
         url_path="ai-data-analyst",
+    ),
+    st.Page(
+        show_debut_report_page,
+        title="Debut Report",
+        icon=":material/new_releases:",
+        url_path="debut-report",
     ),
     # st.Page(
     #     show_ops_monitor_page,
