@@ -66,7 +66,7 @@ PAGE_META = {
 
 CHART_COLORS = ["#4f8ef7", "#22d3a0", "#f5a623", "#7c5cfc", "#e84545", "#06b6d4", "#ec4899", "#84cc16", "#f97316", "#a855f7"]
 PLOTLY_CONFIG = {"displaylogo": False, "displayModeBar": False, "responsive": True}
-TRACKER_TOP_ARTISTS = 10
+TRACKER_TOP_ARTISTS = 100
 LATAM_COUNTRIES = sorted(LATIN_AMERICAN_COUNTRIES)
 BOT_SRC = "https://copilotstudio.microsoft.com/environments/4b079cee-b5d6-e253-856d-c427359af206/bots/cr917_agentT1zDET/webchat?__version__=2"
 LOAD_TIMEOUT_MS = 20000
@@ -800,6 +800,19 @@ def load_dashboard_data() -> dict[str, pd.DataFrame]:
             WHERE country = 'global'
             AND date >= (SELECT MAX(date) FROM spotify_daily) - INTERVAL '30 days'
             ORDER BY date DESC, rank ASC
+        """,
+        "debuts": """
+            WITH first_appearances AS (
+                SELECT artist_id, MIN(scraped_at) as first_seen
+                FROM itunes_artist_rankings
+                GROUP BY artist_id
+            )
+            SELECT a.name, fa.first_seen as debut_at, r.rank as debut_rank, r.total_points as debut_points
+            FROM first_appearances fa
+            JOIN artists a ON a.id = fa.artist_id
+            JOIN itunes_artist_rankings r ON r.artist_id = fa.artist_id AND r.scraped_at = fa.first_seen
+            WHERE fa.first_seen >= NOW() - INTERVAL '30 days'
+            ORDER BY fa.first_seen DESC
         """
     }
 
@@ -820,6 +833,8 @@ def load_dashboard_data() -> dict[str, pd.DataFrame]:
         frames["longevity"]["last_day_at_top"] = pd.to_datetime(frames["longevity"]["last_day_at_top"], errors="coerce")
     if not frames["raw_benchmarks"].empty:
         frames["raw_benchmarks"]["chart_date"] = pd.to_datetime(frames["raw_benchmarks"]["chart_date"], errors="coerce")
+    if not frames["debuts"].empty:
+        frames["debuts"]["debut_at"] = pd.to_datetime(frames["debuts"]["debut_at"], errors="coerce")
 
     leaderboard = frames["itunes"].merge(
         frames["spotify"][["name", "monthly_listeners", "peak_listeners"]],
@@ -924,6 +939,73 @@ def get_wikipedia_data(artist_name: str) -> dict | None:
     except Exception as e:
         # Silently fail or log, don't break the UI
         return None
+
+
+@st.cache_data(ttl=600)
+def get_artist_deep_analysis(artist_name: str) -> dict:
+    """Fetch deep analysis for a specific artist from daily charts."""
+    conn = get_connection()
+    try:
+        # 1. Tracks that reached Top 100
+        # We search artist_title for the artist name
+        query_tracks = """
+            SELECT artist_title, MIN(rank) as peak_rank, MAX(streams) as peak_daily_streams, 
+                   MAX(total_streams) as lifetime_streams, COUNT(DISTINCT date) as days_on_chart
+            FROM spotify_daily
+            WHERE artist_title ILIKE %s
+            AND rank <= 100
+            GROUP BY artist_title
+            ORDER BY peak_rank ASC
+        """
+        
+        # 2. Daily Trajectory
+        query_trajectory = """
+            SELECT date, SUM(streams) as total_daily_streams, MIN(rank) as best_rank_that_day
+            FROM spotify_daily
+            WHERE artist_title ILIKE %s
+            GROUP BY date
+            ORDER BY date ASC
+        """
+        
+        # 3. Weekly Analysis
+        query_weekly = """
+            SELECT DATE_TRUNC('week', date) as week, SUM(streams) as weekly_streams,
+                   COUNT(DISTINCT artist_title) as active_tracks
+            FROM spotify_daily
+            WHERE artist_title ILIKE %s
+            GROUP BY week
+            ORDER BY week DESC
+        """
+        
+        search_pattern = f"%{artist_name}%"
+        
+        with conn.cursor() as cur:
+            # Tracks
+            cur.execute(query_tracks, (search_pattern,))
+            tracks = [dict(row) for row in cur.fetchall()]
+            
+            # Trajectory
+            cur.execute(query_trajectory, (search_pattern,))
+            trajectory = [dict(row) for row in cur.fetchall()]
+            
+            # Weekly
+            cur.execute(query_weekly, (search_pattern,))
+            weekly = [dict(row) for row in cur.fetchall()]
+            
+        return {
+            "top_100_tracks": pd.DataFrame(tracks),
+            "trajectory": pd.DataFrame(trajectory),
+            "weekly_summary": pd.DataFrame(weekly)
+        }
+    except Exception as e:
+        return {
+            "top_100_tracks": pd.DataFrame(),
+            "trajectory": pd.DataFrame(),
+            "weekly_summary": pd.DataFrame(),
+            "error": str(e)
+        }
+    finally:
+        conn.close()
 
 
 def latest_source_rows(runs: pd.DataFrame) -> pd.DataFrame:
@@ -3186,6 +3268,7 @@ runs = data["runs"]
 history = data["history"]
 top_history = data.get("top_history", pd.DataFrame())
 raw_benchmarks = data.get("raw_benchmarks", pd.DataFrame())
+debuts = data.get("debuts", pd.DataFrame())
 
 last_run_label = "n/a"
 if not runs.empty and runs["finished_at"].notna().any():
@@ -3229,14 +3312,26 @@ def show_ai_analyst_page() -> None:
 
 
 def show_artist_analysis_page() -> None:
-    global raw_benchmarks
+    global raw_benchmarks, debuts
     page_title, page_meta = PAGE_META["Artist Analysis"]
     render_header(page_title, page_meta, last_run_label)
     
-    # Create the requested sub-menu using tabs
-    tabs = st.tabs(["📊 Ranking", "👤 Artist", "🏷️ Label", "📈 Movement", "💰 Acquisition"])
+    # Persistent Sub-tab Navigation for Artist Analysis
+    if "analysis_sub_tab" not in st.session_state:
+        st.session_state.analysis_sub_tab = "📊 Ranking"
     
-    with tabs[0]:
+    tab_names = ["📊 Ranking", "👤 Artist", "🏷️ Label", "📈 Movement", "💰 Acquisition"]
+    t_cols = st.columns(len(tab_names))
+    for i, name in enumerate(tab_names):
+        is_active = st.session_state.analysis_sub_tab == name
+        if t_cols[i].button(name, key=f"subtab_btn_{name}", use_container_width=True, type="primary" if is_active else "secondary"):
+            st.session_state.analysis_sub_tab = name
+            st.rerun()
+            
+    st.divider()
+    active_tab = st.session_state.analysis_sub_tab
+    
+    if active_tab == "📊 Ranking":
         # Calculate and Display Aggregate Streaming Metrics
         if not raw_benchmarks.empty:
             latest_date = raw_benchmarks['chart_date'].max()
@@ -3311,30 +3406,85 @@ def show_artist_analysis_page() -> None:
                 with r5:
                     if st.button("Get Details ➔", key=f"btn_rank_{row['name']}", use_container_width=True):
                         st.session_state.global_selected_artist = row['name']
+                        st.session_state.analysis_sub_tab = "👤 Artist" # Direct to Artist tab
                         # Clear specific page state to ensure the dropdown updates
                         if "debut_artist_select" in st.session_state:
                             del st.session_state["debut_artist_select"]
-                        st.switch_page(app_pages[1])
+                        st.rerun()
 
-        
-        
-    with tabs[1]:
+    elif active_tab == "👤 Artist":
         st.markdown("### 👤 Artist Performance Analysis")
+        
+        # 🌟 Quick Analysis Select (Enhanced with Search & Refresh)
+        qa_h1, qa_h2, qa_h3 = st.columns([0.45, 0.37, 0.18])
+        with qa_h1:
+            st.markdown("#### 🌟 Quick Analysis Select")
+        with qa_h2:
+            artist_list = ["Select Artist..."] + sorted(leaderboard["name"].tolist())
+            current_sel = st.session_state.get("global_selected_artist", "Select Artist...")
+            if current_sel not in artist_list:
+                current_sel_idx = 0
+            else:
+                current_sel_idx = artist_list.index(current_sel)
+                
+            selected_artist_search = st.selectbox(
+                "Search Artist",
+                options=artist_list,
+                index=current_sel_idx,
+                key="quick_analysis_search",
+                label_visibility="collapsed",
+                placeholder="🔍 Search & Analyze Artist..."
+            )
+            
+            if selected_artist_search != "Select Artist..." and selected_artist_search != st.session_state.get("global_selected_artist"):
+                st.session_state.global_selected_artist = selected_artist_search
+                if "debut_artist_select" in st.session_state:
+                    del st.session_state["debut_artist_select"]
+                st.rerun()
+                
+        with qa_h3:
+            if st.button("🔄 Refresh", key="refresh_quick_analysis", use_container_width=True, help="Update data and show next set of top artists"):
+                st.cache_data.clear()
+                if "quick_select_offset" not in st.session_state:
+                    st.session_state.quick_select_offset = 0
+                st.session_state.quick_select_offset = (st.session_state.quick_select_offset + 12) % 48
+                st.rerun()
+
+        # Determine which artists to show (12 at a time)
+        offset = st.session_state.get("quick_select_offset", 0)
+        if offset >= len(leaderboard):
+            offset = 0
+            
+        display_quick_df = leaderboard.iloc[offset:offset+12]
+        
+        quick_cols = st.columns(4)
+        for idx, (_, row) in enumerate(display_quick_df.iterrows()):
+            with quick_cols[idx % 4]:
+                # Highlight selected artist if any
+                btn_label = row['name']
+                if st.session_state.get("global_selected_artist") == row['name']:
+                    btn_label = f"✨ {row['name']}"
+                
+                if st.button(btn_label, key=f"quick_tab_{row['name']}_{offset}", use_container_width=True):
+                    st.session_state.global_selected_artist = row['name']
+                    st.rerun()
+
+        st.divider()
         selected = st.session_state.get("global_selected_artist", "All artists")
         
         if selected == "All artists":
             st.markdown("#### 📋 Artist Directory")
-            st.info("Click on a top artist below or use the sidebar search to analyze specific performance metrics.")
+            st.info("Click on a top artist above or use the sidebar search to analyze specific performance metrics.")
             
             # Searchable inventory
             search_q = st.text_input("🔍 Filter Artist List", placeholder="Search by name...", key="tab_artist_search")
             
-            display_df = leaderboard.copy()
+            display_df_dir = leaderboard.copy()
             if search_q:
-                display_df = display_df[display_df["name"].str.contains(search_q, case=False, na=False)]
+                display_df_dir = display_df_dir[display_df_dir["name"].str.contains(search_q, case=False, na=False)]
             
             st.dataframe(
-                display_df[["rank", "name", "display_country", "total_points", "monthly_listeners"]].sort_values("rank"),
+                display_df_dir[["rank", "name", "display_country", "total_points", "monthly_listeners"]].sort_values("rank"),
                 column_config={
                     "rank": "Rank",
                     "name": "Artist Name",
@@ -3346,14 +3496,6 @@ def show_artist_analysis_page() -> None:
                 hide_index=True,
                 height=400
             )
-            
-            st.markdown("#### 🌟 Quick Analysis Select")
-            quick_cols = st.columns(4)
-            for idx, (_, row) in enumerate(leaderboard.head(12).iterrows()):
-                with quick_cols[idx % 4]:
-                    if st.button(f"{row['name']}", key=f"quick_tab_{row['name']}", use_container_width=True):
-                        st.session_state.global_selected_artist = row['name']
-                        st.rerun()
         else:
             artist_rows = leaderboard[leaderboard["name"] == selected]
             if not artist_rows.empty:
@@ -3364,6 +3506,57 @@ def show_artist_analysis_page() -> None:
                 col3.metric("Monthly Listeners", fmt_short(row['monthly_listeners']) if pd.notna(row['monthly_listeners']) else "—")
                 col4.metric("Market Reach", f"{row['countries_count']} countries")
                 
+                # 📊 Analytical Performance Summary (Relative to Top 100)
+                st.markdown("#### 📊 Analytical Performance Summary")
+                
+                # Calculate market averages for comparison
+                avg_points = leaderboard["total_points"].mean()
+                avg_listeners = leaderboard["monthly_listeners"].mean()
+                avg_reach = leaderboard["countries_count"].mean()
+                
+                pts_vs_avg = ((row['total_points'] - avg_points) / avg_points) * 100 if avg_points > 0 else 0
+                listeners_vs_avg = ((row['monthly_listeners'] - avg_listeners) / avg_listeners) * 100 if avg_listeners > 0 and pd.notna(row['monthly_listeners']) else 0
+                reach_vs_avg = ((row['countries_count'] - avg_reach) / avg_reach) * 100 if avg_reach > 0 else 0
+                
+                summary_cols = st.columns(3)
+                with summary_cols[0]:
+                    st.markdown(f"""
+                    <div style="background: rgba(28, 32, 45, 0.4); border-radius: 12px; border-left: 4px solid #4f8ef7; padding: 15px; height: 100%;">
+                        <div style="color: #8fa3ad; font-size: 0.8rem; font-weight: 600;">MARKET STANDING</div>
+                        <div style="font-size: 1.2rem; font-weight: 700; color: white; margin-top: 5px;">{"+" if pts_vs_avg > 0 else ""}{pts_vs_avg:.1f}%</div>
+                        <div style="color: #a1a1a1; font-size: 0.85rem; margin-top: 3px;">Relative to Top 100 Average Points</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                with summary_cols[1]:
+                    st.markdown(f"""
+                    <div style="background: rgba(28, 32, 45, 0.4); border-radius: 12px; border-left: 4px solid #22d3a0; padding: 15px; height: 100%;">
+                        <div style="color: #8fa3ad; font-size: 0.8rem; font-weight: 600;">AUDIENCE POWER</div>
+                        <div style="font-size: 1.2rem; font-weight: 700; color: white; margin-top: 5px;">{"+" if listeners_vs_avg > 0 else ""}{listeners_vs_avg:.1f}%</div>
+                        <div style="color: #a1a1a1; font-size: 0.85rem; margin-top: 3px;">Relative to Top 100 Average Listeners</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                with summary_cols[2]:
+                    st.markdown(f"""
+                    <div style="background: rgba(28, 32, 45, 0.4); border-radius: 12px; border-left: 4px solid #7c5cfc; padding: 15px; height: 100%;">
+                        <div style="color: #8fa3ad; font-size: 0.8rem; font-weight: 600;">GLOBAL DOMINANCE</div>
+                        <div style="font-size: 1.2rem; font-weight: 700; color: white; margin-top: 5px;">{"+" if reach_vs_avg > 0 else ""}{reach_vs_avg:.1f}%</div>
+                        <div style="color: #a1a1a1; font-size: 0.85rem; margin-top: 3px;">Relative to Top 100 Average Reach</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                # Descriptive Summary Logic
+                st.markdown("<div style='margin-top: 15px;'></div>", unsafe_allow_html=True)
+                best_rank_label = f"#{int(row['best_rank'])}" if pd.notna(row['best_rank']) else "N/A"
+                weeks_label = f"{int(row['weeks_on_chart'])} weeks" if pd.notna(row['weeks_on_chart']) else "Data pending"
+                
+                standing_desc = "Outperforming the market average" if pts_vs_avg > 0 else "Approaching market average"
+                reach_desc = f"dominating in {row['countries_count']} countries" if row['countries_count'] > avg_reach else f"active in {row['countries_count']} markets"
+                
+                st.info(f"✨ **Artist Insight**: {selected} is currently {standing_desc}, {reach_desc}. With a career peak of **{best_rank_label}** and **{weeks_label}** on the charts, this artist shows {'strong longevity' if (row['weeks_on_chart'] or 0) > 10 else 'emerging momentum'} in the global Latin landscape.")
+                st.divider()
+
                 # Wikipedia Bio (New)
                 wiki_data = get_wikipedia_data(selected)
                 if wiki_data:
@@ -3399,10 +3592,12 @@ def show_artist_analysis_page() -> None:
                     fig_hist.update_yaxes(autorange="reversed")
                     style_figure(fig_hist, 400)
                     st.plotly_chart(fig_hist, use_container_width=True, config=PLOTLY_CONFIG)
+                else:
+                    st.info(f"📊 Rank Trajectory data for **{selected}** is being collected. Historical trends will appear as more snapshots are captured.")
             else:
                 st.error(f"Data not found for {selected}")
         
-    with tabs[2]:
+    elif active_tab == "🏷️ Label":
         st.markdown("### 🏷️ Label Market Intelligence")
         st.info("Distribution of top artists across major record labels and independent groups.")
         
@@ -3509,7 +3704,7 @@ def show_artist_analysis_page() -> None:
                 if label_name != "Independent / Other":
                     st.caption(f"💡 {label_name} currently manages {l_row['artist_count']} of the top 100 global Latin artists.")
         
-    with tabs[3]:
+    elif active_tab == "📈 Movement":
         st.markdown("### 📈 Market Movement")
         st.info("Tracking momentum and significant rank shifts within the last 24 hours.")
         
@@ -3534,6 +3729,86 @@ def show_artist_analysis_page() -> None:
             
             if gainers.empty and losers.empty:
                 st.write("No significant movement detected in the current snapshot.")
+        
+        # 🆕 New Artist Debuts Section
+        st.divider()
+        st.markdown("#### 🆕 New Artist Debuts")
+        st.info("Tracking artists who recently made their first appearance on the global charts.")
+        
+        if not debuts.empty:
+            # Filters for Debuts
+            d_col1, d_col2 = st.columns([1, 1.2])
+            with d_col1:
+                debut_period = st.radio("⏱️ Filter By", ["Today", "Last Week"], horizontal=True, key="debut_period_filter")
+            
+            # Use latest debut date as "today" reference
+            latest_debut = debuts["debut_at"].max()
+            
+            if debut_period == "Today":
+                period_debuts = debuts[debuts["debut_at"].dt.date == latest_debut.date()].copy()
+                # Fallback if no debuts today: show last 24h
+                if period_debuts.empty:
+                    period_debuts = debuts[debuts["debut_at"] >= (latest_debut - pd.Timedelta(hours=24))].copy()
+                period_label = "Today"
+            else:
+                period_debuts = debuts[debuts["debut_at"].dt.date > (latest_debut.date() - pd.Timedelta(days=7))].copy()
+                period_label = "Last Week"
+            
+            if not period_debuts.empty:
+                # Summary Metric Card
+                st.success(f"🔥 **{len(period_debuts)}** new artists debuted {period_label.lower()}!")
+                
+                # Debut Volume Graph
+                st.markdown(f"##### 📈 Debut Momentum ({period_label})")
+                daily_debuts = period_debuts.copy()
+                daily_debuts["date"] = daily_debuts["debut_at"].dt.date
+                counts = daily_debuts.groupby("date").size().reset_index(name="Artist Count")
+                
+                fig_debut = px.line(
+                    counts, 
+                    x="date", 
+                    y="Artist Count", 
+                    markers=True,
+                    title="Daily New Additions",
+                    color_discrete_sequence=["#7c5cfc"]
+                )
+                fig_debut.update_traces(line=dict(width=3), marker=dict(size=8))
+                style_figure(fig_debut, 300)
+                st.plotly_chart(fig_debut, use_container_width=True, config=PLOTLY_CONFIG)
+                
+                # Debut List
+                st.markdown("##### 🏆 Debut List")
+                # Merge with current leaderboard to show progression if possible
+                display_df = period_debuts.merge(
+                    leaderboard[["name", "rank", "total_points"]], 
+                    on="name", 
+                    how="left"
+                )
+                display_df = display_df.rename(columns={
+                    "rank": "Current Rank",
+                    "total_points": "Current Points"
+                })
+                
+                # Format for display
+                display_df["debut_at"] = display_df["debut_at"].dt.strftime("%d %b %H:%M")
+                
+                st.dataframe(
+                    display_df[["name", "debut_at", "debut_rank", "Current Rank", "debut_points", "Current Points"]].sort_values("debut_rank"),
+                    column_config={
+                        "name": "Artist Name",
+                        "debut_at": "First Seen",
+                        "debut_rank": "Entry Rank",
+                        "Current Rank": "Now",
+                        "debut_points": st.column_config.NumberColumn("Entry Pts", format="%d"),
+                        "Current Points": st.column_config.NumberColumn("Total Pts", format="%d")
+                    },
+                    hide_index=True,
+                    use_container_width=True
+                )
+            else:
+                st.info(f"No new artists debuted {period_label.lower()}.")
+        else:
+            st.warning("No debut data available in the last 30 days.")
         
         st.divider()
         st.markdown("#### 🌊 Streaming Chart")
@@ -3694,11 +3969,32 @@ def show_artist_analysis_page() -> None:
         else:
             st.warning("No benchmark data available. Please ensure the daily scraper is running.")
         
-    with tabs[4]:
+    elif active_tab == "💰 Acquisition":
         st.markdown("### 💰 Acquisition & Growth Intelligence")
-        st.info("Analyzing how effectively artists are acquiring new fans and expanding into global markets.")
         
-        selected_artist = st.session_state.get("global_selected_artist", "All artists")
+        # 0. Integrated Artist Search for this tab
+        artist_options = ["All artists"] + sorted(leaderboard["name"].dropna().unique().tolist())
+        
+        # Try to sync with global if possible, but allow local override
+        default_idx = 0
+        global_sel = st.session_state.get("global_selected_artist", "All artists")
+        if global_sel in artist_options:
+            default_idx = artist_options.index(global_sel)
+            
+        selected_artist = st.selectbox(
+            "🔍 Search & Analyze Specific Artist",
+            options=artist_options,
+            index=default_idx,
+            key="acq_tab_search",
+            help="Select an artist to view deep streaming trajectory, weekly analysis, and Top 100 tracks."
+        )
+        
+        # Sync back to global if user changes it here
+        if selected_artist != st.session_state.get("global_selected_artist"):
+            st.session_state.global_selected_artist = selected_artist
+            st.rerun()
+            
+        st.info("Analyzing how effectively artists are acquiring new fans and expanding into global markets.")
         
         # 1. Growth Velocity Summary
         if selected_artist == "All artists":
@@ -3755,74 +4051,196 @@ def show_artist_analysis_page() -> None:
         
         else:
             # Artist-specific Acquisition
-            st.markdown(f"#### 👤 {selected_artist}: Acquisition Profile")
+            st.markdown(f"#### 👤 {selected_artist}: Deep Acquisition Profile")
             
+            # Filter Controls - Compact
+            f_col1, f_col2 = st.columns([1, 1])
+            with f_col1:
+                time_grain = st.radio("📊 View By", ["Day", "Week"], horizontal=True, key="acq_time_grain", label_visibility="collapsed")
+            with f_col2:
+                lookback_days = st.selectbox("📅 Timeframe", [7, 14, 30, 60, 90, 180, 365, 730], index=2, format_func=lambda x: f"Last {x} Days", key="acq_deep_lookback", label_visibility="collapsed")
+            
+            # Fetch deep data
+            deep_data = get_artist_deep_analysis(selected_artist)
             artist_history = history[history["name"] == selected_artist]
-            if not artist_history.empty:
-                a_c1, a_c2 = st.columns(2)
+            
+            if not deep_data["trajectory"].empty:
+                # Apply lookback filter with robust timezone handling
+                def to_naive(ts):
+                    if hasattr(ts, 'tz_localize'):
+                        return ts.tz_localize(None)
+                    return pd.to_datetime(ts).replace(tzinfo=None)
+
+                latest_date = to_naive(deep_data["trajectory"]["date"].max())
+                cutoff_date = latest_date - pd.Timedelta(days=lookback_days)
                 
-                with a_c1:
-                    # Market Expansion Chart
-                    fig_market = px.line(
-                        artist_history,
-                        x="scraped_at",
-                        y="num_countries",
-                        title="Market Footprint (Country Count)",
-                        markers=True,
-                        color_discrete_sequence=["#22d3a0"]
+                # Normalize data columns
+                deep_data["trajectory"]["date"] = pd.to_datetime(deep_data["trajectory"]["date"]).dt.tz_localize(None)
+                if not deep_data["weekly_summary"].empty:
+                    deep_data["weekly_summary"]["week"] = pd.to_datetime(deep_data["weekly_summary"]["week"]).dt.tz_localize(None)
+                
+                filtered_trajectory = deep_data["trajectory"][deep_data["trajectory"]["date"] >= cutoff_date]
+                filtered_weekly = deep_data["weekly_summary"][deep_data["weekly_summary"]["week"] >= cutoff_date] if not deep_data["weekly_summary"].empty else pd.DataFrame()
+                
+                # 1. Premium Metrics Row
+                m_c1, m_c2, m_c3, m_c4 = st.columns(4)
+                
+                total_streams = deep_data["trajectory"]["total_daily_streams"].sum()
+                total_tracks = len(deep_data["top_100_tracks"])
+                best_rank = deep_data["trajectory"]["best_rank_that_day"].min()
+                
+                m_c1.metric("Total Streams (DB)", fmt_short(total_streams))
+                m_c2.metric("Top 100 Tracks", f"{total_tracks}")
+                m_c3.metric("Peak Global Rank", f"#{int(best_rank)}" if pd.notna(best_rank) else "N/A")
+                
+                # Calculation for weekly growth
+                if not deep_data["weekly_summary"].empty and len(deep_data["weekly_summary"]) >= 2:
+                    current_w = deep_data["weekly_summary"].iloc[0]["weekly_streams"]
+                    prev_w = deep_data["weekly_summary"].iloc[1]["weekly_streams"]
+                    w_growth = ((current_w - prev_w) / prev_w * 100) if prev_w > 0 else 0
+                    m_c4.metric("Weekly Stream Growth", f"{w_growth:.1f}%", delta=f"{w_growth:.1f}%")
+                else:
+                    m_c4.metric("Weekly Stream Growth", "N/A")
+                
+                st.divider()
+                
+                # 2. Charts Row
+                chart_col1, chart_col2 = st.columns([2, 1])
+                
+                with chart_col1:
+                    if time_grain == "Day":
+                        st.markdown(f"##### 📈 Daily Streaming Trajectory (Last {lookback_days}d)")
+                        if not filtered_trajectory.empty:
+                            fig_traj = px.area(
+                                filtered_trajectory,
+                                x="date",
+                                y="total_daily_streams",
+                                title=f"Daily Aggregated Streams for {selected_artist}",
+                                color_discrete_sequence=["#22d3a0"]
+                            )
+                            style_figure(fig_traj, 350)
+                            st.plotly_chart(fig_traj, use_container_width=True, config=PLOTLY_CONFIG)
+                        else:
+                            st.info("No daily data available for this timeframe.")
+                    else:
+                        st.markdown(f"##### 📈 Weekly Streaming Trajectory (Last {lookback_days}d)")
+                        if not filtered_weekly.empty:
+                            fig_traj = px.bar(
+                                filtered_weekly,
+                                x="week",
+                                y="weekly_streams",
+                                title=f"Weekly Aggregated Streams for {selected_artist}",
+                                color_discrete_sequence=["#4f8ef7"]
+                            )
+                            style_figure(fig_traj, 350)
+                            st.plotly_chart(fig_traj, use_container_width=True, config=PLOTLY_CONFIG)
+                        else:
+                            st.info("No weekly data available for this timeframe.")
+                
+                with chart_col2:
+                    # Summary Table based on grain
+                    st.markdown(f"##### 🗓️ {time_grain}ly Performance")
+                    if time_grain == "Day":
+                        if not filtered_trajectory.empty:
+                            day_df = filtered_trajectory.sort_values("date", ascending=False).copy()
+                            day_df["date"] = day_df["date"].dt.strftime("%d %b %Y")
+                            st.dataframe(
+                                day_df,
+                                column_config={
+                                    "date": "Date",
+                                    "total_daily_streams": st.column_config.NumberColumn("Streams", format="%d"),
+                                    "best_rank_that_day": "Peak Rank"
+                                },
+                                hide_index=True,
+                                use_container_width=True,
+                                height=350
+                            )
+                    else:
+                        if not filtered_weekly.empty:
+                            weekly_df = filtered_weekly.sort_values("week", ascending=False).copy()
+                            weekly_df["week"] = weekly_df["week"].dt.strftime("%d %b %Y")
+                            st.dataframe(
+                                weekly_df,
+                                column_config={
+                                    "week": "Week Starting",
+                                    "weekly_streams": st.column_config.NumberColumn("Streams", format="%d"),
+                                    "active_tracks": "Tracks"
+                                },
+                                hide_index=True,
+                                use_container_width=True,
+                                height=350
+                            )
+                
+                # 3. Top 100 Tracks List
+                st.markdown("##### 🎶 Tracks in Global Top 100")
+                if not deep_data["top_100_tracks"].empty:
+                    st.dataframe(
+                        deep_data["top_100_tracks"],
+                        column_config={
+                            "artist_title": "Track Name",
+                            "peak_rank": "Peak Rank",
+                            "peak_daily_streams": st.column_config.NumberColumn("Peak Daily", format="%d"),
+                            "lifetime_streams": st.column_config.NumberColumn("Total Streams", format="%d"),
+                            "days_on_chart": "Days"
+                        },
+                        hide_index=True,
+                        use_container_width=True
                     )
-                    style_figure(fig_market, 350)
-                    st.plotly_chart(fig_market, use_container_width=True, config=PLOTLY_CONFIG)
+                else:
+                    st.info("No tracks found in the Top 100 for this artist yet.")
                 
-                with a_c2:
-                    # Points Growth Chart
-                    fig_points = px.area(
-                        artist_history,
-                        x="scraped_at",
-                        y="total_points",
-                        title="Points Accumulation Trend",
-                        color_discrete_sequence=["#4f8ef7"]
-                    )
-                    style_figure(fig_points, 350)
-                    st.plotly_chart(fig_points, use_container_width=True, config=PLOTLY_CONFIG)
-                
-                # ROI Metrics Table
-                st.markdown("#### 📊 ROI & Efficiency Metrics")
-                row = leaderboard[leaderboard["name"] == selected_artist].iloc[0]
-                
-                m1, m2, m3, m4 = st.columns(4)
-                
-                # Efficiency: Points per 1M Listeners
-                efficiency = (row['total_points'] / (row['monthly_listeners'] / 1_000_000)) if pd.notna(row['monthly_listeners']) and row['monthly_listeners'] > 0 else 0
-                m1.metric("Fan Efficiency", f"{efficiency:.1f}", help="Points generated per 1 million listeners.")
-                
-                # Market Penetration
-                penetration = row['num_countries']
-                m2.metric("Market Reach", f"{penetration} countries")
-                
-                # Best Rank Achieved
-                best = row.get('best_rank', row['rank'])
-                m3.metric("Peak Rank", f"#{best}")
-                
-                # Longevity
-                weeks = row.get('weeks_on_chart', 1)
-                m4.metric("Chart Longevity", f"{weeks} weeks")
-                
-                st.markdown(
-                    f"""
-                    <div style='background: rgba(79, 142, 247, 0.1); border: 1px solid rgba(79, 142, 247, 0.2); border-radius: 12px; padding: 20px; margin-top: 15px;'>
-                        <div style='font-weight: 600; color: #4f8ef7; margin-bottom: 10px;'>💡 Acquisition Insight</div>
-                        <div style='color: white; font-size: 0.95rem;'>
-                            {selected_artist} is currently maintaining a <b>{efficiency:.1f}</b> efficiency score across <b>{penetration}</b> countries. 
-                            The growth trajectory suggests a <b>{'positive' if len(artist_history) > 1 and artist_history.iloc[-1]['total_points'] > artist_history.iloc[0]['total_points'] else 'stable'}</b> 
-                            acquisition momentum over the last {len(artist_history)} snapshots.
+                # 4. ROI & Efficiency Metrics (Existing)
+                st.markdown("#### 📊 Market Efficiency & Longevity")
+                if selected_artist in leaderboard["name"].values:
+                    row = leaderboard[leaderboard["name"] == selected_artist].iloc[0]
+                    
+                    e_c1, e_c2, e_c3, e_c4 = st.columns(4)
+                    
+                    # Efficiency: Points per 1M Listeners
+                    efficiency = (row['total_points'] / (row['monthly_listeners'] / 1_000_000)) if pd.notna(row['monthly_listeners']) and row['monthly_listeners'] > 0 else 0
+                    e_c1.metric("Fan Efficiency", f"{efficiency:.1f}", help="Points generated per 1 million listeners.")
+                    
+                    # Market Penetration
+                    penetration = row.get('num_countries', 0)
+                    e_c2.metric("Market Reach", f"{penetration} countries")
+                    
+                    # Best Rank Achieved (from longevity)
+                    best_ever = row.get('best_rank', row['rank'])
+                    e_c3.metric("Peak Career Rank", f"#{int(best_ever)}")
+                    
+                    # Longevity
+                    weeks = row.get('weeks_on_chart', 1)
+                    e_c4.metric("Chart Longevity", f"{int(weeks)} weeks")
+                    
+                    st.markdown(
+                        f"""
+                        <div style='background: rgba(79, 142, 247, 0.1); border: 1px solid rgba(79, 142, 247, 0.2); border-radius: 12px; padding: 20px; margin-top: 15px;'>
+                            <div style='font-weight: 600; color: #4f8ef7; margin-bottom: 10px;'>💡 Acquisition Insight</div>
+                            <div style='color: white; font-size: 0.95rem;'>
+                                {selected_artist} has successfully charted <b>{total_tracks}</b> tracks in the Global Top 100. 
+                                With a current efficiency score of <b>{efficiency:.1f}</b>, the artist shows 
+                                <b>{'strong' if total_tracks > 5 else 'emerging'}</b> market penetration.
+                            </div>
                         </div>
-                    </div>
-                    """,
-                    unsafe_allow_html=True
-                )
+                        """,
+                        unsafe_allow_html=True
+                    )
+            
+            elif not artist_history.empty:
+                # Fallback to simple charts if deep data is missing
+                st.warning("Detailed streaming analysis for this artist is currently being indexed. Showing point trends instead.")
+                a_c1, a_c2 = st.columns(2)
+                with a_c1:
+                    # Format dates for readability
+                    fig_market = px.line(artist_history, x="scraped_at", y="num_countries", title="Market Footprint")
+                    fig_market.update_xaxes(tickformat="%d %b\n%H:%M")
+                    style_figure(fig_market, 300); st.plotly_chart(fig_market, use_container_width=True)
+                with a_c2:
+                    fig_points = px.area(artist_history, x="scraped_at", y="total_points", title="Points Trend")
+                    fig_points.update_xaxes(tickformat="%d %b\n%H:%M")
+                    style_figure(fig_points, 300); st.plotly_chart(fig_points, use_container_width=True)
             else:
-                st.warning(f"Historical acquisition data for {selected_artist} is still being collected.")
+                st.warning(f"No acquisition data found for {selected_artist}. Please ensure the artist is in the current Top 100.")
 
         st.divider()
         
