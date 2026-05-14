@@ -979,8 +979,8 @@ def style_figure(fig, height: int) -> None:
         height=max(280, int(height)),
         autosize=True,
         margin=dict(l=0, r=0, t=56, b=0, pad=0),
-        paper_bgcolor="rgba(18,24,42,1)",
-        plot_bgcolor="rgba(18,24,42,1)",
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
         font=dict(color="#e8eaf6"),
         legend_title_text="",
         title=dict(x=0.03, xanchor="left", font=dict(size=16, color="#eef2ff")),
@@ -1242,120 +1242,137 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
         render_leaderboard_table_html(leaderboard, max_rows)
 
     with right:
-            st.markdown(
-                "<div class='dashboard-card'><div class='section-title'>📈 Leaderboard Insights</div><div class='section-sub'>Concentration and market reach metrics for the current leaderboard.</div>",
-                unsafe_allow_html=True,
+        st.markdown(
+            """
+            <style>
+            /* Remove default top padding inside right column */
+            [data-testid="column"]:nth-child(2) > div:first-child {
+                padding-top: 0 !important;
+                margin-top: 0 !important;
+            }
+            /* Chart card styling */
+            [data-testid="stPlotlyChart"] {
+                background: var(--surface2);
+                border: 1px solid var(--border);
+                border-radius: 18px;
+                padding: 0.75rem 0.5rem 0.25rem;
+                margin-bottom: 1.25rem;
+                box-shadow: 0 18px 36px rgba(0,0,0,.12);
+                transition: border-color 0.25s ease, box-shadow 0.25s ease;
+            }
+            [data-testid="stPlotlyChart"]:hover {
+                border-color: rgba(79,142,247,0.35);
+                box-shadow: 0 24px 48px rgba(0,0,0,.18);
+            }
+            /* Remove streamlit's default element-container top margin */
+            [data-testid="column"]:nth-child(2) .element-container:first-of-type {
+                margin-top: 0 !important;
+            }
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        top_streams = leaderboard.dropna(subset=["monthly_listeners"]).nlargest(8, "monthly_listeners").copy()
+        if not top_streams.empty:
+            top_streams = top_streams.sort_values("monthly_listeners", ascending=True)
+            top_streams["listener_label"] = top_streams["monthly_listeners"].apply(fmt_short)
+            avg_listeners = top_streams["monthly_listeners"].mean()
+
+            fig_bar = px.bar(
+                top_streams,
+                x="monthly_listeners",
+                y="name",
+                orientation="h",
+                text="listener_label",
+                color="monthly_listeners",
+                custom_data=["display_country", "rank"],
+                labels={"monthly_listeners": "Monthly listeners", "name": ""},
+                color_continuous_scale=["#1d4ed8", "#7c3aed", "#22d3a0"],
             )
-
-            analysis_df = leaderboard.dropna(subset=["rank"]).sort_values("rank").copy()
-            analysis_df["rank"] = pd.to_numeric(analysis_df["rank"], errors="coerce")
-            analysis_df["monthly_listeners"] = pd.to_numeric(analysis_df["monthly_listeners"], errors="coerce")
-            analysis_df["countries_count"] = pd.to_numeric(analysis_df["countries_count"], errors="coerce")
-
-            bins = [0, 5, 10, 20, 50, 100]
-            labels = ["Top 5", "6-10", "11-20", "21-50", "51-100"]
-            analysis_df["rank_bucket"] = pd.cut(
-                analysis_df["rank"],
-                bins=bins,
-                labels=labels,
-                include_lowest=True,
-                right=True,
+            fig_bar.update_traces(
+                textposition="outside",
+                cliponaxis=False,
+                marker_line_color="rgba(255,255,255,.18)",
+                marker_line_width=1.1,
+                hovertemplate=(
+                    "<b>%{y}</b><br>"
+                    "Monthly listeners: %{x:,.0f}<br>"
+                    "Top LATAM market: %{customdata[0]}<br>"
+                    "Current rank: #%{customdata[1]}<extra></extra>"
+                ),
             )
-            rank_dist = (
-                analysis_df["rank_bucket"]
-                .value_counts()
-                .reindex(labels, fill_value=0)
-                .rename_axis("Rank Range")
-                .reset_index(name="Artists")
+            fig_bar.add_vline(
+                x=avg_listeners,
+                line_dash="dash",
+                line_color="rgba(245,166,35,.9)",
+                annotation_text=f"Avg {fmt_short(avg_listeners)}",
+                annotation_position="top left",
             )
-            total_artists = int(rank_dist["Artists"].sum())
-            rank_dist["Share"] = (rank_dist["Artists"] / total_artists * 100).round(1) if total_artists else 0
-
-            if total_artists > 0:
-                dominant_tier = rank_dist.loc[rank_dist["Artists"].idxmax()]
-                dominant_tier_name = str(dominant_tier["Rank Range"])
-                top_10_count = int(
-                    rank_dist.loc[rank_dist["Rank Range"].isin(["Top 5", "6-10"]), "Artists"].sum()
-                )
-                top_10_share = (top_10_count / total_artists * 100) if total_artists else 0
-            else:
-                dominant_tier_name = "N/A"
-                top_10_count = 0
-                top_10_share = 0
-                dominant_tier = pd.Series({"Rank Range": "N/A", "Artists": 0, "Share": 0})
-
-            dominant_tier_artists = (
-                analysis_df.loc[analysis_df["rank_bucket"].astype(str) == dominant_tier_name, "name"]
-                .dropna()
-                .astype(str)
-                .sort_values()
-                .tolist()
+            fig_bar.update_layout(
+                title="Top Artists by Monthly Listeners",
+                coloraxis_showscale=False,
+                xaxis_title="Monthly listeners",
+                xaxis_tickformat="~s",
+                yaxis_title="",
             )
-            dominant_preview = ", ".join(dominant_tier_artists[:6])
-            if len(dominant_tier_artists) > 6:
-                dominant_preview += f" (+{len(dominant_tier_artists) - 6} more)"
+            style_figure(fig_bar, 360)
+            st.plotly_chart(fig_bar, use_container_width=True, config=PLOTLY_CONFIG)
+        else:
+            st.info("No monthly listener data is available for the current leaderboard selection.")
 
-            scatter_data = analysis_df.dropna(subset=["monthly_listeners", "countries_count"])
-            avg_countries = float(scatter_data["countries_count"].mean()) if not scatter_data.empty else 0.0
-            median_listeners = float(scatter_data["monthly_listeners"].median()) if not scatter_data.empty else 0.0
-            top_reach_artists = (
-                scatter_data.sort_values(["countries_count", "monthly_listeners"], ascending=[False, False])
-                .head(6)
+        # iTunes Points Chart
+        top_points = leaderboard.dropna(subset=["total_points"]).nlargest(8, "total_points").copy()
+        if not top_points.empty:
+            top_points = top_points.sort_values("total_points", ascending=True)
+            top_points["points_label"] = top_points["total_points"].apply(fmt_short)
+            avg_points = top_points["total_points"].mean()
+
+            fig_points = px.bar(
+                top_points,
+                x="total_points",
+                y="name",
+                orientation="h",
+                text="points_label",
+                color="total_points",
+                custom_data=["display_country", "rank"],
+                labels={"total_points": "iTunes Points", "name": ""},
+                color_continuous_scale=["#7c3aed", "#4f8ef7", "#ec4899"],
             )
-
-            top_streams = leaderboard.dropna(subset=["monthly_listeners"]).nlargest(8, "monthly_listeners").copy()
-            if not top_streams.empty:
-                top_streams = top_streams.sort_values("monthly_listeners", ascending=True)
-                top_streams["listener_label"] = top_streams["monthly_listeners"].apply(fmt_short)
-                avg_listeners = top_streams["monthly_listeners"].mean()
-
-                fig_bar = px.bar(
-                    top_streams,
-                    x="monthly_listeners",
-                    y="name",
-                    orientation="h",
-                    text="listener_label",
-                    color="monthly_listeners",
-                    custom_data=["display_country", "rank"],
-                    labels={"monthly_listeners": "Monthly listeners", "name": ""},
-                    color_continuous_scale=["#1d4ed8", "#7c3aed", "#22d3a0"],
-                )
-                fig_bar.update_traces(
-                    textposition="outside",
-                    cliponaxis=False,
-                    marker_line_color="rgba(255,255,255,.18)",
-                    marker_line_width=1.1,
-                    hovertemplate=(
-                        "<b>%{y}</b><br>"
-                        "Monthly listeners: %{x:,.0f}<br>"
-                        "Top LATAM market: %{customdata[0]}<br>"
-                        "Current rank: #%{customdata[1]}<extra></extra>"
-                    ),
-                )
-                fig_bar.add_vline(
-                    x=avg_listeners,
-                    line_dash="dash",
-                    line_color="rgba(245,166,35,.9)",
-                    annotation_text=f"Avg {fmt_short(avg_listeners)}",
-                    annotation_position="top left",
-                )
-                fig_bar.update_layout(
-                    title="Top Artists by Monthly Listeners",
-                    coloraxis_showscale=False,
-                    xaxis_title="Monthly listeners",
-                    xaxis_tickformat="~s",
-                    yaxis_title="",
-                )
-                style_figure(fig_bar, 360)
-                st.plotly_chart(fig_bar, use_container_width=True, config=PLOTLY_CONFIG)
-            else:
-                st.info("No monthly listener data is available for the current leaderboard selection.")
-
-            st.markdown("</div>", unsafe_allow_html=True)
+            fig_points.update_traces(
+                textposition="outside",
+                cliponaxis=False,
+                marker_line_color="rgba(255,255,255,.18)",
+                marker_line_width=1.1,
+                hovertemplate=(
+                    "<b>%{y}</b><br>"
+                    "iTunes Points: %{x:,.0f}<br>"
+                    "Top LATAM market: %{customdata[0]}<br>"
+                    "Current rank: #%{customdata[1]}<extra></extra>"
+                ),
+            )
+            fig_points.add_vline(
+                x=avg_points,
+                line_dash="dash",
+                line_color="rgba(245,166,35,.9)",
+                annotation_text=f"Avg {fmt_short(avg_points)}",
+                annotation_position="top left",
+            )
+            fig_points.update_layout(
+                title="Top Artists by iTunes Points",
+                coloraxis_showscale=False,
+                xaxis_title="iTunes Points",
+                xaxis_tickformat="~s",
+                yaxis_title="",
+            )
+            style_figure(fig_points, 360)
+            st.plotly_chart(fig_points, use_container_width=True, config=PLOTLY_CONFIG)
+        else:
+            st.info("No iTunes points data is available for the current leaderboard selection.")
 
     # New Threshold Analysis Row
     st.markdown(
-        "<div class='dashboard-card'><div class='section-title'>⚡ Chart Entry Thresholds</div><div class='section-sub'>Points and listeners required to reach specific leaderboard tiers</div></div>",
+        "<div style='margin: 1.5rem 0 1rem 0;'><div class='section-title' style='font-size: 1.25rem; color: var(--text);'>⚡ Chart Entry Thresholds</div><div class='section-sub'>Points and listeners required to reach specific leaderboard tiers</div></div>",
         unsafe_allow_html=True,
     )
     
@@ -1375,39 +1392,75 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
     
     if threshold_records:
         thresh_df = pd.DataFrame(threshold_records)
-        t_col1, t_col2 = st.columns(2)
+        t_col1, t_col2 = st.columns(2, gap="large")
         
         with t_col1:
+            st.markdown(
+                f"""
+                <div class='dashboard-card' style='height: 100%;'>
+                    <div class='section-title' style='color: var(--accent2);'><span style='font-size: 1.2rem;'>📊</span> Required Total Points</div>
+                    <div class='section-sub'>Minimum points needed for each rank tier</div>
+                """,
+                unsafe_allow_html=True
+            )
             fig_thresh_pts = px.line(
                 thresh_df, x="Tier", y="Points",
                 markers=True, text="Points",
-                title="Required Total Points by Tier",
                 color_discrete_sequence=["#7c5cfc"]
             )
             fig_thresh_pts.update_traces(
+                line=dict(width=4, shape='spline'),
+                marker=dict(size=10, line=dict(width=2, color='white')),
+                fill='tozeroy',
+                fillcolor='rgba(124, 92, 252, 0.1)',
                 textposition="top center",
                 texttemplate="%{y:.2s}",
-                hovertemplate="<b>%{x}</b><br>Required Points: %{y:,.0f}<br><extra></extra>",
+                hovertemplate="<b>%{x}</b><br>Required Points: %{y:,.0f}<br>Artist at Threshold: %{customdata}<extra></extra>",
                 customdata=thresh_df["Artist"]
             )
-            style_figure(fig_thresh_pts, 320)
+            style_figure(fig_thresh_pts, 340)
+            fig_thresh_pts.update_layout(
+                title="", 
+                margin=dict(t=20, b=40, l=40, r=20),
+                xaxis=dict(showgrid=False),
+                yaxis=dict(showgrid=True, gridcolor="rgba(151,163,197,0.08)")
+            )
             st.plotly_chart(fig_thresh_pts, use_container_width=True, config=PLOTLY_CONFIG)
+            st.markdown("</div>", unsafe_allow_html=True)
             
         with t_col2:
+            st.markdown(
+                f"""
+                <div class='dashboard-card' style='height: 100%;'>
+                    <div class='section-title' style='color: var(--accent3);'><span style='font-size: 1.2rem;'>🎧</span> Required Monthly Listeners</div>
+                    <div class='section-sub'>Minimum listeners needed for each rank tier</div>
+                """,
+                unsafe_allow_html=True
+            )
             fig_thresh_ls = px.line(
                 thresh_df, x="Tier", y="Listeners",
                 markers=True, text="Listeners",
-                title="Required Monthly Listeners by Tier",
                 color_discrete_sequence=["#22d3a0"]
             )
             fig_thresh_ls.update_traces(
+                line=dict(width=4, shape='spline'),
+                marker=dict(size=10, line=dict(width=2, color='white')),
+                fill='tozeroy',
+                fillcolor='rgba(34, 211, 160, 0.1)',
                 textposition="top center",
                 texttemplate="%{y:.2s}",
-                hovertemplate="<b>%{x}</b><br>Required Listeners: %{y:,.0f}<br><extra></extra>",
+                hovertemplate="<b>%{x}</b><br>Required Listeners: %{y:,.0f}<br>Artist at Threshold: %{customdata}<extra></extra>",
                 customdata=thresh_df["Artist"]
             )
-            style_figure(fig_thresh_ls, 320)
+            style_figure(fig_thresh_ls, 340)
+            fig_thresh_ls.update_layout(
+                title="", 
+                margin=dict(t=20, b=40, l=40, r=20),
+                xaxis=dict(showgrid=False),
+                yaxis=dict(showgrid=True, gridcolor="rgba(151,163,197,0.08)")
+            )
             st.plotly_chart(fig_thresh_ls, use_container_width=True, config=PLOTLY_CONFIG)
+            st.markdown("</div>", unsafe_allow_html=True)
         
         with st.expander("📋 View Threshold Data Points",expanded=True):
             display_df = thresh_df[["Tier", "Points", "Listeners"]].copy()
