@@ -372,7 +372,13 @@ def get_debut_kpis(debut_df: pd.DataFrame, all_df: pd.DataFrame) -> dict:
     if debut_df.empty:
         return {}
 
-    total        = len(debut_df)
+    if "artist_title" in debut_df.columns:
+        total = debut_df["artist_title"].astype(str).apply(lambda x: x.split(" - ")[0].strip()).nunique()
+        all_artists_count = all_df["artist_title"].astype(str).apply(lambda x: x.split(" - ")[0].strip()).nunique() if not all_df.empty else 1
+    else:
+        total = len(debut_df)
+        all_artists_count = len(all_df) if not all_df.empty else 1
+
     best_rank    = int(debut_df["rank"].min()) if "rank" in debut_df.columns else 0
     avg_rank     = int(debut_df["rank"].mean()) if "rank" in debut_df.columns else 0
     avg_score    = int(debut_df["total_streams"].mean()) if "total_streams" in debut_df.columns else 0
@@ -384,8 +390,7 @@ def get_debut_kpis(debut_df: pd.DataFrame, all_df: pd.DataFrame) -> dict:
         else "—"
     )
 
-    dropouts = len(all_df) - len(debut_df) if not all_df.empty else 0
-    churn    = round(total / max(len(all_df), 1) * 100, 1) if not all_df.empty else 0.0
+    churn    = round(total / max(all_artists_count, 1) * 100, 1) if not all_df.empty else 0.0
 
     incumbent_avg = (
         all_df[~all_df["artist_title"].isin(debut_df["artist_title"])]["total_streams"].mean()
@@ -1033,7 +1038,7 @@ def render_debut_tab() -> None:
 
     # ── Row 0: Latest iTunes Artist New Entries ─────────
     if not itunes_artist_new_df.empty:
-        _sec("Top 10 Latest New Entry - Last Week", "iTunes Artist Ranking")
+        _sec("Top 5 Latest New Entry - Last Week", "iTunes Artist Ranking")
         iar_new_html = _itunes_artist_new_entries_table_html(itunes_artist_new_df)
         st.markdown(
             f'<div style="max-height:400px;overflow-y:auto;padding-right:10px;margin-bottom:2rem;border:1px solid var(--border);border-radius:12px;background:var(--surface2)">{iar_new_html}</div>',
@@ -1051,15 +1056,6 @@ def render_debut_tab() -> None:
         unsafe_allow_html=True,
     )
 
-    # ── Row 2: Charts ───────────────
-    # chart_col1, chart_col2 = st.columns([1, 1], gap="medium")
-    # with chart_col1:
-    #     _sec("Debuts by rank bucket")
-    #     _chart_rank_bucket(bucket_df)
-
-    # with chart_col2:
-    #     _sec("Entry score curve")
-    #     _chart_score_distribution(debut_df, score_col="total_streams")
 
     st.markdown("<hr>", unsafe_allow_html=True)
 
