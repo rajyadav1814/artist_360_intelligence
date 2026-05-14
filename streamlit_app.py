@@ -370,9 +370,13 @@ def apply_theme() -> None:
             height: 25px;
             background: transparent;
         }
-        /* Crucial: Prevent Streamlit from clipping the tooltips */
-        [data-testid="stHorizontalBlock"], [data-testid="column"], [data-testid="stVerticalBlock"], [data-testid="stVerticalBlockBorderWrapper"] {
+        /* Prevent Streamlit from clipping the tooltips in standard blocks */
+        [data-testid="stHorizontalBlock"], [data-testid="column"], [data-testid="stVerticalBlock"] {
             overflow: visible !important;
+        }
+        /* Allow scrolling in containers with fixed height (BorderWrapper) */
+        [data-testid="stVerticalBlockBorderWrapper"]:has(div[data-testid="stVerticalBlock"] > div.stColumns) {
+            overflow: auto !important;
         }
         
         .tooltip .tooltiptext::-webkit-scrollbar {
@@ -813,7 +817,8 @@ def load_dashboard_data() -> dict[str, pd.DataFrame]:
             JOIN itunes_artist_rankings r ON r.artist_id = fa.artist_id AND r.scraped_at = fa.first_seen
             WHERE fa.first_seen >= NOW() - INTERVAL '30 days'
             ORDER BY fa.first_seen DESC
-        """
+        """,
+        "artist_labels": "SELECT artist_name, label FROM artist_labels"
     }
 
     conn = get_connection()
@@ -3269,6 +3274,7 @@ history = data["history"]
 top_history = data.get("top_history", pd.DataFrame())
 raw_benchmarks = data.get("raw_benchmarks", pd.DataFrame())
 debuts = data.get("debuts", pd.DataFrame())
+artist_labels_df = data.get("artist_labels", pd.DataFrame())
 
 last_run_label = "n/a"
 if not runs.empty and runs["finished_at"].notna().any():
@@ -3312,7 +3318,7 @@ def show_ai_analyst_page() -> None:
 
 
 def show_artist_analysis_page() -> None:
-    global raw_benchmarks, debuts
+    global raw_benchmarks, debuts, artist_labels_df
     page_title, page_meta = PAGE_META["Artist Analysis"]
     render_header(page_title, page_meta, last_run_label)
     
@@ -3381,37 +3387,35 @@ def show_artist_analysis_page() -> None:
         style_figure(fig, 500)
         st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CONFIG)
         
-        st.markdown("#### 🏆 Artist Ranking List")
-        
-        # Professional Ranking Table with interactive buttons for reliable redirection
-        # Header
-        h1, h2, h3, h4, h5 = st.columns([0.6, 2, 1.2, 1.2, 1.2])
-        with h1: st.markdown("**Rank**")
-        with h2: st.markdown("**Artist Name**")
-        with h3: st.markdown("**Listeners**")
-        with h4: st.markdown("**Spotify Pts**")
-        with h5: st.markdown("**Action**")
-        
-        st.divider()
-        
-        # Display rows in a scrollable container for better UI
-        container_height = 500
-        with st.container(height=container_height):
-            for _, row in top_df.iterrows():
-                r1, r2, r3, r4, r5 = st.columns([0.6, 2, 1.2, 1.2, 1.2])
-                with r1: st.markdown(f"**#{row['rank']}**")
-                with r2: st.markdown(f"{row['name']}")
-                with r3: st.write(f"{fmt_short(row['monthly_listeners'])}" if pd.notna(row['monthly_listeners']) else "—")
-                with r4: st.write(f"{fmt_short(row['spotify_points'])}" if pd.notna(row['spotify_points']) else "—")
-                with r5:
-                    if st.button("Get Details ➔", key=f"btn_rank_{row['name']}", use_container_width=True):
-                        st.session_state.global_selected_artist = row['name']
-                        # Set redirection flag for Artist Spotlight page
-                        st.session_state.redirect_to_page = "Artist Spotlight"
-                        # Clear specific page state to ensure the dropdown updates
-                        if "debut_artist_select" in st.session_state:
-                            del st.session_state["debut_artist_select"]
-                        st.rerun()
+        # Wrap the entire ranking list in a single cohesive "frame" (border)
+        with st.container(border=True):
+            st.markdown("#### 🏆 Artist Ranking List")
+            
+            # Professional Header (Fixed at top)
+            h_cols = st.columns([0.7, 2.5, 1.4, 1.2])
+            h_cols[0].markdown("**Rank**")
+            h_cols[1].markdown("**Artist Name**")
+            h_cols[2].markdown("**Listeners**")
+            h_cols[3].markdown("**Action**")
+            
+            st.markdown('<div style="margin-top: -10px; border-bottom: 1px solid rgba(255,255,255,0.1); margin-bottom: 10px;"></div>', unsafe_allow_html=True)
+            
+            # Scrollable container for the data rows only
+            with st.container(height=380, border=False):
+                for _, row in top_df.iterrows():
+                    r_cols = st.columns([0.7, 2.5, 1.4, 1.2])
+                    with r_cols[0]: st.markdown(f"**#{row['rank']}**")
+                    with r_cols[1]: st.markdown(f"**{row['name']}**")
+                    with r_cols[2]: st.write(f"{fmt_short(row['monthly_listeners'])}" if pd.notna(row['monthly_listeners']) else "—")
+                    with r_cols[3]:
+                        if st.button("Details", key=f"btn_rank_{row['name']}", use_container_width=True):
+                            st.session_state.global_selected_artist = row['name']
+                            # Set redirection flag for Artist Spotlight page
+                            st.session_state.redirect_to_page = "Artist Spotlight"
+                            # Clear specific page state to ensure the dropdown updates
+                            if "debut_artist_select" in st.session_state:
+                                del st.session_state["debut_artist_select"]
+                            st.rerun()
 
     elif active_tab == "👤 Artist":
         st.markdown("### 👤 Artist Performance Analysis")
@@ -3602,73 +3606,79 @@ def show_artist_analysis_page() -> None:
         st.markdown("### 🏷️ Label Market Intelligence")
         st.info("Distribution of top artists across major record labels and independent groups.")
         
-        # Artist-Label Mapping (Heuristic-based for Top Artists)
-        ARTIST_LABELS = {
-            "Bad Bunny": "Rimas Entertainment",
-            "Karol G": "Universal Music Latino",
-            "Shakira": "Sony Music Latin",
-            "J Balvin": "Universal Music Latino",
-            "Maluma": "Sony Music Latin",
-            "Rauw Alejandro": "Sony Music Latin",
-            "Peso Pluma": "Double P Records",
-            "Feid": "Universal Music Latino",
-            "Myke Towers": "Warner Music Latina",
-            "Anuel AA": "Real Hasta la Muerte",
-            "Daddy Yankee": "Universal Music Latino",
-            "Rosalía": "Sony Music (Columbia)",
-            "Bizarrap": "Dale Play Records",
-            "Ozuna": "Sony Music Latin",
-            "Farruko": "Sony Music Latin",
-            "Camilo": "Sony Music Latin",
-            "Sebastian Yatra": "Universal Music Latino",
-            "Christian Nodal": "Sony Music Latin",
-            "Luis Miguel": "Warner Music Latina",
-            "Enrique Iglesias": "Sony Music Latin",
-            "Marc Anthony": "Sony Music Latin",
-            "Ricky Martin": "Sony Music Latin",
-            "Romeo Santos": "Sony Music Latin",
-            "Prince Royce": "Sony Music Latin",
-            "Becky G": "Sony Music Latin",
-            "Natti Natasha": "Sony Music Latin",
-            "Junior H": "Warner Music Latina",
-            "Natanael Cano": "Warner Music Latina",
-            "Fuerza Regida": "Sony Music Latin",
-            "Eslabon Armado": "DEL Records",
-            "Young Miko": "The Wave Music Group",
-            "Tini": "Sony Music Latin",
-            "Maria Becerra": "Warner Music Latina",
-        }
+        # Dynamic Artist-Label Mapping from database
+        ARTIST_LABELS = {}
+        if not artist_labels_df.empty:
+            ARTIST_LABELS = dict(zip(artist_labels_df["artist_name"], artist_labels_df["label"]))
         
         # Apply labels to leaderboard
         label_df = leaderboard.copy()
         label_df["label"] = label_df["name"].map(ARTIST_LABELS).fillna("Independent / Other")
         
         # Summarize by Label
-        label_summary = label_df.groupby("label").agg({
+        label_summary_full = label_df.groupby("label").agg({
             "name": "count",
             "total_points": "sum"
         }).reset_index().rename(columns={"name": "artist_count"})
         
-        l_col1, l_col2 = st.columns([1, 1.2])
+        # Group small slices for cleaner pie chart (anything less than 1.5% share)
+        pie_df = label_summary_full.copy()
+        total_pts = pie_df["total_points"].sum()
+        if total_pts > 0:
+            pie_df["share"] = pie_df["total_points"] / total_pts
+            threshold = 0.015
+            small_mask = (pie_df["share"] < threshold) & (pie_df["label"] != "Independent / Other")
+            
+            if small_mask.any():
+                others_pts = pie_df.loc[small_mask, "total_points"].sum()
+                others_count = pie_df.loc[small_mask, "artist_count"].sum()
+                
+                pie_df = pie_df[~small_mask].copy()
+                others_row = pd.DataFrame([{
+                    "label": "Other Labels", 
+                    "total_points": others_pts, 
+                    "artist_count": others_count,
+                    "share": others_pts / total_pts
+                }])
+                pie_df = pd.concat([pie_df, others_row], ignore_index=True)
+        
+        l_col1, l_col2 = st.columns([1.2, 1])
         
         with l_col1:
             st.markdown("#### 📊 Market Share by Points")
             fig_label = px.pie(
-                label_summary, 
+                pie_df, 
                 values="total_points", 
                 names="label", 
                 hole=0.4,
-                color_discrete_sequence=CHART_COLORS
+                color_discrete_sequence=CHART_COLORS,
             )
-            style_figure(fig_label, 350)
+            fig_label.update_traces(
+                textposition='inside', 
+                textinfo='percent',
+                hovertemplate="<b>%{label}</b><br>Points: %{value:,.0f}<br>Share: %{percent}<extra></extra>"
+            )
+            fig_label.update_layout(
+                showlegend=True,
+                legend=dict(
+                    orientation="v", 
+                    yanchor="middle", 
+                    y=0.5, 
+                    xanchor="left", 
+                    x=1.05,
+                    font=dict(size=10)
+                ),
+                margin=dict(l=10, r=10, t=50, b=10)
+            )
+            style_figure(fig_label, 400)
             st.plotly_chart(fig_label, use_container_width=True, config=PLOTLY_CONFIG)
             
         with l_col2:
             st.markdown("#### 🏢 Label Directory")
-            selected_label = st.selectbox("Select a Label to view Artists", ["All Labels"] + sorted(label_summary["label"].tolist()))
+            selected_label = st.selectbox("Select a Label to view Artists", ["All Labels"] + sorted(label_summary_full["label"].tolist()))
             
             if selected_label == "All Labels":
-                st.dataframe(label_summary.sort_values("artist_count", ascending=False), use_container_width=True, hide_index=True)
+                st.dataframe(label_summary_full.sort_values("artist_count", ascending=False), use_container_width=True, hide_index=True)
             else:
                 artists_under_label = label_df[label_df["label"] == selected_label].sort_values("rank")
                 st.markdown(f"**Artists under {selected_label}:**")
@@ -3676,34 +3686,38 @@ def show_artist_analysis_page() -> None:
                     st.markdown(f"- **{a_row['name']}** (Rank #{a_row['rank']})")
                     
         st.divider()
-        st.markdown("#### 📈 Top Label Performance (Drill-down)")
-        st.info("Click on a label to see its full roster and top track performance.")
-        
-        # Sort labels by total points
-        sorted_labels = label_summary.sort_values("total_points", ascending=False)
-        
-        for _, l_row in sorted_labels.iterrows():
-            label_name = l_row["label"]
-            with st.expander(f"🏢 {label_name} — {l_row['artist_count']} Artists | {fmt_short(l_row['total_points'])} Points"):
-                label_artists = label_df[label_df["label"] == label_name].sort_values("rank")
+        # Wrap the label performance section in a cohesive scrollable frame
+        with st.container(border=True):
+            st.markdown("#### 📈 Top Label Performance (Drill-down)")
+            st.info("Explore label market share and individual artist performance within each roster.")
+            
+            # Scrollable container for label expanders
+            with st.container(height=500, border=False):
+                # Sort labels by total points
+                sorted_labels = label_summary_full.sort_values("total_points", ascending=False)
                 
-                # Create a clean details table for the label
-                details_data = []
-                for _, a_row in label_artists.iterrows():
-                    details_data.append({
-                        "Artist": a_row["name"],
-                        "Top Track": a_row.get("top_song", "—"),
-                        "Total Streams (Pts)": f"{a_row['total_points']:,}"
-                    })
-                
-                st.dataframe(
-                    pd.DataFrame(details_data),
-                    use_container_width=True,
-                    hide_index=True
-                )
-                
-                if label_name != "Independent / Other":
-                    st.caption(f"💡 {label_name} currently manages {l_row['artist_count']} of the top 100 global Latin artists.")
+                for _, l_row in sorted_labels.iterrows():
+                    label_name = l_row["label"]
+                    with st.expander(f"🏢 {label_name} — {l_row['artist_count']} Artists | {fmt_short(l_row['total_points'])} Points"):
+                        label_artists = label_df[label_df["label"] == label_name].sort_values("rank")
+                        
+                        # Create a clean details table for the label
+                        details_data = []
+                        for _, a_row in label_artists.iterrows():
+                            details_data.append({
+                                "Artist": a_row["name"],
+                                "Top Track": a_row.get("top_song", "—"),
+                                "Total Streams (Pts)": f"{a_row['total_points']:,}"
+                            })
+                        
+                        st.dataframe(
+                            pd.DataFrame(details_data),
+                            use_container_width=True,
+                            hide_index=True
+                        )
+                        
+                        if label_name != "Independent / Other":
+                            st.caption(f"💡 {label_name} currently manages {l_row['artist_count']} of the top 100 global Latin artists.")
         
     elif active_tab == "📈 Movement":
         st.markdown("### 📈 Market Movement")
