@@ -1380,17 +1380,43 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
     
     target_ranks = [10, 20, 50, 100, 150, 200]
     threshold_records = []
+    
+    # Sort independently to find the true threshold values
+    pts_sorted = leaderboard.dropna(subset=["total_points"]).sort_values("total_points", ascending=False)
+    lsn_sorted = leaderboard.dropna(subset=["monthly_listeners"]).sort_values("monthly_listeners", ascending=False)
+
     for r_val in target_ranks:
-        # Find the artist at or just below this rank to define the entry threshold
-        match_row = leaderboard[leaderboard["rank"] >= r_val].sort_values("rank").head(1)
-        if not match_row.empty:
-            threshold_records.append({
-                "Tier": f"Top {r_val}",
-                "Rank": r_val,
-                "Points": float(match_row.iloc[0].get("total_points", 0)),
-                "Listeners": float(match_row.iloc[0].get("monthly_listeners", 0)),
-                "Artist": match_row.iloc[0]["name"]
-            })
+        pts = 0.0
+        lsn = 0.0
+        artist_pts = "—"
+        artist_lsn = "—"
+
+        if len(pts_sorted) >= r_val:
+            row_p = pts_sorted.iloc[r_val - 1]
+            pts = float(row_p["total_points"])
+            artist_pts = row_p["name"]
+        elif not pts_sorted.empty:
+            row_p = pts_sorted.iloc[-1]
+            pts = float(row_p["total_points"])
+            artist_pts = row_p["name"]
+
+        if len(lsn_sorted) >= r_val:
+            row_l = lsn_sorted.iloc[r_val - 1]
+            lsn = float(row_l["monthly_listeners"])
+            artist_lsn = row_l["name"]
+        elif not lsn_sorted.empty:
+            row_l = lsn_sorted.iloc[-1]
+            lsn = float(row_l["monthly_listeners"])
+            artist_lsn = row_l["name"]
+
+        threshold_records.append({
+            "Tier": f"Top {r_val}",
+            "Rank": r_val,
+            "Points": pts,
+            "Listeners": lsn,
+            "Artist_Pts": artist_pts,
+            "Artist_Lsn": artist_lsn
+        })
     
     if threshold_records:
         thresh_df = pd.DataFrame(threshold_records)
@@ -1418,7 +1444,7 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
                 textposition="top center",
                 texttemplate="%{y:.2s}",
                 hovertemplate="<b>%{x}</b><br>Required Points: %{y:,.0f}<br>Artist at Threshold: %{customdata}<extra></extra>",
-                customdata=thresh_df["Artist"]
+                customdata=thresh_df["Artist_Pts"]
             )
             style_figure(fig_thresh_pts, 340)
             fig_thresh_pts.update_layout(
@@ -1452,7 +1478,7 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
                 textposition="top center",
                 texttemplate="%{y:.2s}",
                 hovertemplate="<b>%{x}</b><br>Required Listeners: %{y:,.0f}<br>Artist at Threshold: %{customdata}<extra></extra>",
-                customdata=thresh_df["Artist"]
+                customdata=thresh_df["Artist_Lsn"]
             )
             style_figure(fig_thresh_ls, 340)
             fig_thresh_ls.update_layout(
