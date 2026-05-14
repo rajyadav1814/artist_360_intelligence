@@ -1015,7 +1015,7 @@ def render_pulse_report():
         f"""
         <div class='top-hero'>
             <div class='hero-title'>Pulse Report</div>
-            <div class='hero-meta'>Week {week_num} • {date_range} • Live Spotify weekly performance</div>
+            <div class='hero-meta'>{date_range} • Live Spotify weekly performance</div>
         </div>
         """,
         unsafe_allow_html=True,

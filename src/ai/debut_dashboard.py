@@ -510,6 +510,10 @@ def get_itunes_artist_new_entries(limit: int = 10) -> pd.DataFrame:
         if not df.empty:
             df["rank"] = pd.to_numeric(df["rank"], errors="coerce")
             df["total_points"] = pd.to_numeric(df["total_points"], errors="coerce")
+            # Avoid duplicate entries for the same artist on the same date (handle multiple scrapes)
+            if "scrape_date" in df.columns:
+                df["scrape_date"] = pd.to_datetime(df["scrape_date"]).dt.date
+                df = df.drop_duplicates(subset=["artist_name", "scrape_date"])
             
         return df
     except Exception as e:
@@ -955,7 +959,7 @@ def render_debut_tab() -> None:
                       display:flex;align-items:center;gap:8px">
             <span style="width:8px;height:8px;border-radius:50%;
                          background:var(--accent3);display:inline-block;box-shadow:0 0 10px var(--accent3)"></span>
-         &nbsp;·&nbsp; Debut Intelligence &nbsp;·&nbsp; Week {week_num}
+         &nbsp;·&nbsp; Debut Intelligence
           </div>
           <div style="font-size:2.2rem;font-weight:800;letter-spacing:-0.03em;color:var(--text);
                       margin-bottom:0.25rem">Chart Debuts Report</div>
@@ -1039,7 +1043,7 @@ def render_debut_tab() -> None:
     # ── Row 1: Full-width Debut Table ─────────
     _sec(
         f"All {kpis.get('total', 0)} debuts — ranked by entry strength",
-        f"Week {week_num} · Spotify Global",
+        "Spotify Global",
     )
     debut_html = _debut_table_html(debut_df, score_col="total_streams")
     st.markdown(
