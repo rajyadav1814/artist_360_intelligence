@@ -3034,29 +3034,11 @@ app_pages = [
         default=True,
     ),
     st.Page(
-        show_compare_page,
-        title="Compare",
-        icon=":material/compare_arrows:",
-        url_path="compare",
+        show_debut_report_page,
+        title="Debut Report",
+        icon=":material/new_releases:",
+        url_path="debut-report",
     ),
-    # st.Page(
-    #     show_debut_artist_page,
-    #     title="Artist Spotlight",
-    #     icon=":material/artist:",
-    #     url_path="artist-spotlight",
-    # ),
-    st.Page(
-        show_chart_tracker_page,
-        title="Chart Tracker",
-        icon=":material/desktop_windows:",
-        url_path="chart-tracker",
-    ),
-    # st.Page(
-    #     show_stream_trends_page,
-    #     title="Stream Trends",
-    #     icon=":material/show_chart:",
-    #     url_path="stream-trends",
-    # ),
     st.Page(
         show_pulse_report_page,
         title="Pulse Report",
@@ -3064,23 +3046,23 @@ app_pages = [
         url_path="pulse-report",
     ),
     st.Page(
+        show_chart_tracker_page,
+        title="Chart Tracker",
+        icon=":material/desktop_windows:",
+        url_path="chart-tracker",
+    ),
+    st.Page(
+        show_compare_page,
+        title="Compare",
+        icon=":material/compare_arrows:",
+        url_path="compare",
+    ),
+    st.Page(
         show_ai_analyst_page,
         title="AI Data Analyst",
         icon=":material/smart_toy:",
         url_path="ai-data-analyst",
     ),
-    st.Page(
-        show_debut_report_page,
-        title="Debut Report",
-        icon=":material/new_releases:",
-        url_path="debut-report",
-    ),
-    # st.Page(
-    #     show_ops_monitor_page,
-    #     title="Ops Monitor",
-    #     icon=":material/tune:",
-    #     url_path="ops-monitor",
-    # ),
 ]
 
 with st.sidebar:

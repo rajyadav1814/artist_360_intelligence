@@ -320,6 +320,7 @@ def get_itunes_debuts(days_back: int = 7) -> pd.DataFrame:
                 WITH current_wk AS (
                     SELECT
                         artist_title,
+                        label,
                         MIN(rank)    AS best_rank,
                         SUM(points)  AS total_score,
                         MAX(peak)    AS peak_position,
@@ -328,17 +329,19 @@ def get_itunes_debuts(days_back: int = 7) -> pd.DataFrame:
                     WHERE date BETWEEN %s AND %s
                       AND country = 'ww'
                       AND points  > 0
-                    GROUP BY artist_title
+                    GROUP BY artist_title, label
                 ),
                 prior_wk AS (
-                    SELECT DISTINCT artist_title
+                    SELECT DISTINCT artist_title, label
                     FROM itunes_daily
                     WHERE date BETWEEN %s AND %s
                       AND country = 'ww'
                 )
                 SELECT cw.*
                 FROM current_wk cw
-                LEFT JOIN prior_wk pw ON cw.artist_title = pw.artist_title
+                LEFT JOIN prior_wk pw
+                       ON cw.artist_title = pw.artist_title
+                      AND COALESCE(cw.label,'') = COALESCE(pw.label,'')
                 WHERE pw.artist_title IS NULL
                 ORDER BY cw.best_rank ASC
                 """,
@@ -478,6 +481,42 @@ def get_new_trending_artists(days_back: int = 30) -> pd.DataFrame:
         return pd.DataFrame()
 
 
+def get_itunes_artist_new_entries(limit: int = 10) -> pd.DataFrame:
+    """
+    Fetch the latest 'NEW' entries from itunes_artist_rankings.
+    """
+    try:
+        conn, cur = _get_conn_cursor()
+        with cur:
+            cur.execute(
+                """
+                SELECT 
+                    a.name AS artist_name, 
+                    iar.rank, 
+                    iar.rank_change, 
+                    iar.total_points, 
+                    iar.scrape_date
+                FROM itunes_artist_rankings iar
+                JOIN artists a ON a.id = iar.artist_id
+                WHERE iar.rank_change = 'NEW'
+                  AND iar.scrape_date >= NOW() - INTERVAL '7 days'
+                ORDER BY iar.scrape_date DESC, iar.rank ASC
+                LIMIT %s
+                """,
+                (limit,),
+            )
+            df = _df_from_cursor(cur)
+        
+        if not df.empty:
+            df["rank"] = pd.to_numeric(df["rank"], errors="coerce")
+            df["total_points"] = pd.to_numeric(df["total_points"], errors="coerce")
+            
+        return df
+    except Exception as e:
+        logger.error(f"get_itunes_artist_new_entries: {e}")
+        return pd.DataFrame()
+
+
 def get_debut_rank_buckets(debut_df: pd.DataFrame) -> pd.DataFrame:
     """Count debuts in each 25-rank bucket."""
     if debut_df.empty or "rank" not in debut_df.columns:
@@ -607,11 +646,12 @@ def _debut_table_html(df: pd.DataFrame, score_col: str = "total_streams", max_ro
     max_score = df[score_col].max() if score_col in df.columns else 1
 
     header = """
-    <div style="display:grid;grid-template-columns:80px 2fr 1.5fr 100px 100px;
+    <div style="display:grid;grid-template-columns:80px 1.8fr 1.2fr 1fr 100px 80px;
                 gap:12px;padding:8px 0;border-bottom:1px solid var(--border);margin-bottom:4px;">
       <span style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;font-weight:700">Rank</span>
       <span style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;font-weight:700">Track Title</span>
-      <span style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;font-weight:700">Artist / Label</span>
+      <span style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;font-weight:700">Artist</span>
+      <span style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;font-weight:700">Label</span>
       <span style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;font-weight:700;text-align:right">Score</span>
       <span style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;font-weight:700;text-align:right">Signal</span>
     </div>"""
@@ -624,19 +664,20 @@ def _debut_table_html(df: pd.DataFrame, score_col: str = "total_streams", max_ro
         artist       = parts[0].strip()
         title        = parts[1].strip() if len(parts) > 1 else artist_title
         label        = str(row.get("label", "")).strip()
+        label_display = label if label and label.lower() != "nan" else "—"
         score        = row.get(score_col, 0) or 0
         pct          = round(float(score) / max(float(max_score), 1) * 100)
 
         if score >= max_score * 0.6:
             bar_color, badge = "#22c55e", '<span class="badge-hot" style="font-size:9px">TOP DEBUT</span>'
-        elif label and any(k in label.lower() for k in ["cortis", "babymonster", "bob"]):
-            bar_color, badge = "#a78bfa", '<span class="badge-multi" style="font-size:9px">MULTI</span>'
+        elif score >= max_score * 0.3:
+            bar_color, badge = "#a78bfa", '<span class="badge-multi" style="font-size:9px">RISING</span>'
         else:
             bar_color, badge = "#555", '<span class="badge-new" style="font-size:9px">NEW ENTRY</span>'
 
         rows_html += f"""
         <div class="rank-row"
-             style="grid-template-columns:80px 2fr 1.5fr 100px 100px; padding: 12px 10px;">
+             style="grid-template-columns:80px 1.8fr 1.2fr 1fr 100px 80px; padding: 12px 10px;">
           <span style="font-size:15px;font-weight:700;color:var(--text)">
             #{rank}
           </span>
@@ -649,6 +690,8 @@ def _debut_table_html(df: pd.DataFrame, score_col: str = "total_streams", max_ro
           </div>
           <div style="font-size:13px;color:var(--text2);white-space:nowrap;
                       overflow:hidden;text-overflow:ellipsis">{artist}</div>
+          <div style="font-size:12px;color:var(--accent2);white-space:nowrap;
+                      overflow:hidden;text-overflow:ellipsis">{label_display}</div>
           <span style="font-size:15px;font-weight:700;color:var(--text);text-align:right">{fmt(score)}</span>
           <span style="text-align:right">{badge}</span>
         </div>"""
@@ -662,11 +705,12 @@ def _itunes_debut_table_html(df: pd.DataFrame, max_rows: int = 15) -> str:
         return "<p style='color:var(--text2);font-size:12px'>No iTunes debut data available.</p>"
 
     header = """
-    <div style="display:grid;grid-template-columns:80px 2fr 1.5fr 100px 100px;
+    <div style="display:grid;grid-template-columns:80px 1.8fr 1.5fr 1fr 100px 80px;
                 gap:12px;padding:8px 0;border-bottom:1px solid var(--border);margin-bottom:4px;">
       <span style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;font-weight:700">Rank</span>
       <span style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;font-weight:700">Track Title</span>
       <span style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;font-weight:700">Artist</span>
+      <span style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;font-weight:700">Label</span>
       <span style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;font-weight:700;text-align:right">Points</span>
       <span style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;font-weight:700;text-align:right">Peak</span>
     </div>"""
@@ -676,6 +720,8 @@ def _itunes_debut_table_html(df: pd.DataFrame, max_rows: int = 15) -> str:
         rank  = int(row.get("best_rank", 0))
         title = str(row.get("title", row.get("track_name", "—")))
         artist= str(row.get("artist", "—"))
+        label = str(row.get("label", "")).strip()
+        label_display = label if label and label.lower() != "nan" else "—"
         score = row.get("total_score", 0) or 0
         peak  = int(row.get("peak_position", 0)) if not pd.isna(row.get("peak_position", np.nan)) else 0
 
@@ -684,7 +730,7 @@ def _itunes_debut_table_html(df: pd.DataFrame, max_rows: int = 15) -> str:
 
         rows_html += f"""
         <div class="rank-row"
-             style="grid-template-columns:80px 2fr 1.5fr 100px 100px; padding: 12px 10px;">
+             style="grid-template-columns:80px 1.8fr 1.5fr 1fr 100px 80px; padding: 12px 10px;">
           <span style="font-size:15px;font-weight:700;color:var(--text)">
             #{rank}
           </span>
@@ -692,6 +738,8 @@ def _itunes_debut_table_html(df: pd.DataFrame, max_rows: int = 15) -> str:
                       white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{title}</div>
           <div style="font-size:13px;color:var(--text2);white-space:nowrap;
                       overflow:hidden;text-overflow:ellipsis">{artist}</div>
+          <div style="font-size:12px;color:var(--accent2);white-space:nowrap;
+                      overflow:hidden;text-overflow:ellipsis">{label_display}</div>
           <span style="font-size:15px;font-weight:700;color:var(--text);text-align:right">{fmt(score)}</span>
           <span style="font-size:13px;color:{peak_color};text-align:right;font-weight:600">pk#{peak}</span>
         </div>"""
@@ -776,6 +824,44 @@ def _new_trending_html(df: pd.DataFrame) -> str:
     return html
 
 
+def _itunes_artist_new_entries_table_html(df: pd.DataFrame) -> str:
+    """Render a table for the latest iTunes artist new entries."""
+    if df.empty:
+        return "<p style='color:var(--text2);font-size:12px'>No recent NEW entries found in iTunes artist rankings.</p>"
+
+    header = """
+    <div style="display:grid;grid-template-columns:80px 1.5fr 1fr 120px 120px;
+                gap:12px;padding:8px 0;border-bottom:1px solid var(--border);margin-bottom:4px;">
+      <span style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;font-weight:700">Rank</span>
+      <span style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;font-weight:700">Artist</span>
+      <span style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;font-weight:700">Change</span>
+      <span style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;font-weight:700;text-align:right">Points</span>
+      <span style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;font-weight:700;text-align:right">Date</span>
+    </div>"""
+
+    rows_html = ""
+    for _, row in df.iterrows():
+        rank = int(row.get("rank", 0))
+        artist = str(row.get("artist_name", "—"))
+        change = str(row.get("rank_change", "—"))
+        points = row.get("total_points", 0) or 0
+        date = row.get("scrape_date")
+        date_str = date.strftime("%b %d") if date else "—"
+
+        rows_html += f"""
+        <div class="rank-row"
+             style="grid-template-columns:80px 1.5fr 1fr 120px 120px; padding: 10px 10px;">
+          <span style="font-size:15px;font-weight:700;color:var(--text)">#{rank}</span>
+          <div style="font-size:15px;font-weight:700;color:var(--text);
+                      white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{artist}</div>
+          <div><span class="badge-new">{change}</span></div>
+          <span style="font-size:15px;font-weight:700;color:var(--text);text-align:right">{fmt(points)}</span>
+          <span style="font-size:13px;color:var(--text2);text-align:right">{date_str}</span>
+        </div>"""
+
+    return header + rows_html
+
+
 # ─────────────────────────────────────────────────────────────
 #  CHARTS
 # ─────────────────────────────────────────────────────────────
@@ -849,6 +935,7 @@ def render_debut_tab() -> None:
     all_df     = get_all_chart_tracks()
     itunes_df  = get_itunes_debuts()
     trending_df= get_new_trending_artists()
+    itunes_artist_new_df = get_itunes_artist_new_entries(10)
 
     kpis       = get_debut_kpis(debut_df, all_df)
     multi_df   = get_multi_track_debutants(debut_df)
@@ -868,7 +955,7 @@ def render_debut_tab() -> None:
                       display:flex;align-items:center;gap:8px">
             <span style="width:8px;height:8px;border-radius:50%;
                          background:var(--accent3);display:inline-block;box-shadow:0 0 10px var(--accent3)"></span>
-            Chromadata &nbsp;·&nbsp; Debut Intelligence &nbsp;·&nbsp; Week {week_num}
+         &nbsp;·&nbsp; Debut Intelligence &nbsp;·&nbsp; Week {week_num}
           </div>
           <div style="font-size:2.2rem;font-weight:800;letter-spacing:-0.03em;color:var(--text);
                       margin-bottom:0.25rem">Chart Debuts Report</div>
@@ -939,6 +1026,15 @@ def render_debut_tab() -> None:
         """,
         unsafe_allow_html=True,
     )
+
+    # ── Row 0: Latest iTunes Artist New Entries ─────────
+    if not itunes_artist_new_df.empty:
+        _sec("Top 10 Latest New Entry - Last Week", "iTunes Artist Ranking")
+        iar_new_html = _itunes_artist_new_entries_table_html(itunes_artist_new_df)
+        st.markdown(
+            f'<div style="max-height:400px;overflow-y:auto;padding-right:10px;margin-bottom:2rem;border:1px solid var(--border);border-radius:12px;background:var(--surface2)">{iar_new_html}</div>',
+            unsafe_allow_html=True,
+        )
 
     # ── Row 1: Full-width Debut Table ─────────
     _sec(
