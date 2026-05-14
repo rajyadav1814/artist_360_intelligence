@@ -254,7 +254,7 @@ def get_debut_tracks(days_back: int = 7) -> pd.DataFrame:
                 WITH current_week AS (
                     SELECT
                         artist_title,
-                        MAX(label)         AS label,
+                        label,
                         MIN(rank)          AS best_rank,
                         SUM(streams)       AS total_streams,
                         COUNT(DISTINCT date) AS days_charted,
@@ -263,10 +263,10 @@ def get_debut_tracks(days_back: int = 7) -> pd.DataFrame:
                     WHERE date BETWEEN %s AND %s
                       AND streams > 0
                       AND country = 'global'
-                    GROUP BY artist_title
+                    GROUP BY artist_title, label
                 ),
                 prior_week AS (
-                    SELECT DISTINCT artist_title
+                    SELECT DISTINCT artist_title, label
                     FROM spotify_daily
                     WHERE date BETWEEN %s AND %s
                       AND streams > 0
@@ -282,6 +282,7 @@ def get_debut_tracks(days_back: int = 7) -> pd.DataFrame:
                 FROM current_week cw
                 LEFT JOIN prior_week pw
                        ON cw.artist_title = pw.artist_title
+                      AND cw.label        = pw.label
                 WHERE pw.artist_title IS NULL
                 ORDER BY cw.best_rank ASC
                 """,
@@ -319,7 +320,7 @@ def get_itunes_debuts(days_back: int = 7) -> pd.DataFrame:
                 WITH current_wk AS (
                     SELECT
                         artist_title,
-                        MAX(label)   AS label,
+                        label,
                         MIN(rank)    AS best_rank,
                         SUM(points)  AS total_score,
                         MAX(peak)    AS peak_position,
@@ -328,10 +329,10 @@ def get_itunes_debuts(days_back: int = 7) -> pd.DataFrame:
                     WHERE date BETWEEN %s AND %s
                       AND country = 'ww'
                       AND points  > 0
-                    GROUP BY artist_title
+                    GROUP BY artist_title, label
                 ),
                 prior_wk AS (
-                    SELECT DISTINCT artist_title
+                    SELECT DISTINCT artist_title, label
                     FROM itunes_daily
                     WHERE date BETWEEN %s AND %s
                       AND country = 'ww'
@@ -340,6 +341,7 @@ def get_itunes_debuts(days_back: int = 7) -> pd.DataFrame:
                 FROM current_wk cw
                 LEFT JOIN prior_wk pw
                        ON cw.artist_title = pw.artist_title
+                      AND COALESCE(cw.label,'') = COALESCE(pw.label,'')
                 WHERE pw.artist_title IS NULL
                 ORDER BY cw.best_rank ASC
                 """,
@@ -572,7 +574,7 @@ def get_all_chart_tracks(days_back: int = 7) -> pd.DataFrame:
                 """
                 SELECT
                     artist_title,
-                    MAX(label)         AS label,
+                    label,
                     MIN(rank)          AS rank,
                     SUM(streams)       AS total_streams,
                     COUNT(DISTINCT date) AS days_charted
@@ -580,7 +582,7 @@ def get_all_chart_tracks(days_back: int = 7) -> pd.DataFrame:
                 WHERE date BETWEEN %s AND %s
                   AND streams > 0
                   AND country = 'global'
-                GROUP BY artist_title
+                GROUP BY artist_title, label
                 ORDER BY rank ASC
                 """,
                 (current_start, ld),
