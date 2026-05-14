@@ -1199,7 +1199,7 @@ def render_leaderboard_table_html(leaderboard: pd.DataFrame, max_rows: int) -> N
     <div class='dashboard-card'>
         <div class='section-title'>📊 Leaderboard table</div>
         <div class='section-sub'>Scroll through the latest rank, listener, and points data in one place.</div>
-        <div class='table-wrap' style='max-height:620px; overflow-x:auto; overflow-y:auto;'>
+        <div class='table-wrap' style='max-height:605px; overflow-x:auto; overflow-y:auto;'>
             <table class='leader-table'>
                 <thead>
                     <tr>
@@ -1227,7 +1227,39 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
         st.warning("No leaderboard data available yet. Run the scraper first.")
         return
 
-    left, right = st.columns([1.8, 1.4], gap="large")
+    st.markdown(
+        """
+        <style>
+        /* Remove default top padding inside right column */
+        [data-testid="column"]:nth-child(2) > div:first-child {
+            padding-top: 0 !important;
+            margin-top: 0 !important;
+        }
+        /* Chart card styling */
+        [data-testid="stPlotlyChart"] {
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            padding: 0.75rem 0.5rem 0.25rem;
+            margin-top: 0 !important;
+            margin-bottom: 1.5rem !important;
+            box-shadow: 0 18px 36px rgba(0,0,0,.12);
+            transition: border-color 0.25s ease, box-shadow 0.25s ease;
+        }
+        [data-testid="stPlotlyChart"]:hover {
+            border-color: rgba(79,142,247,0.35);
+            box-shadow: 0 24px 48px rgba(0,0,0,.18);
+        }
+        /* Remove streamlit's default element-container top margin */
+        [data-testid="column"]:nth-child(2) .element-container:first-of-type {
+            margin-top: 0 !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    left, right = st.columns([2.2, 1.5], gap="medium")
 
     with left:
         total_artists = len(leaderboard)
@@ -1242,36 +1274,6 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
         render_leaderboard_table_html(leaderboard, max_rows)
 
     with right:
-        st.markdown(
-            """
-            <style>
-            /* Remove default top padding inside right column */
-            [data-testid="column"]:nth-child(2) > div:first-child {
-                padding-top: 0 !important;
-                margin-top: 0 !important;
-            }
-            /* Chart card styling */
-            [data-testid="stPlotlyChart"] {
-                background: var(--surface2);
-                border: 1px solid var(--border);
-                border-radius: 18px;
-                padding: 0.75rem 0.5rem 0.25rem;
-                margin-bottom: 1.25rem;
-                box-shadow: 0 18px 36px rgba(0,0,0,.12);
-                transition: border-color 0.25s ease, box-shadow 0.25s ease;
-            }
-            [data-testid="stPlotlyChart"]:hover {
-                border-color: rgba(79,142,247,0.35);
-                box-shadow: 0 24px 48px rgba(0,0,0,.18);
-            }
-            /* Remove streamlit's default element-container top margin */
-            [data-testid="column"]:nth-child(2) .element-container:first-of-type {
-                margin-top: 0 !important;
-            }
-            </style>
-            """,
-            unsafe_allow_html=True,
-        )
 
         top_streams = leaderboard.dropna(subset=["monthly_listeners"]).nlargest(8, "monthly_listeners").copy()
         if not top_streams.empty:
@@ -1316,7 +1318,7 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
                 xaxis_tickformat="~s",
                 yaxis_title="",
             )
-            style_figure(fig_bar, 360)
+            style_figure(fig_bar, 375)
             st.plotly_chart(fig_bar, use_container_width=True, config=PLOTLY_CONFIG)
         else:
             st.info("No monthly listener data is available for the current leaderboard selection.")
@@ -1365,7 +1367,7 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
                 xaxis_tickformat="~s",
                 yaxis_title="",
             )
-            style_figure(fig_points, 360)
+            style_figure(fig_points, 375)
             st.plotly_chart(fig_points, use_container_width=True, config=PLOTLY_CONFIG)
         else:
             st.info("No iTunes points data is available for the current leaderboard selection.")
