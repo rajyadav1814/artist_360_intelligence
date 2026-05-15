@@ -215,8 +215,10 @@ def render_track_movement() -> None:
         st.warning("No daily chart data available for the selected window.")
         return
 
-    # Build aligned date axis (union, sorted)
-    all_dates = sorted(set(sp_df["date"].tolist()) | set(it_df["date"].tolist()))
+    # Build aligned date axis (union, sorted) — guard against empty frames
+    sp_dates = sp_df["date"].tolist() if not sp_df.empty and "date" in sp_df.columns else []
+    it_dates = it_df["date"].tolist() if not it_df.empty and "date" in it_df.columns else []
+    all_dates = sorted(set(sp_dates) | set(it_dates))
     if not all_dates:
         st.warning("No dates found in window.")
         return
