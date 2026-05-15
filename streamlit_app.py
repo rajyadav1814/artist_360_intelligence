@@ -55,10 +55,10 @@ PAGE_META = {
         "AI Data Analyst",
         "Ask natural-language questions and get content + charts (Powered by Table Details Bot)",
     ),
-    "Pulse Report": (
-        "Pulse Report",
-        "Track performance by record label, market acquisition, and chart movement",
-    ),
+    # "Pulse Report": (
+    #     "Pulse Report",
+    #     "Track performance by record label, market acquisition, and chart movement",
+    # ),
     "Ops Monitor": (
         "Ops Monitor",
         "Operational dashboard showing recent data collection runs, their status, and performance metrics",
@@ -126,7 +126,7 @@ def apply_theme() -> None:
             padding-top: 3.5rem; /* Balanced gap for tooltips */
             padding-right: clamp(0.85rem, 1.8vw, 1.6rem);
             padding-left: clamp(0.85rem, 1.8vw, 1.6rem);
-            padding-bottom: 2rem;
+            padding-bottom: 6rem;
         }
         div[data-testid="stHorizontalBlock"] {
             gap: clamp(0.75rem, 1.4vw, 1.1rem);
@@ -141,10 +141,14 @@ def apply_theme() -> None:
             animation: slideIn 0.4s ease-out;
         }
         [data-testid="stSidebarHeader"] {
-            position: relative;
+            position: sticky;
+            top: 0;
+            z-index: 100;
             min-height: 74px;
             padding: 1rem 3rem .9rem 1rem;
             border-bottom: 1px solid rgba(41,52,85,.7);
+            background: var(--surface) !important;
+            backdrop-filter: blur(12px);
         }
         [data-testid="stSidebarHeader"]::before {
             content:"🎵";
@@ -172,6 +176,17 @@ def apply_theme() -> None:
             border-radius: 10px !important;
             line-height: 1 !important;
             min-height: 38px !important;
+            color: var(--text) !important;
+            text-decoration: none !important;
+            transition: all 0.2s ease !important;
+        }
+        [data-testid="stSidebarNav"] a:hover {
+            background: rgba(79, 142, 247, 0.12) !important;
+            color: var(--accent) !important;
+        }
+        [data-testid="stSidebarNav"] a[aria-current="page"] {
+            background: rgba(79, 142, 247, 0.2) !important;
+            color: var(--accent) !important;
         }
         [data-testid="stSidebarNav"] a > span:first-child,
         [data-testid="stSidebarNav"] a [data-testid="stIconMaterial"],
@@ -187,6 +202,7 @@ def apply_theme() -> None:
             flex-shrink: 0 !important;
             margin: 0 !important;
             transform: translateY(0) !important;
+            color: inherit !important;
         }
         [data-testid="stSidebarNav"] a span:last-child,
         [data-testid="stSidebarNav"] a p {
@@ -197,6 +213,11 @@ def apply_theme() -> None:
             padding: 0 !important;
             font-size: 14px !important;
             font-weight: 600 !important;
+            color: inherit !important;
+        }
+        [data-testid="stSidebarNav"] a svg {
+            color: inherit !important;
+            fill: currentColor !important;
         }
         h1, h2, h3, h4, p, label, div, span { color:var(--text); }
         .brand-row { display:none; }
@@ -806,13 +827,19 @@ def apply_theme() -> None:
 
         /* Global footer */
         .app-footer {
-            margin-top: 2.5rem;
-            padding: 1rem 0 0.25rem;
-            border-top: 1px solid rgba(41,52,85,.7);
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            z-index: 99; /* Below sidebar but above content */
+            background: rgba(7, 11, 22, 0.95);
+            backdrop-filter: blur(16px);
+            padding: 0.75rem 0;
+            border-top: 1px solid rgba(41,52,85,.4);
             text-align: center;
             color: var(--text2);
-            font-size: 0.86rem;
-            line-height: 1.7;
+            font-size: 0.82rem;
+            line-height: 1.6;
         }
         .app-footer a {
             color: #b7d4ff;
@@ -1677,19 +1704,41 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
             st.plotly_chart(fig_thresh_ls, use_container_width=True, config=PLOTLY_CONFIG)
             st.markdown("</div>", unsafe_allow_html=True)
         
-        with st.expander("📋 View Threshold Data Points",expanded=True):
-            display_df = thresh_df[["Tier", "Points", "Listeners"]].copy()
-            display_df["Points"] = display_df["Points"].apply(fmt_short)
-            display_df["Listeners"] = display_df["Listeners"].apply(fmt_short)
-            st.dataframe(
-                display_df,
-                use_container_width=True,
-                hide_index=True,
-                column_config={
-                    "Points": st.column_config.TextColumn(),
-                    "Listeners": st.column_config.TextColumn(),
-                }
+        # Threshold details table in HTML
+        thresh_rows_html = []
+        for _, t_row in thresh_df.iterrows():
+            tier = escape(str(t_row["Tier"]))
+            pts = fmt_short(t_row["Points"])
+            lsn = fmt_short(t_row["Listeners"])
+            thresh_rows_html.append(
+                f"<tr>"
+                f"<td><span class='badge badge-same' style='min-width: 64px;'>{tier}</span></td>"
+                f"<td class='num-cell' style='font-weight:700; color:var(--lb-purple);'>{pts}</td>"
+                f"<td class='num-cell' style='font-weight:700; color:var(--lb-green);'>{lsn}</td>"
+                f"</tr>"
             )
+
+        thresh_table_html = f"""
+        <div class='dashboard-card'>
+            <div class='section-title'>📋 Tier Benchmarks Detailed</div>
+            <div class='section-sub'>The minimum requirements to reach specific chart positions based on current data.</div>
+            <div class='table-wrap' style='max-height: 420px;'>
+                <table class='leader-table'>
+                    <thead>
+                        <tr>
+                            <th>Tier</th>
+                            <th style='text-align:right'>Points threshold</th>
+                            <th style='text-align:right'>Listeners threshold</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {''.join(thresh_rows_html)}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        """
+        st.markdown(thresh_table_html, unsafe_allow_html=True)
     else:
         st.info("Not enough data to calculate thresholds for the requested ranks.")
         artists = leaderboard["name"].dropna().tolist()
@@ -3503,12 +3552,12 @@ app_pages = [
         icon=":material/new_releases:",
         url_path="debut-report",
     ),
-    st.Page(
-        show_pulse_report_page,
-        title="Pulse Report",
-        icon=":material/label:",
-        url_path="pulse-report",
-    ),
+    # st.Page(
+    #     show_pulse_report_page,
+    #     title="Pulse Report",
+    #     icon=":material/label:",
+    #     url_path="pulse-report",
+    # ),
     st.Page(
         show_chart_tracker_page,
         title="Chart Tracker",
