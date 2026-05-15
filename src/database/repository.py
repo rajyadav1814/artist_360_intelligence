@@ -2,7 +2,7 @@ from typing import List, Dict
 
 from psycopg2.extras import execute_values
 from src.database.connection import get_connection
-from src.database.models import ArtistDetail, ItunesRanking, SpotifyArtist, TrendingArtist, SpotifyDaily, ItunesDaily, TrackRanking
+from src.database.models import ArtistDetail, ItunesRanking, SpotifyArtist, TrendingArtist, SpotifyDaily, ItunesDaily
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -357,112 +357,5 @@ def save_itunes_daily(data: List[ItunesDaily]) -> int:
                     rows
                 )
                 return len(rows)
-    finally:
-        conn.close()
-
-
-def save_track_rankings(data: List[TrackRanking]) -> int:
-    """Bulk-save track rankings."""
-    if not data:
-        return 0
-    
-    conn = get_connection()
-    try:
-        with conn.cursor() as cur:
-            rows = [
-                (
-                    r.track_id,
-                    r.rank,
-                    r.streams,
-                    r.week_number,
-                    r.fiscal_year,
-                    r.chart_date,
-                    r.scrape_date,
-                )
-                for r in data
-            ]
-            execute_values(
-                cur,
-                """
-                INSERT INTO track_rankings (track_id, rank, streams, week_number, fiscal_year, chart_date, scrape_date)
-                VALUES %s
-                ON CONFLICT (track_id, chart_date) DO UPDATE SET
-                    rank = EXCLUDED.rank,
-                    streams = EXCLUDED.streams,
-                    week_number = EXCLUDED.week_number,
-                    fiscal_year = EXCLUDED.fiscal_year,
-                    scrape_date = EXCLUDED.scrape_date
-                """,
-                rows
-            )
-            conn.commit()
-            return len(rows)
-    finally:
-        conn.close()
-
-
-def save_track_rankings_from_raw(raw_data) -> int:
-    """Save track rankings from raw scraper data (artist_name, title, rank, streams)."""
-    if not raw_data:
-        return 0
-    
-    conn = get_connection()
-    try:
-        with conn.cursor() as cur:
-            inserted = 0
-            for item in raw_data:
-                # Upsert artist
-                cur.execute(
-                    """
-                    INSERT INTO artists (name, updated_at)
-                    VALUES (%s, NOW())
-                    ON CONFLICT (name) DO UPDATE SET updated_at = NOW()
-                    RETURNING id
-                    """,
-                    (item.artist_name,),
-                )
-                artist_id = cur.fetchone()["id"]
-                
-                # Upsert track
-                cur.execute(
-                    """
-                    INSERT INTO tracks (artist_id, title)
-                    VALUES (%s, %s)
-                    ON CONFLICT (artist_id, title) DO NOTHING
-                    RETURNING id
-                    """,
-                    (artist_id, item.title),
-                )
-                row = cur.fetchone()
-                if row:
-                    track_id = row["id"]
-                else:
-                    cur.execute(
-                        "SELECT id FROM tracks WHERE artist_id = %s AND title = %s",
-                        (artist_id, item.title),
-                    )
-                    track_id = cur.fetchone()["id"]
-                
-                # Insert track ranking
-                cur.execute(
-                    """
-                    INSERT INTO track_rankings (track_id, rank, streams, week_number, fiscal_year, chart_date, scrape_date)
-                    VALUES (%s, %s, %s, %s, %s, %s, CURRENT_DATE)
-                    ON CONFLICT (track_id, chart_date) DO UPDATE SET
-                        rank = EXCLUDED.rank,
-                        streams = EXCLUDED.streams,
-                        week_number = EXCLUDED.week_number,
-                        fiscal_year = EXCLUDED.fiscal_year
-                    """,
-                    (track_id, item.rank, item.streams, item.week_number, item.fiscal_year, item.chart_date),
-                )
-                inserted += 1
-            
-            conn.commit()
-            return inserted
-    except Exception as e:
-        conn.rollback()
-        logger.error(f"Error saving track rankings: {e}")
-        raise
     finally:
         conn.close()

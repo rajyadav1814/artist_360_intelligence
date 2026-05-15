@@ -43,8 +43,6 @@ ALLOWED_TABLES = {
     "scrape_runs",
     "spotify_daily",
     "itunes_daily",
-    "tracks",
-    "track_rankings"
 }
 
 SCHEMA_CONTEXT = """
@@ -56,8 +54,6 @@ trending_artists_monthly(id,artist_id,source,rank,rank_change,total_points,top_c
 artist_details(id,artist_id,page_title,snapshot_text,songs_count,albums_count,countries_count,top_songs,top_albums,top_countries,scraped_at,scrape_date)
 spotify_daily(id,date,country,rank,artist_title,days,peak,streams,streams_change,total_streams,label)
 itunes_daily(id,date,country,rank,artist_title,days,peak,points,points_change,total_points,label)
-tracks(id,title,artist_id,release_date) [only 6 rows — avoid for general queries]
-track_rankings(id,track_id,rank,streams,fiscal_year,scrape_date)
 scrape_runs(id,source,status,rows_upserted,error_msg,started_at,finished_at)
 
 Joins: all artist tables join artists on artist_id=artists.id
@@ -147,18 +143,16 @@ CATEGORIZED_SUGGESTIONS = {
         "icon": "📈",
         "questions": [
             "Who are the top 10 artists by total Spotify streams right now, and how have their stream counts changed day over day?",
-            "What is the cumulative total streams for each track on Spotify — which song has the highest all-time stream count?",
-            "What is the average chart lifespan of a top-10 iTunes track before it drops out of the top 50?",
-            "Which tracks on Spotify had the biggest single-day stream drop — possible signs of fading momentum?",
+            "What is the average chart lifespan of a top-10 iTunes song before it drops out of the top 50?",
+            "Which songs on Spotify had the biggest single-day stream drop — possible signs of fading momentum?",
         ],
     },
     "trending": {
         "label": "Trending",
         "icon": "🔥",
         "questions": [
-            "What are the fastest-rising tracks on iTunes in the last 7 days — which songs gained the most chart positions?",
+            "What are the fastest-rising songs on iTunes in the last 7 days — which songs gained the most chart positions?",
             "Who are the trending artists this month, and which of them were outside the top 50 last month?",
-            "How do new track releases perform in their first week? Show debut stream numbers vs. week-1 average across all tracks.",
             "Show the monthly trending movement for artists — who gained the most rank positions month over month on iTunes global?",
             "Identify breakout artists: who had zero iTunes presence last month but entered the top 100 this month?",
         ],
@@ -169,8 +163,8 @@ CATEGORIZED_SUGGESTIONS = {
         "questions": [
             "Which artists maintained a stable rank (no change) on iTunes for 3+ consecutive days — who has the most chart consistency?",
             "Which artists have the highest follower counts on Spotify, and how does follower count correlate with daily stream volume?",
-            "Which artist has the most tracks simultaneously charting across all platforms today?",
-            "What is the rank distribution of tracks by artist — do certain artists cluster at the top or spread across positions?",
+            "Which artist has the most songs simultaneously charting across all platforms today?",
+            "What is the rank distribution of songs by artist — do certain artists cluster at the top or spread across positions?",
             "Which songs are ranked #1 globally on both Spotify and iTunes today?",
         ],
     },
@@ -180,7 +174,7 @@ CATEGORIZED_SUGGESTIONS = {
         "questions": [
             "Which songs are ranked #1 globally on both Spotify and iTunes today — and which artists dominate both platforms simultaneously?",
             "Build a cross-platform performance score for each artist using Spotify streams and iTunes rank — who tops the leaderboard?",
-            "Which artist has the most tracks simultaneously charting across Spotify and iTunes today?",
+            "Which artist has the most songs simultaneously charting across Spotify and iTunes today?",
         ],
     },
     "geography": {
@@ -352,7 +346,7 @@ _STOP_WORDS = {
     "under", "until", "upon", "want", "way", "what", "when", "where",
     "which", "while", "who", "whom", "why", "you", "your", "his", "her",
     "him", "he", "it", "its", "hi", "hello", "hey", "the", "and", "for",
-    "top", "best", "songs", "song", "track", "tracks", "album", "albums",
+    "top", "best", "songs", "song", "album", "albums",
     "artist", "artists", "rank", "ranking", "rankings", "stream", "streams",
     "listener", "listeners", "monthly", "country", "countries", "point",
     "points", "chart", "charts", "show", "list", "data", "details",
@@ -504,7 +498,7 @@ def _local_plan(question: str) -> Dict[str, Any]:
     """Generate query plans locally without API calls."""
     q = question.lower()
 
-    _is_song_query = any(kw in q for kw in ["song", "songs", "track", "tracks"])
+    _is_song_query = any(kw in q for kw in ["song", "songs"])
     _is_daily_scope = any(kw in q for kw in ["last day", "yesterday", "today", "daily", "last 24"])
     if _is_top_intent(question) and _is_song_query and _is_daily_scope:
         limit = _extract_top_n(question) or 5
@@ -782,9 +776,7 @@ Table routing:
 - listeners/Spotify → spotify_artists
 - monthly trends → trending_artists_monthly
 - daily track charts → spotify_daily (global: country='global') or itunes_daily (global: country='ww')
-- track history → track_rankings JOIN tracks
 - scrape activity → scrape_runs
-- NEVER use tracks table for general queries (only 6 rows)
 
 Key SQL rules:
 - SELECT/WITH only. LIMIT 10-30 default.
@@ -796,7 +788,6 @@ Key SQL rules:
 - "label" column = record label company (in daily tables)
 - "last day": date=(SELECT MAX(date) FROM spotify_daily)
 - "last 7 days": date>=(SELECT MAX(date) FROM spotify_daily)-INTERVAL '7 days'
-- Global tracks: country='global' (Spotify) or country='ww' (iTunes)
 - Independent artists: label ILIKE '%Independent%'
 - rank_change is VARCHAR — cast to integer for numeric comparison
 - top_country = single best market; for full market list use artist_details.top_countries
@@ -867,7 +858,7 @@ def _generate_plan(question: str, api_key: Optional[str], model: str) -> Dict[st
             pass
 
     q_lower = question.lower()
-    _is_song_q = any(kw in q_lower for kw in ["song", "songs", "track", "tracks", "stream", "streams"])
+    _is_song_q = any(kw in q_lower for kw in ["song", "songs", "stream", "streams"])
     if _is_top_intent(question) and not _is_song_q:
         plan = _force_rank_plan(question)
         plan["source"] = "local"
@@ -1045,7 +1036,7 @@ def _generate_summary_stats(df: pd.DataFrame) -> Dict[str, Any]:
 
 SUMMARY_SYSTEM = """Music industry analyst. Write a 2-3 sentence executive summary.
 - Lead with the single most important number or finding.
-- Name specific artists/tracks from the data.
+- Name specific artists/songs from the data.
 - If requested data is missing, briefly note it.
 - End with one forward-looking implication.
 - No bullets, no headers, no markdown tables."""
@@ -1122,46 +1113,40 @@ def _build_follow_up_suggestions(
 
     if df is not None and not df.empty:
         artist_names = _top_text_values(df, "name", limit=5)
-        track_names = _top_text_values(df, "track", limit=5)
         labels = _top_text_values(df, "label", limit=5)
 
-        if track_names:
-            if len(track_names) > 1:
-                _push_suggestion(suggestions, f"Compare {track_names[0]} vs {track_names[1]} performance")
-            _push_suggestion(suggestions, f"Analyze {track_names[0]} performance over the last 10 weeks")
-            _push_suggestion(suggestions, f"What is the label and metadata for {track_names[0]}?")
         if artist_names:
             if len(artist_names) > 1:
                 _push_suggestion(suggestions, f"Compare {artist_names[0]} vs {artist_names[1]} by streams")
-            _push_suggestion(suggestions, f"How many tracks does {artist_names[0]} have in Top 100?")
+            _push_suggestion(suggestions, f"How many songs does {artist_names[0]} have in Top 100?")
             _push_suggestion(suggestions, f"What is the performance of {artist_names[0]} YTD?")
         if labels:
             if len(labels) > 1:
-                _push_suggestion(suggestions, f"Compare {labels[0]} vs {labels[1]} track counts")
+                _push_suggestion(suggestions, f"Compare {labels[0]} vs {labels[1]} song counts")
             _push_suggestion(suggestions, f"Analyze {labels[0]} performance over the last 5 weeks")
         if "streams" in df.columns or "listeners" in df.columns:
             _push_suggestion(suggestions, "How many streams are required to enter Top 100?")
         if "rank" in df.columns:
-            _push_suggestion(suggestions, "Which tracks consistently stay in Top 10?")
+            _push_suggestion(suggestions, "Which songs consistently stay in Top 10?")
 
-    if any(k in q for k in ["top", "rank", "track", "song"]):
-        _push_suggestion(suggestions, "What are the Top 5 tracks for FY2026?")
-        _push_suggestion(suggestions, "What are the Top 10 tracks in the previous 5 weeks?")
+    if any(k in q for k in ["top", "rank", "song"]):
+        _push_suggestion(suggestions, "What are the Top 5 songs for FY2026?")
+        _push_suggestion(suggestions, "What are the Top 10 songs in the previous 5 weeks?")
     if any(k in q for k in ["artist", "performer", "performance"]):
         _push_suggestion(suggestions, "Who are the Top 20 artists by streams in FY2026?")
         _push_suggestion(suggestions, "Compare Top 10 artists in a table with percentage analysis")
     if any(k in q for k in ["label", "independent"]):
-        _push_suggestion(suggestions, "How many tracks does each label have in Top 100?")
+        _push_suggestion(suggestions, "How many songs does each label have in Top 100?")
     if any(k in q for k in ["trend", "consistency", "growth"]):
-        _push_suggestion(suggestions, "Which tracks are consistently in Top 10 for 10 weeks?")
+        _push_suggestion(suggestions, "Which songs are consistently in Top 10 for 10 weeks?")
     if any(k in q for k in ["debut", "new", "entry"]):
-        _push_suggestion(suggestions, "What are the debut tracks in FY2026?")
+        _push_suggestion(suggestions, "What are the debut songs in FY2026?")
     if any(k in q for k in ["strategy", "acquire", "business"]):
         _push_suggestion(suggestions, "Based on last 5 weeks, which artist should be acquired?")
     if any(t in q for t in ["hi", "hello", "hey"]):
-        _push_suggestion(suggestions, "What are the Top 5 tracks for FY2026?")
+        _push_suggestion(suggestions, "What are the Top 5 songs for FY2026?")
         _push_suggestion(suggestions, "Who are the Top 20 artists by streams?")
-        _push_suggestion(suggestions, "How many tracks does each label have in Top 100?")
+        _push_suggestion(suggestions, "How many songs does each label have in Top 100?")
     if "stream" in q or "listener" in q:
         _push_suggestion(suggestions, "How many streams are required to enter Top 100?")
     if "label" in q or "independent" in q:

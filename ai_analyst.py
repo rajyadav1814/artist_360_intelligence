@@ -52,10 +52,6 @@ def get_db_schema():
     3. spotify_artists (artist_id, monthly_listeners, peak_listeners, peak_date, scrape_date)
        - Spotify monthly listener stats. Joined with artists.id.
     
-    4. tracks (id, title, artist_id, release_date)
-       - Metadata for tracks.
-       
-    
     5. spotify_daily (date, country, rank, artist_title, days, peak, streams, streams_change, total_streams, label)
        - Daily Spotify track charts. 'artist_title' is the song name (formatted as 'Artist - Song').
        - 'label' column contains the record label name.
@@ -75,8 +71,8 @@ def get_db_schema():
     - "This week" or "last 7 days" MUST use: `date >= (SELECT MAX(date) FROM spotify_daily) - INTERVAL '7 days'`.
     - "2026" means `EXTRACT(YEAR FROM date) = 2026`.
     - For "percentage analysis", use window functions: `value * 100.0 / SUM(value) OVER()`.
-    - "Number of tracks in Top X": use `COUNT(DISTINCT artist_title)`.
-    - "Debut tracks" on a specific day/period: tracks that exist in that period but NOT before. E.g. `artist_title NOT IN (SELECT artist_title FROM spotify_daily WHERE date < (SELECT MAX(date) FROM spotify_daily))`.
+    - "Number of songs in Top X": use `COUNT(DISTINCT artist_title)`.
+    - "Debut songs" on a specific day/period: songs that exist in that period but NOT before. E.g. `artist_title NOT IN (SELECT artist_title FROM spotify_daily WHERE date < (SELECT MAX(date) FROM spotify_daily))`.
     - "Consistently in Top X": use `GROUP BY artist_title HAVING MAX(rank) <= X`.
     - "Streams required to enter Top 100": use `MIN(streams) WHERE rank <= 100`.
     - When querying a specific artist, match the start: `artist_title ILIKE 'Taylor Swift -%'` to avoid collaborations.
@@ -102,7 +98,7 @@ def ask_bot(question):
     4. "last day" / "previous day" / "today" MUST use `date = (SELECT MAX(date) FROM spotify_daily)`.
     5. CRITICAL: To query a specific artist in daily tables, use `artist_title ILIKE 'ArtistName -%'` to avoid collaborations. Do NOT use `ILIKE '%ArtistName%'`.
     6. For percentage compare, use `SUM(streams) * 100.0 / SUM(SUM(streams)) OVER()` in the SELECT clause.
-    7. For finding debut tracks on the last day, use a subquery: `WHERE artist_title NOT IN (SELECT artist_title FROM spotify_daily WHERE date < (SELECT MAX(date) FROM spotify_daily))`.
+    7. For finding debut songs on the last day, use a subquery: `WHERE artist_title NOT IN (SELECT artist_title FROM spotify_daily WHERE date < (SELECT MAX(date) FROM spotify_daily))`.
     """
     
     try:
