@@ -11,6 +11,7 @@ import streamlit.components.v1 as st_components
 from src.ai.custom_chatbot import render_custom_chatbot
 from src.ai.label_dashboard import render_pulse_report
 from src.ai.debut_dashboard import render_debut_tab
+from src.ai.track_movement_dashboard import render_track_movement
 from src.database.connection import get_connection
 from src.scrapers.artist_details_scraper import LATIN_AMERICAN_COUNTRIES
 from src.utils.image_utils import get_artist_image_url, get_fallback_avatar_url
@@ -64,6 +65,10 @@ PAGE_META = {
     "Debut Report": (
         "Debut Report",
         "Tracks all new chart entries across Spotify and iTunes for the current week",
+    ),
+    "Track Movement": (
+        "Track Movement",
+        "Daily rank + metric momentum across Spotify and iTunes charts (risers, fallers, trajectories)",
     ),
 }
 
@@ -151,6 +156,43 @@ def apply_theme() -> None:
             letter-spacing:.2px; line-height:1.15;
         }
         [data-testid="stSidebarNav"] { padding-top:.6rem; }
+        /* Sidebar nav: align icons and labels on a single baseline */
+        [data-testid="stSidebarNav"] ul { padding-left: 0 !important; margin: 0 !important; }
+        [data-testid="stSidebarNav"] li { list-style: none !important; margin: 0 !important; padding: 0 !important; }
+        [data-testid="stSidebarNav"] a {
+            display: flex !important;
+            align-items: center !important;
+            gap: 12px !important;
+            padding: 8px 12px !important;
+            border-radius: 10px !important;
+            line-height: 1 !important;
+            min-height: 38px !important;
+        }
+        [data-testid="stSidebarNav"] a > span:first-child,
+        [data-testid="stSidebarNav"] a [data-testid="stIconMaterial"],
+        [data-testid="stSidebarNav"] a .material-symbols-rounded,
+        [data-testid="stSidebarNav"] a .material-icons {
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            width: 22px !important;
+            height: 22px !important;
+            font-size: 20px !important;
+            line-height: 1 !important;
+            flex-shrink: 0 !important;
+            margin: 0 !important;
+            transform: translateY(0) !important;
+        }
+        [data-testid="stSidebarNav"] a span:last-child,
+        [data-testid="stSidebarNav"] a p {
+            display: inline-flex !important;
+            align-items: center !important;
+            line-height: 1.15 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            font-size: 14px !important;
+            font-weight: 600 !important;
+        }
         h1, h2, h3, h4, p, label, div, span { color:var(--text); }
         .brand-row { display:none; }
         .brand-logo {
@@ -1199,7 +1241,7 @@ def render_leaderboard_table_html(leaderboard: pd.DataFrame, max_rows: int) -> N
     <div class='dashboard-card'>
         <div class='section-title'>📊 Leaderboard table</div>
         <div class='section-sub'>Scroll through the latest rank, listener, and points data in one place.</div>
-        <div class='table-wrap' style='max-height:605px; overflow-x:auto; overflow-y:auto;'>
+        <div class='table-wrap' style='max-height:740px; overflow-x:auto; overflow-y:auto;'>
             <table class='leader-table'>
                 <thead>
                     <tr>
@@ -1227,50 +1269,183 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
         st.warning("No leaderboard data available yet. Run the scraper first.")
         return
 
+    # ── compute KPI values ─────────────────────────────────
+    total_artists = len(leaderboard)
+    avg_listeners_val = float(leaderboard["monthly_listeners"].mean()) if total_artists else 0.0
+    avg_listeners = fmt_short(avg_listeners_val) if total_artists else "—"
+    top_markets = [c for c in leaderboard["display_country"].unique().tolist() if c and c != "—"]
+    latam_signal = int(leaderboard["latam_signal"].sum()) if "latam_signal" in leaderboard else 0
+    new_entries = int(leaderboard["rank_change"].fillna("").eq("NEW").sum()) if "rank_change" in leaderboard else 0
+    top_artist_row = leaderboard.sort_values("rank").head(1)
+    top_artist_name = str(top_artist_row.iloc[0]["name"]) if not top_artist_row.empty else "—"
+
     st.markdown(
         """
         <style>
-        /* Remove default top padding inside right column */
-        [data-testid="column"]:nth-child(2) > div:first-child {
-            padding-top: 0 !important;
-            margin-top: 0 !important;
+        /* ── leaderboard scoped palette ── */
+        :root {
+            --lb-bg2: #161b26;
+            --lb-bg3: #1f2633;
+            --lb-bg4: #283041;
+            --lb-line: rgba(148,163,184,.15);
+            --lb-t1: #ffffff;
+            --lb-t2: #cdd6e4;
+            --lb-t3: #8b95ad;
+            --lb-blue:   #60a5fa;
+            --lb-green:  #34d399;
+            --lb-purple: #c4b5fd;
+            --lb-amber:  #fcd34d;
+            --lb-pink:   #f9a8d4;
+            --lb-red:    #fb7185;
         }
-        /* Chart card styling */
+        /* hero */
+        .lb-hero {
+            position: relative;
+            background: linear-gradient(135deg, #1a2238 0%, #1f1a3a 50%, #261d3d 100%);
+            border: 1px solid rgba(148,163,184,.18);
+            border-radius: 20px;
+            padding: 24px 28px;
+            margin-bottom: 1.4rem;
+            box-shadow: 0 24px 60px rgba(0,0,0,.35);
+            overflow: hidden;
+        }
+        .lb-hero::after {
+            content: ""; position: absolute; right: -120px; top: -120px;
+            width: 320px; height: 320px;
+            background: radial-gradient(circle, rgba(96,165,250,.18), transparent 60%);
+            pointer-events: none;
+        }
+        .lb-hero-eyebrow {
+            display: inline-flex; align-items: center; gap: 10px;
+            font-size: 12px; font-weight: 800; letter-spacing: .18em;
+            text-transform: uppercase; color: var(--lb-t3); margin-bottom: 12px;
+        }
+        .lb-hero-dot {
+            width: 10px; height: 10px; border-radius: 50%;
+            background: var(--lb-green);
+            box-shadow: 0 0 0 4px rgba(52,211,153,.18), 0 0 14px rgba(52,211,153,.55);
+            animation: lb-pulse 2s ease-in-out infinite;
+        }
+        @keyframes lb-pulse {
+            0%,100% { box-shadow: 0 0 0 4px rgba(52,211,153,.18), 0 0 14px rgba(52,211,153,.55); }
+            50%     { box-shadow: 0 0 0 8px rgba(52,211,153,.05), 0 0 22px rgba(52,211,153,.85); }
+        }
+        .lb-hero-title { font-size: 2.2rem; font-weight: 900; letter-spacing: -.02em; color: var(--lb-t1); margin-bottom: 6px; line-height: 1.1; }
+        .lb-hero-sub { font-size: 0.95rem; color: var(--lb-t2); font-weight: 500; }
+        .lb-hero-sub b { color: var(--lb-t1); font-weight: 700; }
+
+        /* KPI tiles */
+        .lb-kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 14px;
+            margin-bottom: 1.4rem;
+        }
+        .lb-kpi {
+            position: relative;
+            background: var(--lb-bg2);
+            border: 1px solid var(--lb-line);
+            border-radius: 16px;
+            padding: 18px 18px 16px 22px;
+            box-shadow: 0 12px 24px rgba(0,0,0,.18);
+            overflow: hidden;
+            transition: transform .2s ease, border-color .2s ease;
+        }
+        .lb-kpi:hover { transform: translateY(-2px); border-color: rgba(148,163,184,.3); }
+        .lb-kpi::before {
+            content:""; position:absolute; left:0; top:14%; bottom:14%; width:4px;
+            border-radius: 0 4px 4px 0; background: var(--lb-blue);
+        }
+        .lb-kpi.k-blue::before   { background: var(--lb-blue); }
+        .lb-kpi.k-green::before  { background: var(--lb-green); }
+        .lb-kpi.k-purple::before { background: var(--lb-purple); }
+        .lb-kpi.k-amber::before  { background: var(--lb-amber); }
+        .lb-kpi.k-pink::before   { background: var(--lb-pink); }
+        .lb-kpi-lbl { font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--lb-t3); margin-bottom: 10px; }
+        .lb-kpi-val { font-size: 26px; font-weight: 900; color: var(--lb-t1); line-height: 1.1; margin-bottom: 6px; letter-spacing: -.01em; }
+        .lb-kpi.k-blue   .lb-kpi-val { color: var(--lb-blue); }
+        .lb-kpi.k-green  .lb-kpi-val { color: var(--lb-green); }
+        .lb-kpi.k-purple .lb-kpi-val { color: var(--lb-purple); }
+        .lb-kpi.k-amber  .lb-kpi-val { color: var(--lb-amber); }
+        .lb-kpi.k-pink   .lb-kpi-val { color: var(--lb-pink); }
+        .lb-kpi-sub { font-size: 12px; color: var(--lb-t2); font-weight: 500; line-height: 1.35; }
+
+        /* sectioned cards */
+        .lb-section {
+            background: var(--lb-bg2);
+            border: 1px solid var(--lb-line);
+            border-radius: 16px;
+            padding: 18px 20px 14px;
+            margin-bottom: 1.4rem;
+            box-shadow: 0 14px 30px rgba(0,0,0,.18);
+        }
+        .lb-section-hdr {
+            display:flex; align-items:center; justify-content:space-between;
+            margin-bottom: 12px;
+        }
+        .lb-section-title { font-size: 1.05rem; font-weight: 800; color: var(--lb-t1); letter-spacing: -.005em; }
+        .lb-section-badge {
+            font-size: 11px; font-weight: 700; letter-spacing: .1em;
+            text-transform: uppercase; color: var(--lb-t2);
+            background: var(--lb-bg3); border: 1px solid var(--lb-line);
+            padding: 5px 12px; border-radius: 999px;
+        }
+
+        /* Plotly chart wrapper */
         [data-testid="stPlotlyChart"] {
-            background: var(--surface2);
-            border: 1px solid var(--border);
-            border-radius: 18px;
-            padding: 0.75rem 0.5rem 0.25rem;
+            background: var(--lb-bg2);
+            border: 1px solid var(--lb-line);
+            border-radius: 16px;
+            padding: 0.5rem 0.5rem 0.25rem;
             margin-top: 0 !important;
-            margin-bottom: 1.5rem !important;
-            box-shadow: 0 18px 36px rgba(0,0,0,.12);
-            transition: border-color 0.25s ease, box-shadow 0.25s ease;
+            margin-bottom: 0.85rem !important;
+            box-shadow: 0 14px 30px rgba(0,0,0,.18);
+            transition: border-color 0.2s ease, transform 0.2s ease;
         }
         [data-testid="stPlotlyChart"]:hover {
-            border-color: rgba(79,142,247,0.35);
-            box-shadow: 0 24px 48px rgba(0,0,0,.18);
+            border-color: rgba(96,165,250,.4);
+            transform: translateY(-2px);
         }
-        /* Remove streamlit's default element-container top margin */
-        [data-testid="column"]:nth-child(2) .element-container:first-of-type {
-            margin-top: 0 !important;
+        /* last chart in right column: drop bottom margin so column matches table card */
+        [data-testid="column"]:nth-child(2) [data-testid="stPlotlyChart"]:last-of-type {
+            margin-bottom: 0 !important;
         }
+        /* dashboard-card wrapping the table: trim margins */
+        [data-testid="column"]:nth-child(1) .dashboard-card {
+            margin-bottom: 0 !important;
+        }
+        [data-testid="column"]:nth-child(2) > div:first-child { padding-top: 0 !important; margin-top: 0 !important; }
+        [data-testid="column"]:nth-child(2) .element-container:first-of-type { margin-top: 0 !important; }
         </style>
         """,
         unsafe_allow_html=True,
     )
 
+    # ── Hero header ───────────────────────────────────────
+    st.markdown(
+        f"""
+        <div class="lb-hero">
+          <div class="lb-hero-eyebrow">
+            <span class="lb-hero-dot"></span>
+            Chromadata · Artist 360 Leaderboard · Live
+          </div>
+          <div class="lb-hero-title">LATAM Artist Leaderboard</div>
+          <div class="lb-hero-sub">
+            Tracking <b>{total_artists:,}</b> artists across <b>{len(top_markets)}</b> Latin American markets
+            &nbsp;·&nbsp; Avg reach <b>{escape(str(avg_listeners))}</b> listeners
+            &nbsp;·&nbsp; Currently #1: <b>{escape(top_artist_name)}</b>
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    # ── KPI tiles ─────────────────────────────────────────
+    # (removed per request)
+
     left, right = st.columns([2.2, 1.5], gap="medium")
 
     with left:
-        total_artists = len(leaderboard)
-        avg_listeners = fmt_short(float(leaderboard["monthly_listeners"].mean())) if total_artists else "—"
-        top_markets = [c for c in leaderboard["display_country"].unique().tolist() if c and c != "—"]
-        market_text = f"{len(top_markets)} LATAM markets" if top_markets else "No market data"
-
-        st.markdown(
-            f"<div class='dashboard-card'><div class='section-title'>📌 Leaderboard snapshot</div><div class='section-sub'>Showing <strong>{total_artists}</strong> artists, across <strong>{len(top_markets)}</strong> Latin American markets, with an average reach of <strong>{escape(str(avg_listeners))}</strong> listeners.</div></div>",
-            unsafe_allow_html=True,
-        )
         render_leaderboard_table_html(leaderboard, max_rows)
 
     with right:
@@ -1290,7 +1465,7 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
                 color="monthly_listeners",
                 custom_data=["display_country", "rank"],
                 labels={"monthly_listeners": "Monthly listeners", "name": ""},
-                color_continuous_scale=["#1d4ed8", "#7c3aed", "#22d3a0"],
+                color_continuous_scale=["#60a5fa", "#c4b5fd", "#34d399"],
             )
             fig_bar.update_traces(
                 textposition="outside",
@@ -1318,7 +1493,7 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
                 xaxis_tickformat="~s",
                 yaxis_title="",
             )
-            style_figure(fig_bar, 375)
+            style_figure(fig_bar, 390)
             st.plotly_chart(fig_bar, use_container_width=True, config=PLOTLY_CONFIG)
         else:
             st.info("No monthly listener data is available for the current leaderboard selection.")
@@ -1339,7 +1514,7 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
                 color="total_points",
                 custom_data=["display_country", "rank"],
                 labels={"total_points": "iTunes Points", "name": ""},
-                color_continuous_scale=["#7c3aed", "#4f8ef7", "#ec4899"],
+                color_continuous_scale=["#c4b5fd", "#60a5fa", "#f9a8d4"],
             )
             fig_points.update_traces(
                 textposition="outside",
@@ -1367,14 +1542,17 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
                 xaxis_tickformat="~s",
                 yaxis_title="",
             )
-            style_figure(fig_points, 375)
+            style_figure(fig_points, 390)
             st.plotly_chart(fig_points, use_container_width=True, config=PLOTLY_CONFIG)
         else:
             st.info("No iTunes points data is available for the current leaderboard selection.")
 
     # New Threshold Analysis Row
     st.markdown(
-        "<div style='margin: 1.5rem 0 1rem 0;'><div class='section-title' style='font-size: 1.25rem; color: var(--text);'>⚡ Chart Entry Thresholds</div><div class='section-sub'>Points and listeners required to reach specific leaderboard tiers</div></div>",
+        "<div class='lb-section-hdr' style='margin: 0.5rem 0 1rem 0;'>"
+        "<div class='lb-section-title'>⚡ Chart Entry Thresholds</div>"
+        "<span class='lb-section-badge'>Tier benchmarks</span>"
+        "</div>",
         unsafe_allow_html=True,
     )
     
@@ -1424,23 +1602,25 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
         
         with t_col1:
             st.markdown(
-                f"""
-                <div class='dashboard-card' style='height: 100%;'>
-                    <div class='section-title' style='color: var(--accent2);'><span style='font-size: 1.2rem;'>📊</span> Required Total Points</div>
-                    <div class='section-sub'>Minimum points needed for each rank tier</div>
+                """
+                <div class='lb-section'>
+                  <div class='lb-section-hdr'>
+                    <div class='lb-section-title'>📊 Required total points</div>
+                    <span class='lb-section-badge' style='color:var(--lb-purple);border-color:rgba(196,181,253,.45)'>per tier</span>
+                  </div>
                 """,
                 unsafe_allow_html=True
             )
             fig_thresh_pts = px.line(
                 thresh_df, x="Tier", y="Points",
                 markers=True, text="Points",
-                color_discrete_sequence=["#7c5cfc"]
+                color_discrete_sequence=["#c4b5fd"]
             )
             fig_thresh_pts.update_traces(
                 line=dict(width=4, shape='spline'),
-                marker=dict(size=10, line=dict(width=2, color='white')),
+                marker=dict(size=10, line=dict(width=2, color='#0d1117')),
                 fill='tozeroy',
-                fillcolor='rgba(124, 92, 252, 0.1)',
+                fillcolor='rgba(196, 181, 253, 0.15)',
                 textposition="top center",
                 texttemplate="%{y:.2s}",
                 hovertemplate="<b>%{x}</b><br>Required Points: %{y:,.0f}<br>Artist at Threshold: %{customdata}<extra></extra>",
@@ -1458,23 +1638,25 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
             
         with t_col2:
             st.markdown(
-                f"""
-                <div class='dashboard-card' style='height: 100%;'>
-                    <div class='section-title' style='color: var(--accent3);'><span style='font-size: 1.2rem;'>🎧</span> Required Monthly Listeners</div>
-                    <div class='section-sub'>Minimum listeners needed for each rank tier</div>
+                """
+                <div class='lb-section'>
+                  <div class='lb-section-hdr'>
+                    <div class='lb-section-title'>🎧 Required monthly listeners</div>
+                    <span class='lb-section-badge' style='color:var(--lb-green);border-color:rgba(52,211,153,.45)'>per tier</span>
+                  </div>
                 """,
                 unsafe_allow_html=True
             )
             fig_thresh_ls = px.line(
                 thresh_df, x="Tier", y="Listeners",
                 markers=True, text="Listeners",
-                color_discrete_sequence=["#22d3a0"]
+                color_discrete_sequence=["#34d399"]
             )
             fig_thresh_ls.update_traces(
                 line=dict(width=4, shape='spline'),
-                marker=dict(size=10, line=dict(width=2, color='white')),
+                marker=dict(size=10, line=dict(width=2, color='#0d1117')),
                 fill='tozeroy',
-                fillcolor='rgba(34, 211, 160, 0.1)',
+                fillcolor='rgba(52, 211, 153, 0.15)',
                 textposition="top center",
                 texttemplate="%{y:.2s}",
                 hovertemplate="<b>%{x}</b><br>Required Listeners: %{y:,.0f}<br>Artist at Threshold: %{customdata}<extra></extra>",
@@ -1637,19 +1819,106 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
         st.warning("Not enough ranking data available yet.")
         return
 
+    # ── Inject Chart Tracker styles (scoped) ─────────────────────────
+    st.markdown(
+        """
+        <style>
+        .ct-hero{
+            background:linear-gradient(135deg,#1a2235 0%,#161b26 100%);
+            border:1px solid #2a3446;border-radius:14px;padding:22px 26px;
+            position:relative;overflow:hidden;margin-bottom:18px;
+            box-shadow:0 4px 24px rgba(0,0,0,.35);
+        }
+        .ct-hero::before{
+            content:'';position:absolute;top:0;left:0;right:0;height:3px;
+            background:linear-gradient(90deg,#34d399,#60a5fa,#c4b5fd);
+        }
+        .ct-tag{
+            font-size:11px;color:#8b95ad;letter-spacing:1.4px;text-transform:uppercase;
+            font-weight:700;display:flex;align-items:center;gap:8px;margin-bottom:8px;
+        }
+        .ct-live{
+            width:8px;height:8px;border-radius:50%;background:#34d399;
+            box-shadow:0 0 8px #34d399;animation:ctblink 2s infinite;
+        }
+        @keyframes ctblink{0%,100%{opacity:1}50%{opacity:.4}}
+        .ct-title{font-size:26px;font-weight:700;letter-spacing:-.5px;color:#fff;margin-bottom:4px}
+        .ct-sub{font-size:13px;color:#cdd6e4;font-weight:500}
+
+        .ct-kpi-row{
+            display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px;
+        }
+        .ct-kpi{
+            background:#161b26;border:1px solid #2a3446;border-radius:12px;
+            padding:16px 18px;transition:.15s;position:relative;overflow:hidden;
+        }
+        .ct-kpi:hover{transform:translateY(-2px);border-color:#3a4661;
+            box-shadow:0 6px 18px rgba(0,0,0,.35)}
+        .ct-kpi::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%;
+            background:var(--accent,#60a5fa)}
+        .ct-kpi-lbl{font-size:10px;color:#8b95ad;text-transform:uppercase;
+            letter-spacing:.7px;font-weight:600;margin-bottom:6px}
+        .ct-kpi-val{font-size:24px;font-weight:700;color:#fff;
+            letter-spacing:-.4px;line-height:1.15;font-variant-numeric:tabular-nums}
+        .ct-kpi-sub{font-size:11px;color:#cdd6e4;margin-top:4px;font-weight:500}
+        .ct-kpi.up{--accent:#34d399}.ct-kpi.up .ct-kpi-val{color:#34d399}
+        .ct-kpi.down{--accent:#fb7185}.ct-kpi.down .ct-kpi-val{color:#fb7185}
+        .ct-kpi.purple{--accent:#c4b5fd}.ct-kpi.purple .ct-kpi-val{color:#c4b5fd}
+        .ct-kpi.amber{--accent:#fcd34d}.ct-kpi.amber .ct-kpi-val{color:#fcd34d}
+
+        .ct-section{
+            background:#161b26;border:1px solid #2a3446;border-radius:12px;
+            padding:8px 8px 4px;margin-bottom:18px;
+        }
+        .ct-section-ttl{
+            font-size:13px;color:#cdd6e4;font-weight:600;text-transform:uppercase;
+            letter-spacing:.6px;padding:10px 14px 8px;border-bottom:1px solid #2a3446;
+            display:flex;align-items:center;gap:8px;margin-bottom:6px;
+        }
+
+        /* Movement table */
+        .ct-mv-tbl{width:100%;border-collapse:collapse;font-size:13px}
+        .ct-mv-tbl thead th{
+            font-size:10px;color:#8b95ad;text-transform:uppercase;letter-spacing:.6px;
+            font-weight:600;padding:10px 14px;border-bottom:1px solid #3a4661;text-align:left;
+        }
+        .ct-mv-tbl tbody td{
+            padding:12px 14px;border-bottom:1px solid #2a3446;color:#fff;
+        }
+        .ct-mv-tbl tbody tr:hover{background:#1f2633}
+        .ct-mv-tbl tbody tr:last-child td{border-bottom:none}
+        .ct-rank-cell{font-weight:600;font-variant-numeric:tabular-nums;color:#cdd6e4}
+        .ct-artist{font-weight:600;color:#fff}
+        .ct-pill{display:inline-flex;align-items:center;gap:4px;
+            font-size:11px;font-weight:700;padding:4px 10px;border-radius:5px;
+            font-variant-numeric:tabular-nums}
+        .ct-pill-up{background:rgba(52,211,153,.15);color:#34d399;border:1px solid rgba(52,211,153,.4)}
+        .ct-pill-down{background:rgba(251,113,133,.15);color:#fb7185;border:1px solid rgba(251,113,133,.4)}
+        .ct-pill-flat{background:#1f2633;color:#cdd6e4;border:1px solid #3a4661}
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
     unique_runs = int(history["scraped_at"].nunique()) if not history.empty else 0
-    
-    # Add interactive controls
-    col1, col2, col3 = st.columns([2, 1, 1])
+
+    # ── Hero header + filter controls ────────────────────────────────
+    st.markdown(
+        f"""
+        <div class='ct-hero'>
+            <div class='ct-tag'><span class='ct-live'></span>Chromadata · Position Intelligence</div>
+            <div class='ct-title'>📈 Chart Tracker</div>
+            <div class='ct-sub'>Position movement for the current top {TRACKER_TOP_ARTISTS} artists in the latest snapshot</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    col1, col2 = st.columns([1, 1])
     with col1:
-        st.markdown(
-            f"<div class='dashboard-card'><div class='section-title'>📈 Chart Tracker</div><div class='section-sub'>Clean position movement for the current top {TRACKER_TOP_ARTISTS} artists in the latest snapshot</div></div>",
-            unsafe_allow_html=True,
-        )
+        time_range = st.selectbox("📅 Time Range", ["7 days", "14 days", "30 days"], index=1, key="ct_range")
     with col2:
-        time_range = st.selectbox("📅 Time Range", ["7 days", "14 days", "30 days"], index=1)
-    with col3:
-        view_mode = st.selectbox("👁️ View Mode", ["Line Chart", "Area Chart"], index=0)
+        view_mode = st.selectbox("👁️ View Mode", ["Line Chart", "Area Chart"], index=0, key="ct_view")
 
     time_window_days = int(time_range.split()[0])
     using_demo = unique_runs < 3
@@ -1678,7 +1947,6 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
                 ["day", "date", "artist", "position"]
             ]
 
-            # Keep a full day-by-day axis for the selected range even when scrape runs are sparse.
             if latest_scraped_at is not None and window_start is not None:
                 target_dates = pd.date_range(start=window_start.normalize(), end=latest_scraped_at.normalize(), freq="D")
                 has_sparse_days = line_df["date"].dt.normalize().nunique() < len(target_dates)
@@ -1725,13 +1993,74 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
     line_df = line_df[line_df["artist"].isin(artists_tracked)]
     best_df = best_df[best_df["artist"].isin(artists_tracked)].sort_values("best_position", ascending=False)
 
-    max_position = int(line_df["position"].max()) if not line_df.empty else TRACKER_TOP_ARTISTS
-    max_position = max(TRACKER_TOP_ARTISTS + 2, max_position)
+    # ── Build movement insights & KPIs ───────────────────────────────
+    movement_rows: list[dict] = []
+    for artist in artists_tracked:
+        sub = line_df[line_df["artist"] == artist].sort_values("date")
+        if len(sub) >= 2:
+            first_pos = int(sub.iloc[0]["position"])
+            last_pos = int(sub.iloc[-1]["position"])
+            change = first_pos - last_pos
+            best_pos = int(sub["position"].min())
+            movement_rows.append({
+                "artist": artist,
+                "start": first_pos,
+                "current": last_pos,
+                "best": best_pos,
+                "change": change,
+            })
+
+    if movement_rows:
+        big_riser = max(movement_rows, key=lambda r: r["change"])
+        big_faller = min(movement_rows, key=lambda r: r["change"])
+        avg_pos = sum(r["current"] for r in movement_rows) / len(movement_rows)
+        leader = min(movement_rows, key=lambda r: r["current"])
+
+        kpi_html = f"""
+        <div class='ct-kpi-row'>
+          <div class='ct-kpi purple'>
+            <div class='ct-kpi-lbl'>Current #1</div>
+            <div class='ct-kpi-val' style='font-size:18px'>{escape(leader['artist'])}</div>
+            <div class='ct-kpi-sub'>Position #{leader['current']} · best #{leader['best']}</div>
+          </div>
+          <div class='ct-kpi up'>
+            <div class='ct-kpi-lbl'>Biggest riser</div>
+            <div class='ct-kpi-val'>{'+' if big_riser['change']>0 else ''}{big_riser['change']}</div>
+            <div class='ct-kpi-sub'>{escape(big_riser['artist'])} · #{big_riser['start']} → #{big_riser['current']}</div>
+          </div>
+          <div class='ct-kpi down'>
+            <div class='ct-kpi-lbl'>Biggest faller</div>
+            <div class='ct-kpi-val'>{big_faller['change']}</div>
+            <div class='ct-kpi-sub'>{escape(big_faller['artist'])} · #{big_faller['start']} → #{big_faller['current']}</div>
+          </div>
+          <div class='ct-kpi amber'>
+            <div class='ct-kpi-lbl'>Avg position</div>
+            <div class='ct-kpi-val'>#{avg_pos:.1f}</div>
+            <div class='ct-kpi-sub'>across {len(movement_rows)} tracked artists · {time_range}</div>
+          </div>
+        </div>
+        """
+        st.markdown(kpi_html, unsafe_allow_html=True)
+
+    # Cap y-axis using the 90th percentile so a single outlier doesn't compress
+    # the rest of the field into an unreadable band at the top.
+    if not line_df.empty:
+        positions_series = pd.to_numeric(line_df["position"], errors="coerce").dropna()
+        p90 = float(positions_series.quantile(0.90)) if not positions_series.empty else TRACKER_TOP_ARTISTS
+        observed_max = int(positions_series.max()) if not positions_series.empty else TRACKER_TOP_ARTISTS
+        max_position = int(max(TRACKER_TOP_ARTISTS + 2, min(observed_max, p90 + 5)))
+    else:
+        max_position = TRACKER_TOP_ARTISTS + 2
     tick_step = 1 if max_position <= 15 else 2 if max_position <= 30 else 5
+
+    # Brighter palette for charts
+    BRIGHT_PALETTE = ["#60a5fa", "#34d399", "#c4b5fd", "#fcd34d", "#fb7185",
+                      "#5eead4", "#f9a8d4", "#a3e635", "#fb923c", "#22d3ee"]
 
     fig_line = go.Figure()
     for idx, artist in enumerate(artists_tracked):
         sub = line_df[line_df["artist"] == artist]
+        color = BRIGHT_PALETTE[idx % len(BRIGHT_PALETTE)]
 
         if view_mode == "Area Chart":
             fig_line.add_trace(
@@ -1741,7 +2070,7 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
                     mode="lines",
                     name=artist,
                     fill="tonexty" if idx > 0 else "tozeroy",
-                    line=dict(color=CHART_COLORS[idx % len(CHART_COLORS)], width=2),
+                    line=dict(color=color, width=2.5, shape="spline"),
                     hovertemplate="<b>%{fullData.name}</b><br>%{x|%b %d}: Position #%{y}<extra></extra>",
                 )
             )
@@ -1752,15 +2081,15 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
                     y=sub["position"],
                     mode="lines+markers",
                     name=artist,
-                    line=dict(color=CHART_COLORS[idx % len(CHART_COLORS)], width=3, shape="spline"),
-                    marker=dict(size=7),
+                    line=dict(color=color, width=2.5, shape="spline"),
+                    marker=dict(size=5, color=color, line=dict(width=1, color="#0d1117")),
                     hovertemplate="<b>%{fullData.name}</b><br>%{x|%b %d}: Position #%{y}<extra></extra>",
                 )
             )
 
     title_text = f"🎯 Top {TRACKER_TOP_ARTISTS} Artist Position Trend ({time_range})"
     fig_line.update_layout(
-        title=dict(text=title_text, x=0, xanchor="left", font=dict(size=18), y=0.98, yanchor="top"),
+        title=dict(text=title_text, x=0, xanchor="left", font=dict(size=18, color="#fff"), y=0.98, yanchor="top"),
         xaxis_title="",
         yaxis_title="Chart position",
         legend=dict(
@@ -1770,20 +2099,26 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
             xanchor="center",
             x=0.5,
             bgcolor="rgba(0,0,0,0)",
-            font=dict(size=10),
+            font=dict(size=11, color="#cdd6e4"),
         ),
         hovermode="x unified",
         margin=dict(l=50, r=20, t=80, b=90),
     )
     fig_line.update_yaxes(
-        autorange="reversed",
+        autorange=False,
         range=[max_position + 0.5, 0.5],
         tickmode="array",
         tickvals=list(range(1, max_position + 1, tick_step)),
+        tickfont=dict(color="#cdd6e4", size=11),
     )
-    fig_line.update_xaxes(showgrid=False, tickformat="%b %d", dtick=86400000 * max(1, time_window_days // 10))
+    fig_line.update_xaxes(
+        showgrid=False, tickformat="%b %d",
+        dtick=86400000 * max(1, time_window_days // 10),
+        tickfont=dict(color="#cdd6e4", size=11),
+    )
     style_figure(fig_line, 520)
     st.plotly_chart(fig_line, use_container_width=True, config=PLOTLY_CONFIG)
+    st.markdown("</div>", unsafe_allow_html=True)
 
     if not best_df.empty:
         best_df_plot = best_df.copy()
@@ -1791,7 +2126,7 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
         best_df_plot["position_score"] = max_best_position + 1 - best_df_plot["best_position"]
         best_df_plot = best_df_plot.sort_values("best_position", ascending=True)
 
-        bar_colors = [CHART_COLORS[idx % len(CHART_COLORS)] for idx in range(len(best_df_plot))]
+        bar_colors = [BRIGHT_PALETTE[idx % len(BRIGHT_PALETTE)] for idx in range(len(best_df_plot))]
         fig_best = go.Figure(
             data=[
                 go.Bar(
@@ -1801,6 +2136,7 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
                     marker=dict(color=bar_colors, line=dict(width=0)),
                     text=[f"#{int(v)}" for v in best_df_plot["best_position"]],
                     textposition="outside",
+                    textfont=dict(color="#fff", size=12),
                     cliponaxis=False,
                     customdata=best_df_plot[["best_position"]].to_numpy(),
                     hovertemplate="<b>%{y}</b><br>Score: %{x:.0f}<br>Best position: #%{customdata[0]}<extra></extra>",
@@ -1809,48 +2145,76 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
         )
         style_figure(fig_best, max(380, 34 * len(best_df) + 80))
         fig_best.update_layout(
-            title=dict(text="🏆 Best Recent Positions", x=0.03, xanchor="left", font=dict(size=18)),
+            title=dict(text="🏆 Best Recent Positions", x=0.03, xanchor="left", font=dict(size=18, color="#fff")),
             showlegend=False,
             yaxis_title="",
             margin=dict(l=70, r=20, t=70, b=40),
             bargap=0.35,
         )
-        fig_best.update_xaxes(dtick=1, showgrid=False, range=[0, max_best_position + 1.3])
+        fig_best.update_xaxes(dtick=1, showgrid=False, range=[0, max_best_position + 1.3],
+                              tickfont=dict(color="#cdd6e4"))
         fig_best.update_yaxes(
             autorange="reversed",
             categoryorder="array",
             categoryarray=best_df_plot["artist"].tolist(),
             ticklabelstandoff=18,
+            tickfont=dict(color="#fff", size=12),
         )
         st.plotly_chart(fig_best, use_container_width=True, config=PLOTLY_CONFIG)
-    
-    # Additional insights
-    with st.expander("📊 Detailed Movement Analysis", expanded=True):
-        movement_data = []
-        for artist in artists_tracked:
-            artist_data = line_df[line_df["artist"] == artist]
-            if len(artist_data) >= 2:
-                first_pos = artist_data.iloc[0]["position"]
-                last_pos = artist_data.iloc[-1]["position"]
-                change = first_pos - last_pos
-                movement_data.append({
-                    "Artist": artist,
-                    "Starting Position": int(first_pos),
-                    "Current Position": int(last_pos),
-                    "Change": f"+{int(change)}" if change > 0 else str(int(change)),
-                    "Trend": "📈 Rising" if change > 0 else "📉 Falling" if change < 0 else "➡️ Stable"
-                })
-        
-        if movement_data:
-            movement_df = pd.DataFrame(movement_data)
-            st.dataframe(movement_df, use_container_width=True, hide_index=True)
-            st.download_button(
-                "⬇️ Download Detailed Movement Analysis",
-                data=movement_df.to_csv(index=False).encode("utf-8"),
-                file_name="detailed_movement_analysis.csv",
-                mime="text/csv",
-                key="download_detailed_movement_analysis",
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    # ── Styled HTML movement table (replaces st.dataframe) ───────────
+    if movement_rows:
+        movement_rows_sorted = sorted(movement_rows, key=lambda r: -r["change"])
+        rows_html = []
+        for r in movement_rows_sorted:
+            ch = r["change"]
+            if ch > 0:
+                pill = f"<span class='ct-pill ct-pill-up'>▲ +{ch}</span>"
+                trend = "<span style='color:#34d399;font-weight:600'>📈 Rising</span>"
+            elif ch < 0:
+                pill = f"<span class='ct-pill ct-pill-down'>▼ {abs(ch)}</span>"
+                trend = "<span style='color:#fb7185;font-weight:600'>📉 Falling</span>"
+            else:
+                pill = "<span class='ct-pill ct-pill-flat'>—</span>"
+                trend = "<span style='color:#cdd6e4;font-weight:600'>➡️ Stable</span>"
+            rows_html.append(
+                f"<tr><td class='ct-artist'>{escape(r['artist'])}</td>"
+                f"<td class='ct-rank-cell'>#{r['start']}</td>"
+                f"<td class='ct-rank-cell'>#{r['current']}</td>"
+                f"<td class='ct-rank-cell'>#{r['best']}</td>"
+                f"<td>{pill}</td>"
+                f"<td>{trend}</td></tr>"
             )
+        table_html = (
+            "<div class='ct-section'>"
+            "<div class='ct-section-ttl'>📊 Detailed Movement Analysis</div>"
+            "<table class='ct-mv-tbl'><thead><tr>"
+            "<th>Artist</th><th>Start</th><th>Current</th><th>Best</th><th>Change</th><th>Trend</th>"
+            "</tr></thead><tbody>"
+            + "".join(rows_html)
+            + "</tbody></table></div>"
+        )
+        st.markdown(table_html, unsafe_allow_html=True)
+
+        movement_df = pd.DataFrame([
+            {
+                "Artist": r["artist"],
+                "Starting Position": r["start"],
+                "Current Position": r["current"],
+                "Best Position": r["best"],
+                "Change": (f"+{r['change']}" if r["change"] > 0 else str(r["change"])),
+                "Trend": ("Rising" if r["change"] > 0 else "Falling" if r["change"] < 0 else "Stable"),
+            }
+            for r in movement_rows_sorted
+        ])
+        st.download_button(
+            "⬇️ Download Detailed Movement Analysis",
+            data=movement_df.to_csv(index=False).encode("utf-8"),
+            file_name="detailed_movement_analysis.csv",
+            mime="text/csv",
+            key="download_detailed_movement_analysis",
+        )
 
 
 
@@ -3106,6 +3470,13 @@ def show_debut_report_page() -> None:
     render_debut_tab()
 
 
+def show_track_movement_page() -> None:
+    """Wrapper function for Track Movement page"""
+    page_title, page_meta = PAGE_META["Track Movement"]
+    render_header(page_title, page_meta, last_run_label)
+    render_track_movement()
+
+
 app_pages = [
     st.Page(
         show_leaderboard_page,
@@ -3131,6 +3502,12 @@ app_pages = [
         title="Chart Tracker",
         icon=":material/desktop_windows:",
         url_path="chart-tracker",
+    ),
+    st.Page(
+        show_track_movement_page,
+        title="Track Movement",
+        icon=":material/show_chart:",
+        url_path="track-movement",
     ),
     st.Page(
         show_compare_page,

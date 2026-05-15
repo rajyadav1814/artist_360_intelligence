@@ -31,104 +31,278 @@ logger = get_logger(__name__)
 # ─────────────────────────────────────────────────────────────
 DEBUT_CSS = """
 <style>
-/* ── base overrides ── */
-.block-container { padding-top: 1.5rem !important; }
-hr { margin: 1rem 0 !important; border-color: var(--border) !important; opacity: 0.3; }
+/* ── design tokens (scoped) ── */
+:root {
+    --db-bg:    #0d1117;
+    --db-bg2:   #161b26;
+    --db-bg3:   #1f2633;
+    --db-bg4:   #283041;
+    --db-line:  rgba(148,163,184,.15);
+    --db-t1:    #ffffff;
+    --db-t2:    #cdd6e4;
+    --db-t3:    #8b95ad;
+    --db-blue:  #60a5fa;
+    --db-green: #34d399;
+    --db-red:   #fb7185;
+    --db-purple:#c4b5fd;
+    --db-amber: #fcd34d;
+    --db-teal:  #5eead4;
+    --db-pink:  #f9a8d4;
+    /* legacy aliases used elsewhere in this file */
+    --surface2: var(--db-bg2);
+    --border:   var(--db-line);
+    --text:     var(--db-t1);
+    --text2:    var(--db-t2);
+    --accent:   var(--db-blue);
+    --accent2:  var(--db-purple);
+    --accent3:  var(--db-green);
+}
+
+/* ── base ── */
+.block-container { padding-top: 1.25rem !important; }
+hr { margin: 1.25rem 0 !important; border: none !important; border-top: 1px solid var(--db-line) !important; opacity: 1; }
 
 /* ── tabs ── */
 [data-testid="stTabs"] [role="tablist"] {
-    gap: 8px;
-    border-bottom: 1px solid var(--border) !important;
+    gap: 10px;
+    border-bottom: 1px solid var(--db-line) !important;
     background: transparent;
 }
 [data-testid="stTabs"] [role="tab"] {
-    background: var(--surface2) !important;
-    color: var(--text2) !important;
+    background: var(--db-bg2) !important;
+    color: var(--db-t2) !important;
     font-size: 13px !important;
     font-weight: 700 !important;
     text-transform: uppercase !important;
-    border: 1px solid var(--border) !important;
-    border-radius: 10px 10px 0 0 !important;
-    padding: 10px 20px !important;
-    transition: all 0.3s ease;
+    letter-spacing: .04em !important;
+    border: 1px solid var(--db-line) !important;
+    border-radius: 12px 12px 0 0 !important;
+    padding: 11px 22px !important;
+    transition: all 0.25s ease;
 }
 [data-testid="stTabs"] [role="tab"][aria-selected="true"] {
-    color: var(--text) !important;
-    background: linear-gradient(135deg, rgba(79,142,247,.2), rgba(124,92,252,.2)) !important;
-    border-color: var(--accent) !important;
+    color: var(--db-t1) !important;
+    background: linear-gradient(135deg, rgba(96,165,250,.22), rgba(196,181,253,.22)) !important;
+    border-color: rgba(96,165,250,.55) !important;
 }
 
-/* ── metrics ── */
-[data-testid="stMetric"] {
-    background: var(--surface2) !important;
-    border: 1px solid var(--border) !important;
-    padding: 0.85rem 1.15rem !important;
-    border-radius: 14px !important;
+/* ── hero header ── */
+.db-hero {
+    position: relative;
+    background: linear-gradient(135deg, #1a2238 0%, #1f1a3a 50%, #261d3d 100%);
+    border: 1px solid rgba(148,163,184,.18);
+    border-radius: 20px;
+    padding: 26px 30px;
+    margin-bottom: 1.6rem;
+    box-shadow: 0 24px 60px rgba(0,0,0,.35);
+    overflow: hidden;
 }
-[data-testid="stMetricLabel"] p {
-    font-size: 0.8rem !important;
-    color: var(--text2) !important;
-    font-weight: 600 !important;
+.db-hero::after {
+    content: "";
+    position: absolute; right: -120px; top: -120px;
+    width: 320px; height: 320px;
+    background: radial-gradient(circle, rgba(196,181,253,.18), transparent 60%);
+    pointer-events: none;
 }
-[data-testid="stMetricValue"] {
-    font-size: 2rem !important;
-    font-weight: 900 !important;
+.db-hero-eyebrow {
+    display: inline-flex; align-items: center; gap: 10px;
+    font-size: 12px; font-weight: 800; letter-spacing: .18em;
+    text-transform: uppercase; color: var(--db-t3);
+    margin-bottom: 14px;
+}
+.db-hero-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--db-green);
+    box-shadow: 0 0 0 4px rgba(52,211,153,.18), 0 0 14px rgba(52,211,153,.55);
+    animation: db-pulse 2s ease-in-out infinite;
+}
+@keyframes db-pulse {
+    0%,100% { box-shadow: 0 0 0 4px rgba(52,211,153,.18), 0 0 14px rgba(52,211,153,.55); }
+    50%     { box-shadow: 0 0 0 8px rgba(52,211,153,.05), 0 0 22px rgba(52,211,153,.85); }
+}
+.db-hero-title {
+    font-size: 2.4rem; font-weight: 900; letter-spacing: -.02em;
+    color: var(--db-t1); margin-bottom: 8px; line-height: 1.1;
+}
+.db-hero-sub {
+    font-size: 0.95rem; color: var(--db-t2); font-weight: 500;
+    letter-spacing: .02em;
+}
+.db-hero-sub b { color: var(--db-t1); font-weight: 700; }
+
+/* ── KPI tiles ── */
+.db-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 14px;
+    margin-bottom: 1.5rem;
+}
+.db-kpi {
+    position: relative;
+    background: var(--db-bg2);
+    border: 1px solid var(--db-line);
+    border-radius: 16px;
+    padding: 18px 18px 16px 22px;
+    box-shadow: 0 12px 24px rgba(0,0,0,.18);
+    overflow: hidden;
+    transition: transform .2s ease, border-color .2s ease;
+}
+.db-kpi:hover { transform: translateY(-2px); border-color: rgba(148,163,184,.3); }
+.db-kpi::before {
+    content: ""; position: absolute; left: 0; top: 14%; bottom: 14%; width: 4px;
+    border-radius: 0 4px 4px 0;
+    background: var(--db-blue);
+}
+.db-kpi.k-blue::before   { background: var(--db-blue); }
+.db-kpi.k-green::before  { background: var(--db-green); }
+.db-kpi.k-purple::before { background: var(--db-purple); }
+.db-kpi.k-amber::before  { background: var(--db-amber); }
+.db-kpi.k-pink::before   { background: var(--db-pink); }
+.db-kpi-lbl {
+    font-size: 11px; font-weight: 800; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--db-t3);
+    margin-bottom: 10px;
+}
+.db-kpi-val {
+    font-size: 26px; font-weight: 900; color: var(--db-t1);
+    line-height: 1.1; margin-bottom: 6px; letter-spacing: -.01em;
+}
+.db-kpi.k-blue   .db-kpi-val { color: var(--db-blue); }
+.db-kpi.k-green  .db-kpi-val { color: var(--db-green); }
+.db-kpi.k-purple .db-kpi-val { color: var(--db-purple); }
+.db-kpi.k-amber  .db-kpi-val { color: var(--db-amber); }
+.db-kpi.k-pink   .db-kpi-val { color: var(--db-pink); }
+.db-kpi-sub {
+    font-size: 12px; color: var(--db-t2); font-weight: 500;
+    line-height: 1.35;
 }
 
-/* ── unified cards ── */
+/* ── insight cards ── */
 .insight-card, .spotlight-card, .mini-stat-card {
-    background: var(--surface2);
-    border: 1px solid var(--border);
+    background: linear-gradient(180deg, var(--db-bg2) 0%, var(--db-bg3) 100%);
+    border: 1px solid var(--db-line);
     border-radius: 18px;
-    padding: 1rem 1.25rem;
+    padding: 1.1rem 1.25rem;
     margin-bottom: 1rem;
-    box-shadow: 0 12px 24px rgba(0,0,0,.15);
+    box-shadow: 0 14px 30px rgba(0,0,0,.22);
+    transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
 }
-.insight-icon { font-size: 1.6rem; margin-bottom: 0.5rem; }
+.insight-card:hover {
+    transform: translateY(-2px);
+    border-color: rgba(96,165,250,.4);
+    box-shadow: 0 22px 40px rgba(0,0,0,.32);
+}
+.insight-icon { font-size: 1.7rem; margin-bottom: 0.5rem; }
 .insight-title {
-    font-size: 0.75rem;
-    color: var(--text2);
-    font-weight: 700;
-    letter-spacing: 0.05em;
-    margin-bottom: 0.25rem;
+    font-size: 11px; color: var(--db-t3);
+    font-weight: 800; letter-spacing: .12em;
+    text-transform: uppercase; margin-bottom: 0.45rem;
 }
 .insight-val {
-    font-size: 1.4rem;
-    font-weight: 800;
-    color: var(--text);
-    margin-bottom: 0.35rem;
+    font-size: 1.25rem; font-weight: 800;
+    color: var(--db-t1); margin-bottom: 0.5rem;
+    line-height: 1.25;
 }
-.insight-desc { font-size: 0.9rem; color: var(--text2); line-height: 1.5; }
+.insight-desc { font-size: 0.92rem; color: var(--db-t2); line-height: 1.55; }
+
+/* ── section headers ── */
+.sec-hdr {
+    display: flex; align-items: center; justify-content: space-between;
+    margin: 0 0 14px 2px;
+}
+.sec-title {
+    font-size: 1.1rem; font-weight: 800;
+    color: var(--db-t1); letter-spacing: -.005em;
+}
+.sec-badge {
+    font-size: 11px; font-weight: 700; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--db-t2);
+    background: var(--db-bg3); border: 1px solid var(--db-line);
+    padding: 5px 12px; border-radius: 999px;
+}
+
+/* ── table container ── */
+.db-tbl-wrap {
+    background: var(--db-bg2);
+    border: 1px solid var(--db-line);
+    border-radius: 16px;
+    padding: 4px 10px;
+    margin-bottom: 1.6rem;
+    box-shadow: 0 14px 30px rgba(0,0,0,.18);
+    overflow: hidden;
+}
 
 /* ── tables & rows ── */
 .rank-row {
     display: grid;
     align-items: center;
-    gap: 12px;
-    padding: 8px 10px;
-    border-bottom: 1px solid var(--border);
+    gap: 14px;
+    padding: 12px 10px;
+    border-bottom: 1px solid var(--db-line);
+    transition: background .15s ease;
 }
-.rank-row:hover { background: rgba(79,142,247,0.1); }
+.rank-row:last-child { border-bottom: none; }
+.rank-row:hover { background: rgba(96,165,250,.06); }
+.rank-pill {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 44px; padding: 6px 10px;
+    background: var(--db-bg4); color: var(--db-t1);
+    font-size: 14px; font-weight: 800;
+    border-radius: 10px; letter-spacing: -.01em;
+}
+.rank-pill.top { background: linear-gradient(135deg, #34d399, #10b981); color: #0d1117; }
+.rank-pill.mid { background: linear-gradient(135deg, #c4b5fd, #a78bfa); color: #0d1117; }
+.sbar-bg { width: 100%; height: 6px; background: rgba(148,163,184,.12); border-radius: 4px; overflow: hidden; }
+.sbar-fg { height: 100%; border-radius: 4px; }
 
 /* ── spotlight enhancement ── */
-.sp-name { font-size: 1.8rem; font-weight: 900; line-height: 1.2; margin-bottom: 0.5rem; }
-.sp-artist { font-size: 1rem; color: var(--text2); margin-bottom: 1rem; }
-.sp-stat { padding: 0.6rem 0.85rem; border-radius: 10px; }
-.sp-val { font-size: 1.25rem; font-weight: 800; }
+.sp-name { font-size: 1.6rem; font-weight: 900; line-height: 1.2; margin-bottom: 0.5rem; color: var(--db-t1); }
+.sp-artist { font-size: 0.95rem; color: var(--db-t2); margin-bottom: 1rem; }
+.sp-stat { padding: 0.65rem 0.9rem; border-radius: 12px; background: var(--db-bg3); border: 1px solid var(--db-line); }
+.sp-lbl { font-size: 11px; color: var(--db-t3); font-weight: 700; letter-spacing: .1em; text-transform: uppercase; margin-bottom: 4px; }
+.sp-val { font-size: 1.3rem; font-weight: 800; color: var(--db-t1); }
 
 /* ── scroll area ── */
 .scroll-area {
-    max-height: 380px;
-    overflow-y: auto;
-    padding-right: 8px;
+    max-height: 420px; overflow-y: auto; padding-right: 8px;
 }
-.scroll-area::-webkit-scrollbar { width: 4px; }
-.scroll-area::-webkit-scrollbar-track { background: transparent; }
-.scroll-area::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
+.scroll-area::-webkit-scrollbar,
+.db-tbl-wrap::-webkit-scrollbar { width: 6px; }
+.scroll-area::-webkit-scrollbar-track,
+.db-tbl-wrap::-webkit-scrollbar-track { background: transparent; }
+.scroll-area::-webkit-scrollbar-thumb,
+.db-tbl-wrap::-webkit-scrollbar-thumb { background: var(--db-bg4); border-radius: 10px; }
 
 /* ── badges ── */
-.badge-new { background: rgba(79,142,247,.2); color: #c3daff; border: 1px solid rgba(79,142,247,.4); padding: 2px 8px; border-radius: 6px; font-size: 0.75rem; font-weight: 800; }
-.badge-hot { background: rgba(34,211,160,.2); color: #a5f3d9; border: 1px solid rgba(34,211,160,.4); padding: 2px 8px; border-radius: 6px; font-size: 0.75rem; font-weight: 800; }
+.badge-new {
+    background: rgba(96,165,250,.16); color: #bfdbfe;
+    border: 1px solid rgba(96,165,250,.45);
+    padding: 4px 10px; border-radius: 999px;
+    font-size: 10px; font-weight: 800; letter-spacing: .08em;
+}
+.badge-hot {
+    background: rgba(52,211,153,.16); color: #a7f3d0;
+    border: 1px solid rgba(52,211,153,.45);
+    padding: 4px 10px; border-radius: 999px;
+    font-size: 10px; font-weight: 800; letter-spacing: .08em;
+}
+.badge-multi {
+    background: rgba(196,181,253,.16); color: #ddd6fe;
+    border: 1px solid rgba(196,181,253,.45);
+    padding: 4px 10px; border-radius: 999px;
+    font-size: 10px; font-weight: 800; letter-spacing: .08em;
+}
+.badge-rising {
+    background: rgba(252,211,77,.16); color: #fde68a;
+    border: 1px solid rgba(252,211,77,.45);
+    padding: 4px 10px; border-radius: 999px;
+    font-size: 10px; font-weight: 800; letter-spacing: .08em;
+}
+.col-hdr {
+    font-size: 10.5px; color: var(--db-t3);
+    text-transform: uppercase; letter-spacing: .14em;
+    font-weight: 800;
+}
 </style>
 """
 
@@ -397,6 +571,8 @@ def get_debut_kpis(debut_df: pd.DataFrame, all_df: pd.DataFrame) -> dict:
         if "artist_title" in all_df.columns and not all_df.empty
         else 0
     )
+    if pd.isna(incumbent_avg):
+        incumbent_avg = 0
     strength_ratio = round(avg_score / max(incumbent_avg, 1), 2)
 
     best_debut_score = (
@@ -678,30 +854,29 @@ def _debut_table_html(df: pd.DataFrame, score_col: str = "total_streams", max_ro
         pct          = round(float(score) / max(float(max_score), 1) * 100)
 
         if score >= max_score * 0.6:
-            bar_color, badge = "#22c55e", '<span class="badge-hot" style="font-size:9px">TOP DEBUT</span>'
+            bar_color, badge = "#34d399", '<span class="badge-hot">TOP DEBUT</span>'
         elif score >= max_score * 0.3:
-            bar_color, badge = "#a78bfa", '<span class="badge-multi" style="font-size:9px">RISING</span>'
+            bar_color, badge = "#c4b5fd", '<span class="badge-rising">RISING</span>'
         else:
-            bar_color, badge = "#555", '<span class="badge-new" style="font-size:9px">NEW ENTRY</span>'
+            bar_color, badge = "#60a5fa", '<span class="badge-new">NEW ENTRY</span>'
 
+        pill_class = "top" if rank <= 25 else ("mid" if rank <= 100 else "")
         rows_html += f"""
         <div class="rank-row"
-             style="grid-template-columns:80px 1.8fr 1.2fr 1fr 100px 80px; padding: 12px 10px;">
-          <span style="font-size:15px;font-weight:700;color:var(--text)">
-            #{rank}
-          </span>
+             style="grid-template-columns:80px 1.8fr 1.2fr 1fr 100px 110px;">
+          <span class="rank-pill {pill_class}">#{rank}</span>
           <div>
-            <div style="font-size:15px;font-weight:700;color:var(--text);
+            <div style="font-size:15px;font-weight:700;color:var(--db-t1);
                         white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:6px">{title}</div>
-            <div class="sbar-bg" style="height:5px">
+            <div class="sbar-bg">
               <div class="sbar-fg" style="width:{pct}%;background:{bar_color}"></div>
             </div>
           </div>
-          <div style="font-size:13px;color:var(--text2);white-space:nowrap;
+          <div style="font-size:13px;color:var(--db-t2);white-space:nowrap;
                       overflow:hidden;text-overflow:ellipsis">{artist}</div>
-          <div style="font-size:12px;color:var(--accent2);white-space:nowrap;
+          <div style="font-size:12px;color:var(--db-purple);font-weight:600;white-space:nowrap;
                       overflow:hidden;text-overflow:ellipsis">{label_display}</div>
-          <span style="font-size:15px;font-weight:700;color:var(--text);text-align:right">{fmt(score)}</span>
+          <span style="font-size:15px;font-weight:800;color:var(--db-t1);text-align:right">{fmt(score)}</span>
           <span style="text-align:right">{badge}</span>
         </div>"""
 
@@ -735,22 +910,21 @@ def _itunes_debut_table_html(df: pd.DataFrame, max_rows: int = 15) -> str:
         peak  = int(row.get("peak_position", 0)) if not pd.isna(row.get("peak_position", np.nan)) else 0
 
         is_old_catalog = peak > 100
-        peak_color     = "#fbbf24" if is_old_catalog else "var(--text2)"
+        peak_color     = "#fcd34d" if is_old_catalog else "var(--db-t2)"
 
+        pill_class = "top" if rank <= 25 else ("mid" if rank <= 100 else "")
         rows_html += f"""
         <div class="rank-row"
-             style="grid-template-columns:80px 1.8fr 1.5fr 1fr 100px 80px; padding: 12px 10px;">
-          <span style="font-size:15px;font-weight:700;color:var(--text)">
-            #{rank}
-          </span>
-          <div style="font-size:15px;font-weight:700;color:var(--text);
+             style="grid-template-columns:80px 1.8fr 1.5fr 1fr 100px 80px;">
+          <span class="rank-pill {pill_class}">#{rank}</span>
+          <div style="font-size:15px;font-weight:700;color:var(--db-t1);
                       white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{title}</div>
-          <div style="font-size:13px;color:var(--text2);white-space:nowrap;
+          <div style="font-size:13px;color:var(--db-t2);white-space:nowrap;
                       overflow:hidden;text-overflow:ellipsis">{artist}</div>
-          <div style="font-size:12px;color:var(--accent2);white-space:nowrap;
+          <div style="font-size:12px;color:var(--db-purple);font-weight:600;white-space:nowrap;
                       overflow:hidden;text-overflow:ellipsis">{label_display}</div>
-          <span style="font-size:15px;font-weight:700;color:var(--text);text-align:right">{fmt(score)}</span>
-          <span style="font-size:13px;color:{peak_color};text-align:right;font-weight:600">pk#{peak}</span>
+          <span style="font-size:15px;font-weight:800;color:var(--db-t1);text-align:right">{fmt(score)}</span>
+          <span style="font-size:13px;color:{peak_color};text-align:right;font-weight:700">pk#{peak}</span>
         </div>"""
 
     return header + rows_html
@@ -782,18 +956,18 @@ def _multi_track_html(multi_df: pd.DataFrame, debut_df: pd.DataFrame) -> str:
             .sort_values("rank")[["rank", "total_streams"]]
         )
         scores_txt = " &nbsp;·&nbsp; ".join(
-            f'<span style="color:var(--text2)">#{int(r["rank"])}</span> <span style="color:var(--accent)">{fmt(r["total_streams"])}</span>' 
+            f'<span style="color:var(--db-t3);font-weight:700">#{int(r["rank"])}</span> <span style="color:var(--db-blue);font-weight:700">{fmt(r["total_streams"])}</span>'
             for _, r in indiv.iterrows()
         )
 
         rows_html += f"""
         <div class="rank-row"
-             style="grid-template-columns:2fr 100px 140px 2fr; padding: 14px 10px;">
-          <span style="font-size:15px;font-weight:700;color:var(--text)">{artist}</span>
+             style="grid-template-columns:2fr 110px 140px 2fr;">
+          <span style="font-size:15px;font-weight:800;color:var(--db-t1)">{artist}</span>
           <div style="text-align:center">
-            <span class="badge-multi" style="font-size:10px; padding:4px 10px">{track_count} TRACKS</span>
+            <span class="badge-multi">{track_count} TRACKS</span>
           </div>
-          <span style="font-size:15px;font-weight:700;color:var(--accent2);text-align:right">{fmt(combined)}</span>
+          <span style="font-size:15px;font-weight:800;color:var(--db-purple);text-align:right">{fmt(combined)}</span>
           <div style="font-size:13px;padding-left:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
             {scores_txt}
           </div>
@@ -857,15 +1031,16 @@ def _itunes_artist_new_entries_table_html(df: pd.DataFrame) -> str:
         date = row.get("scrape_date")
         date_str = date.strftime("%b %d") if date else "—"
 
+        pill_class = "top" if rank <= 25 else ("mid" if rank <= 100 else "")
         rows_html += f"""
         <div class="rank-row"
-             style="grid-template-columns:80px 1.5fr 1fr 120px 120px; padding: 10px 10px;">
-          <span style="font-size:15px;font-weight:700;color:var(--text)">#{rank}</span>
-          <div style="font-size:15px;font-weight:700;color:var(--text);
+             style="grid-template-columns:80px 1.5fr 1fr 120px 120px;">
+          <span class="rank-pill {pill_class}">#{rank}</span>
+          <div style="font-size:15px;font-weight:700;color:var(--db-t1);
                       white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{artist}</div>
           <div><span class="badge-new">{change}</span></div>
-          <span style="font-size:15px;font-weight:700;color:var(--text);text-align:right">{fmt(points)}</span>
-          <span style="font-size:13px;color:var(--text2);text-align:right">{date_str}</span>
+          <span style="font-size:15px;font-weight:800;color:var(--db-t1);text-align:right">{fmt(points)}</span>
+          <span style="font-size:13px;color:var(--db-t2);text-align:right;font-weight:600">{date_str}</span>
         </div>"""
 
     return header + rows_html
@@ -957,40 +1132,56 @@ def render_debut_tab() -> None:
     # ── Page header ────────────────────────────────────────
     st.markdown(
         f"""
-        <div style="background:var(--surface2);border-bottom:1px solid var(--border);
-                    padding:14px 20px 10px;margin-bottom:1.5rem;border-radius:18px;box-shadow:0 18px 36px rgba(0,0,0,.12);">
-          <div style="font-size:0.8rem;color:var(--text2);letter-spacing:0.1em;
-                      text-transform:uppercase;margin-bottom:0.5rem;
-                      display:flex;align-items:center;gap:8px">
-            <span style="width:8px;height:8px;border-radius:50%;
-                         background:var(--accent3);display:inline-block;box-shadow:0 0 10px var(--accent3)"></span>
-         &nbsp;·&nbsp; Debut Intelligence
+        <div class="db-hero">
+          <div class="db-hero-eyebrow">
+            <span class="db-hero-dot"></span>
+            Chromadata · Debut Intelligence · Live
           </div>
-          <div style="font-size:2.2rem;font-weight:800;letter-spacing:-0.03em;color:var(--text);
-                      margin-bottom:0.25rem">Chart Debuts Report</div>
-          <div style="font-size:1rem;color:var(--text2);letter-spacing:0.02em;
-                      text-transform:uppercase">
-            Spotify Global + iTunes WW &nbsp;·&nbsp;
-            New entries vs prior week &nbsp;·&nbsp; May 2026
+          <div class="db-hero-title">Chart Debuts Report</div>
+          <div class="db-hero-sub">
+            Spotify Global &nbsp;·&nbsp; iTunes WW &nbsp;·&nbsp;
+            <b>{kpis.get('total', 0)} new entries</b> vs prior week &nbsp;·&nbsp;
+            Week <b>{week_num}</b> · May 2026
           </div>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-    # ── KPI metric bar ─────────────────────────────────────
-    _kpi_metric_row([
-        ("New entries",      str(kpis.get("total", 0)),
-         f"{kpis.get('churn_pct', 0):.1f}% of chart this week", "off"),
-        ("Best debut rank",  f"#{kpis.get('best_rank', 0)}",
-         kpis.get("best_track", "—")[:30], "off"),
-        ("Avg debut rank",   f"#{kpis.get('avg_rank', 0)}",
-         "vs incumbent avg rank", "off"),
-        ("Avg debut score",  fmt(kpis.get("avg_score", 0)),
-         f"median {fmt(kpis.get('median_score', 0))}", "off"),
-        ("Strength vs field",f"{kpis.get('strength_ratio', 0):.2f}×",
-         "debut / incumbent score ratio", "off"),
-    ])
+    # ── KPI tiles ─────────────────────────────────────────
+    best_track_short = (kpis.get("best_track", "—") or "—")[:34]
+    st.markdown(
+        f"""
+        <div class="db-kpi-grid">
+          <div class="db-kpi k-blue">
+            <div class="db-kpi-lbl">New entries</div>
+            <div class="db-kpi-val">{kpis.get('total', 0)}</div>
+            <div class="db-kpi-sub">{kpis.get('churn_pct', 0):.1f}% of chart this week</div>
+          </div>
+          <div class="db-kpi k-green">
+            <div class="db-kpi-lbl">Best debut rank</div>
+            <div class="db-kpi-val">#{kpis.get('best_rank', 0)}</div>
+            <div class="db-kpi-sub">{best_track_short}</div>
+          </div>
+          <div class="db-kpi k-purple">
+            <div class="db-kpi-lbl">Avg debut rank</div>
+            <div class="db-kpi-val">#{kpis.get('avg_rank', 0)}</div>
+            <div class="db-kpi-sub">across all new entries</div>
+          </div>
+          <div class="db-kpi k-amber">
+            <div class="db-kpi-lbl">Avg debut score</div>
+            <div class="db-kpi-val">{fmt(kpis.get('avg_score', 0))}</div>
+            <div class="db-kpi-sub">median {fmt(kpis.get('median_score', 0))}</div>
+          </div>
+          <div class="db-kpi k-pink">
+            <div class="db-kpi-lbl">Strength vs field</div>
+            <div class="db-kpi-val">{kpis.get('strength_ratio', 0):.2f}×</div>
+            <div class="db-kpi-sub">debut / incumbent ratio</div>
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
     st.markdown("<hr>", unsafe_allow_html=True)
 
@@ -1038,10 +1229,10 @@ def render_debut_tab() -> None:
 
     # ── Row 0: Latest iTunes Artist New Entries ─────────
     if not itunes_artist_new_df.empty:
-        _sec("Top 5 Latest New Entry - Last Week", "iTunes Artist Ranking")
+        _sec("Top 5 latest new entries — last week", "iTunes Artist Ranking")
         iar_new_html = _itunes_artist_new_entries_table_html(itunes_artist_new_df)
         st.markdown(
-            f'<div style="max-height:400px;overflow-y:auto;padding-right:10px;margin-bottom:2rem;border:1px solid var(--border);border-radius:12px;background:var(--surface2)">{iar_new_html}</div>',
+            f'<div class="db-tbl-wrap" style="max-height:420px;overflow-y:auto">{iar_new_html}</div>',
             unsafe_allow_html=True,
         )
 
@@ -1052,7 +1243,7 @@ def render_debut_tab() -> None:
     )
     debut_html = _debut_table_html(debut_df, score_col="total_streams")
     st.markdown(
-        f'<div style="max-height:500px;overflow-y:auto;padding-right:10px;margin-bottom:2rem;">{debut_html}</div>',
+        f'<div class="db-tbl-wrap" style="max-height:540px;overflow-y:auto">{debut_html}</div>',
         unsafe_allow_html=True,
     )
 
@@ -1060,10 +1251,10 @@ def render_debut_tab() -> None:
     st.markdown("<hr>", unsafe_allow_html=True)
 
     # ── Row 3: Full-width iTunes Table ─────────
-    _sec("iTunes WW new entries", f"{len(itunes_df)} debuts · Latest date")
+    _sec("iTunes WW new entries", f"{len(itunes_df)} debuts · latest date")
     itunes_html = _itunes_debut_table_html(itunes_df, max_rows=15)
     st.markdown(
-        f'<div style="max-height:450px;overflow-y:auto;padding-right:10px;margin-bottom:2rem;">{itunes_html}</div>',
+        f'<div class="db-tbl-wrap" style="max-height:480px;overflow-y:auto">{itunes_html}</div>',
         unsafe_allow_html=True,
     )
 
@@ -1077,24 +1268,23 @@ def render_debut_tab() -> None:
             ratio = round(spotlight.get("total_streams", 0) / max(kpis.get("avg_score", 1), 1), 1)
             st.markdown(
                 f"""
-                <div class="spotlight-card" style="padding:0.75rem 1rem; margin-bottom:0.5rem; height:150px; display:flex; flex-direction:column; justify-content:center;">
-                  <div class="sp-rank">
-                    <span class="badge-hot" style="font-size:9px">STRONGEST DEBUT</span>
+                <div class="spotlight-card" style="padding:1.1rem 1.25rem;margin-bottom:0.5rem">
+                  <div style="margin-bottom:10px">
+                    <span class="badge-hot">STRONGEST DEBUT</span>
                   </div>
-                  <div style="font-size:1.3rem; font-weight:900; color:var(--text); margin-bottom:2px">
-                    {spotlight.get("artist_title","—")}
+                  <div class="sp-name">{spotlight.get("artist_title","—")}</div>
+                  <div class="sp-artist">
+                    <span style="color:var(--db-purple);font-weight:700">{spotlight.get("label","Independent")}</span>
+                    &nbsp;·&nbsp; #{spotlight.get("rank",0)} entry
                   </div>
-                  <div style="font-size:0.85rem; color:var(--text2); margin-bottom:8px">
-                    {spotlight.get("label","Independent")} &nbsp;·&nbsp; #{spotlight.get("rank",0)} entry
-                  </div>
-                  <div style="display:grid; grid-template-columns: 1fr 1fr; gap:0.5rem;">
-                    <div class="sp-stat" style="padding:4px 0">
-                      <div class="sp-lbl" style="font-size:10px">Entry score</div>
-                      <div class="sp-val" style="color:var(--accent3); font-size:1.1rem">{fmt(spotlight.get("total_streams",0))}</div>
+                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+                    <div class="sp-stat">
+                      <div class="sp-lbl">Entry score</div>
+                      <div class="sp-val" style="color:var(--db-green)">{fmt(spotlight.get("total_streams",0))}</div>
                     </div>
-                    <div class="sp-stat" style="padding:4px 0">
-                      <div class="sp-lbl" style="font-size:10px">vs debut avg</div>
-                      <div class="sp-val" style="color:#fbbf24; font-size:1.1rem">{ratio}×</div>
+                    <div class="sp-stat">
+                      <div class="sp-lbl">vs debut avg</div>
+                      <div class="sp-val" style="color:var(--db-amber)">{ratio}×</div>
                     </div>
                   </div>
                 </div>
@@ -1107,15 +1297,13 @@ def render_debut_tab() -> None:
         if spotlight:
             st.markdown(
                 f"""
-                <div class="mini-stat-card" style="border-left:3px solid var(--accent3); padding:0.75rem 1rem; margin-bottom:0.5rem; height:150px; display:flex; flex-direction:column; justify-content:center;">
-                  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-                    <div class="mini-lbl" style="font-size:10px">Acquisition signal</div>
-                    <span class="badge-hot" style="font-size:8px">A&R PRIORITY</span>
+                <div class="mini-stat-card" style="border-left:4px solid var(--db-green);padding:1.1rem 1.25rem;margin-bottom:0.5rem">
+                  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+                    <div style="font-size:11px;color:var(--db-t3);font-weight:800;letter-spacing:.12em;text-transform:uppercase">Acquisition signal</div>
+                    <span class="badge-hot">A&R PRIORITY</span>
                   </div>
-                  <div style="font-size:1.1rem;font-weight:800;color:var(--text);margin-bottom:2px">
-                    {spotlight.get("artist_title","—")}
-                  </div>
-                  <div style="font-size:0.85rem;color:var(--text2);margin-bottom:8px">
+                  <div class="sp-name" style="font-size:1.4rem;margin-bottom:0.4rem">{spotlight.get("artist_title","—")}</div>
+                  <div style="font-size:0.95rem;color:var(--db-t2);line-height:1.5">
                     Recommend prioritized follow-up on retention and territory growth.
                   </div>
                 </div>
@@ -1128,7 +1316,10 @@ def render_debut_tab() -> None:
     # ── Row 5: Multi-track debutants ──────────────
     _sec("Multi-track debutants this week", f"{len(multi_df)} artists")
     multi_html = _multi_track_html(multi_df, debut_df)
-    st.markdown(f'<div class="scroll-area" style="max-height:400px; margin-bottom:2rem;">{multi_html}</div>', unsafe_allow_html=True)
+    st.markdown(
+        f'<div class="db-tbl-wrap" style="max-height:420px;overflow-y:auto">{multi_html}</div>',
+        unsafe_allow_html=True,
+    )
 
 
 
