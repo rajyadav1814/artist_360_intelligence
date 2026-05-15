@@ -12,6 +12,7 @@ from src.ai.custom_chatbot import render_custom_chatbot
 from src.ai.label_dashboard import render_pulse_report
 from src.ai.debut_dashboard import render_debut_tab
 from src.ai.track_movement_dashboard import render_track_movement
+from src.ai.acquisition_dashboard import render_acquisition
 from src.database.connection import get_connection
 from src.scrapers.artist_details_scraper import LATIN_AMERICAN_COUNTRIES
 from src.utils.image_utils import get_artist_image_url, get_fallback_avatar_url
@@ -69,6 +70,10 @@ PAGE_META = {
     "Track Movement": (
         "Track Movement",
         "Daily rank + metric momentum across Spotify and iTunes charts (risers, fallers, trajectories)",
+    ),
+    "Acquisition": (
+        "Acquisition Recommendation",
+        "Composite acquisition signals across Spotify Global + iTunes WW for every charting artist",
     ),
 }
 
@@ -3477,6 +3482,13 @@ def show_track_movement_page() -> None:
     render_track_movement()
 
 
+def show_acquisition_page() -> None:
+    """Wrapper function for Acquisition Recommendation page"""
+    page_title, page_meta = PAGE_META["Acquisition"]
+    render_header(page_title, page_meta, last_run_label)
+    render_acquisition()
+
+
 app_pages = [
     st.Page(
         show_leaderboard_page,
@@ -3508,6 +3520,12 @@ app_pages = [
         title="Track Movement",
         icon=":material/show_chart:",
         url_path="track-movement",
+    ),
+    st.Page(
+        show_acquisition_page,
+        title="Acquisition",
+        icon=":material/handshake:",
+        url_path="acquisition",
     ),
     st.Page(
         show_compare_page,
