@@ -97,7 +97,7 @@ def run_daily_charts():
             logger.error(f"Spotify Daily {country} failed: {exc}")
 
     # iTunes Daily
-    for country in ["ww", "us"]:
+    for country in ["ww"]:
         try:
             data = scrape_itunes_daily(country=country)
             rows = save_itunes_daily(data)
