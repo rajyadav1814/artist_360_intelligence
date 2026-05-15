@@ -381,8 +381,8 @@ body{{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--
         <div class='section-label' style='color:var(--green)'>
           <span class='section-dot' style='background:var(--green)'></span>SPOTIFY — Rank + Streams
         </div>
-        <div class='trk-hdr' style='grid-template-columns:24px 1fr 50px 64px 64px 60px'>
-          <span></span><span>Track · Artist</span><span style='text-align:center'>Rank</span><span style='text-align:right'>Streams</span><span style='text-align:right'>+Streams</span><span style='text-align:right'>Δ Rank</span>
+        <div class='trk-hdr' style='grid-template-columns:24px 1fr 50px 50px 64px 64px 60px'>
+          <span></span><span>Track · Artist</span><span style='text-align:center'>Start</span><span style='text-align:center'>Now</span><span style='text-align:right'>Streams</span><span style='text-align:right'>+Streams</span><span style='text-align:right'>Δ Rank</span>
         </div>
         <div id='sp-risers'></div>
       </div>
@@ -390,8 +390,8 @@ body{{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--
         <div class='section-label' style='color:var(--purple)'>
           <span class='section-dot' style='background:var(--purple)'></span>ITUNES — Rank + Score
         </div>
-        <div class='trk-hdr' style='grid-template-columns:24px 1fr 50px 64px 64px 60px'>
-          <span></span><span>Track · Artist</span><span style='text-align:center'>Rank</span><span style='text-align:right'>Score</span><span style='text-align:right'>+Score</span><span style='text-align:right'>Δ Rank</span>
+        <div class='trk-hdr' style='grid-template-columns:24px 1fr 50px 50px 64px 64px 60px'>
+          <span></span><span>Track · Artist</span><span style='text-align:center'>Start</span><span style='text-align:center'>Now</span><span style='text-align:right'>Score</span><span style='text-align:right'>+Score</span><span style='text-align:right'>Δ Rank</span>
         </div>
         <div id='it-risers'></div>
       </div>
@@ -405,8 +405,8 @@ body{{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--
         <div class='section-label' style='color:var(--red)'>
           <span class='section-dot' style='background:var(--red)'></span>SPOTIFY — Rank + Streams lost
         </div>
-        <div class='trk-hdr' style='grid-template-columns:24px 1fr 50px 64px 64px 60px'>
-          <span></span><span>Track · Artist</span><span style='text-align:center'>Rank</span><span style='text-align:right'>Streams</span><span style='text-align:right'>Lost</span><span style='text-align:right'>Δ Rank</span>
+        <div class='trk-hdr' style='grid-template-columns:24px 1fr 50px 50px 64px 64px 60px'>
+          <span></span><span>Track · Artist</span><span style='text-align:center'>Start</span><span style='text-align:center'>Now</span><span style='text-align:right'>Streams</span><span style='text-align:right'>Lost</span><span style='text-align:right'>Δ Rank</span>
         </div>
         <div id='sp-fallers'></div>
       </div>
@@ -414,8 +414,8 @@ body{{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--
         <div class='section-label' style='color:var(--red)'>
           <span class='section-dot' style='background:var(--red)'></span>ITUNES — Rank + Score lost
         </div>
-        <div class='trk-hdr' style='grid-template-columns:24px 1fr 50px 64px 64px 60px'>
-          <span></span><span>Track · Artist</span><span style='text-align:center'>Rank</span><span style='text-align:right'>Score</span><span style='text-align:right'>Lost</span><span style='text-align:right'>Δ Rank</span>
+        <div class='trk-hdr' style='grid-template-columns:24px 1fr 50px 50px 64px 64px 60px'>
+          <span></span><span>Track · Artist</span><span style='text-align:center'>Start</span><span style='text-align:center'>Now</span><span style='text-align:right'>Score</span><span style='text-align:right'>Lost</span><span style='text-align:right'>Δ Rank</span>
         </div>
         <div id='it-fallers'></div>
       </div>
@@ -526,6 +526,7 @@ function renderTable(elId, data){{
     const metricArr = d.streams || d.scores || [];
     const latVal = [...metricArr].reverse().find(v=>v!==null) || 0;
     const latRank = [...d.ranks].reverse().find(v=>v!==null);
+    const startRank = d.ranks.find(v=>v!==null);
     const rankPct = Math.min(Math.abs(d.rg)/maxRg*100, 100);
     const sgPct = Math.min(Math.abs(d.sg)/maxSg*100, 100);
     const isPos = d.rg > 0;
@@ -535,7 +536,7 @@ function renderTable(elId, data){{
     const valFmt = d.streams ? fmtM(latVal,2) : (latVal||0).toLocaleString();
     const sgLabel = d.streams ? fmtM(Math.abs(d.sg),2) : Math.abs(d.sg).toLocaleString();
     const rankBadge = isPos ? `<span class='bu'>▲${{d.rg}}</span>` : d.rg<0 ? `<span class='bd'>▼${{Math.abs(d.rg)}}</span>` : `<span class='bn'>—</span>`;
-    el.innerHTML += `<div class='trk' style='grid-template-columns:24px 1fr 50px 64px 64px 60px'>
+    el.innerHTML += `<div class='trk' style='grid-template-columns:24px 1fr 50px 50px 64px 64px 60px'>
       <span class='rn'>${{i+1}}</span>
       <div>
         <div class='tn'>${{d.t}}</div>
@@ -545,6 +546,7 @@ function renderTable(elId, data){{
           <div class='dual-seg'><div class='dual-fill' style='width:${{sgPct}}%;background:${{sgColor}}'></div></div>
         </div>
       </div>
+      <span style='font-size:13px;color:var(--t3);text-align:center;font-weight:600'>#${{startRank||'—'}}</span>
       <span style='font-size:13px;color:${{rankColor}};text-align:center;font-weight:700'>#${{latRank||'—'}}</span>
       <span class='tv'>${{valFmt}}</span>
       <span class='tv' style='color:${{sgColor}}'>${{sgSign}}${{sgLabel.replace('+','').replace('−','')}}</span>
