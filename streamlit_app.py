@@ -3524,6 +3524,12 @@ def show_pulse_report_page() -> None:
     render_pulse_report()
 
 
+def show_label_analysis_page() -> None:
+    """Wrapper function for Label Analysis page"""
+    from src.ai.label_analysis_dashboard import render_label_analysis
+    render_label_analysis()
+
+
 def show_debut_report_page() -> None:
     """Wrapper function for Debut Report page"""
     render_debut_tab()
@@ -3534,6 +3540,13 @@ def show_track_movement_page() -> None:
     page_title, page_meta = PAGE_META["Track Movement"]
     render_header(page_title, page_meta, last_run_label)
     render_track_movement()
+
+
+def show_track_acquisition_page() -> None:
+    """Wrapper function for Track Acquisition page"""
+    page_title, page_meta = PAGE_META["Track Acquisition"]
+    render_header(page_title, page_meta, last_run_label)
+    render_track_acquisition()
 
 
 def show_acquisition_page() -> None:
@@ -3557,6 +3570,12 @@ app_pages = [
         icon=":material/new_releases:",
         url_path="debut-report",
     ),
+    st.Page(
+        show_label_analysis_page,
+        title="Label Analysis",
+        icon=":material/analytics:",
+        url_path="label-analysis",
+    ),
     # st.Page(
     #     show_pulse_report_page,
     #     title="Pulse Report",
@@ -3574,6 +3593,12 @@ app_pages = [
         title="Track Movement",
         icon=":material/show_chart:",
         url_path="track-movement",
+    ),
+    st.Page(
+        show_track_acquisition_page,
+        title="Track Acquisition",
+        icon=":material/library_music:",
+        url_path="track-acquisition",
     ),
     st.Page(
         show_acquisition_page,

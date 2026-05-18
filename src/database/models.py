@@ -89,6 +89,24 @@ class ItunesDaily:
     points_change: Optional[int] = None
     total_points: Optional[int] = None
     label: Optional[str] = None
+    rank_change: Optional[str] = None
+
+
+@dataclass
+class ItunesArtistAlbum:
+    date: date
+    country: str
+    rank: int
+    artist_title: str
+    days: Optional[int] = None
+    peak: Optional[int] = None
+    points: Optional[int] = None
+    points_change: Optional[int] = None
+    total_points: Optional[int] = None
+    label: Optional[str] = None
+    rank_change: Optional[str] = None
+
+
 
 
 

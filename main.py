@@ -23,12 +23,13 @@ from src.database.repository import (
     save_trending_artists,
     save_spotify_daily,
     save_itunes_daily,
+    save_itunes_artist_album,
 )
 from src.scrapers.artist_details_scraper import scrape_artist_details
 from src.scrapers.itunes_scraper import scrape_itunes_global_artists
 from src.scrapers.spotify_scraper import scrape_spotify_artists
 from src.scrapers.trending_scraper import scrape_trending_artists_last_month
-from src.scrapers.daily_scraper import scrape_spotify_daily, scrape_itunes_daily
+from src.scrapers.daily_scraper import scrape_spotify_daily, scrape_itunes_daily, scrape_itunes_artist_album
 from src.utils.logger import get_logger
 
 logger = get_logger("main")
@@ -106,6 +107,17 @@ def run_daily_charts():
         except Exception as exc:
             log_scrape_run(f"itunes_daily_{country}", "failed", error=str(exc))
             logger.error(f"iTunes Daily {country} failed: {exc}")
+
+    # iTunes Artist Album Daily
+    try:
+        data = scrape_itunes_artist_album()
+        rows = save_itunes_artist_album(data)
+        log_scrape_run("itunes_artist_album", "success", rows)
+        logger.info(f"iTunes Artist Album Daily complete: {rows} rows saved")
+    except Exception as exc:
+        log_scrape_run("itunes_artist_album", "failed", error=str(exc))
+        logger.error(f"iTunes Artist Album Daily failed: {exc}")
+
 
 
 def run_all():

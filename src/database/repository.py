@@ -2,7 +2,7 @@ from typing import List, Dict
 
 from psycopg2.extras import execute_values
 from src.database.connection import get_connection
-from src.database.models import ArtistDetail, ItunesRanking, SpotifyArtist, TrendingArtist, SpotifyDaily, ItunesDaily
+from src.database.models import ArtistDetail, ItunesRanking, SpotifyArtist, TrendingArtist, SpotifyDaily, ItunesDaily, ItunesArtistAlbum
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -336,7 +336,7 @@ def save_itunes_daily(data: List[ItunesDaily]) -> int:
                 rows = [
                     (
                         d.date, d.country, d.rank, d.artist_title,
-                        d.days, d.peak, d.points, d.points_change, d.total_points, d.label
+                        d.days, d.peak, d.points, d.points_change, d.total_points, d.label, d.rank_change
                     )
                     for d in data
                 ]
@@ -344,7 +344,7 @@ def save_itunes_daily(data: List[ItunesDaily]) -> int:
                     cur,
                     """
                     INSERT INTO itunes_daily
-                        (date, country, rank, artist_title, days, peak, points, points_change, total_points, label)
+                        (date, country, rank, artist_title, days, peak, points, points_change, total_points, label, rank_change)
                     VALUES %s
                     ON CONFLICT (date, country, rank, artist_title) DO UPDATE SET
                         days = EXCLUDED.days,
@@ -352,10 +352,50 @@ def save_itunes_daily(data: List[ItunesDaily]) -> int:
                         points = EXCLUDED.points,
                         points_change = EXCLUDED.points_change,
                         total_points = EXCLUDED.total_points,
-                        label = EXCLUDED.label
+                        label = EXCLUDED.label,
+                        rank_change = EXCLUDED.rank_change
                     """,
                     rows
                 )
                 return len(rows)
     finally:
         conn.close()
+
+
+def save_itunes_artist_album(data: List[ItunesArtistAlbum]) -> int:
+    """Bulk-save iTunes artist album daily chart data."""
+    if not data:
+        return 0
+    
+    conn = get_connection()
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                rows = [
+                    (
+                        d.date, d.country, d.rank, d.artist_title,
+                        d.days, d.peak, d.points, d.points_change, d.total_points, d.label, d.rank_change
+                    )
+                    for d in data
+                ]
+                execute_values(
+                    cur,
+                    """
+                    INSERT INTO itunes_artist_album
+                        (date, country, rank, artist_title, days, peak, points, points_change, total_points, label, rank_change)
+                    VALUES %s
+                    ON CONFLICT (date, country, rank, artist_title) DO UPDATE SET
+                        days = EXCLUDED.days,
+                        peak = EXCLUDED.peak,
+                        points = EXCLUDED.points,
+                        points_change = EXCLUDED.points_change,
+                        total_points = EXCLUDED.total_points,
+                        label = EXCLUDED.label,
+                        rank_change = EXCLUDED.rank_change
+                    """,
+                    rows
+                )
+                return len(rows)
+    finally:
+        conn.close()
+

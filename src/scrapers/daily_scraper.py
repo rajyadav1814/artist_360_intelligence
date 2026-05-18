@@ -6,7 +6,7 @@ import pandas as pd
 from bs4 import BeautifulSoup
 
 from config.settings import ITUNES_DAILY_URL, SPOTIFY_DAILY_URL
-from src.database.models import ItunesDaily, SpotifyDaily
+from src.database.models import ItunesDaily, SpotifyDaily, ItunesArtistAlbum
 from src.utils.http_client import fetch_page
 from src.utils.logger import get_logger
 from src.utils.label_lookup import get_label
@@ -292,7 +292,8 @@ def scrape_itunes_daily(country: str = "us") -> List[ItunesDaily]:
                         points=_safe_int(row.get("Pts", 0)),
                         points_change=_safe_int(row.get("Pts+", row.get("P+", 0))),
                         total_points=_safe_int(row.get("TPts", 0)),
-                        label=labels_map.get(artist_title)
+                        label=labels_map.get(artist_title),
+                        rank_change=_get_column(row, ["P+"])
                     )
                 )
             except Exception as e:
@@ -303,6 +304,71 @@ def scrape_itunes_daily(country: str = "us") -> List[ItunesDaily]:
     except Exception as e:
         logger.error(f"Failed to parse iTunes {country}: {e}")
         return []
+
+
+def scrape_itunes_artist_album() -> List[ItunesArtistAlbum]:
+    """Scrape iTunes Worldwide Artist Album Daily from https://kworb.net/aww/."""
+    from src.utils.label_lookup import get_labels_batch_optimized
+    url = "https://kworb.net/aww/"
+    logger.info(f"Scraping iTunes Worldwide Artist Album Daily from {url}...")
+    html = fetch_page(url)
+    if not html:
+        return []
+
+    try:
+        soup = BeautifulSoup(html, "lxml")
+        table = soup.find("table")
+        if not table:
+            return []
+
+        df = pd.read_html(io.StringIO(str(table)))[0]
+        today = date.today()
+        
+        # Pre-extract titles
+        titles = []
+        rows_to_process = []
+        for _, row in df.iterrows():
+            artist_title = _get_column(row, ["Artist and Title", "Artist - Title"])
+            if artist_title:
+                titles.append(artist_title)
+                rows_to_process.append(row)
+
+        # Batch lookup labels
+        labels_map = get_labels_batch_optimized(titles)
+        
+        results = []
+        for i, row in enumerate(rows_to_process):
+            try:
+                rank_raw = _get_column(row, ["Pos"])
+                if not rank_raw or not rank_raw.isdigit():
+                    continue
+                rank = int(rank_raw)
+
+                artist_title = titles[i]
+                results.append(
+                    ItunesArtistAlbum(
+                        date=today,
+                        country="ww",
+                        rank=rank,
+                        artist_title=artist_title,
+                        days=_safe_int(row.get("Days", 0)),
+                        peak=_safe_peak(row.get("Pk", 0)),
+                        points=_safe_int(row.get("Pts", 0)),
+                        points_change=_safe_int(row.get("Pts+", row.get("P+", 0))),
+                        total_points=_safe_int(row.get("TPts", 0)),
+                        label=labels_map.get(artist_title),
+                        rank_change=_get_column(row, ["P+"])
+                    )
+                )
+            except Exception as e:
+                continue
+
+        logger.info(f"Scraped {len(results)} rows for iTunes Worldwide Artist Album")
+        return results
+    except Exception as e:
+        logger.error(f"Failed to parse iTunes Worldwide Artist Album: {e}")
+        return []
+
 
 
 
