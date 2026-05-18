@@ -91,14 +91,4 @@ class ItunesDaily:
     label: Optional[str] = None
 
 
-@dataclass
-class TrackRanking:
-    track_id: int
-    rank: int
-    week_number: int
-    fiscal_year: int
-    chart_date: date
-    streams: Optional[int] = None
-    scrape_date: date = field(default_factory=date.today)
-
 

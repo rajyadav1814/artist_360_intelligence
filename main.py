@@ -3,12 +3,11 @@ kworb_scraper — Main entry point
 ---------------------------------
 Commands:
   python main.py migrate                  — Apply DB migrations
-  python main.py scrape                   — Run standard scrapers (iTunes + Spotify + Trending + Artist Details + Track Rankings + Daily)
+  python main.py scrape                   — Run standard scrapers (iTunes + Spotify + Trending + Artist Details + Daily)
   python main.py scrape itunes            — iTunes global rankings only
   python main.py scrape spotify           — Spotify artist stats only
   python main.py scrape trending          — Trending artists (last month) only
   python main.py scrape details [limit] — Artist detail pages from kworb.net (default: all)
-  python main.py scrape tracks            — Track rankings from kworb.net
   python main.py schedule                 — Run on a daily schedule
 """
 import sys
@@ -24,14 +23,12 @@ from src.database.repository import (
     save_trending_artists,
     save_spotify_daily,
     save_itunes_daily,
-    save_track_rankings_from_raw,
 )
 from src.scrapers.artist_details_scraper import scrape_artist_details
 from src.scrapers.itunes_scraper import scrape_itunes_global_artists
 from src.scrapers.spotify_scraper import scrape_spotify_artists
 from src.scrapers.trending_scraper import scrape_trending_artists_last_month
 from src.scrapers.daily_scraper import scrape_spotify_daily, scrape_itunes_daily
-from src.scrapers.track_rankings_scraper import scrape_itunes_tracks
 from src.utils.logger import get_logger
 
 logger = get_logger("main")
@@ -85,18 +82,6 @@ def run_artist_details(limit: int | None = None):
         logger.error(f"Artist details scrape failed: {exc}")
 
 
-def run_track_rankings():
-    logger.info("=== Starting Track Rankings scrape ===")
-    try:
-        data = scrape_itunes_tracks()
-        rows = save_track_rankings_from_raw(data)
-        log_scrape_run("track_rankings", "success", rows)
-        logger.info(f"Track rankings scrape complete: {rows} rows saved")
-    except Exception as exc:
-        log_scrape_run("track_rankings", "failed", error=str(exc))
-        logger.error(f"Track rankings scrape failed: {exc}")
-
-
 def run_daily_charts():
     logger.info("=== Starting Daily Charts scrape (Spotify, iTunes) ===")
     
@@ -112,7 +97,7 @@ def run_daily_charts():
             logger.error(f"Spotify Daily {country} failed: {exc}")
 
     # iTunes Daily
-    for country in ["ww", "us"]:
+    for country in ["ww"]:
         try:
             data = scrape_itunes_daily(country=country)
             rows = save_itunes_daily(data)
@@ -128,7 +113,6 @@ def run_all():
     run_spotify()
     run_trending()
     run_artist_details()
-    run_track_rankings()
     run_daily_charts()
 
 
@@ -161,7 +145,6 @@ def main():
             "itunes": run_itunes,
             "spotify": run_spotify,
             "trending": run_trending,
-            "tracks": run_track_rankings,
             "daily": run_daily_charts,
         }
         func = dispatch.get(target)

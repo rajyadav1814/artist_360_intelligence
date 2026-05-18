@@ -8,8 +8,7 @@ A Python project to scrape music chart data from [kworb.net](https://kworb.net) 
 - Scrapes **Artist Details** (songs, albums, **Latin American countries** snapshot)
 - Captures **Trending Artists for Last Month** (stored per calendar month)
 - Tracks **Daily Chart Performance** (Spotify & iTunes daily/weekly charts per country)
-- Monitors **Track Rankings** (weekly chart positions and streams via `track_rankings`)
-- Manages **Labels & Discography** (Tracks, ISRC metadata, and label identification via AI)
+- Manages **Label identification** (via AI on daily chart entries)
 - Stores all data in PostgreSQL with full audit trail (`scrape_runs` table)
 - Daily scheduler built-in (runs at **10:55 UTC**)
 - Includes an **AI Analyst chatbot** powered by **Anthropic Claude** in Streamlit that can query PostgreSQL and respond with narrative insights + charts
@@ -28,47 +27,12 @@ erDiagram
     artists ||--o{ spotify_artists : "stats"
     artists ||--o{ trending_artists_monthly : "monthly trends"
     artists ||--o{ artist_details : "snapshots"
-    artists ||--o{ tracks : "owns"
-    artists ||--o{ track_daily_stats : "daily track stats"
-    
-    tracks ||--o{ track_rankings : "charts"
 
     artists {
         serial id PK
         varchar name "Unique"
         text profile_url
         timestamptz created_at
-    }
-
-    tracks {
-        serial id PK
-        integer artist_id FK
-        varchar title
-        varchar isrc
-        integer duration_ms
-        date release_date
-    }
-
-    track_daily_stats {
-        serial id PK
-        integer artist_id FK
-        text track_name
-        varchar platform
-        bigint streams_or_points
-        integer rank
-        date scrape_date
-    }
-
-    track_rankings {
-        serial id PK
-        integer track_id FK
-        integer rank
-        bigint streams
-        integer week_number
-        integer fiscal_year
-        date chart_date
-        date scrape_date
-        timestamptz scraped_at
     }
 
     itunes_artist_rankings {
@@ -157,7 +121,6 @@ erDiagram
 
 #### 1. Core Entities
 - **`artists`**: Registry of all tracked music artists.
-- **`tracks`**: Centralized track registry including ISRC, duration, and metadata. Label information is stored directly in daily charts.
 
 #### 2. Artist Performance
 - **`itunes_artist_rankings`**: Daily global weighted rankings with platform-wise points (iTunes, Spotify, Apple Music, Shazam).
@@ -169,11 +132,7 @@ erDiagram
 - **`spotify_daily`**: Daily Spotify chart entries per country (rank, streams, peak, streak days).
 - **`itunes_daily`**: Daily iTunes chart entries per country (rank, points, peak, streak days).
 
-#### 4. Track Performance
-- **`track_daily_stats`**: High-frequency performance data for specific tracks across platforms.
-- **`track_rankings`**: Weekly chart rankings with streams, week numbers, and fiscal year metadata.
-
-#### 5. System & Audit
+#### 4. System & Audit
 - **`scrape_runs`**: Logs execution status, timing, error messages, and data volume for every scraping operation.
 
 ---
@@ -217,7 +176,6 @@ python3 main.py migrate
 | `python3 main.py scrape spotify` | Spotify artist stats only |
 | `python3 main.py scrape trending` | Trending artists (last month) only |
 | `python3 main.py scrape details [limit]` | Artist detail snapshots from kworb profile pages |
-| `python3 main.py scrape tracks` | Track rankings from kworb.net |
 | `python3 main.py scrape daily` | Daily charts (Spotify global/US, iTunes ww/US) |
 | `python3 main.py schedule` | Run daily at **10:55 UTC** |
 | `python3 main.py migrate` | Apply DB migrations |
@@ -247,7 +205,7 @@ The chatbot follows an **MCP-aligned pipeline**:
 
 ### Allowed Tables (AI Query Scope)
 The AI agent is restricted to querying only these tables:
-`artists`, `itunes_artist_rankings`, `spotify_artists`, `trending_artists_monthly`, `artist_details`, `tracks`, `track_rankings`, `scrape_runs`
+`artists`, `itunes_artist_rankings`, `spotify_artists`, `trending_artists_monthly`, `artist_details`, `spotify_daily`, `itunes_daily`, `scrape_runs`
 
 ---
 
@@ -258,4 +216,3 @@ The AI agent is restricted to querying only these tables:
 | `001_create_tables.sql` | Core tables: `artists`, `itunes_artist_rankings`, `spotify_artists`, `trending_artists_monthly`, `scrape_runs` |
 | `002_create_artist_details.sql` | `artist_details` table |
 | `003_add_daily_tables.sql` | Daily chart tables: `spotify_daily`, `itunes_daily` |
-| `004_create_track_rankings.sql` | `track_rankings` table with weekly chart data |

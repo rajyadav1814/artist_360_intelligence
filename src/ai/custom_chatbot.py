@@ -43,8 +43,6 @@ ALLOWED_TABLES = {
     "scrape_runs",
     "spotify_daily",
     "itunes_daily",
-    "tracks",
-    "track_rankings"
 }
 
 SCHEMA_CONTEXT = """
@@ -56,8 +54,6 @@ trending_artists_monthly(id,artist_id,source,rank,rank_change,total_points,top_c
 artist_details(id,artist_id,page_title,snapshot_text,songs_count,albums_count,countries_count,top_songs,top_albums,top_countries,scraped_at,scrape_date)
 spotify_daily(id,date,country,rank,artist_title,days,peak,streams,streams_change,total_streams,label)
 itunes_daily(id,date,country,rank,artist_title,days,peak,points,points_change,total_points,label)
-tracks(id,title,artist_id,release_date) [only 6 rows — avoid for general queries]
-track_rankings(id,track_id,rank,streams,fiscal_year,scrape_date)
 scrape_runs(id,source,status,rows_upserted,error_msg,started_at,finished_at)
 
 Joins: all artist tables join artists on artist_id=artists.id
@@ -147,18 +143,16 @@ CATEGORIZED_SUGGESTIONS = {
         "icon": "📈",
         "questions": [
             "Who are the top 10 artists by total Spotify streams right now, and how have their stream counts changed day over day?",
-            "What is the cumulative total streams for each track on Spotify — which song has the highest all-time stream count?",
-            "What is the average chart lifespan of a top-10 iTunes track before it drops out of the top 50?",
-            "Which tracks on Spotify had the biggest single-day stream drop — possible signs of fading momentum?",
+            "What is the average chart lifespan of a top-10 iTunes song before it drops out of the top 50?",
+            "Which songs on Spotify had the biggest single-day stream drop — possible signs of fading momentum?",
         ],
     },
     "trending": {
         "label": "Trending",
         "icon": "🔥",
         "questions": [
-            "What are the fastest-rising tracks on iTunes in the last 7 days — which songs gained the most chart positions?",
+            "What are the fastest-rising songs on iTunes in the last 7 days — which songs gained the most chart positions?",
             "Who are the trending artists this month, and which of them were outside the top 50 last month?",
-            "How do new track releases perform in their first week? Show debut stream numbers vs. week-1 average across all tracks.",
             "Show the monthly trending movement for artists — who gained the most rank positions month over month on iTunes global?",
             "Identify breakout artists: who had zero iTunes presence last month but entered the top 100 this month?",
         ],
@@ -169,8 +163,8 @@ CATEGORIZED_SUGGESTIONS = {
         "questions": [
             "Which artists maintained a stable rank (no change) on iTunes for 3+ consecutive days — who has the most chart consistency?",
             "Which artists have the highest follower counts on Spotify, and how does follower count correlate with daily stream volume?",
-            "Which artist has the most tracks simultaneously charting across all platforms today?",
-            "What is the rank distribution of tracks by artist — do certain artists cluster at the top or spread across positions?",
+            "Which artist has the most songs simultaneously charting across all platforms today?",
+            "What is the rank distribution of songs by artist — do certain artists cluster at the top or spread across positions?",
             "Which songs are ranked #1 globally on both Spotify and iTunes today?",
         ],
     },
@@ -180,7 +174,7 @@ CATEGORIZED_SUGGESTIONS = {
         "questions": [
             "Which songs are ranked #1 globally on both Spotify and iTunes today — and which artists dominate both platforms simultaneously?",
             "Build a cross-platform performance score for each artist using Spotify streams and iTunes rank — who tops the leaderboard?",
-            "Which artist has the most tracks simultaneously charting across Spotify and iTunes today?",
+            "Which artist has the most songs simultaneously charting across Spotify and iTunes today?",
         ],
     },
     "geography": {
@@ -352,7 +346,7 @@ _STOP_WORDS = {
     "under", "until", "upon", "want", "way", "what", "when", "where",
     "which", "while", "who", "whom", "why", "you", "your", "his", "her",
     "him", "he", "it", "its", "hi", "hello", "hey", "the", "and", "for",
-    "top", "best", "songs", "song", "track", "tracks", "album", "albums",
+    "top", "best", "songs", "song", "album", "albums",
     "artist", "artists", "rank", "ranking", "rankings", "stream", "streams",
     "listener", "listeners", "monthly", "country", "countries", "point",
     "points", "chart", "charts", "show", "list", "data", "details",
@@ -504,7 +498,7 @@ def _local_plan(question: str) -> Dict[str, Any]:
     """Generate query plans locally without API calls."""
     q = question.lower()
 
-    _is_song_query = any(kw in q for kw in ["song", "songs", "track", "tracks"])
+    _is_song_query = any(kw in q for kw in ["song", "songs"])
     _is_daily_scope = any(kw in q for kw in ["last day", "yesterday", "today", "daily", "last 24"])
     if _is_top_intent(question) and _is_song_query and _is_daily_scope:
         limit = _extract_top_n(question) or 5
@@ -782,9 +776,7 @@ Table routing:
 - listeners/Spotify → spotify_artists
 - monthly trends → trending_artists_monthly
 - daily track charts → spotify_daily (global: country='global') or itunes_daily (global: country='ww')
-- track history → track_rankings JOIN tracks
 - scrape activity → scrape_runs
-- NEVER use tracks table for general queries (only 6 rows)
 
 Key SQL rules:
 - SELECT/WITH only. LIMIT 10-30 default.
@@ -796,7 +788,6 @@ Key SQL rules:
 - "label" column = record label company (in daily tables)
 - "last day": date=(SELECT MAX(date) FROM spotify_daily)
 - "last 7 days": date>=(SELECT MAX(date) FROM spotify_daily)-INTERVAL '7 days'
-- Global tracks: country='global' (Spotify) or country='ww' (iTunes)
 - Independent artists: label ILIKE '%Independent%'
 - rank_change is VARCHAR — cast to integer for numeric comparison
 - top_country = single best market; for full market list use artist_details.top_countries
@@ -867,7 +858,7 @@ def _generate_plan(question: str, api_key: Optional[str], model: str) -> Dict[st
             pass
 
     q_lower = question.lower()
-    _is_song_q = any(kw in q_lower for kw in ["song", "songs", "track", "tracks", "stream", "streams"])
+    _is_song_q = any(kw in q_lower for kw in ["song", "songs", "stream", "streams"])
     if _is_top_intent(question) and not _is_song_q:
         plan = _force_rank_plan(question)
         plan["source"] = "local"
@@ -1045,7 +1036,7 @@ def _generate_summary_stats(df: pd.DataFrame) -> Dict[str, Any]:
 
 SUMMARY_SYSTEM = """Music industry analyst. Write a 2-3 sentence executive summary.
 - Lead with the single most important number or finding.
-- Name specific artists/tracks from the data.
+- Name specific artists/songs from the data.
 - If requested data is missing, briefly note it.
 - End with one forward-looking implication.
 - No bullets, no headers, no markdown tables."""
@@ -1122,46 +1113,40 @@ def _build_follow_up_suggestions(
 
     if df is not None and not df.empty:
         artist_names = _top_text_values(df, "name", limit=5)
-        track_names = _top_text_values(df, "track", limit=5)
         labels = _top_text_values(df, "label", limit=5)
 
-        if track_names:
-            if len(track_names) > 1:
-                _push_suggestion(suggestions, f"Compare {track_names[0]} vs {track_names[1]} performance")
-            _push_suggestion(suggestions, f"Analyze {track_names[0]} performance over the last 10 weeks")
-            _push_suggestion(suggestions, f"What is the label and metadata for {track_names[0]}?")
         if artist_names:
             if len(artist_names) > 1:
                 _push_suggestion(suggestions, f"Compare {artist_names[0]} vs {artist_names[1]} by streams")
-            _push_suggestion(suggestions, f"How many tracks does {artist_names[0]} have in Top 100?")
+            _push_suggestion(suggestions, f"How many songs does {artist_names[0]} have in Top 100?")
             _push_suggestion(suggestions, f"What is the performance of {artist_names[0]} YTD?")
         if labels:
             if len(labels) > 1:
-                _push_suggestion(suggestions, f"Compare {labels[0]} vs {labels[1]} track counts")
+                _push_suggestion(suggestions, f"Compare {labels[0]} vs {labels[1]} song counts")
             _push_suggestion(suggestions, f"Analyze {labels[0]} performance over the last 5 weeks")
         if "streams" in df.columns or "listeners" in df.columns:
             _push_suggestion(suggestions, "How many streams are required to enter Top 100?")
         if "rank" in df.columns:
-            _push_suggestion(suggestions, "Which tracks consistently stay in Top 10?")
+            _push_suggestion(suggestions, "Which songs consistently stay in Top 10?")
 
-    if any(k in q for k in ["top", "rank", "track", "song"]):
-        _push_suggestion(suggestions, "What are the Top 5 tracks for FY2026?")
-        _push_suggestion(suggestions, "What are the Top 10 tracks in the previous 5 weeks?")
+    if any(k in q for k in ["top", "rank", "song"]):
+        _push_suggestion(suggestions, "What are the Top 5 songs for FY2026?")
+        _push_suggestion(suggestions, "What are the Top 10 songs in the previous 5 weeks?")
     if any(k in q for k in ["artist", "performer", "performance"]):
         _push_suggestion(suggestions, "Who are the Top 20 artists by streams in FY2026?")
         _push_suggestion(suggestions, "Compare Top 10 artists in a table with percentage analysis")
     if any(k in q for k in ["label", "independent"]):
-        _push_suggestion(suggestions, "How many tracks does each label have in Top 100?")
+        _push_suggestion(suggestions, "How many songs does each label have in Top 100?")
     if any(k in q for k in ["trend", "consistency", "growth"]):
-        _push_suggestion(suggestions, "Which tracks are consistently in Top 10 for 10 weeks?")
+        _push_suggestion(suggestions, "Which songs are consistently in Top 10 for 10 weeks?")
     if any(k in q for k in ["debut", "new", "entry"]):
-        _push_suggestion(suggestions, "What are the debut tracks in FY2026?")
+        _push_suggestion(suggestions, "What are the debut songs in FY2026?")
     if any(k in q for k in ["strategy", "acquire", "business"]):
         _push_suggestion(suggestions, "Based on last 5 weeks, which artist should be acquired?")
     if any(t in q for t in ["hi", "hello", "hey"]):
-        _push_suggestion(suggestions, "What are the Top 5 tracks for FY2026?")
+        _push_suggestion(suggestions, "What are the Top 5 songs for FY2026?")
         _push_suggestion(suggestions, "Who are the Top 20 artists by streams?")
-        _push_suggestion(suggestions, "How many tracks does each label have in Top 100?")
+        _push_suggestion(suggestions, "How many songs does each label have in Top 100?")
     if "stream" in q or "listener" in q:
         _push_suggestion(suggestions, "How many streams are required to enter Top 100?")
     if "label" in q or "independent" in q:
@@ -1291,6 +1276,14 @@ def _queue_follow_up_question(question: str) -> None:
     st.session_state.ai_is_processing = True
 
 
+def _submit_center_prompt() -> None:
+    question = st.session_state.get("ai_center_prompt_input", "").strip()
+    if not question or st.session_state.get("ai_is_processing", False):
+        return
+    _queue_follow_up_question(question)
+    st.session_state.ai_center_prompt_input = ""
+
+
 def _reset_chat_session() -> None:
     st.session_state.ai_chat_messages = []
     st.session_state.ai_pending_question = None
@@ -1352,16 +1345,16 @@ def _render_token_badge() -> None:
 
 def _render_chat_shell(has_messages: bool, title: Optional[str]) -> None:
     left_col, right_col = st.columns([6, 1.4])
-    with left_col:
-        label = title or "New chat"
-        kicker = "Current chat" if has_messages else "AI Analyst"
-        st.markdown(
-            f"""<div class="ai-thread-head">
-                <div class="ai-thread-kicker">{kicker}</div>
-                <div class="ai-thread-title">{label}</div>
-            </div>""",
-            unsafe_allow_html=True,
-        )
+    # with left_col:
+    #     label = title or "New chat"
+    #     kicker = "Current chat" if has_messages else "AI Analyst"
+    #     st.markdown(
+    #         f"""<div class="ai-thread-head">
+    #             <div class="ai-thread-kicker">{kicker}</div>
+    #             <div class="ai-thread-title">{label}</div>
+    #         </div>""",
+    #         unsafe_allow_html=True,
+    #     )
     with right_col:
         st.button(
             "+ New chat",
@@ -1387,20 +1380,15 @@ def _render_empty_state() -> None:
             unsafe_allow_html=True,
         )
 
-        # ── Search / prompt form ─────────────────────────────────────────────
-        with st.form("ai_centered_prompt_form", clear_on_submit=True, border=False):
-            question = st.text_input(
-                "Start a conversation",
-                placeholder="Ask about artists, listeners, rankings, countries, or trends",
-                label_visibility="collapsed",
-                disabled=st.session_state.get("ai_is_processing", False),
-            )
-            submitted = st.form_submit_button(
-                "Ask", disabled=st.session_state.get("ai_is_processing", False)
-            )
-            if submitted and question.strip():
-                _queue_follow_up_question(question.strip())
-                st.rerun()
+        # ── Search / prompt field (press Enter to submit) ───────────────────
+        st.text_input(
+            "Start a conversation",
+            placeholder="Ask about artists, listeners, rankings, countries, or trends",
+            label_visibility="collapsed",
+            disabled=st.session_state.get("ai_is_processing", False),
+            key="ai_center_prompt_input",
+            on_change=_submit_center_prompt,
+        )
 
         # ── Category suggestion grid ─────────────────────────────────────────
         st.markdown(
@@ -1559,19 +1547,31 @@ def render_custom_chatbot() -> None:
         div[data-testid="stForm"] div[data-testid="stFormSubmitButton"] button{border-radius:999px;
             padding:.6rem 1.2rem;font-weight:600;background:linear-gradient(135deg,#5f79ff,#8ca2ff);border:0;color:#081022}
         div[data-testid^="stChatMessageAvatar"]{display:none!important}
-        div[data-testid="stChatMessage"]{max-width:min(900px,92vw);margin-left:auto;margin-right:auto;
-            width:100%;display:flex;align-items:flex-start;justify-content:flex-start;gap:.35rem}
-        div[data-testid="stChatMessage"] [data-testid="stChatMessageContent"]{max-width:min(700px,76vw);
-            border-radius:16px;padding:.58rem .9rem;width:fit-content;min-width:0}
+        div[data-testid="stChatMessage"]{max-width:min(920px,94vw);margin-left:auto;margin-right:auto;
+            width:100%;display:flex;align-items:flex-start;justify-content:flex-start;gap:.5rem;padding:.35rem .3rem}
+        div[data-testid="stChatMessage"] [data-testid="stChatMessageContent"]{max-width:min(760px,84vw);
+            border-radius:14px;padding:.8rem 1rem;width:fit-content;min-width:0;line-height:1.55;
+            font-size:.97rem;color:#e9eefc}
         div[data-testid="stChatMessage"]:has([aria-label="assistant"]) [data-testid="stChatMessageContent"]{
-            background:transparent;border:0;padding-left:0;padding-right:0;max-width:min(720px,80vw)}
+            background:rgba(17,24,44,.58);border:1px solid rgba(126,142,207,.22);max-width:min(760px,84vw);
+            border-radius:14px;box-shadow:0 12px 28px rgba(4,10,24,.18)}
         div[data-testid="stChatMessage"]:has([aria-label="user"]){justify-content:flex-end}
         div[data-testid="stChatMessage"]:has([aria-label="user"]) [data-testid="stChatMessageContent"]{
-            background:linear-gradient(165deg,rgba(49,53,64,.9),rgba(36,40,51,.9));
-            border:1px solid rgba(130,140,170,.26);max-width:min(360px,66vw);border-radius:18px}
-        div[data-testid="stChatInput"]{padding-top:.85rem}
+            background:linear-gradient(170deg,rgba(45,53,79,.92),rgba(37,44,68,.92));
+            border:1px solid rgba(133,151,220,.32);max-width:min(500px,72vw);border-radius:18px;
+            box-shadow:0 14px 30px rgba(2,8,24,.22)}
+        div[data-testid="stChatMessage"] p{margin:.25rem 0}
+        div[data-testid="stChatInput"]{padding-top:1rem;max-width:min(920px,94vw);margin:0 auto}
         div[data-testid="stChatInput"] textarea,div[data-testid="stChatInput"] input{border-radius:22px;
-            background:rgba(24,29,50,.96);border:1px solid rgba(130,146,219,.12)}
+            background:rgba(20,26,45,.96);border:1px solid rgba(132,149,218,.22);padding:.58rem .9rem;
+            box-shadow:0 12px 30px rgba(2,6,18,.22)}
+        div[data-testid="stChatInput"] button{border-radius:14px!important;background:linear-gradient(135deg,#6f88ff,#93a8ff)!important;
+            color:#0a122b!important;border:0!important;font-weight:600!important}
+        @media(max-width:760px){
+            div[data-testid="stChatMessage"]{padding:.2rem 0}
+            div[data-testid="stChatMessage"] [data-testid="stChatMessageContent"]{max-width:89vw;padding:.72rem .85rem}
+            div[data-testid="stChatMessage"]:has([aria-label="user"]) [data-testid="stChatMessageContent"]{max-width:84vw}
+        }
         @media(max-height:860px){.ai-starter-grid{display:none}}
         </style>
         """,
