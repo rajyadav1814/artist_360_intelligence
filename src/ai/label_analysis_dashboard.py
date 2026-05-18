@@ -115,10 +115,10 @@ def render_label_analysis():
     # Standard label order and colors
     LABELS_ORDER = ['Other/Indie', 'Independent', 'Universal Music', 'Sony Music', 'Warner Music']
     LABEL_COLORS = {
-        'Sony Music': '#e94560',
-        'Universal Music': '#6366f1',
-        'Warner Music': '#f59e0b',
-        'Independent': '#22c55e',
+      'Sony Music': '#fb7185',
+      'Universal Music': '#c4b5fd',
+      'Warner Music': '#fcd34d',
+      'Independent': '#34d399',
         'Other/Indie': '#60a5fa'
     }
     
@@ -368,8 +368,8 @@ def render_label_analysis():
           --bg2:#161b26;
           --bg3:#1f2633;
           --bg4:#283041;
-          --border:#2a3446;
-          --border2:#3a4661;
+          --border:rgba(148,163,184,.15);
+          --border2:rgba(148,163,184,.28);
           --t1:#ffffff;
           --t2:#cdd6e4;
           --t3:#8b95ad;
@@ -395,20 +395,20 @@ def render_label_analysis():
         }
 
         .hdr {
-            background: linear-gradient(135deg, #161b26 0%, #1f2633 100%);
-            border: 1px solid var(--border);
-            border-radius: 16px;
-            padding: 20px 24px;
+      background: linear-gradient(135deg, #1a2238 0%, #1f1a3a 50%, #261d3d 100%);
+      border: 1px solid rgba(148,163,184,.18);
+      border-radius: 20px;
+      padding: 26px 30px;
             margin: 14px 18px 0;
-            box-shadow: 0 16px 40px rgba(0,0,0,.25);
+      box-shadow: 0 24px 60px rgba(0,0,0,.35);
             position: relative;
             overflow: hidden;
         }
         .hdr::after {
             content: "";
-            position: absolute; right: -80px; top: -80px;
-            width: 220px; height: 220px;
-            background: radial-gradient(circle, rgba(124,92,252,.12), transparent 60%);
+      position: absolute; right: -120px; top: -120px;
+      width: 320px; height: 320px;
+      background: radial-gradient(circle, rgba(196,181,253,.18), transparent 60%);
             pointer-events: none;
         }
         .hdr-row{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;position:relative;z-index:2;}
@@ -441,18 +441,19 @@ def render_label_analysis():
         .controls{display:flex;gap:6px;align-items:center;flex-wrap:wrap;position:relative;z-index:2;}
         .pill-grp{
           display:flex;
-          gap:2px;
-          background:rgba(7, 11, 22, 0.5);
-          padding:3px;
-          border-radius:8px;
+          gap:4px;
+          background:rgba(13,17,23,.55);
+          padding:4px;
+          border-radius:12px;
           border:1px solid var(--border);
+          backdrop-filter:blur(10px);
         }
         .fp{
           font-size:10px;
           font-weight:700;
-          padding:5px 12px;
-          border:none;
-          border-radius:6px;
+          padding:7px 14px;
+          border:1px solid transparent;
+          border-radius:8px;
           cursor:pointer;
           background:transparent;
           color:var(--t2);
@@ -460,7 +461,12 @@ def render_label_analysis():
           letter-spacing:.3px;
         }
         .fp:hover{color:var(--t1);background:rgba(255,255,255,0.05);}
-        .fp.on{background:var(--blue);color:#ffffff;box-shadow:0 4px 12px rgba(79,142,247,0.25);}
+        .fp.on{
+          color:var(--t1);
+          background:linear-gradient(135deg, rgba(96,165,250,.22), rgba(196,181,253,.22));
+          border-color:rgba(96,165,250,.55);
+          box-shadow:0 10px 20px rgba(0,0,0,.22);
+        }
         
         .plat-bar{display:flex;gap:4px;margin-top:16px;border-bottom:1px solid rgba(148,163,184,.1);position:relative;z-index:2;}
         .pt{
@@ -477,7 +483,7 @@ def render_label_analysis():
           transition:all .25s ease;
         }
         .pt:hover{color:var(--t1);background:rgba(255,255,255,0.03);border-radius:6px 6px 0 0;}
-        .pt.on{color:var(--blue);border-bottom:3px solid var(--blue);font-weight:800;}
+        .pt.on{color:var(--t1);border-bottom:3px solid var(--blue);font-weight:800;background:linear-gradient(180deg, rgba(96,165,250,.12), rgba(96,165,250,0));border-radius:8px 8px 0 0;}
 
         .kpi-bar{
           display:grid;
@@ -489,16 +495,16 @@ def render_label_analysis():
           position:relative;
           background:var(--bg2);
           border:1px solid var(--border);
-          border-radius:14px;
-          padding:14px 16px;
-          box-shadow:0 12px 24px rgba(0,0,0,.15);
+          border-radius:16px;
+          padding:18px 18px 16px 22px;
+          box-shadow:0 12px 24px rgba(0,0,0,.18);
           overflow:hidden;
           transition:all .2s ease;
         }
-        .kpi:hover{transform:translateY(-2px);border-color:rgba(79,142,247,.3);box-shadow:0 16px 32px rgba(0,0,0,.22);}
+        .kpi:hover{transform:translateY(-2px);border-color:rgba(148,163,184,.3);box-shadow:0 16px 32px rgba(0,0,0,.22);}
         .kpi::before{
-          content:"";position:absolute;left:0;top:15%;bottom:15%;width:3px;
-          border-radius:0 3px 3px 0;
+          content:"";position:absolute;left:0;top:14%;bottom:14%;width:4px;
+          border-radius:0 4px 4px 0;
           background:var(--blue);
         }
         .kpi.k-blue::before{background:var(--blue);}
@@ -507,15 +513,15 @@ def render_label_analysis():
         .kpi.k-amber::before{background:var(--amber);}
         .kpi.k-pink::before{background:var(--pink);}
         
-        .kpi-lbl{font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-bottom:6px;}
-        .kpi-val{font-size:22px;font-weight:900;letter-spacing:-.02em;line-height:1.15;color:#ffffff;}
+        .kpi-lbl{font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.12em;font-weight:800;margin-bottom:10px;}
+        .kpi-val{font-size:26px;font-weight:900;letter-spacing:-.02em;line-height:1.1;color:#ffffff;}
         .kpi.k-blue .kpi-val{color:var(--blue);}
         .kpi.k-green .kpi-val{color:var(--green);}
         .kpi.k-purple .kpi-val{color:var(--purple);}
         .kpi.k-amber .kpi-val{color:var(--amber);}
         .kpi.k-pink .kpi-val{color:var(--pink);}
         
-        .kpi-sub{font-size:10px;color:var(--t2);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+        .kpi-sub{font-size:12px;color:var(--t2);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 
         .body{padding:14px 18px;display:flex;flex-direction:column;gap:14px}
         .r2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
@@ -526,15 +532,15 @@ def render_label_analysis():
         .card{
           background:linear-gradient(180deg, var(--bg2) 0%, var(--bg3) 100%);
           border:1px solid var(--border);
-          border-radius:16px;
+          border-radius:18px;
           padding:16px 18px;
-          box-shadow:0 12px 30px rgba(0,0,0,.15);
+          box-shadow:0 14px 30px rgba(0,0,0,.22);
           transition:all .25s ease;
         }
         .card:hover{
-          border-color:rgba(79,142,247,.25);
-          box-shadow:0 18px 40px rgba(0,0,0,.25);
-          transform:translateY(-1px);
+          border-color:rgba(96,165,250,.4);
+          box-shadow:0 22px 40px rgba(0,0,0,.32);
+          transform:translateY(-2px);
         }
         .card-ttl{
           font-size:10px;
@@ -549,7 +555,7 @@ def render_label_analysis():
 
         .sh{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;padding:0 2px;}
         .sh-l{font-size:13px;font-weight:700;color:var(--t1);letter-spacing:-.01em;}
-        .sh-r{font-size:9.5px;font-weight:700;color:var(--t2);background:var(--bg3);padding:3px 10px;border-radius:999px;border:1px solid var(--border);}
+        .sh-r{font-size:9.5px;font-weight:700;color:var(--t2);background:rgba(13,17,23,.65);padding:3px 10px;border-radius:999px;border:1px solid var(--border);}
 
         .cw{position:relative;width:100%}
 
@@ -558,24 +564,24 @@ def render_label_analysis():
         .lc{
           background:var(--bg2);
           border:1px solid var(--border);
-          border-radius:14px;
+          border-radius:16px;
           padding:14px 16px;
           cursor:pointer;
           transition:all .25s cubic-bezier(0.4, 0, 0.2, 1);
           position:relative;
           overflow:hidden;
-          box-shadow:0 8px 16px rgba(0,0,0,.15);
+          box-shadow:0 12px 24px rgba(0,0,0,.18);
         }
         .lc:hover{
           border-color:var(--accent-color) !important;
-          background:var(--bg3);
+          background:linear-gradient(180deg, var(--bg2) 0%, var(--bg3) 100%);
           transform:translateY(-3px);
-          box-shadow:0 12px 28px rgba(0,0,0,.28);
+          box-shadow:0 18px 36px rgba(0,0,0,.28);
         }
         .lc.on{
-          background:var(--bg3);
+          background:linear-gradient(180deg, rgba(22,27,38,1) 0%, rgba(31,38,51,1) 100%);
           border-color:var(--accent-color) !important;
-          box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+          box-shadow: 0 14px 32px rgba(0, 0, 0, 0.35);
         }
         .lc::before{
           content:'';position:absolute;top:0;left:0;right:0;height:3px;
@@ -590,7 +596,7 @@ def render_label_analysis():
         .trk-hdr{display:grid;gap:6px;padding:4px 6px;border-bottom:1px solid var(--border);margin-bottom:4px}
         .trk-hdr span{font-size:8.5px;color:var(--t3);text-transform:uppercase;letter-spacing:.8px;font-weight:700;}
         .trk{display:grid;gap:6px;padding:8px 10px;border-bottom:1px solid rgba(148,163,184,.04);align-items:center;cursor:pointer;transition:all 0.15s ease;border-radius:8px;}
-        .trk:hover{background:rgba(79, 142, 247, 0.06);transform:scale(1.005);}
+        .trk:hover{background:rgba(96,165,250,.08);transform:scale(1.005);}
         .trk:last-child{border-bottom:none}
         .rn{font-size:11px;color:var(--t3);text-align:center;font-weight:700;}
         .tn{font-size:12px;font-weight:600;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -600,8 +606,8 @@ def render_label_analysis():
 
         /* Growth badge */
         .gb{display:inline-flex;align-items:center;justify-content:center;font-size:8.5px;font-weight:800;padding:3px 6px;border-radius:4px;min-width:44px;letter-spacing:0.2px;}
-        .gb-up{background:var(--gd);color:var(--green);border:1px solid rgba(34, 211, 160, 0.2);}
-        .gb-dn{background:var(--rd);color:var(--red);border:1px solid rgba(232, 69, 69, 0.2);}
+        .gb-up{background:var(--gd);color:var(--green);border:1px solid rgba(52,211,153,.22);}
+        .gb-dn{background:var(--rd);color:var(--red);border:1px solid rgba(251,113,133,.22);}
 
         /* vel bar */
         .vb{height:3.5px;background:rgba(255,255,255,0.03);border-radius:2px;margin-top:4px;overflow:hidden;}
@@ -757,8 +763,8 @@ def render_label_analysis():
     <script>
     // ── Real data ─────────────────────────────────────────
     const LABEL_COLORS={
-      'Sony Music':'#e94560','Universal Music':'#6366f1',
-      'Warner Music':'#f59e0b','Independent':'#22c55e','Other/Indie':'#60a5fa'
+      'Sony Music':'#fb7185','Universal Music':'#c4b5fd',
+      'Warner Music':'#fcd34d','Independent':'#34d399','Other/Indie':'#60a5fa'
     };
     const LABELS_ORDER=['Other/Indie','Independent','Universal Music','Sony Music','Warner Music'];
 
@@ -1054,7 +1060,7 @@ def render_label_analysis():
       const maxS=tracks.reduce((m,t)=>Math.max(m,t.s),0);
       tracks.forEach((t,i)=>{
         const pct=maxS > 0 ? Math.round(t.s/maxS*100) : 0;
-        const col=lg?LABEL_COLORS[lg]:'#e94560';
+        const col=lg?LABEL_COLORS[lg]:'#fb7185';
         el.innerHTML+=`<div class="trk" style="grid-template-columns:18px 1fr 64px 56px 56px 46px">
           <span class="rn">${i+1}</span>
           <div>
@@ -1081,7 +1087,7 @@ def render_label_analysis():
         return;
       }
       tracks.forEach((t,i)=>{
-        const col=lg?LABEL_COLORS[lg]:'#6366f1';
+        const col=lg?LABEL_COLORS[lg]:'#c4b5fd';
         el.innerHTML+=`<div class="trk" style="grid-template-columns:18px 1fr 70px 56px 56px">
           <span class="rn">${i+1}</span>
           <div><div class="tn">${t.t}</div><div class="ta">${t.a}</div></div>
