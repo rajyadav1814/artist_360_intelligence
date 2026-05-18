@@ -13,6 +13,7 @@ from src.ai.label_dashboard import render_pulse_report
 from src.ai.debut_dashboard import render_debut_tab
 from src.ai.track_movement_dashboard import render_track_movement
 from src.ai.acquisition_dashboard import render_acquisition
+from src.ai.track_acquisition_dashboard import render_track_acquisition
 from src.database.connection import get_connection
 from src.scrapers.artist_details_scraper import LATIN_AMERICAN_COUNTRIES
 from src.utils.image_utils import get_artist_image_url, get_fallback_avatar_url
@@ -70,6 +71,10 @@ PAGE_META = {
     "Track Movement": (
         "Track Movement",
         "Daily rank + metric momentum across Spotify and iTunes charts (risers, fallers, trajectories)",
+    ),
+    "Track Acquisition": (
+        "Track Acquisition",
+        "Track-level acquisition intelligence across Spotify Global + iTunes WW",
     ),
     "Acquisition": (
         "Acquisition Recommendation",
