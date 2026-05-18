@@ -1464,9 +1464,9 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
         <div class="lb-hero">
           <div class="lb-hero-eyebrow">
             <span class="lb-hero-dot"></span>
-            Chromadata · Artist 360 Leaderboard · Live
+            Chromadata · Artist 360 Leaderboard
           </div>
-          <div class="lb-hero-title">LATAM Artist Leaderboard</div>
+          <div class="lb-hero-title">Artist Leaderboard</div>
           <div class="lb-hero-sub">
             Tracking <b>{total_artists:,}</b> artists across <b>{len(top_markets)}</b> Latin American markets
             &nbsp;·&nbsp; Avg reach <b>{escape(str(avg_listeners))}</b> listeners

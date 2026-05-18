@@ -1135,7 +1135,7 @@ def render_debut_tab() -> None:
         <div class="db-hero">
           <div class="db-hero-eyebrow">
             <span class="db-hero-dot"></span>
-            Chromadata · Debut Intelligence · Live
+            Chromadata · Debut Intelligence
           </div>
           <div class="db-hero-title">Chart Debuts Report</div>
           <div class="db-hero-sub">
