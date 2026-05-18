@@ -1276,6 +1276,14 @@ def _queue_follow_up_question(question: str) -> None:
     st.session_state.ai_is_processing = True
 
 
+def _submit_center_prompt() -> None:
+    question = st.session_state.get("ai_center_prompt_input", "").strip()
+    if not question or st.session_state.get("ai_is_processing", False):
+        return
+    _queue_follow_up_question(question)
+    st.session_state.ai_center_prompt_input = ""
+
+
 def _reset_chat_session() -> None:
     st.session_state.ai_chat_messages = []
     st.session_state.ai_pending_question = None
@@ -1337,16 +1345,16 @@ def _render_token_badge() -> None:
 
 def _render_chat_shell(has_messages: bool, title: Optional[str]) -> None:
     left_col, right_col = st.columns([6, 1.4])
-    with left_col:
-        label = title or "New chat"
-        kicker = "Current chat" if has_messages else "AI Analyst"
-        st.markdown(
-            f"""<div class="ai-thread-head">
-                <div class="ai-thread-kicker">{kicker}</div>
-                <div class="ai-thread-title">{label}</div>
-            </div>""",
-            unsafe_allow_html=True,
-        )
+    # with left_col:
+    #     label = title or "New chat"
+    #     kicker = "Current chat" if has_messages else "AI Analyst"
+    #     st.markdown(
+    #         f"""<div class="ai-thread-head">
+    #             <div class="ai-thread-kicker">{kicker}</div>
+    #             <div class="ai-thread-title">{label}</div>
+    #         </div>""",
+    #         unsafe_allow_html=True,
+    #     )
     with right_col:
         st.button(
             "+ New chat",
@@ -1372,20 +1380,15 @@ def _render_empty_state() -> None:
             unsafe_allow_html=True,
         )
 
-        # ── Search / prompt form ─────────────────────────────────────────────
-        with st.form("ai_centered_prompt_form", clear_on_submit=True, border=False):
-            question = st.text_input(
-                "Start a conversation",
-                placeholder="Ask about artists, listeners, rankings, countries, or trends",
-                label_visibility="collapsed",
-                disabled=st.session_state.get("ai_is_processing", False),
-            )
-            submitted = st.form_submit_button(
-                "Ask", disabled=st.session_state.get("ai_is_processing", False)
-            )
-            if submitted and question.strip():
-                _queue_follow_up_question(question.strip())
-                st.rerun()
+        # ── Search / prompt field (press Enter to submit) ───────────────────
+        st.text_input(
+            "Start a conversation",
+            placeholder="Ask about artists, listeners, rankings, countries, or trends",
+            label_visibility="collapsed",
+            disabled=st.session_state.get("ai_is_processing", False),
+            key="ai_center_prompt_input",
+            on_change=_submit_center_prompt,
+        )
 
         # ── Category suggestion grid ─────────────────────────────────────────
         st.markdown(
@@ -1544,19 +1547,31 @@ def render_custom_chatbot() -> None:
         div[data-testid="stForm"] div[data-testid="stFormSubmitButton"] button{border-radius:999px;
             padding:.6rem 1.2rem;font-weight:600;background:linear-gradient(135deg,#5f79ff,#8ca2ff);border:0;color:#081022}
         div[data-testid^="stChatMessageAvatar"]{display:none!important}
-        div[data-testid="stChatMessage"]{max-width:min(900px,92vw);margin-left:auto;margin-right:auto;
-            width:100%;display:flex;align-items:flex-start;justify-content:flex-start;gap:.35rem}
-        div[data-testid="stChatMessage"] [data-testid="stChatMessageContent"]{max-width:min(700px,76vw);
-            border-radius:16px;padding:.58rem .9rem;width:fit-content;min-width:0}
+        div[data-testid="stChatMessage"]{max-width:min(920px,94vw);margin-left:auto;margin-right:auto;
+            width:100%;display:flex;align-items:flex-start;justify-content:flex-start;gap:.5rem;padding:.35rem .3rem}
+        div[data-testid="stChatMessage"] [data-testid="stChatMessageContent"]{max-width:min(760px,84vw);
+            border-radius:14px;padding:.8rem 1rem;width:fit-content;min-width:0;line-height:1.55;
+            font-size:.97rem;color:#e9eefc}
         div[data-testid="stChatMessage"]:has([aria-label="assistant"]) [data-testid="stChatMessageContent"]{
-            background:transparent;border:0;padding-left:0;padding-right:0;max-width:min(720px,80vw)}
+            background:rgba(17,24,44,.58);border:1px solid rgba(126,142,207,.22);max-width:min(760px,84vw);
+            border-radius:14px;box-shadow:0 12px 28px rgba(4,10,24,.18)}
         div[data-testid="stChatMessage"]:has([aria-label="user"]){justify-content:flex-end}
         div[data-testid="stChatMessage"]:has([aria-label="user"]) [data-testid="stChatMessageContent"]{
-            background:linear-gradient(165deg,rgba(49,53,64,.9),rgba(36,40,51,.9));
-            border:1px solid rgba(130,140,170,.26);max-width:min(360px,66vw);border-radius:18px}
-        div[data-testid="stChatInput"]{padding-top:.85rem}
+            background:linear-gradient(170deg,rgba(45,53,79,.92),rgba(37,44,68,.92));
+            border:1px solid rgba(133,151,220,.32);max-width:min(500px,72vw);border-radius:18px;
+            box-shadow:0 14px 30px rgba(2,8,24,.22)}
+        div[data-testid="stChatMessage"] p{margin:.25rem 0}
+        div[data-testid="stChatInput"]{padding-top:1rem;max-width:min(920px,94vw);margin:0 auto}
         div[data-testid="stChatInput"] textarea,div[data-testid="stChatInput"] input{border-radius:22px;
-            background:rgba(24,29,50,.96);border:1px solid rgba(130,146,219,.12)}
+            background:rgba(20,26,45,.96);border:1px solid rgba(132,149,218,.22);padding:.58rem .9rem;
+            box-shadow:0 12px 30px rgba(2,6,18,.22)}
+        div[data-testid="stChatInput"] button{border-radius:14px!important;background:linear-gradient(135deg,#6f88ff,#93a8ff)!important;
+            color:#0a122b!important;border:0!important;font-weight:600!important}
+        @media(max-width:760px){
+            div[data-testid="stChatMessage"]{padding:.2rem 0}
+            div[data-testid="stChatMessage"] [data-testid="stChatMessageContent"]{max-width:89vw;padding:.72rem .85rem}
+            div[data-testid="stChatMessage"]:has([aria-label="user"]) [data-testid="stChatMessageContent"]{max-width:84vw}
+        }
         @media(max-height:860px){.ai-starter-grid{display:none}}
         </style>
         """,
