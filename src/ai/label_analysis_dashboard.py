@@ -346,7 +346,7 @@ def render_label_analysis():
     # Date Range text details
     min_date_str = min(unique_dates_sorted).strftime("%b %d")
     max_date_str = max(unique_dates_sorted).strftime("%b %d, %Y")
-    date_range_label = f"Chromadata · Label Intelligence · {min_date_str} – {max_date_str}"
+    date_range_label = f"Chromadata · Label Intelligence"
     
     # Week buttons text
     wkA_range_label = f"Wk A · {min(wkA_dates).strftime('%b %d')}–{max(wkA_dates).strftime('%b %d')}"
