@@ -3524,6 +3524,12 @@ def show_pulse_report_page() -> None:
     render_pulse_report()
 
 
+def show_label_analysis_page() -> None:
+    """Wrapper function for Label Analysis page"""
+    from src.ai.label_analysis_dashboard import render_label_analysis
+    render_label_analysis()
+
+
 def show_debut_report_page() -> None:
     """Wrapper function for Debut Report page"""
     render_debut_tab()
@@ -3563,6 +3569,12 @@ app_pages = [
         title="Debut Report",
         icon=":material/new_releases:",
         url_path="debut-report",
+    ),
+    st.Page(
+        show_label_analysis_page,
+        title="Label Analysis",
+        icon=":material/analytics:",
+        url_path="label-analysis",
     ),
     # st.Page(
     #     show_pulse_report_page,
