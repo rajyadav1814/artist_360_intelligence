@@ -3536,6 +3536,13 @@ def show_track_movement_page() -> None:
     render_track_movement()
 
 
+def show_track_acquisition_page() -> None:
+    """Wrapper function for Track Acquisition page"""
+    page_title, page_meta = PAGE_META["Track Acquisition"]
+    render_header(page_title, page_meta, last_run_label)
+    render_track_acquisition()
+
+
 def show_acquisition_page() -> None:
     """Wrapper function for Acquisition Recommendation page"""
     page_title, page_meta = PAGE_META["Acquisition"]
@@ -3574,6 +3581,12 @@ app_pages = [
         title="Track Movement",
         icon=":material/show_chart:",
         url_path="track-movement",
+    ),
+    st.Page(
+        show_track_acquisition_page,
+        title="Track Acquisition",
+        icon=":material/library_music:",
+        url_path="track-acquisition",
     ),
     st.Page(
         show_acquisition_page,
