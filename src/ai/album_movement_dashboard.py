@@ -419,7 +419,7 @@ function kpiCard(lbl, val, sub, cls){{
 const k = PAYLOAD.kpis;
 const kpiHtml = [
   kpiCard('iTunes #1 today', k.it_no1?k.it_no1.a:'—', k.it_no1?`${{k.it_no1.t}} · ${{(k.it_no1.s).toLocaleString()}} pts`:''),
-  kpiCard('Biggest rank riser', k.big_rank_riser?'+'+k.big_rank_riser.rg:'—', k.big_rank_riser?`${{k.big_rank_riser.n}} · ${{k.big_rank_riser.t}}`:'', 'g'),
+  kpiCard('Biggest rank riser', k.big_rank_riser?(k.big_rank_riser.rg>0?'+'+k.big_rank_riser.rg:k.big_rank_riser.rg):'—', k.big_rank_riser?`${{k.big_rank_riser.n}} · ${{k.big_rank_riser.t}}`:'', 'g'),
   kpiCard('Biggest faller', k.big_faller?k.big_faller.rg:'—', k.big_faller?`${{k.big_faller.n}} · ${{k.big_faller.t}}`:'', 'r'),
   kpiCard('Albums rising', k.rising_count, `of ${{k.tracked}} tracked`, 'a'),
 ].join('');
@@ -437,6 +437,8 @@ function spotCard(d, kind){{
   const endMet = [...metricArr].reverse().find(v=>v!==null) || 0;
   const metLabel = 'Score gain';
   const style = "style='--green:#a78bfa;--teal:#60a5fa'";
+  const rgSign = d.rg > 0 ? '+' : '';
+  const rgColor = d.rg > 0 ? 'var(--green)' : d.rg < 0 ? 'var(--red)' : 'var(--t3)';
   return `<div class='spot' ${{style}}>
     <div class='sp-tag'>${{tag}}</div>
     <div class='sp-name'>${{d.n}} — ${{d.t}}</div>
@@ -444,7 +446,7 @@ function spotCard(d, kind){{
     <div class='sp-grid'>
       <div class='sp-s'><div class='sp-s-l'>Start rank</div><div class='sp-s-v'>#${{startRank}}</div></div>
       <div class='sp-s'><div class='sp-s-l'>Now</div><div class='sp-s-v' style='color:${{accent}}'>#${{endRank}}</div></div>
-      <div class='sp-s'><div class='sp-s-l'>Rank gain</div><div class='sp-s-v' style='color:var(--amber)'>+${{d.rg}}</div></div>
+      <div class='sp-s'><div class='sp-s-l'>Rank gain</div><div class='sp-s-v' style='color:${{rgColor}}'>${{rgSign}}${{d.rg}}</div></div>
       <div class='sp-s'><div class='sp-s-l'>${{metLabel}}</div><div class='sp-s-v' style='color:var(--blue)'>${{fmtN(d.sg,0)}}</div></div>
     </div>
   </div>`;
@@ -476,7 +478,7 @@ function renderTable(elId, data){{
     const sgSign = d.sg>0?'+':d.sg<0?'−':'';
     const valFmt = (latVal||0).toLocaleString();
     const sgLabel = Math.abs(d.sg).toLocaleString();
-    const rankBadge = isPos ? `<span class='bu'>▲${{d.rg}}</span>` : d.rg<0 ? `<span class='bd'>▼${{Math.abs(d.rg)}}</span>` : `<span class='bn'>—</span>`;
+    const rankBadge = isPos ? `<span class='bu'>▲+${{d.rg}}</span>` : d.rg<0 ? `<span class='bd'>▼${{Math.abs(d.rg)}}</span>` : `<span class='bn'>—</span>`;
     el.innerHTML += `<div class='trk' style='grid-template-columns:24px 1fr 50px 50px 64px 64px 60px'>
       <span class='rn'>${{i+1}}</span>
       <div>

@@ -363,6 +363,7 @@ body{{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--
     <div>
       <div class='brand'><span class='live'></span>Chromadata · Track Movement Intelligence</div>
       <div class='dash-title'>Track Momentum Dashboard</div>
+      <div class='dash-sub' id='hdr-window'></div>
       <div class='dash-sub' id='hdr-sub'></div>
     </div>
   </div>
