@@ -43,7 +43,7 @@ def get_db_schema():
     return """
     Database Tables and Columns (PostgreSQL):
     
-    1. artists (id, name, profile_url)
+    1. artists (id, name)
        - Primary table for artists.
     
     2. itunes_artist_rankings (artist_id, rank, rank_change, total_points, scrape_date)
@@ -62,7 +62,7 @@ def get_db_schema():
        - 'label' column contains the record label name.
        - Common countries: 'ww' (Worldwide), 'us'.
     
-    7. artist_details (artist_id, page_title, songs_count, albums_count, countries_count, top_songs, top_albums, top_countries, scrape_date)
+    7. artist_details (artist_id, songs_count, albums_count, countries_count, top_songs, top_albums, top_countries, scrape_date)
        - Detailed artist stats. Joined with artists.id.
 
     Guidelines for SQL Generation:

@@ -1767,8 +1767,6 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
                 albums_items = [item.strip() for item in str(row.get("top_albums") or "").split("\n") if item.strip()]
                 countries_items = [item.strip() for item in str(row.get("top_country") or "").split("\n") if item.strip()]
 
-                profile_title = str(row.get("page_title") or "").strip()
-                profile_snapshot = str(row.get("snapshot_text") or "").strip()
                 rank_value = int(row.get("rank")) if pd.notna(row.get("rank")) else 0
 
                 def safe_text(value: object) -> str:
@@ -1776,11 +1774,6 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
                         return "—"
                     text = str(value).strip()
                     return text if text else "—"
-
-                if profile_title:
-                    st.markdown(f"#### 🪪 {escape(profile_title)}")
-                if profile_snapshot:
-                    st.caption(profile_snapshot)
 
                 meta_left, meta_right = st.columns(2)
                 with meta_left:
@@ -2758,14 +2751,6 @@ def render_debut_artist_chart(leaderboard: pd.DataFrame) -> None:
     st.markdown("<br>", unsafe_allow_html=True)
     
     with st.expander("📋 Artist Profile Details", expanded=True):
-        profile_title = str(row.get("page_title") or "").strip()
-        profile_snapshot = str(row.get("snapshot_text") or "").strip()
-        
-        if profile_title:
-            st.markdown(f"#### 🪪 {escape(profile_title)}")
-        if profile_snapshot:
-            st.caption(profile_snapshot)
-        
         meta_left, meta_right = st.columns(2)
         with meta_left:
             st.markdown(f"**🌍 Top Country:** {escape(str(row.get('display_country') or '—'))}")

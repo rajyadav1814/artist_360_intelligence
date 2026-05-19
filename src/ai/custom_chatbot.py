@@ -47,11 +47,11 @@ ALLOWED_TABLES = {
 
 SCHEMA_CONTEXT = """
 Tables (PostgreSQL):
-artists(id,name,profile_url)
+artists(id,name)
 itunes_artist_rankings(id,artist_id,rank,rank_change,total_points,itunes_points,spotify_points,apple_music_points,shazam_points,youtube_points,other_points,top_country,num_countries,scraped_at,scrape_date)
 spotify_artists(id,artist_id,monthly_listeners,peak_listeners,peak_date,scraped_at,scrape_date)
 trending_artists_monthly(id,artist_id,source,rank,rank_change,total_points,top_country,month,scraped_at)
-artist_details(id,artist_id,page_title,snapshot_text,songs_count,albums_count,countries_count,top_songs,top_albums,top_countries,scraped_at,scrape_date)
+artist_details(id,artist_id,songs_count,albums_count,countries_count,top_songs,top_albums,top_countries,scraped_at,scrape_date)
 spotify_daily(id,date,country,rank,artist_title,days,peak,streams,streams_change,total_streams,label)
 itunes_daily(id,date,country,rank,artist_title,days,peak,points,points_change,total_points,label)
 scrape_runs(id,source,status,rows_upserted,error_msg,started_at,finished_at)
@@ -1243,6 +1243,12 @@ def _render_data_table(df: pd.DataFrame, max_rows: int = 10) -> None:
         return
     st.markdown("### 📋 Data Details")
     display_df = df.head(max_rows).copy()
+    
+    # Exclude profile_url, page_title, and snapshot_text columns from rendering
+    cols_to_drop = [c for c in ["profile_url", "page_title", "snapshot_text"] if c in display_df.columns]
+    if cols_to_drop:
+        display_df = display_df.drop(columns=cols_to_drop)
+        
     for col in display_df.select_dtypes(include="number").columns:
         display_df[col] = display_df[col].apply(_format_value)
     st.dataframe(
