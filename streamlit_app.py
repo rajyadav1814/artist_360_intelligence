@@ -12,8 +12,10 @@ from src.ai.custom_chatbot import render_custom_chatbot
 from src.ai.label_dashboard import render_pulse_report
 from src.ai.debut_dashboard import render_debut_tab
 from src.ai.track_movement_dashboard import render_track_movement
+from src.ai.album_movement_dashboard import render_album_movement
 from src.ai.acquisition_dashboard import render_acquisition
 from src.ai.track_acquisition_dashboard import render_track_acquisition
+from src.ai.album_acquisition_dashboard import render_album_acquisition
 from src.database.connection import get_connection
 from src.scrapers.artist_details_scraper import LATIN_AMERICAN_COUNTRIES
 from src.utils.image_utils import get_artist_image_url, get_fallback_avatar_url
@@ -68,9 +70,9 @@ PAGE_META = {
         "Debut Report",
         "Tracks all new chart entries across Spotify and iTunes for the current week",
     ),
-    "Track Movement": (
-        "Track Movement",
-        "Daily rank + metric momentum across Spotify and iTunes charts (risers, fallers, trajectories)",
+    "Movement": (
+        "Movement Dashboard",
+        "Daily rank + metric momentum across track and album charts (risers, fallers, trajectories)",
     ),
     "Track Acquisition": (
         "Track Acquisition",
@@ -3535,25 +3537,30 @@ def show_debut_report_page() -> None:
     render_debut_tab()
 
 
-def show_track_movement_page() -> None:
-    """Wrapper function for Track Movement page"""
-    page_title, page_meta = PAGE_META["Track Movement"]
+def show_movement_page() -> None:
+    """Wrapper function for Movement page"""
+    page_title, page_meta = PAGE_META["Movement"]
     render_header(page_title, page_meta, last_run_label)
-    render_track_movement()
-
-
-def show_track_acquisition_page() -> None:
-    """Wrapper function for Track Acquisition page"""
-    page_title, page_meta = PAGE_META["Track Acquisition"]
-    render_header(page_title, page_meta, last_run_label)
-    render_track_acquisition()
+    
+    tab1, tab2 = st.tabs(["Track Movement", "Album Movement"])
+    with tab1:
+        render_track_movement()
+    with tab2:
+        render_album_movement()
 
 
 def show_acquisition_page() -> None:
     """Wrapper function for Acquisition Recommendation page"""
     page_title, page_meta = PAGE_META["Acquisition"]
     render_header(page_title, page_meta, last_run_label)
-    render_acquisition()
+    
+    tab1, tab2, tab3 = st.tabs(["Track Acquisition", "Album Acquisition", "Artist Acquisition"])
+    with tab1:
+        render_track_acquisition()
+    with tab2:
+        render_album_acquisition()
+    with tab3:
+        render_acquisition()
 
 
 app_pages = [
@@ -3589,17 +3596,12 @@ app_pages = [
         url_path="chart-tracker",
     ),
     st.Page(
-        show_track_movement_page,
-        title="Track Movement",
+        show_movement_page,
+        title="Movement",
         icon=":material/show_chart:",
-        url_path="track-movement",
+        url_path="movement",
     ),
-    st.Page(
-        show_track_acquisition_page,
-        title="Track Acquisition",
-        icon=":material/library_music:",
-        url_path="track-acquisition",
-    ),
+
     st.Page(
         show_acquisition_page,
         title="Acquisition",
