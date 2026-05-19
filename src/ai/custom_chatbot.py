@@ -787,6 +787,7 @@ Key SQL rules:
 - Format dates: TO_CHAR(date,'DD Mon YYYY')
 - Artist exact match: artists.name = 'Name' (not ILIKE for specific names)
 - Multiple artists: use OR / IN for all of them
+- No arbitrary filters: If no artist is explicitly mentioned in the question or detected in context, DO NOT filter by specific artist names; query all tracks/labels globally.
 - "label" column = record label company (in daily tables)
 - "last day": date=(SELECT MAX(date) FROM spotify_daily)
 - "last 7 days": date>=(SELECT MAX(date) FROM spotify_daily)-INTERVAL '7 days'
@@ -1569,10 +1570,26 @@ def render_custom_chatbot() -> None:
             border:1px solid rgba(133,151,220,.32);max-width:min(500px,72vw);border-radius:18px;
             box-shadow:0 14px 30px rgba(2,8,24,.22)}
         div[data-testid="stChatMessage"] p{margin:.25rem 0}
-        div[data-testid="stChatInput"]{padding-top:1rem;max-width:min(920px,94vw);margin:0 auto}
-        div[data-testid="stChatInput"] textarea,div[data-testid="stChatInput"] input{border-radius:22px;
-            background:rgba(20,26,45,.96);border:1px solid rgba(132,149,218,.22);padding:.58rem .9rem;
-            box-shadow:0 12px 30px rgba(2,6,18,.22)}
+        div[data-testid="stChatInput"]{padding-top:1rem;max-width:min(1000px,94vw);margin:0 auto}
+        div[data-testid="stChatInput"] > div { background: transparent !important; border: none !important; box-shadow: none !important; }
+        div[data-testid="stChatInput"] div:has(> div[data-baseweb="base-input"]) {
+            background: rgba(35,43,76,.96) !important;
+            border: 1px solid rgba(132,149,218,.5) !important;
+            border-radius: 26px !important;
+            box-shadow: 0 12px 30px rgba(2,6,18,.4) !important;
+        }
+        div[data-testid="stChatInput"] div[data-baseweb="base-input"] {
+            background: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
+        }
+        div[data-testid="stChatInput"] textarea, div[data-testid="stChatInput"] input {
+            background: transparent !important;
+            border: none !important;
+            color: #ffffff !important;
+            box-shadow: none !important;
+            padding: 0.6rem 0.9rem !important;
+        }
         div[data-testid="stChatInput"] button{border-radius:14px!important;background:linear-gradient(135deg,#6f88ff,#93a8ff)!important;
             color:#0a122b!important;border:0!important;font-weight:600!important}
         @media(max-width:760px){
@@ -1581,6 +1598,29 @@ def render_custom_chatbot() -> None:
             div[data-testid="stChatMessage"]:has([aria-label="user"]) [data-testid="stChatMessageContent"]{max-width:84vw}
         }
         @media(max-height:860px){.ai-starter-grid{display:none}}
+        
+        /* Spinner Loader Centering & Styling */
+        div[data-testid="stSpinner"] {
+            display: flex !important;
+            justify-content: center !important;
+            align-items: center !important;
+            width: 100% !important;
+            margin: 2.2rem auto !important;
+        }
+        div[data-testid="stSpinner"] > div {
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: center !important;
+            justify-content: center !important;
+            gap: 0.85rem !important;
+        }
+        div[data-testid="stSpinner"] p {
+            text-align: center !important;
+            color: #c9d4ff !important;
+            font-weight: 600 !important;
+            font-size: 0.96rem !important;
+            letter-spacing: 0.02em !important;
+        }
         </style>
         """,
         unsafe_allow_html=True,
