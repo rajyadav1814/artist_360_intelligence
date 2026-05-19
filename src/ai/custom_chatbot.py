@@ -356,6 +356,8 @@ _STOP_WORDS = {
     "shazam", "global", "current", "recent", "latest",
     "day", "days", "today", "yesterday", "previous", "daily", "weekly",
     "name", "names", "with", "without", "give", "show", "five", "ten",
+    "track", "tracks", "title", "titles", "video", "videos", "release",
+    "releases", "owner", "owners", "representative", "representatives",
 }
 
 
