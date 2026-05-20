@@ -5,6 +5,7 @@ from html import escape
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+import plotly.io as pio
 import streamlit as st
 import streamlit.components.v1 as st_components
 
@@ -94,6 +95,44 @@ TRACKER_TOP_ARTISTS = 10
 LATAM_COUNTRIES = sorted(LATIN_AMERICAN_COUNTRIES)
 BOT_SRC = "https://copilotstudio.microsoft.com/environments/4b079cee-b5d6-e253-856d-c427359af206/bots/cr917_agentT1zDET/webchat?__version__=2"
 LOAD_TIMEOUT_MS = 20000
+
+
+def render_plotly_html(fig: go.Figure, *, height: int | None = None) -> None:
+    chart_height = height or (int(fig.layout.height) if fig.layout.height else 520)
+    chart_html = pio.to_html(
+        fig,
+        config=PLOTLY_CONFIG,
+        full_html=False,
+        include_plotlyjs="cdn",
+        default_width="100%",
+        default_height=f"{chart_height}px",
+    )
+    st_components.html(
+        f"""
+        <div class="graph-card">
+            <div class="plotly-html-chart">{chart_html}</div>
+        </div>
+        <style>
+            body {{ margin: 0; background: transparent; }}
+            .graph-card {{
+                width: 100%;
+                box-sizing: border-box;
+                padding: 14px 14px 10px 14px;
+                border-radius: 16px;
+                border: 1px solid rgba(73, 104, 160, 0.38);
+                background:
+                    linear-gradient(180deg, rgba(17, 28, 47, 0.92), rgba(10, 17, 31, 0.95));
+                box-shadow: 0 14px 30px rgba(3, 9, 22, 0.35);
+            }}
+            .plotly-html-chart {{ width: 100%; }}
+            .plotly-html-chart .js-plotly-plot,
+            .plotly-html-chart .plot-container,
+            .plotly-html-chart .svg-container {{ width: 100% !important; }}
+        </style>
+        """,
+        height=chart_height + 48,
+        scrolling=False,
+    )
 
 
 def apply_theme() -> None:
@@ -1573,7 +1612,7 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
                 ),
             )
             style_figure(fig_bar, 390)
-            st.plotly_chart(fig_bar, use_container_width=True, config=PLOTLY_CONFIG)
+            render_plotly_html(fig_bar)
         else:
             st.info("No monthly listener data is available for the current leaderboard selection.")
 
@@ -1630,7 +1669,7 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
                 paper_bgcolor="rgba(11,18,32,.98)",
             )
             style_figure(fig_points, 390)
-            st.plotly_chart(fig_points, use_container_width=True, config=PLOTLY_CONFIG)
+            render_plotly_html(fig_points)
         else:
             st.info("No iTunes points data is available for the current leaderboard selection.")
 
@@ -1720,7 +1759,7 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
                 xaxis=dict(showgrid=False),
                 yaxis=dict(showgrid=True, gridcolor="rgba(151,163,197,0.08)")
             )
-            st.plotly_chart(fig_thresh_pts, use_container_width=True, config=PLOTLY_CONFIG)
+            render_plotly_html(fig_thresh_pts)
             st.markdown("</div>", unsafe_allow_html=True)
             
         with t_col2:
@@ -1756,7 +1795,7 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
                 xaxis=dict(showgrid=False),
                 yaxis=dict(showgrid=True, gridcolor="rgba(151,163,197,0.08)")
             )
-            st.plotly_chart(fig_thresh_ls, use_container_width=True, config=PLOTLY_CONFIG)
+            render_plotly_html(fig_thresh_ls)
             st.markdown("</div>", unsafe_allow_html=True)
         
         # Threshold details table in HTML
@@ -2207,7 +2246,7 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
         tickfont=dict(color="#cdd6e4", size=11),
     )
     style_figure(fig_line, 520)
-    st.plotly_chart(fig_line, use_container_width=True, config=PLOTLY_CONFIG)
+    render_plotly_html(fig_line)
     st.markdown("</div>", unsafe_allow_html=True)
 
     if not best_df.empty:
@@ -2250,7 +2289,7 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
             ticklabelstandoff=18,
             tickfont=dict(color="#fff", size=12),
         )
-        st.plotly_chart(fig_best, use_container_width=True, config=PLOTLY_CONFIG)
+        render_plotly_html(fig_best)
         st.markdown("</div>", unsafe_allow_html=True)
 
     # ── Styled HTML movement table (replaces st.dataframe) ───────────
@@ -2352,7 +2391,7 @@ def render_stream_trends(top_spotify: pd.DataFrame, leaderboard: pd.DataFrame, t
             )
             fig.update_xaxes(tickangle=-45)
             style_figure(fig, 420)
-            st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CONFIG)
+            render_plotly_html(fig)
 
         with c2:
             # Growth potential
@@ -2475,7 +2514,7 @@ def render_stream_trends(top_spotify: pd.DataFrame, leaderboard: pd.DataFrame, t
                     ],
                 )
                 style_figure(fig_market_share, 440)
-                st.plotly_chart(fig_market_share, use_container_width=True, config=PLOTLY_CONFIG)
+                render_plotly_html(fig_market_share)
 
             with chart_col2:
                 bars_df = source_df.sort_values("points", ascending=True).copy()
@@ -2511,7 +2550,7 @@ def render_stream_trends(top_spotify: pd.DataFrame, leaderboard: pd.DataFrame, t
                     showgrid=False,
                 )
                 style_figure(fig_source_bars, 440)
-                st.plotly_chart(fig_source_bars, use_container_width=True, config=PLOTLY_CONFIG)
+                render_plotly_html(fig_source_bars)
 
     with tab3:
         # Control bar for Global Charting
@@ -2657,7 +2696,7 @@ def render_stream_trends(top_spotify: pd.DataFrame, leaderboard: pd.DataFrame, t
             
             chart_box_height = 750 if len(gl_chart_df) > 15 else None
             with st.container(height=chart_box_height):
-                st.plotly_chart(fig_move, use_container_width=True, config=PLOTLY_CONFIG)
+                render_plotly_html(fig_move)
         
     
     # Detailed Data Table removed as requested
@@ -3089,7 +3128,7 @@ def render_ops_monitor(runs: pd.DataFrame) -> None:
                 yaxis_range=[0, 105],
             )
             style_figure(fig_rate, 320)
-            st.plotly_chart(fig_rate, use_container_width=True, config=PLOTLY_CONFIG)
+            render_plotly_html(fig_rate)
 
         with c2:
             recent = runs[["finished_at", "source", "rows_upserted", "status"]]
@@ -3136,7 +3175,7 @@ def render_ops_monitor(runs: pd.DataFrame) -> None:
             fig_rows.update_yaxes(type="log")
             fig_rows.update_xaxes(tickangle=-20)
             style_figure(fig_rows, 400)
-            st.plotly_chart(fig_rows, use_container_width=True, config=PLOTLY_CONFIG)
+            render_plotly_html(fig_rows)
             st.caption("💡 Log scale is used so very large and very small jobs stay visible together.")
     
     with tab3:
@@ -3157,7 +3196,7 @@ def render_ops_monitor(runs: pd.DataFrame) -> None:
                     color_discrete_sequence=CHART_COLORS
                 )
                 style_figure(fig_duration, 350)
-                st.plotly_chart(fig_duration, use_container_width=True, config=PLOTLY_CONFIG)
+                render_plotly_html(fig_duration)
         
         with col_right:
             st.markdown("#### 📋 Status Breakdown")
@@ -3171,7 +3210,7 @@ def render_ops_monitor(runs: pd.DataFrame) -> None:
                 color_discrete_sequence=["#22d3a0", "#f5a623", "#e84545"]
             )
             style_figure(fig_status, 350)
-            st.plotly_chart(fig_status, use_container_width=True, config=PLOTLY_CONFIG)
+            render_plotly_html(fig_status)
 
 
 def render_chatbot_widget() -> None:
@@ -3813,7 +3852,7 @@ def show_compare_page() -> None:
             )
             fig_comp_listeners.update_yaxes(tickformat="~s")
             style_figure(fig_comp_listeners, 310)
-            st.plotly_chart(fig_comp_listeners, use_container_width=True, config=PLOTLY_CONFIG)
+            render_plotly_html(fig_comp_listeners)
 
         with comp_col2:
             fig_comp_reach = go.Figure()
@@ -3843,7 +3882,7 @@ def show_compare_page() -> None:
                 bargap=0.35,
             )
             style_figure(fig_comp_reach, 310)
-            st.plotly_chart(fig_comp_reach, use_container_width=True, config=PLOTLY_CONFIG)
+            render_plotly_html(fig_comp_reach)
 
         with comp_col3:
             fig_comp_points = go.Figure()
@@ -3874,7 +3913,7 @@ def show_compare_page() -> None:
             )
             fig_comp_points.update_yaxes(tickformat="~s")
             style_figure(fig_comp_points, 310)
-            st.plotly_chart(fig_comp_points, use_container_width=True, config=PLOTLY_CONFIG)
+            render_plotly_html(fig_comp_points)
 
         with st.expander("📋 View Detailed Comparison Table"):
             table_rows: list[str] = []
