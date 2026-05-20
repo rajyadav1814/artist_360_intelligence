@@ -42,10 +42,10 @@ PAGE_META = {
         "Artist 360° Leaderboard",
         "Top Latin artists ranked by iTunes performance, Spotify reach, and global footprint",
     ),
-    # "Artist Spotlight": (
-    #     "Artist Spotlight",
-    #     "View and analyze individual artist details and chart performance",
-    # ),
+    "Artist Spotlight": (
+        "Artist Spotlight",
+        "View and analyze individual artist details and chart performance",
+    ),
     "Chart Tracker": (
         "Chart Tracker",
         "Historical rank trajectories for top artists, revealing trends and momentum",
@@ -2656,215 +2656,362 @@ def render_debut_artist_chart(leaderboard: pd.DataFrame) -> None:
         return
 
     sorted_artists = leaderboard.sort_values("rank").dropna(subset=["name", "rank"]).copy()
-    
     sorted_artists["rank"] = sorted_artists["rank"].astype(int)
     sorted_artists["display_label"] = sorted_artists["name"]
     artist_options = sorted_artists["display_label"].tolist()
-    
-    st.markdown("<br>", unsafe_allow_html=True)
-    
-    # Get global selection or default to top ranked
+    total_available = len(sorted_artists)
+
+    st.markdown(
+        f"""
+        <style>
+        .artist-spotlight-hero {{
+            position: relative;
+            background: linear-gradient(135deg, #1a2238 0%, #1f1a3a 50%, #261d3d 100%);
+            border: 1px solid rgba(148,163,184,.18);
+            border-radius: 20px;
+            padding: 24px 28px;
+            margin-bottom: 1.4rem;
+            box-shadow: 0 24px 60px rgba(0,0,0,.35);
+            overflow: hidden;
+        }}
+        .artist-spotlight-hero::after {{
+            content: "";
+            position: absolute;
+            right: -120px;
+            top: -120px;
+            width: 320px;
+            height: 320px;
+            background: radial-gradient(circle, rgba(96,165,250,.18), transparent 60%);
+            pointer-events: none;
+        }}
+        .artist-spotlight-eyebrow {{
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 12px;
+            font-weight: 800;
+            letter-spacing: .18em;
+            text-transform: uppercase;
+            color: #8b95ad;
+            margin-bottom: 12px;
+        }}
+        .artist-spotlight-dot {{
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #34d399;
+            box-shadow: 0 0 0 4px rgba(52,211,153,.18), 0 0 14px rgba(52,211,153,.55);
+            animation: lb-pulse 2s ease-in-out infinite;
+        }}
+        .artist-spotlight-title {{
+            font-size: 2.2rem;
+            font-weight: 900;
+            letter-spacing: -.02em;
+            color: #ffffff;
+            margin-bottom: 6px;
+            line-height: 1.1;
+        }}
+        .artist-spotlight-sub {{
+            font-size: 0.95rem;
+            color: #cdd6e4;
+            font-weight: 500;
+        }}
+        .artist-spotlight-sub b {{
+            color: #ffffff;
+            font-weight: 700;
+        }}
+        .spotlight-kpi-grid {{
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 12px;
+            margin: 14px 0 16px;
+        }}
+        .spotlight-kpi {{
+            background: linear-gradient(180deg, #161b26 0%, #11182c 100%);
+            border: 1px solid rgba(148,163,184,.15);
+            border-radius: 14px;
+            padding: 16px;
+            box-shadow: 0 12px 24px rgba(0,0,0,.18);
+            min-height: 100px;
+        }}
+        .spotlight-kpi-label {{
+            color: #8b95ad;
+            font-size: .72rem;
+            text-transform: uppercase;
+            letter-spacing: .08em;
+            font-weight: 800;
+            margin-bottom: 6px;
+        }}
+        .spotlight-kpi-value {{
+            color: #ffffff;
+            font-size: 1.45rem;
+            font-weight: 900;
+            line-height: 1.1;
+            margin-bottom: 4px;
+        }}
+        .spotlight-kpi-note {{
+            color: #cdd6e4;
+            font-size: .82rem;
+        }}
+        .spotlight-panel {{
+            background: #161b26;
+            border: 1px solid rgba(148,163,184,.15);
+            border-radius: 14px;
+            box-shadow: 0 12px 24px rgba(0,0,0,.18);
+            margin-bottom: 14px;
+        }}
+        .spotlight-panel-header {{
+            padding: 12px 14px;
+            border-bottom: 1px solid rgba(148,163,184,.12);
+            color: #dbe4ff;
+            font-size: .92rem;
+            font-weight: 800;
+            letter-spacing: .04em;
+            text-transform: uppercase;
+        }}
+        .spotlight-panel-body {{
+            padding: 14px;
+        }}
+        .spotlight-meta-grid {{
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+        }}
+        .spotlight-lists-grid {{
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 14px;
+        }}
+        .spotlight-list-title {{
+            color: #b9c7ea;
+            font-size: .86rem;
+            font-weight: 800;
+            margin-bottom: 8px;
+        }}
+        .spotlight-list {{
+            margin: 0;
+            padding-left: 18px;
+            color: #f8fbff;
+            line-height: 1.65;
+            font-size: .9rem;
+        }}
+        .spotlight-list-empty {{
+            color: #8b95ad;
+            font-size: .88rem;
+        }}
+        .spotlight-summary-table {{
+            width: 100%;
+            border-collapse: collapse;
+            font-size: .9rem;
+        }}
+        .spotlight-summary-table th {{
+            text-align: left;
+            color: #8b95ad;
+            font-size: .72rem;
+            text-transform: uppercase;
+            letter-spacing: .08em;
+            padding: .65rem .75rem;
+            border-bottom: 1px solid rgba(148,163,184,.15);
+        }}
+        .spotlight-summary-table td {{
+            padding: .65rem .75rem;
+            border-bottom: 1px solid rgba(148,163,184,.1);
+            color: #e7eefc;
+        }}
+        .spotlight-artist-hero {{
+            display: grid;
+            grid-template-columns: minmax(120px, 180px) 1fr;
+            gap: 18px;
+            align-items: center;
+            margin: 12px 0 16px;
+        }}
+        .spotlight-artist-image {{
+            width: 100%;
+            max-width: 180px;
+            border-radius: 24px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+            border: 2px solid var(--border);
+        }}
+        .spotlight-artist-name {{
+            margin: 0 0 4px 0;
+            color: #ffffff;
+            font-size: 2rem;
+            font-weight: 900;
+            letter-spacing: -.01em;
+        }}
+        .spotlight-artist-sub {{
+            margin: 0;
+            color: var(--text2);
+            font-size: 1.02rem;
+        }}
+        .spotlight-badges {{
+            display: flex;
+            gap: 10px;
+            margin-top: 12px;
+            flex-wrap: wrap;
+        }}
+        @media (max-width: 980px) {{
+            .spotlight-kpi-grid {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }}
+            .spotlight-lists-grid {{ grid-template-columns: 1fr; }}
+            .spotlight-artist-hero {{ grid-template-columns: 1fr; }}
+        }}
+        </style>
+        <div class="artist-spotlight-hero">
+          <div class="artist-spotlight-eyebrow">
+            <span class="artist-spotlight-dot"></span>
+            Chromadata · Artist Spotlight
+          </div>
+          <div class="artist-spotlight-title">Artist Spotlight</div>
+          <div class="artist-spotlight-sub">
+            View and compare a selected artist with the same dark leaderboard treatment.
+            &nbsp;·&nbsp; <b>{total_available:,}</b> artists available
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
     default_artist = st.session_state.get("global_selected_artist", "All artists")
     if default_artist == "All artists" and artist_options:
         default_artist = artist_options[0]
-        
+
     try:
-        # Check if the exact label or the name is in options
         if default_artist in artist_options:
             default_idx = artist_options.index(default_artist)
         else:
-            # Fallback: try to find an option that matches the artist name
             matches = [i for i, opt in enumerate(artist_options) if default_artist in opt]
             default_idx = matches[0] if matches else 0
     except (ValueError, IndexError):
         default_idx = 0
 
-    col1, col2 = st.columns([1.5, 1.6])
-    with col2:
-        selected_label = st.selectbox(
-            "🎤 Select an Artist",
-            artist_options,
-            index=default_idx if artist_options else None,
-            key="debut_artist_select"
-        )
-    
-    # Sync global selection if changed here
+    selected_label = st.selectbox(
+        "🎤 Select an Artist",
+        artist_options,
+        index=default_idx if artist_options else None,
+        key="debut_artist_select",
+    )
+
     if selected_label != st.session_state.get("global_selected_artist"):
         st.session_state.global_selected_artist = selected_label
         st.rerun()
-    
+
     if not selected_label:
         st.info("Please select an artist from the dropdown above.")
         return
-    
+
     selected_artist = selected_label.split(" - ", 1)[1] if " - " in selected_label else selected_label
-    
     artist_data = leaderboard[leaderboard["name"] == selected_artist]
-    
+
     if artist_data.empty:
         st.warning(f"No data found for {selected_artist}.")
         return
-    
+
     row = artist_data.iloc[0]
-    
-    # --- Artist Hero Section (New) ---
-    st.markdown("<br>", unsafe_allow_html=True)
-    
-    # Try to get real image URL, fallback to generated avatar
-    real_img_url = get_artist_image_url(row['name'])
-    display_img = real_img_url if real_img_url else get_fallback_avatar_url(row['name'])
-    
-    hero_col1, hero_col2 = st.columns([1, 4])
-    with hero_col1:
-        st.markdown(
-            f"""
-            <div style="display: flex; justify-content: center; align-items: center; padding: 10px;">
-                <img src="{display_img}" style="width: 100%; max-width: 180px; border-radius: 24px; box-shadow: 0 20px 40px rgba(0,0,0,0.4); border: 2px solid var(--border);">
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-    with hero_col2:
-        st.markdown(f"<h1 style='margin-bottom: 0;'>{escape(row['name'])}</h1>", unsafe_allow_html=True)
-        if pd.notna(row.get('page_title')):
-            st.markdown(f"<p style='color: var(--text2); font-size: 1.1rem;'>{escape(str(row.get('page_title')))}</p>", unsafe_allow_html=True)
-        
-        # Action badges
-        st.markdown(
-            f"""
-            <div style="display: flex; gap: 10px; margin-top: 15px; flex-wrap: wrap;">
-                <span class="badge badge-new" style="padding: 5px 12px; font-size: 0.85rem;">#{int(row['rank'])}</span>
-                <span class="badge badge-up" style="padding: 5px 12px; font-size: 0.85rem;">{escape(str(row.get('display_country') or 'Global'))}</span>
-                <span class="badge badge-same" style="padding: 5px 12px; font-size: 0.85rem;">{fmt_short(row.get('monthly_listeners'))} Monthly</span>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
+    real_img_url = get_artist_image_url(row["name"])
+    display_img = real_img_url if real_img_url else get_fallback_avatar_url(row["name"])
 
-    st.markdown("<br>", unsafe_allow_html=True)
-    
-    kpi1, kpi2, kpi3, kpi4 = st.columns(4)
-    with kpi1:
-        rank_val = int(row.get("rank")) if pd.notna(row.get("rank")) else 0
-        st.metric("📊 Current Rank", f"{rank_val}")
-    with kpi2:
-        songs_val = row.get("songs_count")
-        st.metric("🎵 Songs", int(songs_val) if pd.notna(songs_val) else 0)
-    with kpi3:
-        albums_val = row.get("albums_count")
-        st.metric("💿 Albums", int(albums_val) if pd.notna(albums_val) else 0)
-    with kpi4:
-        countries_val = row.get("countries_count")
-        st.metric("🌎 LATAM Countries", int(countries_val) if pd.notna(countries_val) else 0)
-    
-    kpi5, kpi6, kpi7, kpi8 = st.columns(4)
-    with kpi5:
-        ml_val = row.get("monthly_listeners")
-        st.metric("👥 Monthly Listeners", fmt_short(ml_val) if pd.notna(ml_val) else "—")
-    with kpi6:
-        peak_val = row.get("peak_listeners")
-        st.metric("🚀 Peak Listeners", fmt_short(peak_val) if pd.notna(peak_val) else "—")
-    with kpi7:
-        points_val = row.get("total_points")
-        st.metric("⭐ Total Points", fmt_short(points_val) if pd.notna(points_val) else "—")
-    with kpi8:
-        trend_change = str(row.get("rank_change") or "=").strip()
-        st.metric("📈 Trend", trend_change)
+    rank_val = int(row.get("rank")) if pd.notna(row.get("rank")) else 0
+    songs_val = int(row.get("songs_count")) if pd.notna(row.get("songs_count")) else 0
+    albums_val = int(row.get("albums_count")) if pd.notna(row.get("albums_count")) else 0
+    countries_val = int(row.get("countries_count")) if pd.notna(row.get("countries_count")) else 0
+    monthly_val = fmt_short(row.get("monthly_listeners")) if pd.notna(row.get("monthly_listeners")) else "—"
+    peak_val = fmt_short(row.get("peak_listeners")) if pd.notna(row.get("peak_listeners")) else "—"
+    points_val = fmt_short(row.get("total_points")) if pd.notna(row.get("total_points")) else "—"
+    trend_change = str(row.get("rank_change") or "=").strip()
 
-    st.markdown("<br>", unsafe_allow_html=True)
-    
-    with st.expander("📋 Artist Profile Details", expanded=True):
-        meta_left, meta_right = st.columns(2)
-        with meta_left:
-            st.markdown(f"**🌍 Top Country:** {escape(str(row.get('display_country') or '—'))}")
-            st.markdown(f"**🎵 Top Song:** {escape(str(row.get('top_song') or '—'))}")
-                
-    
     songs_items = [item.strip() for item in str(row.get("top_songs") or "").split("\n") if item.strip()]
     albums_items = [item.strip() for item in str(row.get("top_albums") or "").split("\n") if item.strip()]
     countries_items = [item.strip() for item in str(row.get("top_countries") or "").split("\n") if item.strip()]
-    top_n_count = len(songs_items)
 
-    with st.expander("🎵 Top Tracks, Albums & Countries", expanded=True):
-        col_songs, col_albums, col_countries = st.columns(3)
+    songs_html = "".join(f"<li>{escape(item)}</li>" for item in songs_items) if songs_items else "<div class='spotlight-list-empty'>No songs available.</div>"
+    albums_html = "".join(f"<li>{escape(item)}</li>" for item in albums_items) if albums_items else "<div class='spotlight-list-empty'>No albums available.</div>"
+    countries_html = "".join(f"<li>{escape(item)}</li>" for item in countries_items) if countries_items else "<div class='spotlight-list-empty'>No countries available.</div>"
 
-        with col_songs:
-            st.markdown(f"#### 🎵 Top {top_n_count} Tracks" if top_n_count else "#### 🎵 Top Songs")
-            if songs_items:
-                for idx, item in enumerate(songs_items, start=1):
-                    st.markdown(f"{idx}. {escape(item)}")
-            else:
-                st.caption("No songs available.")
+    artist_name = escape(str(row.get("name") or "—"))
+    page_title_val = escape(str(row.get("page_title") or ""))
+    display_country = escape(str(row.get("display_country") or "Global"))
+    top_song = escape(str(row.get("top_song") or "—"))
 
-        with col_albums:
-            st.markdown("#### 💿 Top Albums")
-            if albums_items:
-                for idx, item in enumerate(albums_items, start=1):
-                    st.markdown(f"{idx}. {escape(item)}")
-            else:
-                st.caption("No albums available.")
+    st.markdown(
+        f"""
+        <div class="spotlight-artist-hero">
+            <div>
+                <img src="{escape(display_img)}" class="spotlight-artist-image" alt="{artist_name}">
+            </div>
+            <div>
+                <h2 class="spotlight-artist-name">{artist_name}</h2>
+                <p class="spotlight-artist-sub">{page_title_val}</p>
+                <div class="spotlight-badges">
+                    <span class="badge badge-new" style="padding: 5px 12px; font-size: .85rem;">#{rank_val}</span>
+                    <span class="badge badge-up" style="padding: 5px 12px; font-size: .85rem;">{display_country}</span>
+                    <span class="badge badge-same" style="padding: 5px 12px; font-size: .85rem;">{monthly_val} Monthly</span>
+                </div>
+            </div>
+        </div>
 
-        with col_countries:
-            st.markdown("#### 🗺️ Top Countries")
-            if countries_items:
-                for idx, item in enumerate(countries_items, start=1):
-                    st.markdown(f"{idx}. {escape(item)}")
-            else:
-                st.caption("No countries available.")
+        <div class="spotlight-kpi-grid">
+            <div class="spotlight-kpi"><div class="spotlight-kpi-label">Current Rank</div><div class="spotlight-kpi-value">#{rank_val}</div><div class="spotlight-kpi-note">Latest chart position</div></div>
+            <div class="spotlight-kpi"><div class="spotlight-kpi-label">Songs</div><div class="spotlight-kpi-value">{songs_val}</div><div class="spotlight-kpi-note">Catalog tracks</div></div>
+            <div class="spotlight-kpi"><div class="spotlight-kpi-label">Albums</div><div class="spotlight-kpi-value">{albums_val}</div><div class="spotlight-kpi-note">Catalog albums</div></div>
+            <div class="spotlight-kpi"><div class="spotlight-kpi-label">LATAM Countries</div><div class="spotlight-kpi-value">{countries_val}</div><div class="spotlight-kpi-note">Market presence</div></div>
+            <div class="spotlight-kpi"><div class="spotlight-kpi-label">Monthly Listeners</div><div class="spotlight-kpi-value">{monthly_val}</div><div class="spotlight-kpi-note">Current audience size</div></div>
+            <div class="spotlight-kpi"><div class="spotlight-kpi-label">Peak Listeners</div><div class="spotlight-kpi-value">{peak_val}</div><div class="spotlight-kpi-note">Historical high</div></div>
+            <div class="spotlight-kpi"><div class="spotlight-kpi-label">Total Points</div><div class="spotlight-kpi-value">{points_val}</div><div class="spotlight-kpi-note">Cross-platform score</div></div>
+            <div class="spotlight-kpi"><div class="spotlight-kpi-label">Trend</div><div class="spotlight-kpi-value">{escape(trend_change)}</div><div class="spotlight-kpi-note">Rank momentum</div></div>
+        </div>
 
-    # if countries_items:
-        # with st.expander("📊 Market Share", expanded=True):
-        #     total_countries = len(countries_items)
-        #     if total_countries > 0:
-        #         share_data = [{"Country": c, "Share": 1} for c in countries_items]
-        #         share_df = pd.DataFrame(share_data)
-        #         fig_share = px.pie(
-        #             share_df,
-        #             names="Country",
-        #             values="Share",
-        #             hole=0.58,
-        #             color="Country",
-        #             color_discrete_sequence=CHART_COLORS,
-        #         )
-        #         fig_share.update_traces(
-        #             textposition="inside",
-        #             textinfo="percent+label",
-        #             hovertemplate="<b>%{label}</b><br>Market share<extra></extra>",
-        #         )
-        #         fig_share.update_layout(
-        #             title="Market Distribution",
-        #             showlegend=False,
-        #             annotations=[
-        #                 dict(
-        #                     text="Share<br>by<br>country",
-        #                     x=0.5,
-        #                     y=0.5,
-        #                     showarrow=False,
-        #                     font=dict(size=11, color="#cbd5f5"),
-        #                 )
-        #             ],
-        #         )
-        #         style_figure(fig_share, 260)
-        #         st.plotly_chart(fig_share, use_container_width=True, config=PLOTLY_CONFIG)
-    
-    with st.expander("📊 Performance Summary", expanded=True):
-        songs_s = row.get("songs_count")
-        albums_s = row.get("albums_count")
-        countries_s = row.get("countries_count")
-        summary_data = {
-            "Metric": ["Rank", "Monthly Listeners", "Peak Listeners", "Songs", "Albums", "LATAM Countries", "Total Points"],
-            "Value": [
-                str(rank_val),
-                str(fmt_short(row.get("monthly_listeners"))) if pd.notna(row.get("monthly_listeners")) else "—",
-                str(fmt_short(row.get("peak_listeners"))) if pd.notna(row.get("peak_listeners")) else "—",
-                str(int(songs_s)) if pd.notna(songs_s) else "0",
-                str(int(albums_s)) if pd.notna(albums_s) else "0",
-                str(int(countries_s)) if pd.notna(countries_s) else "0",
-                str(fmt_short(row.get("total_points"))) if pd.notna(row.get("total_points")) else "—",
-            ]
-        }
-        summary_df = pd.DataFrame(summary_data)
-        st.dataframe(summary_df, use_container_width=True, hide_index=True)
+        <div class="spotlight-panel">
+            <div class="spotlight-panel-header">Artist Profile Details</div>
+            <div class="spotlight-panel-body">
+                <div class="spotlight-meta-grid">
+                    <div><strong>Top Country:</strong> {display_country}</div>
+                    <div><strong>Top Song:</strong> {top_song}</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="spotlight-panel">
+            <div class="spotlight-panel-header">Top Tracks, Albums and Countries</div>
+            <div class="spotlight-panel-body">
+                <div class="spotlight-lists-grid">
+                    <div>
+                        <div class="spotlight-list-title">Top Tracks</div>
+                        <ol class="spotlight-list">{songs_html}</ol>
+                    </div>
+                    <div>
+                        <div class="spotlight-list-title">Top Albums</div>
+                        <ol class="spotlight-list">{albums_html}</ol>
+                    </div>
+                    <div>
+                        <div class="spotlight-list-title">Top Countries</div>
+                        <ol class="spotlight-list">{countries_html}</ol>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="spotlight-panel">
+            <div class="spotlight-panel-header">Performance Summary</div>
+            <div class="spotlight-panel-body">
+                <table class="spotlight-summary-table">
+                    <thead>
+                        <tr><th>Metric</th><th>Value</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>Rank</td><td>#{rank_val}</td></tr>
+                        <tr><td>Monthly Listeners</td><td>{monthly_val}</td></tr>
+                        <tr><td>Peak Listeners</td><td>{peak_val}</td></tr>
+                        <tr><td>Songs</td><td>{songs_val}</td></tr>
+                        <tr><td>Albums</td><td>{albums_val}</td></tr>
+                        <tr><td>LATAM Countries</td><td>{countries_val}</td></tr>
+                        <tr><td>Total Points</td><td>{points_val}</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def render_ops_monitor(runs: pd.DataFrame) -> None:
@@ -3516,11 +3663,11 @@ def show_stream_trends_page() -> None:
     render_stream_trends(filtered, leaderboard, top_history, history)
 
 
-# def show_debut_artist_page() -> None:
-#     page_title, page_meta = PAGE_META["Artist Spotlight"]
-#     render_header(page_title, page_meta, last_run_label)
-#     # Use global_filtered to allow changing artists in the dropdown
-#     render_debut_artist_chart(global_filtered)
+def show_debut_artist_page() -> None:
+    page_title, page_meta = PAGE_META["Artist Spotlight"]
+    render_header(page_title, page_meta, last_run_label)
+    # Use global_filtered to allow changing artists in the dropdown
+    render_debut_artist_chart(global_filtered)
 
 
 def show_ai_analyst_page() -> None:
@@ -3584,6 +3731,12 @@ app_pages = [
         title="Debut Report",
         icon=":material/new_releases:",
         url_path="debut-report",
+    ),
+    st.Page(
+        show_debut_artist_page,
+        title="Artist Spotlight",
+        icon=":material/person:",
+        url_path="artist-spotlight",
     ),
     st.Page(
         show_label_analysis_page,
