@@ -1200,7 +1200,7 @@ def render_kpis(leaderboard: pd.DataFrame, runs: pd.DataFrame) -> None:
             details.append(
                 f"<div style='display:flex;justify-content:space-between;gap:1.5rem;padding:4px 0;margin-bottom:4px;'>"
                 f"<span>{escape(str(row['name']))}</span>"
-                f"<span style='color:var(--accent3);font-weight:700;'>#{int(row['rank'])}</span>"
+                f"<span style='color:var(--accent3);font-weight:700;'>{int(row['rank'])}</span>"
                 f"</div>"
             )
 
@@ -1606,7 +1606,7 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
                     "<b>%{y}</b><br>"
                     "iTunes Points: %{x:,.0f}<br>"
                     "Top LATAM market: %{customdata[0]}<br>"
-                    "Current rank: #%{customdata[1]}<extra></extra>"
+                    "Current rank: %{customdata[1]}<extra></extra>"
                 ),
             )
             fig_points.add_vline(
@@ -1825,7 +1825,7 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
 
                 meta_left, meta_right = st.columns(2)
                 with meta_left:
-                    st.markdown(f"**📈 Current Rank:** #{rank_value}")
+                    st.markdown(f"**📈 Current Rank:** {rank_value}")
                     st.markdown(f"**🌍 Top Country:** {safe_text(row.get('display_country'))}")
                 with meta_right:
                     st.markdown(f"**⭐ Total Points:** {fmt_short(row.get('total_points') or 0)}")
@@ -2111,21 +2111,21 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
           <div class='ct-kpi purple'>
             <div class='ct-kpi-lbl'>Current #1</div>
             <div class='ct-kpi-val' style='font-size:18px'>{escape(leader['artist'])}</div>
-            <div class='ct-kpi-sub'>Position #{leader['current']} · best #{leader['best']}</div>
+            <div class='ct-kpi-sub'>Position {leader['current']} · best {leader['best']}</div>
           </div>
           <div class='ct-kpi up'>
             <div class='ct-kpi-lbl'>Biggest riser</div>
             <div class='ct-kpi-val'>{'+' if big_riser['change']>0 else ''}{big_riser['change']}</div>
-            <div class='ct-kpi-sub'>{escape(big_riser['artist'])} · #{big_riser['start']} → #{big_riser['current']}</div>
+            <div class='ct-kpi-sub'>{escape(big_riser['artist'])} · {big_riser['start']} → {big_riser['current']}</div>
           </div>
           <div class='ct-kpi down'>
             <div class='ct-kpi-lbl'>Biggest faller</div>
             <div class='ct-kpi-val'>{big_faller['change']}</div>
-            <div class='ct-kpi-sub'>{escape(big_faller['artist'])} · #{big_faller['start']} → #{big_faller['current']}</div>
+            <div class='ct-kpi-sub'>{escape(big_faller['artist'])} · {big_faller['start']} → {big_faller['current']}</div>
           </div>
           <div class='ct-kpi amber'>
             <div class='ct-kpi-lbl'>Avg position</div>
-            <div class='ct-kpi-val'>#{avg_pos:.1f}</div>
+            <div class='ct-kpi-val'>{avg_pos:.1f}</div>
             <div class='ct-kpi-sub'>across {len(movement_rows)} tracked artists · {time_range}</div>
           </div>
         </div>
@@ -2161,7 +2161,7 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
                     name=artist,
                     fill="tonexty" if idx > 0 else "tozeroy",
                     line=dict(color=color, width=2.5, shape="spline"),
-                    hovertemplate="<b>%{fullData.name}</b><br>%{x|%b %d}: Position #%{y}<extra></extra>",
+                    hovertemplate="<b>%{fullData.name}</b><br>%{x|%b %d}: Position %{y}<extra></extra>",
                 )
             )
         else:
@@ -2173,7 +2173,7 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
                     name=artist,
                     line=dict(color=color, width=2.5, shape="spline"),
                     marker=dict(size=5, color=color, line=dict(width=1, color="#0d1117")),
-                    hovertemplate="<b>%{fullData.name}</b><br>%{x|%b %d}: Position #%{y}<extra></extra>",
+                    hovertemplate="<b>%{fullData.name}</b><br>%{x|%b %d}: Position %{y}<extra></extra>",
                 )
             )
 
@@ -2224,12 +2224,12 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
                     y=best_df_plot["artist"],
                     orientation="h",
                     marker=dict(color=bar_colors, line=dict(width=0)),
-                    text=[f"#{int(v)}" for v in best_df_plot["best_position"]],
+                    text=[f"{int(v)}" for v in best_df_plot["best_position"]],
                     textposition="outside",
                     textfont=dict(color="#fff", size=12),
                     cliponaxis=False,
                     customdata=best_df_plot[["best_position"]].to_numpy(),
-                    hovertemplate="<b>%{y}</b><br>Score: %{x:.0f}<br>Best position: #%{customdata[0]}<extra></extra>",
+                    hovertemplate="<b>%{y}</b><br>Score: %{x:.0f}<br>Best position: %{customdata[0]}<extra></extra>",
                 )
             ]
         )
@@ -2270,9 +2270,9 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
                 trend = "<span style='color:#cdd6e4;font-weight:600'>➡️ Stable</span>"
             rows_html.append(
                 f"<tr><td class='ct-artist'>{escape(r['artist'])}</td>"
-                f"<td class='ct-rank-cell'>#{r['start']}</td>"
-                f"<td class='ct-rank-cell'>#{r['current']}</td>"
-                f"<td class='ct-rank-cell'>#{r['best']}</td>"
+                f"<td class='ct-rank-cell'>{r['start']}</td>"
+                f"<td class='ct-rank-cell'>{r['current']}</td>"
+                f"<td class='ct-rank-cell'>{r['best']}</td>"
                 f"<td>{pill}</td>"
                 f"<td>{trend}</td></tr>"
             )
@@ -2577,7 +2577,7 @@ def render_stream_trends(top_spotify: pd.DataFrame, leaderboard: pd.DataFrame, t
         
         # Format labels and styles
         gl_filtered["movement_label"] = gl_filtered.apply(
-            lambda r: f"#{int(r['start_pos'])} ➔ #{int(r['current_pos'])}" if r['range_change'] != 0 else f"#{int(r['current_pos'])} (No change in {selected_days}d)", axis=1
+            lambda r: f"{int(r['start_pos'])} ➔ {int(r['current_pos'])}" if r['range_change'] != 0 else f"{int(r['current_pos'])} (No change in {selected_days}d)", axis=1
         )
 
         # Calculate context for tooltips
@@ -2614,9 +2614,9 @@ def render_stream_trends(top_spotify: pd.DataFrame, leaderboard: pd.DataFrame, t
                     marker=dict(color=unique_color, line=dict(width=0)),
                     hovertemplate=(
                         f"<b>{row['name']}</b><br>"
-                        f"Peak in {selected_days}d: #{int(row['range_peak'])}<br>"
-                        f"Starting: #{int(row['start_pos'])}<br>"
-                        f"Current: #{int(row['current_pos'])}<br>"
+                        f"Peak in {selected_days}d: {int(row['range_peak'])}<br>"
+                        f"Starting: {int(row['start_pos'])}<br>"
+                        f"Current: {int(row['current_pos'])}<br>"
                         f"Movement: {row['movement_label']}<extra></extra>"
                     ),
                     showlegend=False
@@ -2624,7 +2624,7 @@ def render_stream_trends(top_spotify: pd.DataFrame, leaderboard: pd.DataFrame, t
                 
                 # Label at the end: Show transition Clearly (Pela #X ➔ Have #Y)
                 trend_arrow = "↑" if row["range_change"] > 0 else "↓" if row["range_change"] < 0 else "•"
-                label_text = f" <b>#{int(row['start_pos'])} {trend_arrow} #{int(row['current_pos'])}</b>"
+                label_text = f" <b>{int(row['start_pos'])} {trend_arrow} {int(row['current_pos'])}</b>"
                 
                 fig_move.add_annotation(
                     x=pos_score,
@@ -2946,7 +2946,7 @@ def render_debut_artist_chart(leaderboard: pd.DataFrame) -> None:
                 <h2 class="spotlight-artist-name">{artist_name}</h2>
                 <p class="spotlight-artist-sub">{page_title_val}</p>
                 <div class="spotlight-badges">
-                    <span class="badge badge-new" style="padding: 5px 12px; font-size: .85rem;">#{rank_val}</span>
+                    <span class="badge badge-new" style="padding: 5px 12px; font-size: .85rem;">{rank_val}</span>
                     <span class="badge badge-up" style="padding: 5px 12px; font-size: .85rem;">{display_country}</span>
                     <span class="badge badge-same" style="padding: 5px 12px; font-size: .85rem;">{monthly_val} Monthly</span>
                 </div>
@@ -2954,7 +2954,7 @@ def render_debut_artist_chart(leaderboard: pd.DataFrame) -> None:
         </div>
 
         <div class="spotlight-kpi-grid">
-            <div class="spotlight-kpi"><div class="spotlight-kpi-label">Current Rank</div><div class="spotlight-kpi-value">#{rank_val}</div><div class="spotlight-kpi-note">Latest chart position</div></div>
+            <div class="spotlight-kpi"><div class="spotlight-kpi-label">Current Rank</div><div class="spotlight-kpi-value">{rank_val}</div><div class="spotlight-kpi-note">Latest chart position</div></div>
             <div class="spotlight-kpi"><div class="spotlight-kpi-label">Songs</div><div class="spotlight-kpi-value">{songs_val}</div><div class="spotlight-kpi-note">Catalog tracks</div></div>
             <div class="spotlight-kpi"><div class="spotlight-kpi-label">Albums</div><div class="spotlight-kpi-value">{albums_val}</div><div class="spotlight-kpi-note">Catalog albums</div></div>
             <div class="spotlight-kpi"><div class="spotlight-kpi-label">LATAM Countries</div><div class="spotlight-kpi-value">{countries_val}</div><div class="spotlight-kpi-note">Market presence</div></div>
@@ -3002,7 +3002,7 @@ def render_debut_artist_chart(leaderboard: pd.DataFrame) -> None:
                         <tr><th>Metric</th><th>Value</th></tr>
                     </thead>
                     <tbody>
-                        <tr><td>Rank</td><td>#{rank_val}</td></tr>
+                        <tr><td>Rank</td><td>{rank_val}</td></tr>
                         <tr><td>Monthly Listeners</td><td>{monthly_val}</td></tr>
                         <tr><td>Peak Listeners</td><td>{peak_val}</td></tr>
                         <tr><td>Songs</td><td>{songs_val}</td></tr>
@@ -3695,7 +3695,7 @@ def show_compare_page() -> None:
                 "<div class='cmp-card'>"
                 f"<div class='cmp-artist'>{escape(str(artist_name))}</div>"
                 "<div class='cmp-metric'><span class='cmp-metric-label'>Rank</span>"
-                f"<span class='cmp-metric-value'>#{rank_value}</span></div>"
+                f"<span class='cmp-metric-value'>{rank_value}</span></div>"
                 "<div class='cmp-metric'><span class='cmp-metric-label'>Monthly Listeners</span>"
                 f"<span class='cmp-metric-value'>{escape(monthly_value)}</span></div>"
                 "<div class='cmp-metric'><span class='cmp-metric-label'>Songs</span>"
@@ -3890,7 +3890,7 @@ def show_compare_page() -> None:
                 table_rows.append(
                     "<tr>"
                     f"<td>{escape(str(row.get('name') or '-'))}</td>"
-                    f"<td>#{rank_val}</td>"
+                    f"<td>{rank_val}</td>"
                     f"<td>{escape(monthly_val)}</td>"
                     f"<td>{escape(peak_val)}</td>"
                     f"<td>{songs_val}</td>"
