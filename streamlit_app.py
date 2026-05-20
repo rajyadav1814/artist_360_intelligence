@@ -3676,7 +3676,11 @@ def show_debut_artist_page() -> None:
 def show_ai_analyst_page() -> None:
     page_title, page_meta = PAGE_META["AI Data Analyst"]
     render_header(page_title, page_meta, last_run_label)
-    render_custom_chatbot()
+    # Previously, this page rendered the custom AI chatbot component via render_custom_chatbot().
+    # render_custom_chatbot() provides an interactive chat interface that builds query plans and
+    # displays charts/tables based on natural language questions. Below we embed the external Vercel
+    # chatbot webview directly, preserving the same UI slot while showcasing the hosted version.
+    st_components.iframe("https://artist360-chatbot.vercel.app/", height=900, scrolling=True)
 
 
 def show_pulse_report_page() -> None:
