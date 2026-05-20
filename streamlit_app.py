@@ -1498,54 +1498,63 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
 
         top_streams = leaderboard.dropna(subset=["monthly_listeners"]).nlargest(8, "monthly_listeners").copy()
         if not top_streams.empty:
-            top_streams = top_streams.sort_values("monthly_listeners", ascending=True)
+            top_streams = top_streams.sort_values("monthly_listeners", ascending=False)
             top_streams["listener_label"] = top_streams["monthly_listeners"].apply(fmt_short)
             avg_listeners = top_streams["monthly_listeners"].mean()
 
             fig_bar = px.bar(
                 top_streams,
-                x="monthly_listeners",
-                y="name",
-                orientation="h",
+                x="name",
+                y="monthly_listeners",
+                orientation="v",
                 text="listener_label",
                 color="monthly_listeners",
                 custom_data=["display_country", "rank"],
-                labels={"monthly_listeners": "Monthly listeners", "name": ""},
-                color_continuous_scale=["#22d3ee", "#60a5fa", "#34d399", "#f59e0b"],
+                labels={"monthly_listeners": "Monthly listeners", "name": "Artist"},
+                color_continuous_scale=["#60a5fa", "#4f8ef7", "#7c5cfc", "#22d3a0"],
             )
             fig_bar.update_traces(
                 textposition="outside",
                 cliponaxis=False,
-                marker_line_color="rgba(255,255,255,.22)",
-                marker_line_width=1.1,
-                marker=dict(opacity=0.96),
-                textfont=dict(color="#f8fbff", size=12),
+                marker_line_color="rgba(255,255,255,.15)",
+                marker_line_width=0.8,
+                marker=dict(opacity=0.92, line=dict(width=0.8)),
+                textfont=dict(color="#e0e7ff", size=11, family="Inter, ui-sans-serif, system-ui"),
                 hovertemplate=(
-                    "<b>%{y}</b><br>"
-                    "Monthly listeners: %{x:,.0f}<br>"
-                    "Top LATAM market: %{customdata[0]}<br>"
-                    "Current rank: #%{customdata[1]}<extra></extra>"
+                    "<b>%{x}</b><br>"
+                    "<b>Monthly listeners:</b> %{y:,.0f}<br>"
+                    "<b>Market:</b> %{customdata[0]}<br>"
+                    "<b>Rank:</b> #%{customdata[1]}<extra></extra>"
                 ),
             )
-            fig_bar.add_vline(
-                x=avg_listeners,
+            fig_bar.add_hline(
+                y=avg_listeners,
                 line_dash="dash",
-                line_color="rgba(245,158,11,.95)",
-                line_width=2,
+                line_color="rgba(251,146,60,.8)",
+                line_width=1.8,
                 annotation_text=f"Avg {fmt_short(avg_listeners)}",
-                annotation_position="top left",
-                annotation_font_size=12,
-                annotation_font_color="#fde68a",
+                annotation_position="top right",
+                annotation_font_size=11,
+                annotation_font_color="#fcd34d",
             )
             fig_bar.update_layout(
                 title="Top Artists by Monthly Listeners",
-                coloraxis_showscale=False,
-                xaxis_title="Monthly listeners",
-                xaxis_tickformat="~s",
-                yaxis_title="",
-                yaxis=dict(automargin=True),
+                coloraxis=dict(
+                    colorscale=["#60a5fa", "#4f8ef7", "#7c5cfc", "#22d3a0"],
+                    showscale=False,
+                ),
+                xaxis_title="",
+                yaxis_tickformat="~s",
+                yaxis_title="Monthly listeners",
+                xaxis=dict(automargin=True, tickangle=-15),
                 plot_bgcolor="rgba(8,15,28,.96)",
                 paper_bgcolor="rgba(11,18,32,.98)",
+                font=dict(color="#e0e7ff", family="Inter, ui-sans-serif, system-ui", size=11),
+                hoverlabel=dict(
+                    bgcolor="rgba(8,15,28,.98)",
+                    bordercolor="rgba(79,142,247,.5)",
+                    font=dict(color="#e0e7ff", size=11),
+                ),
             )
             style_figure(fig_bar, 390)
             st.plotly_chart(fig_bar, use_container_width=True, config=PLOTLY_CONFIG)
