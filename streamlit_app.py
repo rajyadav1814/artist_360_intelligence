@@ -3711,7 +3711,6 @@ def show_compare_page() -> None:
         VIZ_PALETTE = ["#60a5fa", "#34d399", "#c4b5fd", "#fcd34d", "#fb7185", "#f9a8d4"]
         cmp_metrics = [
             ("🎧 Monthly Listeners", "monthly_listeners"),
-            ("📈 Peak Listeners",    "peak_listeners"),
             ("🎵 Songs",             "songs_count"),
             ("💿 Albums",            "albums_count"),
             ("🌎 LATAM Countries",   "countries_count"),
@@ -3882,7 +3881,6 @@ def show_compare_page() -> None:
             for _, row in comparison_data.iterrows():
                 rank_val = int(row["rank"]) if pd.notna(row.get("rank")) else "-"
                 monthly_val = fmt_short(row.get("monthly_listeners"))
-                peak_val = fmt_short(row.get("peak_listeners"))
                 songs_val = int(row.get("songs_count")) if pd.notna(row.get("songs_count")) else 0
                 albums_val = int(row.get("albums_count")) if pd.notna(row.get("albums_count")) else 0
                 countries_val = int(row.get("countries_count")) if pd.notna(row.get("countries_count")) else 0
@@ -3892,7 +3890,6 @@ def show_compare_page() -> None:
                     f"<td>{escape(str(row.get('name') or '-'))}</td>"
                     f"<td>{rank_val}</td>"
                     f"<td>{escape(monthly_val)}</td>"
-                    f"<td>{escape(peak_val)}</td>"
                     f"<td>{songs_val}</td>"
                     f"<td>{albums_val}</td>"
                     f"<td>{countries_val}</td>"
@@ -3904,7 +3901,7 @@ def show_compare_page() -> None:
                 "<div class='cmp-table-wrap'>"
                 "<table class='cmp-table'>"
                 "<thead><tr>"
-                "<th>Artist</th><th>Rank</th><th>Monthly Listeners</th><th>Peak Listeners</th>"
+                "<th>Artist</th><th>Rank</th><th>Monthly Listeners</th>"
                 "<th>Songs</th><th>Albums</th><th>LATAM Countries</th><th>Top Song</th>"
                 "</tr></thead>"
                 f"<tbody>{''.join(table_rows)}</tbody>"
