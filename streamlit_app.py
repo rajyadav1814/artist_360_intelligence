@@ -217,18 +217,18 @@ def apply_theme() -> None:
             right:3.25rem; color:var(--text); font-size:1.15rem; font-weight:800;
             letter-spacing:.2px; line-height:1.15;
         }
-        [data-testid="stSidebarNav"] { padding-top:.6rem; }
+        [data-testid="stSidebarNav"] { padding-top:.75rem; }
         /* Sidebar nav: align icons and labels on a single baseline */
         [data-testid="stSidebarNav"] ul { padding-left: 0 !important; margin: 0 !important; }
         [data-testid="stSidebarNav"] li { list-style: none !important; margin: 0 !important; padding: 0 !important; }
         [data-testid="stSidebarNav"] a {
             display: flex !important;
             align-items: center !important;
-            gap: 12px !important;
-            padding: 8px 12px !important;
-            border-radius: 10px !important;
+            gap: 14px !important;
+            padding: 11px 16px !important;
+            border-radius: 12px !important;
             line-height: 1 !important;
-            min-height: 38px !important;
+            min-height: 46px !important;
             color: var(--text) !important;
             text-decoration: none !important;
             transition: all 0.2s ease !important;
@@ -248,9 +248,9 @@ def apply_theme() -> None:
             display: inline-flex !important;
             align-items: center !important;
             justify-content: center !important;
-            width: 22px !important;
-            height: 22px !important;
-            font-size: 20px !important;
+            width: 26px !important;
+            height: 26px !important;
+            font-size: 22px !important;
             line-height: 1 !important;
             flex-shrink: 0 !important;
             margin: 0 !important;
@@ -261,11 +261,11 @@ def apply_theme() -> None:
         [data-testid="stSidebarNav"] a p {
             display: inline-flex !important;
             align-items: center !important;
-            line-height: 1.15 !important;
+            line-height: 1.2 !important;
             margin: 0 !important;
             padding: 0 !important;
-            font-size: 14px !important;
-            font-weight: 600 !important;
+            font-size: 16px !important;
+            font-weight: 650 !important;
             color: inherit !important;
         }
         [data-testid="stSidebarNav"] a svg {
