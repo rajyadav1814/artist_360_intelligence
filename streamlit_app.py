@@ -269,6 +269,37 @@ def apply_theme() -> None:
         }
         .page-title { font-size:2rem; font-weight:800; letter-spacing:-.03em; margin-bottom:.25rem; }
         .page-meta { color:var(--text2); font-size:.95rem; margin-bottom:1rem; }
+        .page-header-box {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 1rem;
+            flex-wrap: wrap;
+            margin-bottom: 1rem;
+            padding: 1.15rem 1.25rem;
+            border-radius: 16px;
+            border: 1px solid rgba(79,142,247,.28);
+            background: linear-gradient(120deg, rgba(7,14,28,.92) 0%, rgba(9,18,36,.96) 62%, rgba(12,41,58,.88) 100%);
+            box-shadow: 0 18px 42px rgba(0,0,0,.24), inset 0 1px 0 rgba(255,255,255,.03);
+            position: relative;
+            overflow: hidden;
+        }
+        .page-header-box::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(90deg, rgba(79,142,247,.07), rgba(34,211,160,.06));
+            pointer-events: none;
+        }
+        .page-header-content {
+            min-width: 320px;
+            position: relative;
+            z-index: 1;
+        }
+        .page-header-badge {
+            position: relative;
+            z-index: 1;
+        }
         
         .dashboard-card:hover {
             box-shadow:0 18px 42px rgba(0,0,0,.35);
@@ -1095,16 +1126,16 @@ def style_figure(fig, height: int) -> None:
 def render_header(title: str, meta: str, last_run_label: str) -> None:
     st.markdown(
         f"""
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; gap: 1rem; flex-wrap: wrap;">
-            <div style="min-width: 320px;">
+        <section class="page-header-box">
+            <div class="page-header-content">
                 <div class='page-title' style='animation: slideIn 0.5s ease-out;'>{escape(title)}</div>
                 <div class='page-meta'>{escape(meta)} · Last run: {escape(last_run_label)}</div>
             </div>
-            <div class="live-indicator">
+            <div class="live-indicator page-header-badge">
                 <span class="live-dot"></span>
                 LIVE
             </div>
-        </div>
+        </section>
         """,
         unsafe_allow_html=True,
     )
@@ -1463,25 +1494,6 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
         [data-testid="column"]:nth-child(2) > div:first-child { padding-top: 0 !important; margin-top: 0 !important; }
         [data-testid="column"]:nth-child(2) .element-container:first-of-type { margin-top: 0 !important; }
         </style>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    # ── Hero header ───────────────────────────────────────
-    st.markdown(
-        f"""
-        <div class="lb-hero">
-          <div class="lb-hero-eyebrow">
-            <span class="lb-hero-dot"></span>
-            Chromadata · Artist 360° Leaderboard
-          </div>
-          <div class="lb-hero-title">Artist 360° Leaderboard</div>
-          <div class="lb-hero-sub">
-            Tracking <b>{total_artists:,}</b> artists across <b>{len(top_markets)}</b> Latin American markets
-            &nbsp;·&nbsp; Avg reach <b>{escape(str(avg_listeners))}</b> listeners
-            &nbsp;·&nbsp; Currently #1: <b>{escape(top_artist_name)}</b>
-          </div>
-        </div>
         """,
         unsafe_allow_html=True,
     )
