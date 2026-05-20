@@ -2004,18 +2004,6 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
 
     unique_runs = int(history["scraped_at"].nunique()) if not history.empty else 0
 
-    # ── Hero header + filter controls ────────────────────────────────
-    st.markdown(
-        f"""
-        <div class='ct-hero'>
-            <div class='ct-tag'><span class='ct-live'></span>Chromadata · Position Intelligence</div>
-            <div class='ct-title'>📈 Chart Tracker</div>
-            <div class='ct-sub'>Position movement for the current top {TRACKER_TOP_ARTISTS} artists in the latest snapshot</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
     col1, col2 = st.columns([1, 1])
     with col1:
         time_range = st.selectbox("📅 Time Range", ["7 days", "14 days", "30 days"], index=1, key="ct_range")
@@ -3569,7 +3557,6 @@ def show_leaderboard_page() -> None:
 
 def show_compare_page() -> None:
     render_header("Compare", "Compare leaderboard artists side by side.", last_run_label)
-    st.markdown("### 🔄 Artist Comparison")
     st.info("Select 2-5 artists to compare their leaderboard metrics.")
 
     available_artists = leaderboard["name"].dropna().tolist()[:20]
