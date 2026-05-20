@@ -3944,7 +3944,23 @@ def show_ai_analyst_page() -> None:
     # render_custom_chatbot() provides an interactive chat interface that builds query plans and
     # displays charts/tables based on natural language questions. Below we embed the external Vercel
     # chatbot webview directly, preserving the same UI slot while showcasing the hosted version.
-    st_components.iframe("https://artist360-chatbot.vercel.app/", height=900, scrolling=True)
+    st.markdown(
+        """
+        <style>
+        /* Disable scrolling on the main Streamlit app for this specific page */
+        .stApp, .main {
+            overflow: hidden !important;
+        }
+        .stMainBlockContainer {
+            padding-top: 0px !important;
+            padding-bottom: 0px !important;
+            max-width: 100% !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+    st_components.iframe("https://artist360-chatbot.vercel.app/", height=1000, scrolling=False)
 
 
 def show_pulse_report_page() -> None:
@@ -4134,7 +4150,8 @@ with st.sidebar:
     
 
 current_page.run()
-render_footer()
+if current_page.url_path != "ai-data-analyst":
+    render_footer()
 
 # Auto-refresh functionality
 if st.session_state.auto_refresh:
