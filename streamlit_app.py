@@ -3557,7 +3557,113 @@ def show_leaderboard_page() -> None:
 
 def show_compare_page() -> None:
     render_header("Compare", "Compare leaderboard artists side by side.", last_run_label)
-    st.info("Select 2-5 artists to compare their leaderboard metrics.")
+    st.markdown(
+        """
+        <style>
+        .cmp-note {
+            margin-bottom: 0.9rem;
+            padding: 0.75rem 0.9rem;
+            border-radius: 12px;
+            border: 1px solid rgba(79,142,247,.35);
+            background: rgba(79,142,247,.12);
+            color: var(--text);
+            font-size: 0.9rem;
+            font-weight: 600;
+        }
+        .cmp-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 0.85rem;
+            margin: 0.75rem 0 1rem;
+        }
+        .cmp-card {
+            background: linear-gradient(180deg, rgba(17,26,46,.95), rgba(11,18,32,.98));
+            border: 1px solid rgba(79,142,247,.26);
+            border-radius: 14px;
+            padding: 0.9rem 1rem;
+            box-shadow: 0 12px 26px rgba(0,0,0,.2);
+        }
+        .cmp-artist {
+            color: #ffffff;
+            font-size: 1rem;
+            font-weight: 800;
+            margin-bottom: 0.6rem;
+            letter-spacing: .01em;
+        }
+        .cmp-metric {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 0.5rem;
+            padding: 0.3rem 0;
+            border-bottom: 1px solid rgba(148,163,184,.16);
+            font-size: 0.84rem;
+        }
+        .cmp-metric:last-child {
+            border-bottom: none;
+            padding-bottom: 0;
+        }
+        .cmp-metric-label {
+            color: var(--text2);
+            font-weight: 600;
+        }
+        .cmp-metric-value {
+            color: var(--text);
+            font-weight: 800;
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+        }
+        .cmp-title {
+            margin: 0.5rem 0 0.75rem;
+            font-size: 1.02rem;
+            font-weight: 800;
+            color: var(--text);
+        }
+        .cmp-table-wrap {
+            margin-top: 0.65rem;
+            border: 1px solid rgba(79,142,247,.22);
+            border-radius: 12px;
+            overflow-x: auto;
+            background: rgba(11,18,32,.75);
+        }
+        .cmp-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.88rem;
+        }
+        .cmp-table th {
+            text-align: left;
+            padding: 0.66rem 0.74rem;
+            color: var(--text2);
+            letter-spacing: .06em;
+            text-transform: uppercase;
+            font-size: .7rem;
+            border-bottom: 1px solid rgba(148,163,184,.2);
+            background: rgba(8,15,28,.96);
+        }
+        .cmp-table td {
+            padding: 0.6rem 0.74rem;
+            border-bottom: 1px solid rgba(148,163,184,.12);
+            color: var(--text);
+            vertical-align: top;
+        }
+        .cmp-table tr:last-child td {
+            border-bottom: none;
+        }
+        .cmp-warning {
+            margin-top: 0.8rem;
+            border: 1px solid rgba(245,166,35,.45);
+            background: rgba(245,166,35,.14);
+            color: #ffe6b1;
+            border-radius: 12px;
+            padding: 0.72rem 0.88rem;
+            font-size: 0.88rem;
+            font-weight: 600;
+        }
+        </style>
+        <div class='cmp-note'>Select 2-5 artists to compare their leaderboard metrics.</div>
+        """,
+        unsafe_allow_html=True,
+    )
 
     available_artists = leaderboard["name"].dropna().tolist()[:20]
     selected_for_comparison = st.multiselect(
@@ -3573,84 +3679,244 @@ def show_compare_page() -> None:
         comparison_data = comparison_data.sort_values("rank")
         comparison_data["monthly_label"] = comparison_data["monthly_listeners"].apply(fmt_short)
 
-        comp_cols = st.columns(len(selected_for_comparison))
-        for idx, (col, artist_name) in enumerate(zip(comp_cols, selected_for_comparison)):
-            artist_data = comparison_data[comparison_data["name"] == artist_name].iloc[0]
-            with col:
-                st.markdown(f"#### {artist_name}")
-                st.metric("Rank", f"#{int(artist_data['rank'])}")
-                st.metric("Monthly Listeners", fmt_short(artist_data.get('monthly_listeners', 0)))
-                songs_count = artist_data.get('songs_count', 0)
-                st.metric("Songs", int(songs_count) if pd.notna(songs_count) else 0)
-                countries_count = artist_data.get('countries_count', 0)
-                st.metric("LATAM Countries", int(countries_count) if pd.notna(countries_count) else 0)
+        metric_cards: list[str] = []
+        for artist_name in selected_for_comparison:
+            artist_slice = comparison_data[comparison_data["name"] == artist_name]
+            if artist_slice.empty:
+                continue
+            artist_data = artist_slice.iloc[0]
 
-        st.markdown("#### 📊 Visual Comparison")
-        comp_col1, comp_col2 = st.columns(2, gap="large")
+            rank_value = int(artist_data["rank"]) if pd.notna(artist_data.get("rank")) else "-"
+            monthly_value = fmt_short(artist_data.get("monthly_listeners", 0))
+            songs_count = artist_data.get("songs_count", 0)
+            countries_count = artist_data.get("countries_count", 0)
+
+            metric_cards.append(
+                "<div class='cmp-card'>"
+                f"<div class='cmp-artist'>{escape(str(artist_name))}</div>"
+                "<div class='cmp-metric'><span class='cmp-metric-label'>Rank</span>"
+                f"<span class='cmp-metric-value'>#{rank_value}</span></div>"
+                "<div class='cmp-metric'><span class='cmp-metric-label'>Monthly Listeners</span>"
+                f"<span class='cmp-metric-value'>{escape(monthly_value)}</span></div>"
+                "<div class='cmp-metric'><span class='cmp-metric-label'>Songs</span>"
+                f"<span class='cmp-metric-value'>{int(songs_count) if pd.notna(songs_count) else 0}</span></div>"
+                "<div class='cmp-metric'><span class='cmp-metric-label'>LATAM Countries</span>"
+                f"<span class='cmp-metric-value'>{int(countries_count) if pd.notna(countries_count) else 0}</span></div>"
+                "</div>"
+            )
+
+        st.markdown(f"<div class='cmp-grid'>{''.join(metric_cards)}</div>", unsafe_allow_html=True)
+
+        # ── Head-to-head HTML comparison bars ─────────────────────────────
+        VIZ_PALETTE = ["#60a5fa", "#34d399", "#c4b5fd", "#fcd34d", "#fb7185", "#f9a8d4"]
+        cmp_metrics = [
+            ("🎧 Monthly Listeners", "monthly_listeners"),
+            ("📈 Peak Listeners",    "peak_listeners"),
+            ("🎵 Songs",             "songs_count"),
+            ("💿 Albums",            "albums_count"),
+            ("🌎 LATAM Countries",   "countries_count"),
+            ("⭐ Total Points",      "total_points"),
+        ]
+
+        hth_rows = ""
+        for label, col in cmp_metrics:
+            vals = []
+            for aname in selected_for_comparison:
+                sl = comparison_data[comparison_data["name"] == aname]
+                v = float(sl.iloc[0][col]) if not sl.empty and pd.notna(sl.iloc[0].get(col)) else 0.0
+                vals.append(v)
+            max_val = max(vals) if any(v > 0 for v in vals) else 1
+            bars_html = ""
+            for idx_a, (aname, v) in enumerate(zip(selected_for_comparison, vals)):
+                pct = (v / max_val * 100) if max_val > 0 else 0
+                color = VIZ_PALETTE[idx_a % len(VIZ_PALETTE)]
+                display_v = fmt_short(v) if col not in ("songs_count", "albums_count", "countries_count") else str(int(v))
+                is_best = v == max_val and max_val > 0
+                crown = " 👑" if is_best else ""
+                bars_html += (
+                    f"<div style='margin-bottom:6px;'>"
+                    f"<div style='display:flex;justify-content:space-between;font-size:.78rem;margin-bottom:3px;'>"
+                    f"<span style='color:#cdd6e4;font-weight:600;'>{escape(str(aname))}{crown}</span>"
+                    f"<span style='color:{color};font-weight:800;font-variant-numeric:tabular-nums;'>{display_v}</span>"
+                    f"</div>"
+                    f"<div style='height:10px;border-radius:999px;background:rgba(255,255,255,.07);overflow:hidden;'>"
+                    f"<div style='height:100%;width:{pct:.1f}%;border-radius:999px;"
+                    f"background:linear-gradient(90deg,{color}cc,{color});transition:width 1s ease;'></div>"
+                    f"</div></div>"
+                )
+            hth_rows += (
+                f"<div style='background:rgba(17,26,46,.85);border:1px solid rgba(79,142,247,.18);"
+                f"border-radius:12px;padding:0.75rem 0.9rem;'>"
+                f"<div style='font-size:.8rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;"
+                f"color:#8b95ad;margin-bottom:0.55rem;'>{label}</div>"
+                f"{bars_html}</div>"
+            )
+
+        st.markdown(
+            f"""
+            <div style='margin:0.5rem 0 1.25rem;'>
+                <div style='font-size:1.05rem;font-weight:800;color:#fff;
+                    letter-spacing:-.01em;margin-bottom:0.75rem;display:flex;
+                    align-items:center;gap:0.5rem;'>
+                    ⚡ Head-to-Head Breakdown
+                    <span style='font-size:.72rem;font-weight:700;letter-spacing:.1em;
+                        text-transform:uppercase;color:#8b95ad;background:rgba(148,163,184,.1);
+                        border:1px solid rgba(148,163,184,.2);padding:3px 10px;border-radius:999px;'>
+                        All metrics
+                    </span>
+                </div>
+                <div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:0.75rem;'>
+                    {hth_rows}
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        # ── 3 Plotly charts: Listeners · Countries · Points ─────────────
+        st.markdown(
+            "<div style='font-size:1.05rem;font-weight:800;color:#fff;margin:0.25rem 0 0.85rem;"
+            "letter-spacing:-.01em;'>📊 Visual Comparison</div>",
+            unsafe_allow_html=True,
+        )
+        comp_col1, comp_col2, comp_col3 = st.columns(3, gap="medium")
 
         with comp_col1:
-            fig_comp_listeners = px.bar(
-                comparison_data,
-                x="name",
-                y="monthly_listeners",
-                text="monthly_label",
-                title="Monthly Listeners Comparison",
-                labels={'monthly_listeners': 'Monthly Listeners', 'name': 'Artist'},
-                color_discrete_sequence=CHART_COLORS
-            )
-            fig_comp_listeners.update_traces(
-                marker_color=CHART_COLORS[0],
-                textposition="outside",
-                cliponaxis=False,
-                hovertemplate="<b>%{x}</b><br>Monthly listeners: %{y:,.0f}<extra></extra>",
-            )
+            fig_comp_listeners = go.Figure()
+            for idx_a, aname in enumerate(selected_for_comparison):
+                sl = comparison_data[comparison_data["name"] == aname]
+                if sl.empty:
+                    continue
+                v = float(sl.iloc[0].get("monthly_listeners") or 0)
+                color = VIZ_PALETTE[idx_a % len(VIZ_PALETTE)]
+                fig_comp_listeners.add_trace(go.Bar(
+                    name=aname,
+                    x=[aname],
+                    y=[v],
+                    marker=dict(
+                        color=color,
+                        opacity=0.92,
+                        line=dict(width=0),
+                    ),
+                    text=[fmt_short(v)],
+                    textposition="outside",
+                    cliponaxis=False,
+                    textfont=dict(color="#e0e7ff", size=12, family="Inter, ui-sans-serif"),
+                    hovertemplate=f"<b>{escape(str(aname))}</b><br>Monthly listeners: %{{y:,.0f}}<extra></extra>",
+                ))
             fig_comp_listeners.update_layout(
+                title=dict(text="🎧 Monthly Listeners", font=dict(size=15, color="#fff"), x=0.03),
                 showlegend=False,
                 xaxis_title="",
-                yaxis_title="Monthly listeners",
-                margin=dict(l=8, r=8, t=64, b=8),
+                yaxis_title="",
+                margin=dict(l=8, r=8, t=56, b=8),
+                bargap=0.35,
             )
             fig_comp_listeners.update_yaxes(tickformat="~s")
-            style_figure(fig_comp_listeners, 300)
+            style_figure(fig_comp_listeners, 310)
             st.plotly_chart(fig_comp_listeners, use_container_width=True, config=PLOTLY_CONFIG)
 
         with comp_col2:
-            fig_comp_reach = px.bar(
-                comparison_data,
-                x="name",
-                y="countries_count",
-                text="countries_count",
-                title="LATAM Country Reach",
-                labels={'countries_count': 'Countries', 'name': 'Artist'},
-                color_discrete_sequence=CHART_COLORS
-            )
-            fig_comp_reach.update_traces(
-                marker_color=CHART_COLORS[1],
-                textposition="outside",
-                cliponaxis=False,
-                hovertemplate="<b>%{x}</b><br>LATAM countries: %{y}<extra></extra>",
-            )
+            fig_comp_reach = go.Figure()
+            for idx_a, aname in enumerate(selected_for_comparison):
+                sl = comparison_data[comparison_data["name"] == aname]
+                if sl.empty:
+                    continue
+                v = int(sl.iloc[0].get("countries_count") or 0)
+                color = VIZ_PALETTE[idx_a % len(VIZ_PALETTE)]
+                fig_comp_reach.add_trace(go.Bar(
+                    name=aname,
+                    x=[aname],
+                    y=[v],
+                    marker=dict(color=color, opacity=0.92, line=dict(width=0)),
+                    text=[str(v)],
+                    textposition="outside",
+                    cliponaxis=False,
+                    textfont=dict(color="#e0e7ff", size=12),
+                    hovertemplate=f"<b>{escape(str(aname))}</b><br>LATAM countries: %{{y}}<extra></extra>",
+                ))
             fig_comp_reach.update_layout(
+                title=dict(text="🌎 LATAM Country Reach", font=dict(size=15, color="#fff"), x=0.03),
                 showlegend=False,
                 xaxis_title="",
-                yaxis_title="Countries",
-                margin=dict(l=8, r=8, t=64, b=8),
+                yaxis_title="",
+                margin=dict(l=8, r=8, t=56, b=8),
+                bargap=0.35,
             )
-            style_figure(fig_comp_reach, 300)
+            style_figure(fig_comp_reach, 310)
             st.plotly_chart(fig_comp_reach, use_container_width=True, config=PLOTLY_CONFIG)
 
+        with comp_col3:
+            fig_comp_points = go.Figure()
+            for idx_a, aname in enumerate(selected_for_comparison):
+                sl = comparison_data[comparison_data["name"] == aname]
+                if sl.empty:
+                    continue
+                v = float(sl.iloc[0].get("total_points") or 0)
+                color = VIZ_PALETTE[idx_a % len(VIZ_PALETTE)]
+                fig_comp_points.add_trace(go.Bar(
+                    name=aname,
+                    x=[aname],
+                    y=[v],
+                    marker=dict(color=color, opacity=0.92, line=dict(width=0)),
+                    text=[fmt_short(v)],
+                    textposition="outside",
+                    cliponaxis=False,
+                    textfont=dict(color="#e0e7ff", size=12),
+                    hovertemplate=f"<b>{escape(str(aname))}</b><br>Total points: %{{y:,.0f}}<extra></extra>",
+                ))
+            fig_comp_points.update_layout(
+                title=dict(text="⭐ Total Points", font=dict(size=15, color="#fff"), x=0.03),
+                showlegend=False,
+                xaxis_title="",
+                yaxis_title="",
+                margin=dict(l=8, r=8, t=56, b=8),
+                bargap=0.35,
+            )
+            fig_comp_points.update_yaxes(tickformat="~s")
+            style_figure(fig_comp_points, 310)
+            st.plotly_chart(fig_comp_points, use_container_width=True, config=PLOTLY_CONFIG)
+
         with st.expander("📋 View Detailed Comparison Table"):
-            comp_table = comparison_data[[
-                'name', 'rank', 'monthly_listeners', 'peak_listeners',
-                'songs_count', 'albums_count', 'countries_count', 'top_song'
-            ]].copy()
-            comp_table.columns = [
-                'Artist', 'Rank', 'Monthly Listeners', 'Peak Listeners',
-                'Songs', 'Albums', 'LATAM Countries', 'Top Song'
-            ]
-            st.dataframe(comp_table, use_container_width=True, hide_index=True)
+            table_rows: list[str] = []
+            for _, row in comparison_data.iterrows():
+                rank_val = int(row["rank"]) if pd.notna(row.get("rank")) else "-"
+                monthly_val = fmt_short(row.get("monthly_listeners"))
+                peak_val = fmt_short(row.get("peak_listeners"))
+                songs_val = int(row.get("songs_count")) if pd.notna(row.get("songs_count")) else 0
+                albums_val = int(row.get("albums_count")) if pd.notna(row.get("albums_count")) else 0
+                countries_val = int(row.get("countries_count")) if pd.notna(row.get("countries_count")) else 0
+                top_song_val = str(row.get("top_song") or "-")
+                table_rows.append(
+                    "<tr>"
+                    f"<td>{escape(str(row.get('name') or '-'))}</td>"
+                    f"<td>#{rank_val}</td>"
+                    f"<td>{escape(monthly_val)}</td>"
+                    f"<td>{escape(peak_val)}</td>"
+                    f"<td>{songs_val}</td>"
+                    f"<td>{albums_val}</td>"
+                    f"<td>{countries_val}</td>"
+                    f"<td>{escape(top_song_val)}</td>"
+                    "</tr>"
+                )
+
+            st.markdown(
+                "<div class='cmp-table-wrap'>"
+                "<table class='cmp-table'>"
+                "<thead><tr>"
+                "<th>Artist</th><th>Rank</th><th>Monthly Listeners</th><th>Peak Listeners</th>"
+                "<th>Songs</th><th>Albums</th><th>LATAM Countries</th><th>Top Song</th>"
+                "</tr></thead>"
+                f"<tbody>{''.join(table_rows)}</tbody>"
+                "</table>"
+                "</div>",
+                unsafe_allow_html=True,
+            )
     else:
-        st.warning("Please select at least 2 artists to compare")
+        st.markdown(
+            "<div class='cmp-warning'>Please select at least 2 artists to compare.</div>",
+            unsafe_allow_html=True,
+        )
 
 
 def show_chart_tracker_page() -> None:
@@ -3674,8 +3940,6 @@ def show_debut_artist_page() -> None:
 
 
 def show_ai_analyst_page() -> None:
-    page_title, page_meta = PAGE_META["AI Data Analyst"]
-    render_header(page_title, page_meta, last_run_label)
     # Previously, this page rendered the custom AI chatbot component via render_custom_chatbot().
     # render_custom_chatbot() provides an interactive chat interface that builds query plans and
     # displays charts/tables based on natural language questions. Below we embed the external Vercel
