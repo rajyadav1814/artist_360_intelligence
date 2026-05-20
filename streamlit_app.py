@@ -23,7 +23,7 @@ from skeleton import render_dashboard_skeleton
 
 
 st.set_page_config(
-    page_title="Artist 360 Intelligence",
+    page_title="Artist 360° Intelligence",
     page_icon="🎵",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -39,7 +39,7 @@ if "show_advanced" not in st.session_state:
 
 PAGE_META = {
     "Leaderboard": (
-        "Artist 360 Leaderboard",
+        "Artist 360° Leaderboard",
         "Top Latin artists ranked by iTunes performance, Spotify reach, and global footprint",
     ),
     # "Artist Spotlight": (
@@ -97,9 +97,9 @@ def apply_theme() -> None:
         """
         <style>
         :root {
-            --bg:#070b16; --surface:#12182a; --surface2:#1a2238; --surface3:#202947;
-            --border:#293455; --accent:#4f8ef7; --accent2:#7c5cfc; --accent3:#22d3a0;
-            --warn:#f5a623; --danger:#e84545; --text:#eef2ff; --text2:#97a3c5;
+            --bg:#050816; --surface:#0b1220; --surface2:#111a2e; --surface3:#17233a;
+            --border:#23314f; --accent:#22d3ee; --accent2:#34d399; --accent3:#f59e0b;
+            --warn:#fbbf24; --danger:#fb7185; --text:#f8fbff; --text2:#a2b0d0;
         }
         
         /* Smooth animations */
@@ -121,7 +121,10 @@ def apply_theme() -> None:
         }
         
         .stApp { 
-            background:linear-gradient(180deg,#060a15 0%,#091127 100%); 
+            background:
+                radial-gradient(circle at top left, rgba(34,211,238,.16), transparent 26%),
+                radial-gradient(circle at top right, rgba(52,211,153,.13), transparent 24%),
+                linear-gradient(180deg,#050816 0%,#081322 52%,#07111f 100%); 
             color:var(--text);
             animation: fadeIn 0.6s ease-out;
         }
@@ -166,7 +169,7 @@ def apply_theme() -> None:
             box-shadow:0 10px 24px rgba(79,142,247,.28);
         }
         [data-testid="stSidebarHeader"]::after {
-            content:"Artist 360 Intelligence";
+            content:"Artist 360° Intelligence";
             position:absolute; left:4.25rem; top:1.35rem;
             right:3.25rem; color:var(--text); font-size:1.15rem; font-weight:800;
             letter-spacing:.2px; line-height:1.15;
@@ -277,12 +280,12 @@ def apply_theme() -> None:
         }
         .section-sub { color:var(--text2); font-size:.82rem; margin-bottom:1rem; }
         .dashboard-card {
-            background: var(--surface2);
+            background: linear-gradient(180deg, rgba(17,26,46,.96), rgba(11,18,32,.98));
             border: 1px solid var(--border);
             border-radius: 18px;
             padding: 1rem 1.15rem;
             transition: all 0.25s ease;
-            box-shadow: 0 18px 36px rgba(0,0,0,.12);
+            box-shadow: 0 20px 42px rgba(0,0,0,.18);
             margin-bottom: 1.5rem;
         }
         .dashboard-card a {
@@ -308,9 +311,9 @@ def apply_theme() -> None:
             padding:.75rem .85rem; border-bottom:1px solid rgba(41,52,85,.72); vertical-align:middle;
         }
         .leader-table tbody tr:hover { 
-            background:rgba(79,142,247,.08); 
+            background:rgba(34,211,238,.08); 
             transform: scale(1.004);
-            box-shadow: 0 8px 20px rgba(79,142,247,.08);
+            box-shadow: 0 8px 20px rgba(34,211,238,.08);
         }
         .leader-table tbody tr {
             transition: all 0.18s ease;
@@ -1059,27 +1062,31 @@ def style_figure(fig, height: int) -> None:
         template="plotly_dark",
         height=max(280, int(height)),
         autosize=True,
-        margin=dict(l=0, r=0, t=56, b=0, pad=0),
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(color="#e8eaf6"),
+        margin=dict(l=0, r=18, t=62, b=0, pad=0),
+        paper_bgcolor="rgba(11,18,32,.98)",
+        plot_bgcolor="rgba(8,15,28,.96)",
+        font=dict(color="#f8fbff", family="Inter, ui-sans-serif, system-ui"),
         legend_title_text="",
-        title=dict(x=0.03, xanchor="left", font=dict(size=16, color="#eef2ff")),
+        title=dict(x=0.03, xanchor="left", font=dict(size=16, color="#f8fbff")),
         hoverlabel=dict(
-            bgcolor="rgba(9,17,39,.96)",
-            bordercolor="rgba(79,142,247,.45)",
-            font=dict(color="#eef2ff"),
+            bgcolor="rgba(8,15,28,.98)",
+            bordercolor="rgba(34,211,238,.45)",
+            font=dict(color="#f8fbff"),
         ),
     )
     fig.update_xaxes(
-        gridcolor="rgba(151,163,197,.12)",
-        zerolinecolor="rgba(151,163,197,.12)",
+        gridcolor="rgba(162,176,208,.14)",
+        zerolinecolor="rgba(162,176,208,.12)",
+        linecolor="rgba(162,176,208,.22)",
+        tickcolor="rgba(162,176,208,.22)",
         tickfont=dict(size=11),
         title_font=dict(size=12),
     )
     fig.update_yaxes(
-        gridcolor="rgba(151,163,197,.12)",
-        zerolinecolor="rgba(151,163,197,.12)",
+        gridcolor="rgba(162,176,208,.10)",
+        zerolinecolor="rgba(162,176,208,.10)",
+        linecolor="rgba(162,176,208,.22)",
+        tickcolor="rgba(162,176,208,.22)",
         tickfont=dict(size=11),
         title_font=dict(size=12),
     )
@@ -1466,9 +1473,9 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
         <div class="lb-hero">
           <div class="lb-hero-eyebrow">
             <span class="lb-hero-dot"></span>
-            Chromadata · Artist 360 Leaderboard
+            Chromadata · Artist 360° Leaderboard
           </div>
-          <div class="lb-hero-title">Artist Leaderboard</div>
+          <div class="lb-hero-title">Artist 360° Leaderboard</div>
           <div class="lb-hero-sub">
             Tracking <b>{total_artists:,}</b> artists across <b>{len(top_markets)}</b> Latin American markets
             &nbsp;·&nbsp; Avg reach <b>{escape(str(avg_listeners))}</b> listeners
@@ -1504,13 +1511,15 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
                 color="monthly_listeners",
                 custom_data=["display_country", "rank"],
                 labels={"monthly_listeners": "Monthly listeners", "name": ""},
-                color_continuous_scale=["#60a5fa", "#c4b5fd", "#34d399"],
+                color_continuous_scale=["#22d3ee", "#60a5fa", "#34d399", "#f59e0b"],
             )
             fig_bar.update_traces(
                 textposition="outside",
                 cliponaxis=False,
-                marker_line_color="rgba(255,255,255,.18)",
+                marker_line_color="rgba(255,255,255,.22)",
                 marker_line_width=1.1,
+                marker=dict(opacity=0.96),
+                textfont=dict(color="#f8fbff", size=12),
                 hovertemplate=(
                     "<b>%{y}</b><br>"
                     "Monthly listeners: %{x:,.0f}<br>"
@@ -1521,9 +1530,12 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
             fig_bar.add_vline(
                 x=avg_listeners,
                 line_dash="dash",
-                line_color="rgba(245,166,35,.9)",
+                line_color="rgba(245,158,11,.95)",
+                line_width=2,
                 annotation_text=f"Avg {fmt_short(avg_listeners)}",
                 annotation_position="top left",
+                annotation_font_size=12,
+                annotation_font_color="#fde68a",
             )
             fig_bar.update_layout(
                 title="Top Artists by Monthly Listeners",
@@ -1531,6 +1543,9 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
                 xaxis_title="Monthly listeners",
                 xaxis_tickformat="~s",
                 yaxis_title="",
+                yaxis=dict(automargin=True),
+                plot_bgcolor="rgba(8,15,28,.96)",
+                paper_bgcolor="rgba(11,18,32,.98)",
             )
             style_figure(fig_bar, 390)
             st.plotly_chart(fig_bar, use_container_width=True, config=PLOTLY_CONFIG)
@@ -1553,13 +1568,15 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
                 color="total_points",
                 custom_data=["display_country", "rank"],
                 labels={"total_points": "iTunes Points", "name": ""},
-                color_continuous_scale=["#c4b5fd", "#60a5fa", "#f9a8d4"],
+                color_continuous_scale=["#a78bfa", "#22d3ee", "#34d399", "#f59e0b"],
             )
             fig_points.update_traces(
                 textposition="outside",
                 cliponaxis=False,
-                marker_line_color="rgba(255,255,255,.18)",
+                marker_line_color="rgba(255,255,255,.22)",
                 marker_line_width=1.1,
+                marker=dict(opacity=0.96),
+                textfont=dict(color="#f8fbff", size=12),
                 hovertemplate=(
                     "<b>%{y}</b><br>"
                     "iTunes Points: %{x:,.0f}<br>"
@@ -1570,9 +1587,12 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
             fig_points.add_vline(
                 x=avg_points,
                 line_dash="dash",
-                line_color="rgba(245,166,35,.9)",
+                line_color="rgba(245,158,11,.95)",
+                line_width=2,
                 annotation_text=f"Avg {fmt_short(avg_points)}",
                 annotation_position="top left",
+                annotation_font_size=12,
+                annotation_font_color="#fde68a",
             )
             fig_points.update_layout(
                 title="Top Artists by iTunes Points",
@@ -1580,6 +1600,9 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
                 xaxis_title="iTunes Points",
                 xaxis_tickformat="~s",
                 yaxis_title="",
+                yaxis=dict(automargin=True),
+                plot_bgcolor="rgba(8,15,28,.96)",
+                paper_bgcolor="rgba(11,18,32,.98)",
             )
             style_figure(fig_points, 390)
             st.plotly_chart(fig_points, use_container_width=True, config=PLOTLY_CONFIG)
@@ -3613,7 +3636,7 @@ with st.sidebar:
         <div class='brand-row'>
             <div class='brand-logo'>🎵</div>
             <div>
-                <div class='sidebar-logo'>Artist 360 Intelligence</div>
+                <div class='sidebar-logo'>Artist 360° Intelligence</div>
             </div>
         </div>
         """,

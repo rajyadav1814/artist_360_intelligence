@@ -1,4 +1,4 @@
-"""Skeleton loading screen for Artist 360 Intelligence dashboard.
+"""Skeleton loading screen for Artist 360° Intelligence dashboard.
 
 Mirrors the real leaderboard layout from the screenshot:
   - Page header + LIVE badge
