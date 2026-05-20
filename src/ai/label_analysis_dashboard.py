@@ -394,23 +394,10 @@ def render_label_analysis():
             to { opacity: 1; transform: translateY(0); }
         }
 
-        .hdr {
-      background: linear-gradient(135deg, #1a2238 0%, #1f1a3a 50%, #261d3d 100%);
-      border: 1px solid rgba(148,163,184,.18);
-      border-radius: 20px;
-      padding: 26px 30px;
+          .hdr {
             margin: 14px 18px 0;
-      box-shadow: 0 24px 60px rgba(0,0,0,.35);
-            position: relative;
-            overflow: hidden;
-        }
-        .hdr::after {
-            content: "";
-      position: absolute; right: -120px; top: -120px;
-      width: 320px; height: 320px;
-      background: radial-gradient(circle, rgba(196,181,253,.18), transparent 60%);
-            pointer-events: none;
-        }
+            padding: 0;
+          }
         .hdr-row{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;position:relative;z-index:2;}
         .brand{
           font-size:10px;
@@ -468,7 +455,7 @@ def render_label_analysis():
           box-shadow:0 10px 20px rgba(0,0,0,.22);
         }
         
-        .plat-bar{display:flex;gap:4px;margin-top:16px;border-bottom:1px solid rgba(148,163,184,.1);position:relative;z-index:2;}
+        .plat-bar{display:flex;gap:4px;margin-top:0;border-bottom:1px solid rgba(148,163,184,.1);position:relative;z-index:2;}
         .pt{
           font-size:11px;
           font-weight:700;
@@ -639,20 +626,6 @@ def render_label_analysis():
 
     <!-- Header -->
     <div class="hdr">
-      <div class="hdr-row">
-        <div>
-          <div class="brand"><span class="live"></span>__DATE_RANGE_LABEL__</div>
-          <div class="title">Label Market Dashboard</div>
-          <div class="sub">Spotify Global + iTunes WW · 5 label groups · Real data · __LEN_UNIQUE_DATES__-day window</div>
-        </div>
-        <div class="controls">
-          <div class="pill-grp">
-            <button class="fp on" onclick="setP('all',this)">All Dates</button>
-            <button class="fp" onclick="setP('wkA',this)">__WKA_RANGE_LABEL__</button>
-            <button class="fp" onclick="setP('wkB',this)">__WKB_RANGE_LABEL__</button>
-          </div>
-        </div>
-      </div>
       <div class="plat-bar">
         <button class="pt on" onclick="setPlatform('spotify',this)">Spotify Global</button>
         <button class="pt" onclick="setPlatform('itunes',this)">iTunes WW</button>

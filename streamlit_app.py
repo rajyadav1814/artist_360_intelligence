@@ -58,6 +58,10 @@ PAGE_META = {
         "AI Data Analyst",
         "Ask natural-language questions and get content + charts (Powered by Table Details Bot)",
     ),
+    "Label Analysis": (
+        "Label Analysis",
+        "Label-level market share, track concentration, and competitive performance across Spotify and iTunes",
+    ),
     # "Pulse Report": (
     #     "Pulse Report",
     #     "Track performance by record label, market acquisition, and chart movement",
@@ -3695,6 +3699,8 @@ def show_pulse_report_page() -> None:
 
 def show_label_analysis_page() -> None:
     """Wrapper function for Label Analysis page"""
+    page_title, page_meta = PAGE_META["Label Analysis"]
+    render_header(page_title, page_meta, last_run_label)
     from src.ai.label_analysis_dashboard import render_label_analysis
     render_label_analysis()
 
