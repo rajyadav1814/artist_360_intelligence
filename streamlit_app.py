@@ -39,51 +39,51 @@ if "show_advanced" not in st.session_state:
 
 PAGE_META = {
     "Leaderboard": (
-        "Artist 360° Leaderboard",
+        "🏆 Artist 360° Leaderboard",
         "Top Latin artists ranked by iTunes performance, Spotify reach, and global footprint",
     ),
     "Artist Spotlight": (
-        "Artist Spotlight",
+        "🎤 Artist Spotlight",
         "View and analyze individual artist details and chart performance",
     ),
     "Chart Tracker": (
-        "Chart Tracker",
+        "📈 Chart Tracker",
         "Historical rank trajectories for top artists, revealing trends and momentum",
     ),
     # "Stream Trends": (
-    #     "Stream Trends",
+    #     "🎵 Stream Trends",
     #     "Insights into streaming performance, growth patterns, and listener demographics",
     # ),
     "AI Data Analyst": (
-        "AI Data Analyst",
+        "🤖 AI Data Analyst",
         "Ask natural-language questions and get content + charts (Powered by Table Details Bot)",
     ),
     "Label Analysis": (
-        "Label Analysis",
+        "🏷️ Label Analysis",
         "Label-level market share, track concentration, and competitive performance across Spotify and iTunes",
     ),
     # "Pulse Report": (
-    #     "Pulse Report",
+    #     "📊 Pulse Report",
     #     "Track performance by record label, market acquisition, and chart movement",
     # ),
     "Ops Monitor": (
-        "Ops Monitor",
+        "⚙️ Ops Monitor",
         "Operational dashboard showing recent data collection runs, their status, and performance metrics",
     ),
     "Debut Report": (
-        "Debut Report",
+        "🌟 Debut Report",
         "Tracks all new chart entries across Spotify and iTunes for the current week",
     ),
     "Movement": (
-        "Movement Dashboard",
+        "📊 Movement Dashboard",
         "Daily rank + metric momentum across track and album charts (risers, fallers, trajectories)",
     ),
     "Track Acquisition": (
-        "Track Acquisition",
+        "🎯 Track Acquisition",
         "Track-level acquisition intelligence across Spotify Global + iTunes WW",
     ),
     "Acquisition": (
-        "Acquisition Recommendation",
+        "💡 Acquisition Recommendation",
         "Composite acquisition signals across Spotify Global + iTunes WW for every charting artist",
     ),
 }
@@ -3556,7 +3556,7 @@ def show_leaderboard_page() -> None:
 
 
 def show_compare_page() -> None:
-    render_header("Compare", "Compare leaderboard artists side by side.", last_run_label)
+    render_header("⚖️ Compare", "Compare leaderboard artists side by side.", last_run_label)
     st.markdown(
         """
         <style>
