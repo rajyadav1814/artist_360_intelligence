@@ -1133,10 +1133,7 @@ def render_debut_tab() -> None:
     st.markdown(
         f"""
         <div class="db-hero">
-          <div class="db-hero-eyebrow">
-            <span class="db-hero-dot"></span>
-            Chromadata · Debut Intelligence
-          </div>
+          
           <div class="db-hero-title">Chart Debuts Report</div>
           <div class="db-hero-sub">
             Spotify Global &nbsp;·&nbsp; iTunes WW &nbsp;·&nbsp;

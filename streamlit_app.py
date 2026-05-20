@@ -2877,16 +2877,7 @@ def render_debut_artist_chart(leaderboard: pd.DataFrame) -> None:
             .spotlight-artist-hero {{ grid-template-columns: 1fr; }}
         }}
         </style>
-        <div class="artist-spotlight-hero">
-          <div class="artist-spotlight-eyebrow">
-            <span class="artist-spotlight-dot"></span>
-            Chromadata · Artist Spotlight
-          </div>
-          <div class="artist-spotlight-title">Artist Spotlight</div>
-          <div class="artist-spotlight-sub">
-            View and compare a selected artist with the same dark leaderboard treatment.
-            &nbsp;·&nbsp; <b>{total_available:,}</b> artists available
-          </div>
+        <div>
         </div>
         """,
         unsafe_allow_html=True,
