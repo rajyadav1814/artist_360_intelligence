@@ -4041,7 +4041,7 @@ def show_movement_page() -> None:
     page_title, page_meta = PAGE_META["Movement"]
     render_header(page_title, page_meta, last_run_label)
     
-    tab1, tab2 = st.tabs(["Track Movement", "Album Movement"])
+    tab1, tab2 = st.tabs(["📈 Track Movement", "💿 Album Movement"])
     with tab1:
         render_track_movement()
     with tab2:
@@ -4053,7 +4053,7 @@ def show_acquisition_page() -> None:
     page_title, page_meta = PAGE_META["Acquisition"]
     render_header(page_title, page_meta, last_run_label)
     
-    tab1, tab2, tab3 = st.tabs(["Track Acquisition", "Album Acquisition", "Artist Acquisition"])
+    tab1, tab2, tab3 = st.tabs(["🎵 Track Acquisition", "💿 Album Acquisition", "🎤 Artist Acquisition"])
     with tab1:
         render_track_acquisition()
     with tab2:
