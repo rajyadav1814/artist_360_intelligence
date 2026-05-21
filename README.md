@@ -1,4 +1,4 @@
-# Artist 360 Intelligence
+# Artist 360° Intelligence
 
 A Python project to scrape music chart data from [kworb.net](https://kworb.net) and store it in PostgreSQL.
 

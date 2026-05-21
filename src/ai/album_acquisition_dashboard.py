@@ -1,6 +1,6 @@
 """
-Track Acquisition dashboard — track-level acquisition signals from
-Spotify Global + iTunes WW daily chart data.
+Album Acquisition dashboard — album-level acquisition signals from
+iTunes WW + iTunes WW daily chart data.
 """
 from __future__ import annotations
 
@@ -38,7 +38,7 @@ def _run_query(query: str, params: tuple) -> list[dict[str, Any]]:
             cur.execute(query, params)
             return cur.fetchall()
     except Exception as exc:  # noqa: BLE001
-        logger.error("track acquisition query failed: %s", exc)
+        logger.error("album acquisition query failed: %s", exc)
         return []
     finally:
         if conn is not None:
@@ -50,7 +50,7 @@ def _run_query(query: str, params: tuple) -> list[dict[str, Any]]:
 
 @st.cache_data(ttl=300, show_spinner=False)
 def _load_window(table: str, country: str, days: int) -> pd.DataFrame:
-    metric_col = "streams" if table == "spotify_daily" else "points"
+    metric_col = "points" if table == "spotify_daily" else "points"
     query = f"""
         WITH bounds AS (
             SELECT MAX(date) AS max_d FROM {table} WHERE country = %s
@@ -97,27 +97,27 @@ def _signal_style(acq_score: int, momentum: float, best_rank: int | None) -> tup
     return "PASS", "sig-pass", "#fb7185"
 
 
-def _acq_score(latest_streams: int, best_rank: int | None, momentum: float, best_it_rank: int | None) -> int:
+def _acq_score(latest_points: int, best_rank: int | None, momentum: float, best_it_rank: int | None) -> int:
     rank_score = max(0, 40 - (best_rank or 100) * 0.4) if best_rank else 0
-    stream_score = min(30, int(latest_streams / 300_000))
+    stream_score = min(30, int(latest_points / 300_000))
     momentum_score = max(-10, min(20, int(momentum)))
     itunes_bonus = 10 if best_it_rank and best_it_rank <= 25 else 5 if best_it_rank and best_it_rank <= 60 else 0
     return max(0, min(100, int(rank_score + stream_score + momentum_score + itunes_bonus)))
 
 
-def _build_track_rows(sp_df: pd.DataFrame, it_df: pd.DataFrame, dates: list[date], region: str = "Global") -> list[dict[str, Any]]:
-    sp_by_track = {name: group for name, group in sp_df.groupby("artist_title")} if not sp_df.empty else {}
-    it_by_track = {name: group for name, group in it_df.groupby("artist_title")} if not it_df.empty else {}
+def _build_album_rows(sp_df: pd.DataFrame, it_df: pd.DataFrame, dates: list[date], region: str = "Global") -> list[dict[str, Any]]:
+    sp_by_album = {name: group for name, group in sp_df.groupby("artist_title")} if not sp_df.empty else {}
+    it_by_album = {name: group for name, group in it_df.groupby("artist_title")} if not it_df.empty else {}
 
-    tracks: list[dict[str, Any]] = []
+    albums: list[dict[str, Any]] = []
     seen = set()
-    for track in sorted(set(sp_by_track) | set(it_by_track)):
-        if not track or track in seen:
+    for album in sorted(set(sp_by_album) | set(it_by_album)):
+        if not album or album in seen:
             continue
-        seen.add(track)
-        sp_group = sp_by_track.get(track, pd.DataFrame(columns=sp_df.columns))
-        it_group = it_by_track.get(track, pd.DataFrame(columns=it_df.columns))
-        artist, title = _split_at(track)
+        seen.add(album)
+        sp_group = sp_by_album.get(album, pd.DataFrame(columns=sp_df.columns))
+        it_group = it_by_album.get(album, pd.DataFrame(columns=it_df.columns))
+        artist, title = _split_at(album)
         label = "Independent"
         if not sp_group.empty and "label" in sp_group.columns:
             label_series = sp_group["label"].dropna()
@@ -128,18 +128,18 @@ def _build_track_rows(sp_df: pd.DataFrame, it_df: pd.DataFrame, dates: list[date
         date_to_it_score = {row["date"]: int(row["metric"] or 0) for _, row in it_group.iterrows()}
         date_to_it_rank = {row["date"]: int(row["rank"]) for _, row in it_group.iterrows()}
 
-        sp_streams = [date_to_stream.get(d, 0) for d in dates]
+        sp_points = [date_to_stream.get(d, 0) for d in dates]
         sp_ranks = [date_to_sp_rank.get(d) if d in date_to_sp_rank else None for d in dates]
         it_scores = [date_to_it_score.get(d, 0) for d in dates]
         it_ranks = [date_to_it_rank.get(d) if d in date_to_it_rank else None for d in dates]
 
-        has_sp = any(v > 0 for v in sp_streams)
+        has_sp = any(v > 0 for v in sp_points)
         has_it = any(v > 0 for v in it_scores)
         if not has_sp and not has_it:
             continue
 
-        first_sp = next((v for v in sp_streams if v > 0), 0)
-        latest_sp = next((v for v in reversed(sp_streams) if v > 0), 0)
+        first_sp = next((v for v in sp_points if v > 0), 0)
+        latest_sp = next((v for v in reversed(sp_points) if v > 0), 0)
         first_rank = next((r for r in sp_ranks if r is not None), None)
         latest_rank = next((r for r in reversed(sp_ranks) if r is not None), None)
         best_sp_rank = min([r for r in sp_ranks if r is not None], default=None)
@@ -153,116 +153,116 @@ def _build_track_rows(sp_df: pd.DataFrame, it_df: pd.DataFrame, dates: list[date
         acq_score = _acq_score(latest_sp, best_sp_rank, momentum, best_it_rank)
         signal, signal_class, color = _signal_style(acq_score, momentum, best_sp_rank)
 
-        total_streams = sum(sp_streams)
+        total_points = sum(sp_points)
 
         region_title = "Global" if region == "Global" else "US"
         if best_sp_rank is not None and best_sp_rank <= 20:
-            rank_signal = f"Top {best_sp_rank} Spotify {region_title}"
+            rank_signal = f"Top {best_sp_rank} iTunes {region_title}"
         elif best_sp_rank is not None:
-            rank_signal = f"Spotify {region_title} Top {best_sp_rank}"
+            rank_signal = f"iTunes {region_title} Top {best_sp_rank}"
         else:
-            rank_signal = f"Spotify {region_title} chart watch"
+            rank_signal = f"iTunes {region_title} chart watch"
 
         signals: list[dict[str, str]] = []
         if growth >= 25:
-            signals.append({"icon": "🚀", "t": f"+{growth:.1f}% stream growth", "d": "Strong volume acceleration across the tracked window."})
+            signals.append({"icon": "🚀", "t": f"+{growth:.1f}% points growth", "d": "Strong volume acceleration across the tracked window."})
         elif growth >= 0:
-            signals.append({"icon": "📈", "t": f"{growth:.1f}% stream growth", "d": "Healthy audience momentum over the recent chart window."})
+            signals.append({"icon": "📈", "t": f"{growth:.1f}% points growth", "d": "Healthy audience momentum over the recent chart window."})
         else:
-            signals.append({"icon": "📉", "t": f"{growth:.1f}% stream decline", "d": "Streams are cooling; monitor for stabilization."})
+            signals.append({"icon": "📉", "t": f"{growth:.1f}% points decline", "d": "Points are cooling; monitor for stabilization."})
 
         if platform == "cross":
-            signals.append({"icon": "🌍", "t": "Cross-platform signal", "d": f"Appearing on both Spotify {region_title} and iTunes WW charts."})
+            signals.append({"icon": "🌍", "t": "Cross-platform signal", "d": f"Appearing on both iTunes {region_title} and iTunes WW charts."})
         elif platform == "spotify":
-            signals.append({"icon": "🎧", "t": f"Spotify-{region_title} native momentum", "d": f"Strong Spotify {region_title} traction even without iTunes chart entry."})
+            signals.append({"icon": "🎧", "t": f"iTunes-{region_title} native momentum", "d": f"Strong iTunes {region_title} traction even without iTunes chart entry."})
         else:
-            signals.append({"icon": "🍎", "t": "iTunes WW curve", "d": "iTunes-only chart signal; could still breakout to Spotify."})
+            signals.append({"icon": "🍎", "t": "iTunes WW curve", "d": "iTunes-only chart signal; could still breakout to iTunes."})
 
         if label and "independ" in label.lower():
             signals.append({"icon": "💡", "t": "Independent / unsigned", "d": "Clean acquisition candidate with limited major-label competition."})
         else:
-            signals.append({"icon": "🏷️", "t": f"Label: {label}", "d": "Track-level signal from a managed catalogue or label roster."})
+            signals.append({"icon": "🏷️", "t": f"Label: {label}", "d": "Album-level signal from a managed catalogue or label roster."})
 
         if best_sp_rank is not None and best_sp_rank <= 10:
-            signals.append({"icon": "🏆", "t": rank_signal, "d": f"Elite placement on Spotify {region_title} charts."})
+            signals.append({"icon": "🏆", "t": rank_signal, "d": f"Elite placement on iTunes {region_title} charts."})
         elif best_it_rank is not None and best_it_rank <= 20:
-            signals.append({"icon": "📊", "t": f"iTunes #{best_it_rank}", "d": "Strong iTunes WW validation for the track."})
+            signals.append({"icon": "📊", "t": f"iTunes #{best_it_rank}", "d": "Strong iTunes WW validation for the album."})
         elif has_it:
-            signals.append({"icon": "🔁", "t": "iTunes momentum present", "d": "Track is charting on iTunes WW and may cross into Spotify."})
+            signals.append({"icon": "🔁", "t": "iTunes momentum present", "d": "Album is charting on iTunes WW and may cross into iTunes."})
 
         signals = signals[:5]
 
-        tracks.append({
-            "id": len(tracks) + 1,
+        albums.append({
+            "id": len(albums) + 1,
             "title": title,
             "artist": artist,
             "label": label,
             "genre": "—",
             "platform": platform,
-            "spStreams": sp_streams,
+            "spPoints": sp_points,
             "spRanks": sp_ranks,
             "itScores": it_scores,
             "itRanks": it_ranks,
             "bestRank": best_sp_rank or (best_it_rank or 0),
-            "latestStreams": latest_sp,
-            "firstStreams": first_sp,
+            "latestPoints": latest_sp,
+            "firstPoints": first_sp,
             "momentum": momentum,
             "growth": round(growth, 1),
             "acqScore": acq_score,
             "signal": signal,
             "days": len(dates),
-            "totalStreams": total_streams,
+            "totalPoints": total_points,
             "acqColor": color,
             "signals": signals,
         })
 
-    tracks.sort(key=lambda row: row["acqScore"], reverse=True)
-    return tracks
+    albums.sort(key=lambda row: row["acqScore"], reverse=True)
+    return albums
 
 
-def _build_payload(tracks: list[dict[str, Any]], dates: list[date], limit: int = 100, region_label: str = "Spotify Global") -> dict[str, Any]:
-    if not tracks:
+def _build_payload(albums: list[dict[str, Any]], dates: list[date], limit: int = 100, region_label: str = "iTunes WW") -> dict[str, Any]:
+    if not albums:
         return {}
 
-    strong_buy = sum(1 for t in tracks if t["signal"] == "BUY")
-    cross_count = sum(1 for t in tracks if t["platform"] == "cross")
-    top_track = tracks[0]
+    strong_buy = sum(1 for t in albums if t["signal"] == "BUY")
+    cross_count = sum(1 for t in albums if t["platform"] == "cross")
+    top_album = albums[0]
 
-    # Calculate Spotify stream growth to find the fastest rising track from the top 100 tracks
-    fastest_track = None
+    # Calculate iTunes stream growth to find the fastest rising album from the top 100 albums
+    fastest_album = None
     max_sp_growth = -999999.0
 
-    for t in tracks[:limit]:
-        # Spotify growth
-        sp = t["spStreams"]
+    for t in albums[:limit]:
+        # iTunes growth
+        sp = t["spPoints"]
         first_sp = next((v for v in sp if v > 0), 0)
         latest_sp = next((v for v in reversed(sp) if v > 0), 0)
         sp_growth = ((latest_sp - first_sp) / first_sp * 100) if first_sp else 0.0
 
         if sp_growth > max_sp_growth:
             max_sp_growth = sp_growth
-            fastest_track = t
+            fastest_album = t
 
-    if fastest_track:
-        fastest_name = f"{fastest_track['artist']} — {fastest_track['title']}"
-        fastest_sub = f"{max_sp_growth:+.1f}% stream growth"
+    if fastest_album:
+        fastest_name = f"{fastest_album['artist']} — {fastest_album['title']}"
+        fastest_sub = f"{max_sp_growth:+.1f}% points growth"
     else:
         fastest_name = "—"
         fastest_sub = "—"
 
-    avg_momentum = round(sum(t["momentum"] for t in tracks) / len(tracks), 1)
+    avg_momentum = round(sum(t["momentum"] for t in albums) / len(albums), 1)
 
     return {
         "dates": [d.strftime("%b %d") for d in dates],
-        "windowLabel": f"{len(tracks)} tracks · {len(dates)} days · {dates[0].strftime('%b %d')} – {dates[-1].strftime('%b %d, %Y')}",
-        "fyLabel": f"Track Acquisition · Real data",
-        "tracks": tracks,
-        "defaultTrackId": tracks[0]["id"] if tracks else None,
+        "windowLabel": f"{len(albums)} albums · {len(dates)} days · {dates[0].strftime('%b %d')} – {dates[-1].strftime('%b %d, %Y')}",
+        "fyLabel": f"Album Acquisition · Real data",
+        "albums": albums,
+        "defaultAlbumId": albums[0]["id"] if albums else None,
         "regionLabel": region_label,
         "summary": {
             "strongBuy": strong_buy,
-            "topScore": top_track["acqScore"] if tracks else 0,
-            "topTitle": f"{top_track['artist']} — {top_track['title']}" if tracks else "—",
+            "topScore": top_album["acqScore"] if albums else 0,
+            "topTitle": f"{top_album['artist']} — {top_album['title']}" if albums else "—",
             "fastest": fastest_name,
             "fastestSub": fastest_sub,
             "crossCount": cross_count,
@@ -271,15 +271,15 @@ def _build_payload(tracks: list[dict[str, Any]], dates: list[date], limit: int =
     }
 
 
-def render_track_acquisition() -> None:
+def render_album_acquisition() -> None:
     st.markdown(
         "<div style='font-size:0.85rem;color:#97a3c5;margin:-0.5rem 0 0.75rem 0'>"
-        "Track-level acquisition intelligence using Spotify Global/US + iTunes WW daily chart data."
+        "Album-level acquisition intelligence using iTunes WW/US + iTunes WW daily chart data."
         "</div>",
         unsafe_allow_html=True,
     )
 
-    days = st.radio("Time window", ["7 Days", "14 Days", "30 Days"], index=0, horizontal=True, key="track_acq_period")
+    days = st.radio("Time window", ["7 Days", "14 Days", "30 Days"], index=0, horizontal=True, key="album_acq_period")
     if days == "7 Days":
         window_days = 7
     elif days == "14 Days":
@@ -287,12 +287,12 @@ def render_track_acquisition() -> None:
     else:
         window_days = 30
 
-    sp_global_df = _load_window("spotify_daily", "global", window_days)
-    sp_us_df = _load_window("spotify_daily", "us", window_days)
-    it_df = _load_window("itunes_daily", "ww", window_days)
+    sp_global_df = _load_window("itunes_artist_album", "ww", window_days)
+    sp_us_df = pd.DataFrame()
+    it_df = pd.DataFrame()
 
     if sp_global_df.empty and sp_us_df.empty and it_df.empty:
-        st.warning("No daily chart data available to build the track acquisition view.")
+        st.warning("No daily chart data available to build the album acquisition view.")
         return
 
     date_set = set()
@@ -307,17 +307,17 @@ def render_track_acquisition() -> None:
         return
 
     dates = sorted(date_set)
-    global_tracks = _build_track_rows(sp_global_df, it_df, dates, region="Global")
-    us_tracks = _build_track_rows(sp_us_df, it_df, dates, region="US")
+    global_albums = _build_album_rows(sp_global_df, it_df, dates, region="Global")
+    us_albums = _build_album_rows(sp_us_df, it_df, dates, region="US")
 
-    if not global_tracks and not us_tracks:
-        st.warning("No track acquisition rows could be built from the available chart data.")
+    if not global_albums and not us_albums:
+        st.warning("No album acquisition rows could be built from the available chart data.")
         return
 
-    payload = _build_payload(global_tracks, dates, region_label="Spotify Global")
-    us_payload = _build_payload(us_tracks, dates, region_label="Spotify US")
+    payload = _build_payload(global_albums, dates, region_label="iTunes WW")
+    us_payload = _build_payload(us_albums, dates, region_label="iTunes US")
 
-    payload["usTracks"] = us_tracks
+    payload["usAlbums"] = us_albums
     payload["usSummary"] = us_payload.get("summary", {})
 
     html = _build_html(payload)
@@ -387,11 +387,11 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
 .tbl-hdr span:hover{color:var(--t2)}
 .tbl-body{flex:1;overflow-y:auto}
 .tbl-body::-webkit-scrollbar{width:5px}
-.tbl-body::-webkit-scrollbar-track{background:transparent}
+.tbl-body::-webkit-scrollbar-album{background:transparent}
 .tbl-body::-webkit-scrollbar-thumb{background:var(--border2);border-radius:5px}
-.track-row{display:grid;gap:8px;padding:12px 16px;border-bottom:1px solid var(--border);cursor:pointer;transition:.1s;align-items:center}
-.track-row:hover{background:var(--bg3)}
-.track-row.selected{background:var(--bg3);border-left:3px solid var(--blue);padding-left:13px}
+.album-row{display:grid;gap:8px;padding:12px 16px;border-bottom:1px solid var(--border);cursor:pointer;transition:.1s;align-items:center}
+.album-row:hover{background:var(--bg3)}
+.album-row.selected{background:var(--bg3);border-left:3px solid var(--blue);padding-left:13px}
 .tr-num{font-size:13px;color:var(--t3);text-align:right;min-width:20px;font-weight:600}
 .tr-info{overflow:hidden}
 .tr-title{font-size:14px;font-weight:600;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:-.1px}
@@ -444,12 +444,12 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
 <div class="hdr">
   <div class="hdr-top">
     <div>
-      <div class="dash-title">Track Acquisition</div>
+      <div class="dash-title">Album Acquisition</div>
       <div class="dash-sub" id="hdr-sub"></div>
     </div>
     <div class="filter-bar">
       <div class="search-wrap">
-        <input type="text" id="searchInput" placeholder="Search track or artist..." oninput="applyFilters()">
+        <input type="text" id="searchInput" placeholder="Search album or artist..." oninput="applyFilters()">
       </div>
       <div class="sel-wrap">
         <select id="regionSel" onchange="changeRegion()">
@@ -460,9 +460,7 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
       <div class="sel-wrap">
         <select id="platformSel" onchange="applyFilters()">
           <option value="all">All Platforms</option>
-          <option value="spotify">Spotify Only</option>
-          <option value="itunes">iTunes Only</option>
-          <option value="cross">Cross-Platform</option>
+          <option value="itunes">iTunes</option>
         </select>
       </div>
       <div class="sel-wrap">
@@ -486,38 +484,38 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
 
 <!-- KPI Bar -->
 <div class="kpi-bar">
-  <div class="kpi k-green"><div class="kpi-lbl">Strong Buy tracks</div><div class="kpi-val g" id="kpi-buy">—</div><div class="kpi-sub">of tracked tracks</div></div>
+  <div class="kpi k-green"><div class="kpi-lbl">Strong Buy albums</div><div class="kpi-val g" id="kpi-buy">—</div><div class="kpi-sub">of tracked albums</div></div>
   <div class="kpi k-amber"><div class="kpi-lbl">Top acquisition score</div><div class="kpi-val a" id="kpi-top-score">—</div><div class="kpi-sub" id="kpi-top-title">—</div></div>
-  <div class="kpi k-purple"><div class="kpi-lbl">Fastest rising track</div><div class="kpi-val" id="kpi-fastest">—</div><div class="kpi-sub" id="kpi-fastest-sub">—</div></div>
-  <div class="kpi k-blue"><div class="kpi-lbl">Cross-platform tracks</div><div class="kpi-val b" id="kpi-cross">—</div><div class="kpi-sub">on both Spotify + iTunes WW</div></div>
-  <div class="kpi k-red"><div class="kpi-lbl">Avg momentum</div><div class="kpi-val p" id="kpi-momentum">—</div><div class="kpi-sub">across tracked tracks</div></div>
+  <div class="kpi k-purple"><div class="kpi-lbl">Fastest rising album</div><div class="kpi-val" id="kpi-fastest">—</div><div class="kpi-sub" id="kpi-fastest-sub">—</div></div>
+  <div class="kpi k-blue"><div class="kpi-lbl">Cross-platform albums</div><div class="kpi-val b" id="kpi-cross">—</div><div class="kpi-sub">on both iTunes + iTunes WW</div></div>
+  <div class="kpi k-red"><div class="kpi-lbl">Avg momentum</div><div class="kpi-val p" id="kpi-momentum">—</div><div class="kpi-sub">across tracked albums</div></div>
 </div>
 
 <!-- Main Grid -->
 <div class="main-grid">
   <div class="left-panel">
     <div class="tbl-controls">
-      <span class="count-badge" id="count-badge">— tracks</span>
+      <span class="count-badge" id="count-badge">— albums</span>
       <div class="tbl-controls-r">
         <span style="font-size:9px;color:var(--t3)">Sort by:</span>
         <button class="sort-btn on" onclick="setSort('acq',this)">Acq Score</button>
         <button class="sort-btn" onclick="setSort('momentum',this)">Momentum</button>
         <button class="sort-btn" onclick="setSort('rank',this)">Rank</button>
-        <button class="sort-btn" onclick="setSort('streams',this)">Streams</button>
+        <button class="sort-btn" onclick="setSort('points',this)">Points</button>
         <button class="sort-btn" onclick="setSort('growth',this)">Growth %</button>
       </div>
     </div>
     <div class="tbl-hdr" style="grid-template-columns:24px 1fr 50px 70px 80px 100px 75px">
-      <span>#</span><span>Track · Artist</span><span style="text-align:right">Rank</span>
-      <span style="text-align:right">Streams</span><span style="text-align:right">Momentum</span>
+      <span>#</span><span>Album · Artist</span><span style="text-align:right">Rank</span>
+      <span style="text-align:right">Points</span><span style="text-align:right">Momentum</span>
       <span style="text-align:right;padding-right:12px">Signal</span><span style="text-align:right">Acq Score</span>
     </div>
-    <div class="tbl-body" id="track-table"></div>
+    <div class="tbl-body" id="album-table"></div>
   </div>
   <div class="right-panel">
     <div class="detail-hdr" id="detail-hdr">
       <div class="detail-accent" id="detail-accent"></div>
-      <div class="detail-title" id="detail-title">Select a track</div>
+      <div class="detail-title" id="detail-title">Select a album</div>
       <div class="detail-artist" id="detail-artist">Click any row to view acquisition profile</div>
       <div class="detail-label-row" id="detail-labels"></div>
       <div class="detail-stats" id="detail-stats"></div>
@@ -535,16 +533,16 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
         </div>
       </div>
       <div class="section-mini" id="chart-section" style="display:none">
-        <div class="section-mini-title">stream + rank trajectory</div>
+        <div class="section-mini-title">iTunes — points + rank trajectory</div>
         <div class="dual-legend">
-          <span class="dl-item"><span class="dl-dot" style="background:var(--green)"></span>Streams</span>
+          <span class="dl-item"><span class="dl-dot" style="background:var(--green)"></span>Points</span>
           <span class="dl-item"><span class="dl-dot" style="background:var(--purple)"></span>Rank (right axis)</span>
         </div>
-        <div class="cw" style="height:220px"><canvas id="detailChart" role="img" aria-label="Selected track stream and rank trajectory over time."></canvas></div>
+        <div class="cw" style="height:220px"><canvas id="detailChart" role="img" aria-label="Selected album points and rank trajectory over time."></canvas></div>
       </div>
       <div class="section-mini" id="it-chart-section" style="display:none">
         <div class="section-mini-title">iTunes WW — score trajectory</div>
-        <div class="cw" style="height:220px"><canvas id="detailItChart" role="img" aria-label="Selected track iTunes WW score trajectory."></canvas></div>
+        <div class="cw" style="height:220px"><canvas id="detailItChart" role="img" aria-label="Selected album iTunes WW score trajectory."></canvas></div>
       </div>
       <div class="section-mini" id="signals-section" style="display:none">
         <div class="section-mini-title">Acquisition signals</div>
@@ -552,7 +550,7 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
       </div>
       <div id="empty-state" style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:300px;color:var(--t3);text-align:center;gap:8px">
         <div style="font-size:28px">↑</div>
-        <div style="font-size:12px">Select a track from the list<br>to view its acquisition profile</div>
+        <div style="font-size:12px">Select a album from the list<br>to view its acquisition profile</div>
       </div>
     </div>
   </div>
@@ -562,7 +560,7 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
 <script>
 const PAYLOAD = __PAYLOAD__;
 const DATES = PAYLOAD.dates;
-let TRACKS = PAYLOAD.tracks;
+let ALBUMS = PAYLOAD.albums;
 let SUM = PAYLOAD.summary || {};
 
 function updateKPIs(sum) {
@@ -583,21 +581,21 @@ if (SUM) {
 
 let currentSort='acq';
 let currentPeriod='all';
-let selectedId=PAYLOAD.defaultTrackId;
+let selectedId=PAYLOAD.defaultAlbumId;
 let detailChart=null;
 let detailItChart=null;
 
 function changeRegion() {
   const r = document.getElementById('regionSel').value;
-  TRACKS = r === 'global' ? PAYLOAD.tracks : PAYLOAD.usTracks;
+  ALBUMS = r === 'global' ? PAYLOAD.albums : PAYLOAD.usAlbums;
   const sum = r === 'global' ? PAYLOAD.summary : PAYLOAD.usSummary;
-  PAYLOAD.regionLabel = r === 'global' ? 'Spotify Global' : 'Spotify US';
+  PAYLOAD.regionLabel = r === 'global' ? 'iTunes WW' : 'iTunes US';
   updateKPIs(sum);
   
-  selectedId = TRACKS[0]?.id;
+  selectedId = ALBUMS[0]?.id;
   renderTable();
   if (selectedId) {
-    selectTrack(selectedId);
+    selectAlbum(selectedId);
   } else {
     document.getElementById('empty-state').style.display = 'flex';
     document.getElementById('score-ring').style.display = 'none';
@@ -610,13 +608,13 @@ function changeRegion() {
 function fmtN(n,d=1){if(!n&&n!==0)return'—';const a=Math.abs(n);if(a>=1e6)return(n/1e6).toFixed(d)+'M';if(a>=1e3)return(n/1e3).toFixed(0)+'K';return Math.round(n).toString();}
 function signalClass(s){return{BUY:'sig-buy',WATCH:'sig-watch',HOLD:'sig-hold',PASS:'sig-pass'}[s]||'sig-hold';}
 function signalLabel(s){return{BUY:'STRONG BUY',WATCH:'WATCH',HOLD:'HOLD',PASS:'PASS'}[s]||s;}
-function buildSpark(streams,color){const valid=streams.filter(v=>v&&v>0);if(!valid.length)return'<span style="color:var(--t3);font-size:9px">—</span>';const mx=Math.max(...valid);const mn=Math.min(...valid);return`<div class="spark">${streams.slice(-8).map(s=>{const pct=mx===mn?50:Math.round((s-mn)/(mx-mn)*100);const h=Math.max(2,Math.round(pct/100*18));const c=s>=valid[0]?color:'var(--t3)';return`<div class="spark-bar" style="height:${h}px;background:${c}"></div>`}).join('')}</div>`;}
-function renderTable(){const q=document.getElementById('searchInput').value.toLowerCase();const plat=document.getElementById('platformSel').value;const sig=document.getElementById('signalSel').value;let data=[...TRACKS];if(q) data=data.filter(t=>t.title.toLowerCase().includes(q)||t.artist.toLowerCase().includes(q));if(plat!=='all') data=data.filter(t=>t.platform===plat);if(sig!=='all') data=data.filter(t=>t.signal===sig);if(currentPeriod==='rising') data=data.filter(t=>t.momentum>0);if(currentPeriod==='stable') data=data.filter(t=>Math.abs(t.momentum)<=5);if(currentPeriod==='falling') data=data.filter(t=>t.momentum<0);const sortMap={acq:'acqScore',momentum:'momentum',rank:'bestRank',streams:'latestStreams',growth:'growth'};const key=sortMap[currentSort]||'acqScore';const asc=key==='bestRank';data.sort((a,b)=>asc?a[key]-b[key]:b[key]-a[key]);document.getElementById('count-badge').textContent=`${data.length} track${data.length!==1?'s':''}`;const displayData=data;const el=document.getElementById('track-table');let htmlStr='';displayData.forEach((t,i)=>{const momColor=t.momentum>5?'g':t.momentum<-5?'r':'';const spark=buildSpark(t.spStreams,t.acqColor);htmlStr+=`<div class="track-row${t.id===selectedId?' selected':''}" style="grid-template-columns:24px 1fr 50px 70px 80px 100px 75px" onclick="selectTrack(${t.id})"><span class="tr-num">${i+1}</span><div class="tr-info"><div class="tr-title">${t.title}</div><div class="tr-artist">${t.artist} ${t.platform==='cross'?'<span style="color:var(--teal);font-size:8px">✦ cross</span>':''}</div>${spark}</div><span class="tr-val">#${t.bestRank}</span><span class="tr-val">${fmtN(t.latestStreams)}</span><span class="tr-val ${momColor}">${t.momentum>0?'+':''}${t.momentum}%</span><span style="text-align:right;padding-right:12px"><span class="sig ${signalClass(t.signal)}">${signalLabel(t.signal)}</span></span><span class="tr-val a">${t.acqScore}</span></div>`;});el.innerHTML=htmlStr;}
-function selectTrack(id){selectedId=id;const t=TRACKS.find(x=>x.id===id);if(!t)return;renderTable();document.getElementById('empty-state').style.display='none';document.getElementById('detail-title').textContent=t.title;document.getElementById('detail-artist').textContent=t.artist.toUpperCase()+' · '+t.label.toUpperCase();document.getElementById('detail-accent').style.background=`linear-gradient(90deg,${t.acqColor},#2dd4bf)`;const labelRow=document.getElementById('detail-labels');const crossBadge=t.platform==='cross'?'<span class="pill-lbl" style="color:var(--teal);border-color:rgba(45,212,191,.3)">✦ Cross-platform</span>':'';const indBadge=t.label.toLowerCase().includes('independ')?'<span class="pill-lbl" style="color:var(--green);border-color:rgba(34,197,94,.3)">Independent</span>':'';labelRow.innerHTML=`<span class="pill-lbl">${t.label}</span><span class="pill-lbl">${t.platform.toUpperCase()}</span>${crossBadge}${indBadge}<span class="sig ${signalClass(t.signal)}">${signalLabel(t.signal)}</span>`;const statData=[{l:'Best Rank',v:`#${t.bestRank}`,s:PAYLOAD.regionLabel||'Spotify Global',vc:''},{l:'Latest Streams',v:fmtN(t.latestStreams,1),s:`${t.growth>0?'+':''}${t.growth}% growth`,vc:t.growth>0?'g':'r'},{l:'Momentum',v:`${t.momentum>0?'+':''}${t.momentum}%`,s:'Window change',vc:t.momentum>0?'g':'r'},{l:'Window Days',v:t.days,s:'days in chart',vc:''}];document.getElementById('detail-stats').innerHTML=statData.map(s=>`<div class="ds"><div class="ds-l">${s.l}</div><div class="ds-v ${s.vc}">${s.v}</div><div class="ds-s">${s.s}</div></div>`).join('');const ring=document.getElementById('score-ring');ring.style.display='flex';document.getElementById('ring-num').textContent=t.acqScore;document.getElementById('ring-num').className=`ring-num ${t.momentum>0?'g':''}`;const sigEl=document.getElementById('ring-sig');sigEl.className=`sig ${signalClass(t.signal)}`;sigEl.textContent=signalLabel(t.signal);const pct=Math.round(t.acqScore);document.getElementById('ring-bar').style.cssText=`width:${pct}%;background:${t.acqColor}`;document.getElementById('ring-sub').textContent=`Ranked #${TRACKS.sort((a,b)=>b.acqScore-a.acqScore).findIndex(x=>x.id===id)+1} of ${TRACKS.length} tracked tracks`;const chartSection=document.getElementById('chart-section');chartSection.style.display='block';const spCtx=document.getElementById('detailChart').getContext('2d');if(detailChart)detailChart.destroy();detailChart=new Chart(spCtx,{type:'line',data:{labels:DATES,datasets:[{label:'Streams',data:t.spStreams,borderColor:t.acqColor,backgroundColor:t.acqColor+'10',borderWidth:2,tension:.4,fill:true,pointBackgroundColor:t.acqColor,pointRadius:3,yAxisID:'y',spanGaps:true},{label:'Rank',data:t.spRanks,borderColor:'rgba(167,139,250,.7)',borderDash:[4,2],borderWidth:1.5,tension:.3,fill:false,pointBackgroundColor:'#a78bfa',pointRadius:2,yAxisID:'y1',spanGaps:true}]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.datasetIndex===0?`${c.raw?.toLocaleString()} streams`:`Rank #${c.raw}`}}},scales:{x:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#444',font:{size:9}}},y:{position:'left',grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:t.acqColor,font:{size:9},callback:v=>fmtN(v,0).replace('+','')}},y1:{position:'right',reverse:true,grid:{display:false},ticks:{color:'#a78bfa',font:{size:9},callback:v=>'#'+v}}}}});const itSection=document.getElementById('it-chart-section');const hasIt=t.itScores&&t.itScores.some(v=>v&&v>0);itSection.style.display=hasIt?'block':'none';if(hasIt){const itCtx=document.getElementById('detailItChart').getContext('2d');if(detailItChart)detailItChart.destroy();detailItChart=new Chart(itCtx,{type:'line',data:{labels:DATES,datasets:[{label:'iTunes Score',data:t.itScores,borderColor:'#a78bfa',backgroundColor:'rgba(167,139,250,.08)',borderWidth:2,tension:.4,fill:true,pointBackgroundColor:'#a78bfa',pointRadius:3,spanGaps:true}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.raw?`Score: ${c.raw.toLocaleString()}`:'Not charting'}}},scales:{x:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#444',font:{size:9}}},y:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#a78bfa',font:{size:9},callback:v=>fmtN(v,0).replace('+','')}}}}});}document.getElementById('signals-section').style.display='block';document.getElementById('signals-list').innerHTML=t.signals.map(s=>`<div class="sig-item"><span class="sig-icon">${s.icon}</span><div class="sig-text"><div class="sig-title">${s.t}</div><div class="sig-desc">${s.d}</div></div></div>`).join('');}
+function buildSpark(points,color){const valid=points.filter(v=>v&&v>0);if(!valid.length)return'<span style="color:var(--t3);font-size:9px">—</span>';const mx=Math.max(...valid);const mn=Math.min(...valid);return`<div class="spark">${points.slice(-8).map(s=>{const pct=mx===mn?50:Math.round((s-mn)/(mx-mn)*100);const h=Math.max(2,Math.round(pct/100*18));const c=s>=valid[0]?color:'var(--t3)';return`<div class="spark-bar" style="height:${h}px;background:${c}"></div>`}).join('')}</div>`;}
+function renderTable(){const q=document.getElementById('searchInput').value.toLowerCase();const plat=document.getElementById('platformSel').value;const sig=document.getElementById('signalSel').value;let data=[...ALBUMS];if(q) data=data.filter(t=>t.title.toLowerCase().includes(q)||t.artist.toLowerCase().includes(q));if(plat!=='all') data=data.filter(t=>t.platform===plat);if(sig!=='all') data=data.filter(t=>t.signal===sig);if(currentPeriod==='rising') data=data.filter(t=>t.momentum>0);if(currentPeriod==='stable') data=data.filter(t=>Math.abs(t.momentum)<=5);if(currentPeriod==='falling') data=data.filter(t=>t.momentum<0);const sortMap={acq:'acqScore',momentum:'momentum',rank:'bestRank',points:'latestPoints',growth:'growth'};const key=sortMap[currentSort]||'acqScore';const asc=key==='bestRank';data.sort((a,b)=>asc?a[key]-b[key]:b[key]-a[key]);document.getElementById('count-badge').textContent=`${data.length} album${data.length!==1?'s':''}`;const displayData=data;const el=document.getElementById('album-table');let htmlStr='';displayData.forEach((t,i)=>{const momColor=t.momentum>5?'g':t.momentum<-5?'r':'';const spark=buildSpark(t.spPoints,t.acqColor);htmlStr+=`<div class="album-row${t.id===selectedId?' selected':''}" style="grid-template-columns:24px 1fr 50px 70px 80px 100px 75px" onclick="selectAlbum(${t.id})"><span class="tr-num">${i+1}</span><div class="tr-info"><div class="tr-title">${t.title}</div><div class="tr-artist">${t.artist} ${t.platform==='cross'?'<span style="color:var(--teal);font-size:8px">✦ cross</span>':''}</div>${spark}</div><span class="tr-val">#${t.bestRank}</span><span class="tr-val">${fmtN(t.latestPoints)}</span><span class="tr-val ${momColor}">${t.momentum>0?'+':''}${t.momentum}%</span><span style="text-align:right;padding-right:12px"><span class="sig ${signalClass(t.signal)}">${signalLabel(t.signal)}</span></span><span class="tr-val a">${t.acqScore}</span></div>`;});el.innerHTML=htmlStr;}
+function selectAlbum(id){selectedId=id;const t=ALBUMS.find(x=>x.id===id);if(!t)return;renderTable();document.getElementById('empty-state').style.display='none';document.getElementById('detail-title').textContent=t.title;document.getElementById('detail-artist').textContent=t.artist.toUpperCase()+' · '+t.label.toUpperCase();document.getElementById('detail-accent').style.background=`linear-gradient(90deg,${t.acqColor},#2dd4bf)`;const labelRow=document.getElementById('detail-labels');const crossBadge=t.platform==='cross'?'<span class="pill-lbl" style="color:var(--teal);border-color:rgba(45,212,191,.3)">✦ Cross-platform</span>':'';const indBadge=t.label.toLowerCase().includes('independ')?'<span class="pill-lbl" style="color:var(--green);border-color:rgba(34,197,94,.3)">Independent</span>':'';labelRow.innerHTML=`<span class="pill-lbl">${t.label}</span><span class="pill-lbl">${t.platform.toUpperCase()}</span>${crossBadge}${indBadge}<span class="sig ${signalClass(t.signal)}">${signalLabel(t.signal)}</span>`;const statData=[{l:'Best Rank',v:`#${t.bestRank}`,s:PAYLOAD.regionLabel||'iTunes WW',vc:''},{l:'Latest Points',v:fmtN(t.latestPoints,1),s:`${t.growth>0?'+':''}${t.growth}% growth`,vc:t.growth>0?'g':'r'},{l:'Momentum',v:`${t.momentum>0?'+':''}${t.momentum}%`,s:'Window change',vc:t.momentum>0?'g':'r'},{l:'Window Days',v:t.days,s:'days in chart',vc:''}];document.getElementById('detail-stats').innerHTML=statData.map(s=>`<div class="ds"><div class="ds-l">${s.l}</div><div class="ds-v ${s.vc}">${s.v}</div><div class="ds-s">${s.s}</div></div>`).join('');const ring=document.getElementById('score-ring');ring.style.display='flex';document.getElementById('ring-num').textContent=t.acqScore;document.getElementById('ring-num').className=`ring-num ${t.momentum>0?'g':''}`;const sigEl=document.getElementById('ring-sig');sigEl.className=`sig ${signalClass(t.signal)}`;sigEl.textContent=signalLabel(t.signal);const pct=Math.round(t.acqScore);document.getElementById('ring-bar').style.cssText=`width:${pct}%;background:${t.acqColor}`;document.getElementById('ring-sub').textContent=`Ranked #${ALBUMS.sort((a,b)=>b.acqScore-a.acqScore).findIndex(x=>x.id===id)+1} of ${ALBUMS.length} tracked albums`;const chartSection=document.getElementById('chart-section');chartSection.style.display='block';const spCtx=document.getElementById('detailChart').getContext('2d');if(detailChart)detailChart.destroy();detailChart=new Chart(spCtx,{type:'line',data:{labels:DATES,datasets:[{label:'Points',data:t.spPoints,borderColor:t.acqColor,backgroundColor:t.acqColor+'10',borderWidth:2,tension:.4,fill:true,pointBackgroundColor:t.acqColor,pointRadius:3,yAxisID:'y',spanGaps:true},{label:'Rank',data:t.spRanks,borderColor:'rgba(167,139,250,.7)',borderDash:[4,2],borderWidth:1.5,tension:.3,fill:false,pointBackgroundColor:'#a78bfa',pointRadius:2,yAxisID:'y1',spanGaps:true}]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.datasetIndex===0?`${c.raw?.toLocaleString()} points`:`Rank #${c.raw}`}}},scales:{x:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#444',font:{size:9}}},y:{position:'left',grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:t.acqColor,font:{size:9},callback:v=>fmtN(v,0).replace('+','')}},y1:{position:'right',reverse:true,grid:{display:false},ticks:{color:'#a78bfa',font:{size:9},callback:v=>'#'+v}}}}});const itSection=document.getElementById('it-chart-section');const hasIt=t.itScores&&t.itScores.some(v=>v&&v>0);itSection.style.display=hasIt?'block':'none';if(hasIt){const itCtx=document.getElementById('detailItChart').getContext('2d');if(detailItChart)detailItChart.destroy();detailItChart=new Chart(itCtx,{type:'line',data:{labels:DATES,datasets:[{label:'iTunes Score',data:t.itScores,borderColor:'#a78bfa',backgroundColor:'rgba(167,139,250,.08)',borderWidth:2,tension:.4,fill:true,pointBackgroundColor:'#a78bfa',pointRadius:3,spanGaps:true}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.raw?`Score: ${c.raw.toLocaleString()}`:'Not charting'}}},scales:{x:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#444',font:{size:9}}},y:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#a78bfa',font:{size:9},callback:v=>fmtN(v,0).replace('+','')}}}}});}document.getElementById('signals-section').style.display='block';document.getElementById('signals-list').innerHTML=t.signals.map(s=>`<div class="sig-item"><span class="sig-icon">${s.icon}</span><div class="sig-text"><div class="sig-title">${s.t}</div><div class="sig-desc">${s.d}</div></div></div>`).join('');}
 function setSort(s,el){currentSort=s;document.querySelectorAll('.sort-btn').forEach(b=>b.classList.remove('on'));el.classList.add('on');renderTable();}
 function setPeriod(p,el){currentPeriod=p;document.querySelectorAll('.fp').forEach(b=>b.classList.remove('on'));el.classList.add('on');renderTable();}
 function applyFilters(){renderTable();}
-renderTable();setTimeout(()=>selectTrack(PAYLOAD.defaultTrackId),80);
+renderTable();setTimeout(()=>selectAlbum(PAYLOAD.defaultAlbumId),80);
 </script>
 </body></html>
 """.replace("__PAYLOAD__", data_json)

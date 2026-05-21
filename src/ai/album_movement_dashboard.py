@@ -1,7 +1,7 @@
 """
-Track Movement dashboard — rich HTML/JS dashboard rendering rank + metric
-momentum for Spotify and iTunes top tracks. Pulls dynamic data from the
-spotify_daily and itunes_daily tables.
+Album Movement dashboard — rich HTML/JS dashboard rendering rank + metric
+momentum for iTunes and iTunes top tracks. Pulls dynamic data from the
+itunes_artist_album and itunes_artist_album tables.
 """
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-# Region scope -> (spotify_country, itunes_country)
+# Region scope -> (itunes_country, itunes_country)
 SCOPES: dict[str, tuple[str, str]] = {
     "Global / WW": ("global", "ww"),
     "United States": ("us", "us"),
@@ -55,7 +55,7 @@ def _split_at(at: str | None) -> tuple[str, str]:
 def _load_window(table: str, country: str, days: int) -> pd.DataFrame:
     """Load all rows from `table` for the given country within the most recent
     `days`-day window ending on max(date)."""
-    metric_col = "streams" if table == "spotify_daily" else "points"
+    metric_col = "points" if table == "itunes_artist_album" else "points"
     query = f"""
         WITH bounds AS (
             SELECT MAX(date) AS max_d FROM {table} WHERE country = %s
@@ -77,7 +77,7 @@ def _load_window(table: str, country: str, days: int) -> pd.DataFrame:
             cur.execute(query, (country, country, days))
             rows = cur.fetchall()
     except Exception as e:  # noqa: BLE001
-        logger.error("track_movement load_window failed (%s/%s): %s", table, country, e)
+        logger.error("album_movement load_window failed (%s/%s): %s", table, country, e)
         return pd.DataFrame()
     finally:
         try:
@@ -182,77 +182,60 @@ def _top20_today(df: pd.DataFrame, latest: date) -> list[dict[str, Any]]:
 
 # ─────────────────────────── render ───────────────────────────────
 
-def render_track_movement() -> None:
+def render_album_movement() -> None:
     st.markdown(
         "<div style='font-size:0.85rem;color:#97a3c5;margin:-0.5rem 0 0.75rem 0'>"
-        "Rank + metric momentum across Spotify and iTunes daily charts."
+        "Rank + metric momentum across iTunes and iTunes daily charts."
         "</div>",
         unsafe_allow_html=True,
     )
 
     # ── Filter bar ────────────────────────────────────────────────
-    c1, c2, c3 = st.columns([1.2, 1.2, 1.6])
+    c1, c2 = st.columns([1.2, 1.2])
     with c1:
-        scope_label = st.selectbox("Region", list(SCOPES.keys()), index=0, key="tm_scope")
+        scope_label = st.selectbox("Region", list(SCOPES.keys()), index=0, key="am_scope")
     with c2:
-        period_label = st.selectbox("Period", list(PERIOD_DAYS.keys()), index=0, key="tm_period")
-    with c3:
-        platform = st.radio(
-            "Platform",
-            ["Both", "Spotify", "iTunes"],
-            horizontal=True,
-            index=0,
-            key="tm_platform",
-        )
+        period_label = st.selectbox("Period", list(PERIOD_DAYS.keys()), index=0, key="am_period")
 
     sp_country, it_country = SCOPES[scope_label]
     days = PERIOD_DAYS[period_label]
 
-    sp_df = _load_window("spotify_daily", sp_country, days)
-    it_df = _load_window("itunes_daily", it_country, days)
+    it_df = _load_window("itunes_artist_album", it_country, days)
 
-    if sp_df.empty and it_df.empty:
+    if it_df.empty:
         st.warning("No daily chart data available for the selected window.")
         return
 
-    # Build aligned date axis (union, sorted) — guard against empty frames
-    sp_dates = sp_df["date"].tolist() if not sp_df.empty and "date" in sp_df.columns else []
+    # Build aligned date axis
     it_dates = it_df["date"].tolist() if not it_df.empty and "date" in it_df.columns else []
-    all_dates = sorted(set(sp_dates) | set(it_dates))
+    all_dates = sorted(set(it_dates))
     if not all_dates:
         st.warning("No dates found in window.")
         return
 
-    sp_records = _build_track_records(sp_df, all_dates, "streams") if not sp_df.empty else []
     it_records = _build_track_records(it_df, all_dates, "scores") if not it_df.empty else []
 
-    sp_risers = _top_n(sp_records, 15, risers=True)
-    sp_fallers = _top_n(sp_records, 15, risers=False)
     it_risers = _top_n(it_records, 15, risers=True)
     it_fallers = _top_n(it_records, 15, risers=False)
 
-    sp_top20 = _top20_today(sp_df, all_dates[-1]) if not sp_df.empty else []
     it_top20 = _top20_today(it_df, all_dates[-1]) if not it_df.empty else []
 
     # KPIs
-    sp_no1 = next((t for t in sp_top20 if True), None)
     it_no1 = next((t for t in it_top20 if True), None)
 
     big_rank_riser = max(
-        [*sp_risers, *it_risers],
+        it_risers,
         key=lambda r: r["rg"],
         default=None,
     )
-    big_stream_riser = max(sp_risers, key=lambda r: r["sg"], default=None)
     big_faller = min(
-        [*sp_fallers, *it_fallers],
+        it_fallers,
         key=lambda r: r["rg"],
         default=None,
     )
-    rising_count = sum(1 for r in [*sp_records, *it_records] if r["rg"] > 0)
+    rising_count = sum(1 for r in it_records if r["rg"] > 0)
 
     # Spotlight = top riser per platform
-    sp_spot = sp_risers[0] if sp_risers else None
     it_spot = it_risers[0] if it_risers else None
 
     date_strs = [d.strftime("%b %d") for d in all_dates]
@@ -262,23 +245,16 @@ def render_track_movement() -> None:
         "dates": date_strs,
         "window_label": window_label,
         "scope": scope_label,
-        "platform": platform,
-        "sp_risers": sp_risers,
-        "sp_fallers": sp_fallers,
         "it_risers": it_risers,
         "it_fallers": it_fallers,
-        "sp_top20": sp_top20,
         "it_top20": it_top20,
-        "sp_spot": sp_spot,
         "it_spot": it_spot,
         "kpis": {
-            "sp_no1": sp_no1,
             "it_no1": it_no1,
             "big_rank_riser": big_rank_riser,
-            "big_stream_riser": big_stream_riser,
             "big_faller": big_faller,
             "rising_count": rising_count,
-            "tracked": len(sp_records) + len(it_records),
+            "tracked": len(it_records),
         },
     }
 
@@ -361,8 +337,8 @@ body{{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--
 <div class='hdr'>
   <div class='hdr-top'>
     <div>
-      <div class='dash-title'>Track Momentum Dashboard</div>
-      <div class='dash-sub' id='hdr-window'></div>
+      <div class='brand'><span id='hdr-window'></span></div>
+      <div class='dash-title'>Album Momentum Dashboard</div>
       <div class='dash-sub' id='hdr-sub'></div>
     </div>
   </div>
@@ -378,21 +354,12 @@ body{{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--
 
     <div id='risers-section' style='background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:18px 20px'>
       <div class='sh'><span class='sh-l'>📈 Top Risers — rank + metric composite</span></div>
-      <div id='sp-riser-block'>
-        <div class='section-label' style='color:var(--green)'>
-          <span class='section-dot' style='background:var(--green)'></span>Rank + Streams
-        </div>
-        <div class='trk-hdr' style='grid-template-columns:24px 1fr 50px 50px 64px 64px 60px'>
-          <span></span><span>Track · Artist</span><span style='text-align:center'>Start</span><span style='text-align:center'>Now</span><span style='text-align:right'>Streams</span><span style='text-align:right'>+Streams</span><span style='text-align:right'>Δ Rank</span>
-        </div>
-        <div id='sp-risers'></div>
-      </div>
-      <div id='it-riser-block' style='margin-top:16px'>
+      <div id='it-riser-block'>
         <div class='section-label' style='color:var(--purple)'>
           <span class='section-dot' style='background:var(--purple)'></span>ITUNES — Rank + Score
         </div>
         <div class='trk-hdr' style='grid-template-columns:24px 1fr 50px 50px 64px 64px 60px'>
-          <span></span><span>Track · Artist</span><span style='text-align:center'>Start</span><span style='text-align:center'>Now</span><span style='text-align:right'>Score</span><span style='text-align:right'>+Score</span><span style='text-align:right'>Δ Rank</span>
+          <span></span><span>Album · Artist</span><span style='text-align:center'>Start</span><span style='text-align:center'>Now</span><span style='text-align:right'>Score</span><span style='text-align:right'>+Score</span><span style='text-align:right'>Δ Rank</span>
         </div>
         <div id='it-risers'></div>
       </div>
@@ -400,21 +367,12 @@ body{{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--
 
     <div id='fallers-section' style='background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:18px 20px'>
       <div class='sh'><span class='sh-l'>📉 Top Fallers — rank + metric composite</span></div>
-      <div id='sp-faller-block'>
-        <div class='section-label' style='color:var(--red)'>
-          <span class='section-dot' style='background:var(--red)'></span>Rank + Streams lost
-        </div>
-        <div class='trk-hdr' style='grid-template-columns:24px 1fr 50px 50px 64px 64px 60px'>
-          <span></span><span>Track · Artist</span><span style='text-align:center'>Start</span><span style='text-align:center'>Now</span><span style='text-align:right'>Streams</span><span style='text-align:right'>Lost</span><span style='text-align:right'>Δ Rank</span>
-        </div>
-        <div id='sp-fallers'></div>
-      </div>
-      <div id='it-faller-block' style='margin-top:16px'>
+      <div id='it-faller-block'>
         <div class='section-label' style='color:var(--red)'>
           <span class='section-dot' style='background:var(--red)'></span>ITUNES — Rank + Score lost
         </div>
         <div class='trk-hdr' style='grid-template-columns:24px 1fr 50px 50px 64px 64px 60px'>
-          <span></span><span>Track · Artist</span><span style='text-align:center'>Start</span><span style='text-align:center'>Now</span><span style='text-align:right'>Score</span><span style='text-align:right'>Lost</span><span style='text-align:right'>Δ Rank</span>
+          <span></span><span>Album · Artist</span><span style='text-align:center'>Start</span><span style='text-align:center'>Now</span><span style='text-align:right'>Score</span><span style='text-align:right'>Lost</span><span style='text-align:right'>Δ Rank</span>
         </div>
         <div id='it-fallers'></div>
       </div>
@@ -443,29 +401,15 @@ body{{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--
 <script src='https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js'></script>
 <script>
 const PAYLOAD = {data_json};
-const PLATFORM = PAYLOAD.platform; // Both / Spotify / iTunes
-const SHOW_SP = PLATFORM !== 'iTunes';
-const SHOW_IT = PLATFORM !== 'Spotify';
 
 function fmtN(n,dec=1){{if(n===null||n===undefined||isNaN(n))return'—';n=parseFloat(n);const a=Math.abs(n),sign=n<0?'−':n>0?'+':'';if(a>=1e6)return sign+(a/1e6).toFixed(dec)+'M';if(a>=1e3)return sign+(a/1e3).toFixed(0)+'K';return sign+a.toFixed(0);}}
 function fmtM(n,dec=2,signed=false){{if(n===null||n===undefined||isNaN(n))return'—';n=parseFloat(n);const a=Math.abs(n);const sign=signed?(n<0?'−':n>0?'+':''):(n<0?'−':'');return sign+(a/1e6).toFixed(dec)+'M';}}
-const CDARK={{responsive:true,maintainAspectRatio:false,plugins:{{legend:{{display:false}}}},scales:{{x:{{grid:{{color:'rgba(255,255,255,0.04)'}},ticks:{{color:'#444',font:{{size:9}}}}}},y:{{grid:{{color:'rgba(255,255,255,0.04)'}},ticks:{{color:'#444',font:{{size:9}}}}}}}}}};
 const DATES = PAYLOAD.dates;
-const PAL=['#fff','#a78bfa','#2dd4bf','#60a5fa','#fbbf24','#f472b6','#34d399','#fb923c'];
-const PAL2=['#22c55e','#a78bfa','#60a5fa','#fbbf24','#2dd4bf','#f472b6','#fb923c','#94a3b8'];
 
 // Header
 document.getElementById('hdr-window').textContent = PAYLOAD.window_label;
-document.getElementById('hdr-sub').textContent = `${{PAYLOAD.scope}} · ${{PLATFORM}} platform${{PLATFORM==='Both'?'s':''}}`;
+document.getElementById('hdr-sub').textContent = `${{PAYLOAD.scope}} · iTunes`;
 
-
-// Hide blocks per platform filter
-if (!SHOW_SP) {{
-  ['sp-riser-block','sp-faller-block'].forEach(id=>{{const e=document.getElementById(id);if(e)e.classList.add('hide');}});
-}}
-if (!SHOW_IT) {{
-  ['it-riser-block','it-faller-block','it-traj-card','it-scatter-card','it-top20-card'].forEach(id=>{{const e=document.getElementById(id);if(e)e.classList.add('hide');}});
-}}
 
 // KPI bar
 function kpiCard(lbl, val, sub, cls){{
@@ -473,27 +417,27 @@ function kpiCard(lbl, val, sub, cls){{
 }}
 const k = PAYLOAD.kpis;
 const kpiHtml = [
-  kpiCard('Spotify #1 today', k.sp_no1?k.sp_no1.a:'—', k.sp_no1?`${{fmtM(k.sp_no1.s,2)}} streams · ${{k.sp_no1.t}}`:''),
   kpiCard('iTunes #1 today', k.it_no1?k.it_no1.a:'—', k.it_no1?`${{k.it_no1.t}} · ${{(k.it_no1.s).toLocaleString()}} pts`:''),
-  kpiCard('Biggest rank riser', k.big_rank_riser?'+'+k.big_rank_riser.rg:'—', k.big_rank_riser?`${{k.big_rank_riser.n}} · ${{k.big_rank_riser.t}}`:'', 'g'),
-  kpiCard('Biggest stream riser', k.big_stream_riser?fmtM(k.big_stream_riser.sg,2,true):'—', k.big_stream_riser?`${{k.big_stream_riser.n}} · ${{k.big_stream_riser.t}}`:'', 'b'),
+  kpiCard('Biggest rank riser', k.big_rank_riser?(k.big_rank_riser.rg>0?'+'+k.big_rank_riser.rg:k.big_rank_riser.rg):'—', k.big_rank_riser?`${{k.big_rank_riser.n}} · ${{k.big_rank_riser.t}}`:'', 'g'),
   kpiCard('Biggest faller', k.big_faller?k.big_faller.rg:'—', k.big_faller?`${{k.big_faller.n}} · ${{k.big_faller.t}}`:'', 'r'),
-  kpiCard('Tracks rising', k.rising_count, `of ${{k.tracked}} tracked · both platforms`, 'a'),
+  kpiCard('Albums rising', k.rising_count, `of ${{k.tracked}} tracked`, 'a'),
 ].join('');
 document.getElementById('kpi-bar').innerHTML = kpiHtml;
 
 // Spotlights
 function spotCard(d, kind){{
   if (!d) return '';
-  const tag = kind==='sp' ? "<span class='bh'>🔥 SPOTIFY TOP RISER</span>" : "<span class='bp'>🔥 ITUNES TOP RISER</span>";
-  const accent = kind==='sp' ? 'var(--green)' : 'var(--purple)';
-  const metricArr = kind==='sp' ? d.streams : d.scores;
+  const tag = "<span class='bp'>🔥 ITUNES TOP RISER</span>";
+  const accent = 'var(--purple)';
+  const metricArr = d.scores || [];
   const startRank = d.ranks.find(v=>v!==null);
   const endRank = [...d.ranks].reverse().find(v=>v!==null);
   const startMet = metricArr.find(v=>v!==null) || 0;
   const endMet = [...metricArr].reverse().find(v=>v!==null) || 0;
-  const metLabel = kind==='sp' ? 'Stream gain' : 'Score gain';
-  const style = kind==='sp' ? '' : "style='--green:#a78bfa;--teal:#60a5fa'";
+  const metLabel = 'Score gain';
+  const style = "style='--green:#a78bfa;--teal:#60a5fa'";
+  const rgSign = d.rg > 0 ? '+' : '';
+  const rgColor = d.rg > 0 ? 'var(--green)' : d.rg < 0 ? 'var(--red)' : 'var(--t3)';
   return `<div class='spot' ${{style}}>
     <div class='sp-tag'>${{tag}}</div>
     <div class='sp-name'>${{d.n}} — ${{d.t}}</div>
@@ -501,17 +445,16 @@ function spotCard(d, kind){{
     <div class='sp-grid'>
       <div class='sp-s'><div class='sp-s-l'>Start rank</div><div class='sp-s-v'>#${{startRank}}</div></div>
       <div class='sp-s'><div class='sp-s-l'>Now</div><div class='sp-s-v' style='color:${{accent}}'>#${{endRank}}</div></div>
-      <div class='sp-s'><div class='sp-s-l'>Rank gain</div><div class='sp-s-v' style='color:var(--amber)'>+${{d.rg}}</div></div>
-      <div class='sp-s'><div class='sp-s-l'>${{metLabel}}</div><div class='sp-s-v' style='color:var(--blue)'>${{kind==='sp'?fmtM(d.sg,2,true):fmtN(d.sg,0)}}</div></div>
+      <div class='sp-s'><div class='sp-s-l'>Rank gain</div><div class='sp-s-v' style='color:${{rgColor}}'>${{rgSign}}${{d.rg}}</div></div>
+      <div class='sp-s'><div class='sp-s-l'>${{metLabel}}</div><div class='sp-s-v' style='color:var(--blue)'>${{fmtN(d.sg,0)}}</div></div>
     </div>
   </div>`;
 }}
 const spotHtml = [
-  SHOW_SP ? spotCard(PAYLOAD.sp_spot, 'sp') : '',
-  SHOW_IT ? spotCard(PAYLOAD.it_spot, 'it') : '',
+  spotCard(PAYLOAD.it_spot, 'it')
 ].filter(Boolean).join('');
 document.getElementById('spot-row').innerHTML = spotHtml;
-if (PLATFORM !== 'Both') document.getElementById('spot-row').style.gridTemplateColumns = '1fr';
+document.getElementById('spot-row').style.gridTemplateColumns = '1fr';
 
 // Riser/faller table renderer
 function renderTable(elId, data){{
@@ -522,7 +465,7 @@ function renderTable(elId, data){{
   const maxRg = Math.max(...data.map(d=>Math.abs(d.rg)),1);
   const maxSg = Math.max(...data.map(d=>Math.abs(d.sg)),1);
   data.forEach((d,i)=>{{
-    const metricArr = d.streams || d.scores || [];
+    const metricArr = d.scores || [];
     const latVal = [...metricArr].reverse().find(v=>v!==null) || 0;
     const latRank = [...d.ranks].reverse().find(v=>v!==null);
     const startRank = d.ranks.find(v=>v!==null);
@@ -532,9 +475,9 @@ function renderTable(elId, data){{
     const rankColor = isPos?'var(--green)':d.rg<0?'var(--red)':'var(--t3)';
     const sgColor = d.sg>0?'var(--blue)':d.sg<0?'var(--red)':'var(--t3)';
     const sgSign = d.sg>0?'+':d.sg<0?'−':'';
-    const valFmt = d.streams ? fmtM(latVal,2) : (latVal||0).toLocaleString();
-    const sgLabel = d.streams ? fmtM(Math.abs(d.sg),2) : Math.abs(d.sg).toLocaleString();
-    const rankBadge = isPos ? `<span class='bu'>▲${{d.rg}}</span>` : d.rg<0 ? `<span class='bd'>▼${{Math.abs(d.rg)}}</span>` : `<span class='bn'>—</span>`;
+    const valFmt = (latVal||0).toLocaleString();
+    const sgLabel = Math.abs(d.sg).toLocaleString();
+    const rankBadge = isPos ? `<span class='bu'>▲+${{d.rg}}</span>` : d.rg<0 ? `<span class='bd'>▼${{Math.abs(d.rg)}}</span>` : `<span class='bn'>—</span>`;
     el.innerHTML += `<div class='trk' style='grid-template-columns:24px 1fr 50px 50px 64px 64px 60px'>
       <span class='rn'>${{i+1}}</span>
       <div>
@@ -553,10 +496,9 @@ function renderTable(elId, data){{
     </div>`;
   }});
 }}
-if (SHOW_SP) {{ renderTable('sp-risers', PAYLOAD.sp_risers); renderTable('sp-fallers', PAYLOAD.sp_fallers); }}
-if (SHOW_IT) {{ renderTable('it-risers', PAYLOAD.it_risers); renderTable('it-fallers', PAYLOAD.it_fallers); }}
+renderTable('it-risers', PAYLOAD.it_risers);
+renderTable('it-fallers', PAYLOAD.it_fallers);
 
-// (iTunes trajectory / scatter / top20 charts removed)
 </script>
 </body></html>
 """

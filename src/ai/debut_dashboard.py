@@ -405,6 +405,7 @@ def _latest_date(table: str = "spotify_daily") -> "datetime.date | None":
 #  DATABASE QUERIES
 # ─────────────────────────────────────────────────────────────
 
+@st.cache_data(ttl=300, show_spinner=False)
 def get_debut_tracks(days_back: int = 7) -> pd.DataFrame:
     """
     Tracks that appear in the CURRENT week's chart but NOT in the
@@ -473,6 +474,7 @@ def get_debut_tracks(days_back: int = 7) -> pd.DataFrame:
         return pd.DataFrame()
 
 
+@st.cache_data(ttl=300, show_spinner=False)
 def get_itunes_debuts(days_back: int = 7) -> pd.DataFrame:
     """
     New entries in the iTunes WW chart (region = 'ww') this week
@@ -616,6 +618,7 @@ def get_multi_track_debutants(debut_df: pd.DataFrame) -> pd.DataFrame:
     return multi
 
 
+@st.cache_data(ttl=300, show_spinner=False)
 def get_new_trending_artists(days_back: int = 30) -> pd.DataFrame:
     """
     Artists that appear in trending_monthly for the current month
@@ -662,6 +665,7 @@ def get_new_trending_artists(days_back: int = 30) -> pd.DataFrame:
         return pd.DataFrame()
 
 
+@st.cache_data(ttl=300, show_spinner=False)
 def get_itunes_artist_new_entries(limit: int = 10) -> pd.DataFrame:
     """
     Fetch the latest 'NEW' entries from itunes_artist_rankings.
@@ -741,6 +745,7 @@ def get_debut_vs_incumbent(debut_df: pd.DataFrame, all_df: pd.DataFrame) -> pd.D
     return pd.DataFrame(tiers)
 
 
+@st.cache_data(ttl=300, show_spinner=False)
 def get_all_chart_tracks(days_back: int = 7) -> pd.DataFrame:
     """Full chart for the current week (for KPI comparison baseline)."""
     try:
@@ -1133,11 +1138,8 @@ def render_debut_tab() -> None:
     st.markdown(
         f"""
         <div class="db-hero">
-          <div class="db-hero-eyebrow">
-            <span class="db-hero-dot"></span>
-            Chromadata · Debut Intelligence
-          </div>
-          <div class="db-hero-title">Chart Debuts Report</div>
+          
+          <div class="db-hero-title">🌟 Chart Debuts Report</div>
           <div class="db-hero-sub">
             Spotify Global &nbsp;·&nbsp; iTunes WW &nbsp;·&nbsp;
             <b>{kpis.get('total', 0)} new entries</b> vs prior week &nbsp;·&nbsp;
@@ -1340,4 +1342,16 @@ def render_debut_dashboard() -> None:
     render_debut_tab()
 
 
-__all__ = ["render_debut_tab", "render_debut_dashboard"]
+def prefetch_debut_data() -> None:
+    """Warms up the cache for the debut dashboard in the background."""
+    try:
+        get_debut_tracks()
+        get_itunes_debuts()
+        get_new_trending_artists()
+        get_itunes_artist_new_entries(10)
+        get_all_chart_tracks()
+    except Exception as e:
+        logger.error(f"Error prefetching debut data: {e}")
+
+
+__all__ = ["render_debut_tab", "render_debut_dashboard", "prefetch_debut_data"]
