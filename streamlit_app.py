@@ -3572,11 +3572,13 @@ with _skeleton_slot.container():
 
 try:
     data = load_dashboard_data()
-    # Synchronous prefetch for debut dashboard data on first load to ensure near-instant load on tab switch
-    if "debut_prefetched" not in st.session_state:
-        st.session_state.debut_prefetched = True
-        with st.spinner("Pre-fetching Debut Report data..."):
+    # Synchronous prefetch for dashboard data on first load to ensure near-instant load on tab switch
+    if "dashboards_prefetched" not in st.session_state:
+        st.session_state.dashboards_prefetched = True
+        from src.ai.label_analysis_dashboard import prefetch_label_data
+        with st.spinner("Pre-fetching Dashboard data..."):
             prefetch_debut_data()
+            prefetch_label_data()
 except Exception as exc:  # pragma: no cover
     _skeleton_slot.empty()
     st.error(f"❌ Failed to load dashboard data: {exc}")

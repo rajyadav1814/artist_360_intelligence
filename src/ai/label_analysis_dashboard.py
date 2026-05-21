@@ -43,6 +43,7 @@ def fmt_kpi(val):
         return f"{val/1e3:.0f}K"
     return str(val)
 
+@st.cache_data(ttl=300, show_spinner=False)
 def load_data():
     """Load latest 14 days of data from database."""
     conn = get_connection()
@@ -1143,3 +1144,13 @@ def render_label_analysis():
     
     # Render with Streamlit Components
     st.components.v1.html(html_code, height=1180, scrolling=True)
+
+
+def prefetch_label_data() -> None:
+    """Warms up the cache for the label analysis dashboard."""
+    try:
+        load_data()
+    except Exception as e:
+        logger.error(f"Error prefetching label analysis data: {e}")
+
+__all__ = ["render_label_analysis", "prefetch_label_data"]
