@@ -600,6 +600,11 @@ def render_label_analysis():
         /* vel bar */
         .vb{height:3.5px;background:rgba(255,255,255,0.03);border-radius:2px;margin-top:4px;overflow:hidden;}
         .vbf{height:100%;border-radius:2px}
+        /* Scrollable track list */
+        #sp-track-list::-webkit-scrollbar,#it-track-list::-webkit-scrollbar{width:4px}
+        #sp-track-list::-webkit-scrollbar-track,#it-track-list::-webkit-scrollbar-track{background:var(--bg3);border-radius:2px}
+        #sp-track-list::-webkit-scrollbar-thumb,#it-track-list::-webkit-scrollbar-thumb{background:rgba(148,163,184,.2);border-radius:2px}
+        #sp-track-list::-webkit-scrollbar-thumb:hover,#it-track-list::-webkit-scrollbar-thumb:hover{background:rgba(148,163,184,.4)}
 
         /* Label market share bar */
         .mkt-row{display:flex;align-items:center;gap:12px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.01);}
@@ -651,15 +656,15 @@ def render_label_analysis():
       <!-- SPOTIFY pane -->
       <div id="pane-spotify" class="pane on">
         <div class="r24">
-          <div>
-            <div class="sh"><span class="sh-l">Spotify global — daily streams by label group</span><span class="sh-r">Live Window</span></div>
+          <div class="card">
+            <div class="card-ttl">Spotify global — daily streams by label group <span style="float:right;font-size:9px;font-weight:700;color:var(--t2);background:rgba(13,17,23,.65);padding:2px 8px;border-radius:999px;border:1px solid var(--border)">Live Window</span></div>
             <div class="cw" style="height:240px"><canvas id="spTrendChart"></canvas></div>
           </div>
-          <div>
-            <div class="sh"><span class="sh-l">Market share — streams</span><span class="sh-r">Total window</span></div>
+          <div class="card">
+            <div class="card-ttl">Market share — streams <span style="float:right;font-size:9px;font-weight:700;color:var(--t2);background:rgba(13,17,23,.65);padding:2px 8px;border-radius:999px;border:1px solid var(--border)">Total window</span></div>
             <div style="margin-bottom:10px" id="mkt-share-sp"></div>
-            <div class="card">
-              <div class="card-ttl">Week-over-week shift</div>
+            <div style="border-top:1px solid var(--border);padding-top:12px;margin-top:4px">
+              <div class="card-ttl" style="margin-bottom:8px">Week-over-week shift</div>
               <div id="wow-sp"></div>
             </div>
           </div>
@@ -671,14 +676,14 @@ def render_label_analysis():
             <div class="trk-hdr" style="grid-template-columns:18px 1fr 64px 56px 56px 46px">
               <span></span><span>Track</span><span style="text-align:right">Streams</span><span style="text-align:right">Best Rank</span><span style="text-align:right">Growth</span><span style="text-align:right">Days</span>
             </div>
-            <div id="sp-track-list"></div>
+            <div id="sp-track-list" style="max-height:480px;overflow-y:auto;padding-right:4px;"></div>
           </div>
-          <div>
-            <div class="sh"><span class="sh-l">Label stream comparison — Latest Snapshot</span><span class="sh-r">Daily snapshot</span></div>
-            <div class="cw" style="height:200px"><canvas id="spBarChart"></canvas></div>
-            <div style="margin-top:10px">
-              <div class="sh"><span class="sh-l">Track count by label</span></div>
-              <div class="cw" style="height:140px"><canvas id="trackCountChart"></canvas></div>
+          <div class="card">
+            <div class="card-ttl">Label stream comparison — Latest Snapshot <span style="float:right;font-size:9px;font-weight:700;color:var(--t2);background:rgba(13,17,23,.65);padding:2px 8px;border-radius:999px;border:1px solid var(--border)">Daily snapshot</span></div>
+            <div class="cw" style="height:280px"><canvas id="spBarChart"></canvas></div>
+            <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:12px">
+              <div class="card-ttl" style="margin-bottom:8px">Track count by label</div>
+              <div class="cw" style="height:200px"><canvas id="trackCountChart"></canvas></div>
             </div>
           </div>
         </div>
@@ -687,12 +692,12 @@ def render_label_analysis():
       <!-- ITUNES pane -->
       <div id="pane-itunes" class="pane">
         <div class="r24">
-          <div>
-            <div class="sh"><span class="sh-l">iTunes WW — cumulative score by label group</span><span class="sh-r">Total window</span></div>
+          <div class="card">
+            <div class="card-ttl">iTunes WW — cumulative score by label group <span style="float:right;font-size:9px;font-weight:700;color:var(--t2);background:rgba(13,17,23,.65);padding:2px 8px;border-radius:999px;border:1px solid var(--border)">Total window</span></div>
             <div class="cw" style="height:240px"><canvas id="itTrendChart"></canvas></div>
           </div>
-          <div>
-            <div class="sh"><span class="sh-l">iTunes market share — score</span><span class="sh-r">Live Window</span></div>
+          <div class="card">
+            <div class="card-ttl">iTunes market share — score <span style="float:right;font-size:9px;font-weight:700;color:var(--t2);background:rgba(13,17,23,.65);padding:2px 8px;border-radius:999px;border:1px solid var(--border)">Live Window</span></div>
             <div id="mkt-share-it"></div>
           </div>
         </div>
@@ -703,7 +708,7 @@ def render_label_analysis():
             <div class="trk-hdr" style="grid-template-columns:18px 1fr 70px 56px 56px">
               <span></span><span>Track</span><span style="text-align:right">Total Score</span><span style="text-align:right">Best Rank</span><span style="text-align:right">Latest Score</span>
             </div>
-            <div id="it-track-list"></div>
+            <div id="it-track-list" style="max-height:480px;overflow-y:auto;padding-right:4px;"></div>
           </div>
           <div class="card">
             <div class="card-ttl">iTunes label scorecard — tracks × avg score</div>
@@ -719,8 +724,8 @@ def render_label_analysis():
             <div class="card-ttl">Cross-platform index — Spotify streams vs iTunes score (normalised)</div>
             <div class="cw" style="height:260px"><canvas id="crossChart"></canvas></div>
           </div>
-          <div>
-            <div class="sh"><span class="sh-l">Label health matrix</span><span class="sh-r">Both platforms</span></div>
+          <div class="card">
+            <div class="card-ttl">Label health matrix <span style="float:right;font-size:9px;font-weight:700;color:var(--t2);background:rgba(13,17,23,.65);padding:2px 8px;border-radius:999px;border:1px solid var(--border)">Both platforms</span></div>
             <div id="health-matrix"></div>
           </div>
         </div>
@@ -1143,7 +1148,7 @@ def render_label_analysis():
         .replace('__KPI_DATA__', json.dumps(kpi_data))
     
     # Render with Streamlit Components
-    st.components.v1.html(html_code, height=1180, scrolling=True)
+    st.components.v1.html(html_code, height=1320, scrolling=True)
 
 
 def prefetch_label_data() -> None:
