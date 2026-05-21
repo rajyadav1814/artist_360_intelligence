@@ -3572,13 +3572,23 @@ with _skeleton_slot.container():
 
 try:
     data = load_dashboard_data()
-    # Synchronous prefetch for dashboard data on first load to ensure near-instant load on tab switch
+    # Asynchronous prefetch for dashboard data on first load to ensure near-instant load on tab switch without blocking main load
     if "dashboards_prefetched" not in st.session_state:
         st.session_state.dashboards_prefetched = True
+        import threading
+        from streamlit.runtime.scriptrunner import add_script_run_ctx
         from src.ai.label_analysis_dashboard import prefetch_label_data
-        with st.spinner("Pre-fetching Dashboard data..."):
-            prefetch_debut_data()
-            prefetch_label_data()
+        
+        def run_prefetch():
+            try:
+                prefetch_debut_data()
+                prefetch_label_data()
+            except Exception as e:
+                pass
+
+        prefetch_thread = threading.Thread(target=run_prefetch)
+        add_script_run_ctx(prefetch_thread)
+        prefetch_thread.start()
 except Exception as exc:  # pragma: no cover
     _skeleton_slot.empty()
     st.error(f"❌ Failed to load dashboard data: {exc}")
