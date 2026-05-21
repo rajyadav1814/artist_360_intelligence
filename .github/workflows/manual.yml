@@ -2,7 +2,7 @@ name: Daily Scrape
 
 on:
   schedule:
-    - cron: "0 * * * *"   # Runs every hour at minute 0
+    - cron: "*/30 * * * *"   # Every 30 minutes
   workflow_dispatch:
 
 jobs:
