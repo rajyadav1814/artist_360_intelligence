@@ -22,7 +22,6 @@ from src.ai.album_acquisition_dashboard import render_album_acquisition
 from src.database.connection import get_connection
 from src.scrapers.artist_details_scraper import LATIN_AMERICAN_COUNTRIES
 from src.utils.image_utils import get_artist_image_url, get_fallback_avatar_url
-from skeleton import render_dashboard_skeleton
 
 
 st.set_page_config(
@@ -673,14 +672,6 @@ def apply_theme() -> None:
             animation: pulse 2s ease-in-out infinite;
         }
         
-        /* Loading skeleton */
-        .skeleton {
-            background: linear-gradient(90deg, rgba(151,163,197,.1) 25%, rgba(151,163,197,.2) 50%, rgba(151,163,197,.1) 75%);
-            background-size: 200% 100%;
-            animation: shimmer 1.5s infinite;
-            border-radius: 8px;
-        }
-        
         /* Expandable section */
         .expandable {
             overflow: hidden;
@@ -785,9 +776,16 @@ def apply_theme() -> None:
             box-shadow: 0 6px 20px rgba(79,142,247,.3);
         }
         
-        /* Loading spinner */
-        .stSpinner > div {
-            border-color: var(--accent) transparent transparent transparent;
+        /* Hide ALL Streamlit running/status indicators */
+        [data-testid="stStatusWidget"],
+        .stAppStatus,
+        [data-testid="stAppStatus"],
+        .stSpinner,
+        [data-testid="stSpinner"],
+        div.element-container:has([data-testid="stSpinner"]) {
+            display: none !important;
+            visibility: hidden !important;
+            opacity: 0 !important;
         }
         
         /* Toast notifications */
@@ -3566,9 +3564,57 @@ def render_chatbot_widget() -> None:
 
 apply_theme()
 
-_skeleton_slot = st.empty()
-with _skeleton_slot.container():
-    render_dashboard_skeleton()
+_loader_slot = st.empty()
+_loader_slot.markdown("""
+<style>
+@keyframes a360-spin {
+    0%   { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+@keyframes a360-pulse {
+    0%, 100% { opacity: .4; transform: scale(1); }
+    50%        { opacity: 1;  transform: scale(1.08); }
+}
+#a360-loader {
+    position: fixed;
+    inset: 0;
+    background: #07101f;
+    z-index: 99999;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+#a360-loader .a360-ring {
+    width: 64px;
+    height: 64px;
+    border: 3px solid rgba(79,142,247,0.15);
+    border-top-color: #4f8ef7;
+    border-radius: 50%;
+    animation: a360-spin 0.9s linear infinite;
+}
+#a360-loader .a360-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: #e2e8f0;
+    letter-spacing: 0.02em;
+    animation: a360-pulse 2s ease-in-out infinite;
+}
+#a360-loader .a360-sub {
+    font-size: 0.82rem;
+    color: #5a7ab5;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+</style>
+<div id="a360-loader">
+  <div class="a360-ring"></div>
+  <div class="a360-title">Artist 360&deg; Intelligence</div>
+  <div class="a360-sub">Fetching latest chart data&hellip;</div>
+</div>
+""", unsafe_allow_html=True)
 
 try:
     data = load_dashboard_data()
@@ -3590,11 +3636,11 @@ try:
         add_script_run_ctx(prefetch_thread)
         prefetch_thread.start()
 except Exception as exc:  # pragma: no cover
-    _skeleton_slot.empty()
+    _loader_slot.empty()
     st.error(f"❌ Failed to load dashboard data: {exc}")
     st.stop()
 
-_skeleton_slot.empty()
+_loader_slot.empty()
 
 leaderboard = data["leaderboard"]
 runs = data["runs"]
@@ -4033,7 +4079,59 @@ def show_label_analysis_page() -> None:
 
 def show_debut_report_page() -> None:
     """Wrapper function for Debut Report page"""
+    _debut_loader = st.empty()
+    _debut_loader.markdown("""
+<style>
+@keyframes _dr_spin {
+    0%   { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+@keyframes _dr_pulse {
+    0%, 100% { opacity: .4; transform: scale(1); }
+    50%        { opacity: 1;  transform: scale(1.08); }
+}
+#dr-loader {
+    position: fixed;
+    inset: 0;
+    background: #07101f;
+    z-index: 99999;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+#dr-loader .dr-ring {
+    width: 64px;
+    height: 64px;
+    border: 3px solid rgba(79,142,247,0.15);
+    border-top-color: #4f8ef7;
+    border-radius: 50%;
+    animation: _dr_spin 0.9s linear infinite;
+}
+#dr-loader .dr-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: #e2e8f0;
+    letter-spacing: 0.02em;
+    animation: _dr_pulse 2s ease-in-out infinite;
+}
+#dr-loader .dr-sub {
+    font-size: 0.82rem;
+    color: #5a7ab5;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+</style>
+<div id="dr-loader">
+  <div class="dr-ring"></div>
+  <div class="dr-title">Debut Report</div>
+  <div class="dr-sub">Loading debut data&hellip;</div>
+</div>
+""", unsafe_allow_html=True)
     render_debut_tab()
+    _debut_loader.empty()
 
 
 def show_movement_page() -> None:
