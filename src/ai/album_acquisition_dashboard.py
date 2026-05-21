@@ -444,7 +444,6 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
 <div class="hdr">
   <div class="hdr-top">
     <div>
-      <div class="brand"><span class="live"></span>Chromadata · Album Acquisition Intelligence</div>
       <div class="dash-title">Album Acquisition</div>
       <div class="dash-sub" id="hdr-sub"></div>
     </div>

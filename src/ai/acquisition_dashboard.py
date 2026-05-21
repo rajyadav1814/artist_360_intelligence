@@ -640,7 +640,7 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
 
 <div class="hdr">
   <div>
-    <div class="brand"><span class="live-dot"></span>Chromadata · Commercial Signal Intelligence · Acquisition</div>
+    <div class="brand"></div>
     <div class="dash-title">Acquisition Recommendation</div>
     <div class="dash-sub" id="hdr-sub"></div>
   </div>

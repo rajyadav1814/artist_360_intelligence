@@ -337,7 +337,7 @@ body{{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--
 <div class='hdr'>
   <div class='hdr-top'>
     <div>
-      <div class='brand'><span class='live'></span>Chromadata · Album Movement Intelligence · <span id='hdr-window'></span></div>
+      <div class='brand'><span id='hdr-window'></span></div>
       <div class='dash-title'>Album Momentum Dashboard</div>
       <div class='dash-sub' id='hdr-sub'></div>
     </div>
