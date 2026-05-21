@@ -350,9 +350,10 @@ body{{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--
 
   <div class='r2' id='spot-row'></div>
 
-  <div id='risers-section'>
-    <div class='sh'><span class='sh-l'>📈 Top Risers — rank + metric composite</span><span class='sh-r' id='riser-period'></span></div>
-    <div class='r2'>
+  <div style='display:grid;grid-template-columns:1fr 1fr;gap:16px'>
+
+    <div id='risers-section' style='background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:18px 20px'>
+      <div class='sh'><span class='sh-l'>📈 Top Risers — rank + metric composite</span></div>
       <div id='it-riser-block'>
         <div class='section-label' style='color:var(--purple)'>
           <span class='section-dot' style='background:var(--purple)'></span>ITUNES — Rank + Score
@@ -363,11 +364,9 @@ body{{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--
         <div id='it-risers'></div>
       </div>
     </div>
-  </div>
 
-  <div id='fallers-section'>
-    <div class='sh'><span class='sh-l'>📉 Top Fallers — rank + metric composite</span><span class='sh-r' id='faller-period'></span></div>
-    <div class='r2'>
+    <div id='fallers-section' style='background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:18px 20px'>
+      <div class='sh'><span class='sh-l'>📉 Top Fallers — rank + metric composite</span></div>
       <div id='it-faller-block'>
         <div class='section-label' style='color:var(--red)'>
           <span class='section-dot' style='background:var(--red)'></span>ITUNES — Rank + Score lost
@@ -378,6 +377,7 @@ body{{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--
         <div id='it-fallers'></div>
       </div>
     </div>
+
   </div>
 
   <div class='card' id='it-traj-card' style='display:none'>
@@ -409,8 +409,7 @@ const DATES = PAYLOAD.dates;
 // Header
 document.getElementById('hdr-window').textContent = PAYLOAD.window_label;
 document.getElementById('hdr-sub').textContent = `${{PAYLOAD.scope}} · iTunes`;
-document.getElementById('riser-period').textContent = PAYLOAD.window_label;
-document.getElementById('faller-period').textContent = PAYLOAD.window_label;
+
 
 // KPI bar
 function kpiCard(lbl, val, sub, cls){{

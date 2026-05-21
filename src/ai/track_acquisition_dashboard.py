@@ -536,7 +536,7 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
         </div>
       </div>
       <div class="section-mini" id="chart-section" style="display:none">
-        <div class="section-mini-title">Spotify — stream + rank trajectory</div>
+        <div class="section-mini-title">stream + rank trajectory</div>
         <div class="dual-legend">
           <span class="dl-item"><span class="dl-dot" style="background:var(--green)"></span>Streams</span>
           <span class="dl-item"><span class="dl-dot" style="background:var(--purple)"></span>Rank (right axis)</span>

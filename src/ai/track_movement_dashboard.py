@@ -375,19 +375,20 @@ body{{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--
 
   <div class='r2' id='spot-row'></div>
 
-  <div id='risers-section'>
-    <div class='sh'><span class='sh-l'>📈 Top Risers — rank + metric composite</span><span class='sh-r' id='riser-period'></span></div>
-    <div class='r2'>
+  <div style='display:grid;grid-template-columns:1fr 1fr;gap:16px'>
+
+    <div id='risers-section' style='background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:18px 20px'>
+      <div class='sh'><span class='sh-l'>📈 Top Risers — rank + metric composite</span></div>
       <div id='sp-riser-block'>
         <div class='section-label' style='color:var(--green)'>
-          <span class='section-dot' style='background:var(--green)'></span>SPOTIFY — Rank + Streams
+          <span class='section-dot' style='background:var(--green)'></span>Rank + Streams
         </div>
         <div class='trk-hdr' style='grid-template-columns:24px 1fr 50px 50px 64px 64px 60px'>
           <span></span><span>Track · Artist</span><span style='text-align:center'>Start</span><span style='text-align:center'>Now</span><span style='text-align:right'>Streams</span><span style='text-align:right'>+Streams</span><span style='text-align:right'>Δ Rank</span>
         </div>
         <div id='sp-risers'></div>
       </div>
-      <div id='it-riser-block'>
+      <div id='it-riser-block' style='margin-top:16px'>
         <div class='section-label' style='color:var(--purple)'>
           <span class='section-dot' style='background:var(--purple)'></span>ITUNES — Rank + Score
         </div>
@@ -397,21 +398,19 @@ body{{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--
         <div id='it-risers'></div>
       </div>
     </div>
-  </div>
 
-  <div id='fallers-section'>
-    <div class='sh'><span class='sh-l'>📉 Top Fallers — rank + metric composite</span><span class='sh-r' id='faller-period'></span></div>
-    <div class='r2'>
+    <div id='fallers-section' style='background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:18px 20px'>
+      <div class='sh'><span class='sh-l'>📉 Top Fallers — rank + metric composite</span></div>
       <div id='sp-faller-block'>
         <div class='section-label' style='color:var(--red)'>
-          <span class='section-dot' style='background:var(--red)'></span>SPOTIFY — Rank + Streams lost
+          <span class='section-dot' style='background:var(--red)'></span>Rank + Streams lost
         </div>
         <div class='trk-hdr' style='grid-template-columns:24px 1fr 50px 50px 64px 64px 60px'>
           <span></span><span>Track · Artist</span><span style='text-align:center'>Start</span><span style='text-align:center'>Now</span><span style='text-align:right'>Streams</span><span style='text-align:right'>Lost</span><span style='text-align:right'>Δ Rank</span>
         </div>
         <div id='sp-fallers'></div>
       </div>
-      <div id='it-faller-block'>
+      <div id='it-faller-block' style='margin-top:16px'>
         <div class='section-label' style='color:var(--red)'>
           <span class='section-dot' style='background:var(--red)'></span>ITUNES — Rank + Score lost
         </div>
@@ -421,6 +420,7 @@ body{{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--
         <div id='it-fallers'></div>
       </div>
     </div>
+
   </div>
 
   <div class='card' id='it-traj-card' style='display:none'>
@@ -458,8 +458,7 @@ const PAL2=['#22c55e','#a78bfa','#60a5fa','#fbbf24','#2dd4bf','#f472b6','#fb923c
 // Header
 document.getElementById('hdr-window').textContent = PAYLOAD.window_label;
 document.getElementById('hdr-sub').textContent = `${{PAYLOAD.scope}} · ${{PLATFORM}} platform${{PLATFORM==='Both'?'s':''}}`;
-document.getElementById('riser-period').textContent = PAYLOAD.window_label;
-document.getElementById('faller-period').textContent = PAYLOAD.window_label;
+
 
 // Hide blocks per platform filter
 if (!SHOW_SP) {{
