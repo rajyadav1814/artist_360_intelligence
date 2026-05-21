@@ -11,7 +11,9 @@ import streamlit.components.v1 as st_components
 
 from src.ai.custom_chatbot import render_custom_chatbot
 from src.ai.label_dashboard import render_pulse_report
-from src.ai.debut_dashboard import render_debut_tab
+from src.ai.debut_dashboard import render_debut_tab, prefetch_debut_data
+import threading
+from streamlit.runtime.scriptrunner import add_script_run_ctx
 from src.ai.track_movement_dashboard import render_track_movement
 from src.ai.album_movement_dashboard import render_album_movement
 from src.ai.acquisition_dashboard import render_acquisition
@@ -3570,6 +3572,11 @@ with _skeleton_slot.container():
 
 try:
     data = load_dashboard_data()
+    # Synchronous prefetch for debut dashboard data on first load to ensure near-instant load on tab switch
+    if "debut_prefetched" not in st.session_state:
+        st.session_state.debut_prefetched = True
+        with st.spinner("Pre-fetching Debut Report data..."):
+            prefetch_debut_data()
 except Exception as exc:  # pragma: no cover
     _skeleton_slot.empty()
     st.error(f"❌ Failed to load dashboard data: {exc}")
