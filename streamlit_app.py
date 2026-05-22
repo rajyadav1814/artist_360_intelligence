@@ -1330,12 +1330,7 @@ def render_leaderboard_table_html(leaderboard: pd.DataFrame, max_rows: int) -> N
         rank = int(row["rank"]) if pd.notna(row["rank"]) else "—"
         rank_change = trend_badge_html(str(row.get("rank_change") or ""))
         artist_name = str(row.get("name") or "—")
-        artist_link = str(row.get("profile_url") or "")
-        artist_html = (
-            f"<a href=\"{escape(artist_link)}\" target=\"_blank\" class=\"artist-link\">{escape(artist_name)}</a>"
-            if artist_link
-            else escape(artist_name)
-        )
+        artist_html = escape(artist_name)
         top_song = str(row.get("top_song") or "—").strip()
         top_song_label = escape(top_song if len(top_song) <= 40 else top_song[:38] + "…")
         top_song_html = f"<span title=\"{escape(top_song)}\">{top_song_label}</span>"
