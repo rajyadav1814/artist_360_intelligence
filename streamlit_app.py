@@ -3612,7 +3612,6 @@ _loader_slot.markdown("""
 <div id="a360-loader">
   <div class="a360-ring"></div>
   <div class="a360-title">Artist 360&deg; Intelligence</div>
-  <div class="a360-sub">Fetching latest chart data&hellip;</div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -4127,7 +4126,6 @@ def show_debut_report_page() -> None:
 <div id="dr-loader">
   <div class="dr-ring"></div>
   <div class="dr-title">Debut Report</div>
-  <div class="dr-sub">Loading debut data&hellip;</div>
 </div>
 """, unsafe_allow_html=True)
     render_debut_tab()
