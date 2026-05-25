@@ -350,8 +350,8 @@ def _build_artist_payloads(
         if best_sp_rank is not None and best_sp_rank <= 10:
             signals.append({
                 "icon": "🏆",
-                "title": f"Top-10 Spotify Global · #{best_sp_rank}",
-                "desc": f"{best_sp_track} reached #{best_sp_rank} on Spotify Global during the window.",
+                "title": f"Top-10 Spotify Global · {best_sp_rank}",
+                "desc": f"{best_sp_track} reached {best_sp_rank} on Spotify Global during the window.",
             })
         if not signals:
             signals.append({
@@ -396,13 +396,13 @@ def _build_quote(artist: str, tracks: int, momentum: float, best_sp: int | None,
     if peak_ml >= 10_000_000:
         pieces.append(f"{_fmt_n(peak_ml)} Spotify monthly listeners at peak")
     if best_it is not None and best_it <= 10:
-        pieces.append(f"iTunes WW #{best_it}")
+        pieces.append(f"iTunes WW {best_it}")
     elif best_it is not None and best_it <= 50:
         pieces.append(f"iTunes WW top-{best_it}")
     if best_sp is not None and best_sp <= 10:
-        pieces.append(f"{best_track} at #{best_sp} on Spotify Global")
+        pieces.append(f"{best_track} at {best_sp} on Spotify Global")
     elif best_sp is not None:
-        pieces.append(f"Best Spotify Global rank #{best_sp}")
+        pieces.append(f"Best Spotify Global rank {best_sp}")
     if tracks >= 3:
         pieces.append(f"{tracks} simultaneous global tracks")
     if momentum >= 10:
