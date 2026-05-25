@@ -492,19 +492,12 @@ def render_acquisition() -> None:
 
 
     date_labels = [d.strftime("%b %d") for d in dates]
-    window_label = (
-      f"{len(artist_data)} ranked artists · {period_label} · {len(dates)} days · "
-      f"{dates[0].strftime('%b %d')} – {dates[-1].strftime('%b %d, %Y')}"
-    )
-    fy_label = f"FY{dates[-1].year} · {dates[-1].strftime('%b')} window · Real data"
 
     # Default selected = top of leaderboard
     default_artist = leaderboard[0]["n"] if leaderboard else next(iter(artist_data))
 
     payload = {
         "dates": date_labels,
-        "windowLabel": window_label,
-        "fyLabel": fy_label,
         "artists": artist_data,
         "leaderboard": leaderboard,
         "momentum": momentum_data,
@@ -641,10 +634,9 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
 <div class="hdr">
   <div>
     <div class="brand"></div>
-    <div class="dash-title">Acquisition Recommendation</div>
+    <div class="dash-title">Artist Acquisition</div>
     <div class="dash-sub" id="hdr-sub"></div>
   </div>
-  <div class="fy-pill" id="fy-label"></div>
 </div>
 
 <div class="selector-bar">
@@ -736,8 +728,6 @@ const ALL_ARTISTS = PAYLOAD.allArtists;
 const LEADERBOARD = PAYLOAD.leaderboard;
 const MOMENTUM_DATA = PAYLOAD.momentum;
 
-document.getElementById('hdr-sub').textContent = PAYLOAD.windowLabel;
-document.getElementById('fy-label').textContent = PAYLOAD.fyLabel;
 document.getElementById('acq-meta').textContent = PAYLOAD.windowLabel;
 document.getElementById('dd-count').textContent = ALL_ARTISTS.length + ' artists tracked';
 

@@ -254,7 +254,6 @@ def _build_payload(albums: list[dict[str, Any]], dates: list[date], limit: int =
 
     return {
         "dates": [d.strftime("%b %d") for d in dates],
-        "windowLabel": f"{len(albums)} albums · {len(dates)} days · {dates[0].strftime('%b %d')} – {dates[-1].strftime('%b %d, %Y')}",
         "fyLabel": f"Album Acquisition · Real data",
         "albums": albums,
         "defaultAlbumId": albums[0]["id"] if albums else None,
@@ -445,7 +444,6 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
   <div class="hdr-top">
     <div>
       <div class="dash-title">Album Acquisition</div>
-      <div class="dash-sub" id="hdr-sub"></div>
     </div>
     <div class="filter-bar">
       <div class="search-wrap">
@@ -575,7 +573,6 @@ function updateKPIs(sum) {
 }
 
 if (SUM) {
-  document.getElementById('hdr-sub').textContent = PAYLOAD.windowLabel || '';
   updateKPIs(SUM);
 }
 
