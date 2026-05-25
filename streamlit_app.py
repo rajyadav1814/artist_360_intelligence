@@ -2749,7 +2749,6 @@ def render_debut_artist_chart(leaderboard: pd.DataFrame) -> None:
     artist_name = escape(str(row.get("name") or "—"))
     page_title_val = escape(str(row.get("page_title") or ""))
     display_country = escape(str(row.get("display_country") or "Global"))
-    top_song = escape(str(row.get("top_song") or "—"))
 
     st.markdown(
         f"""
@@ -2777,16 +2776,6 @@ def render_debut_artist_chart(leaderboard: pd.DataFrame) -> None:
             <div class="spotlight-kpi"><div class="spotlight-kpi-label">Peak Listeners</div><div class="spotlight-kpi-value">{peak_val}</div><div class="spotlight-kpi-note">Historical high</div></div>
             <div class="spotlight-kpi"><div class="spotlight-kpi-label">Total Points</div><div class="spotlight-kpi-value">{points_val}</div><div class="spotlight-kpi-note">Cross-platform score</div></div>
             <div class="spotlight-kpi"><div class="spotlight-kpi-label">Trend</div><div class="spotlight-kpi-value">{escape(trend_change)}</div><div class="spotlight-kpi-note">Rank momentum</div></div>
-        </div>
-
-        <div class="spotlight-panel">
-            <div class="spotlight-panel-header">Artist Profile Details</div>
-            <div class="spotlight-panel-body">
-                <div class="spotlight-meta-grid">
-                    <div><strong>Top Country:</strong> {display_country}</div>
-                    <div><strong>Top Song:</strong> {top_song}</div>
-                </div>
-            </div>
         </div>
 
         <div class="spotlight-panel">

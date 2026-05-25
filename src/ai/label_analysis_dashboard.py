@@ -456,22 +456,54 @@ def render_label_analysis():
           box-shadow:0 10px 20px rgba(0,0,0,.22);
         }
         
-        .plat-bar{display:flex;gap:4px;margin-top:0;border-bottom:1px solid rgba(148,163,184,.1);position:relative;z-index:2;}
-        .pt{
-          font-size:11px;
-          font-weight:700;
-          letter-spacing:1px;
-          text-transform:uppercase;
-          padding:10px 18px;
-          border:none;
-          background:transparent;
-          color:var(--t2);
-          cursor:pointer;
-          border-bottom:3px solid transparent;
-          transition:all .25s ease;
+        .plat-bar{
+          display:flex;
+          gap:10px;
+          margin-top:0;
+          padding:8px 0 12px;
+          border-bottom:1px solid rgba(148,163,184,.1);
+          position:relative;
+          z-index:2;
         }
-        .pt:hover{color:var(--t1);background:rgba(255,255,255,0.03);border-radius:6px 6px 0 0;}
-        .pt.on{color:var(--t1);border-bottom:3px solid var(--blue);font-weight:800;background:linear-gradient(180deg, rgba(96,165,250,.12), rgba(96,165,250,0));border-radius:8px 8px 0 0;}
+        .pt{
+          flex:1;
+          min-width:0;
+          display:flex;
+          align-items:center;
+          justify-content:center;
+          gap:8px;
+          font-size:12px;
+          font-weight:800;
+          letter-spacing:.9px;
+          text-transform:uppercase;
+          padding:11px 16px;
+          border:1px solid rgba(56,189,248,.25);
+          border-radius:12px;
+          background:linear-gradient(135deg, rgba(12,24,48,.88), rgba(20,25,66,.88));
+          color:rgba(226,232,240,.92);
+          cursor:pointer;
+          transition:all .22s ease;
+          box-shadow:inset 0 0 0 1px rgba(15,23,42,.45);
+        }
+        .pt-ic{
+          width:16px;
+          text-align:center;
+          color:rgba(186,230,253,.96);
+          font-size:12px;
+          line-height:1;
+        }
+        .pt:hover{
+          color:var(--t1);
+          border-color:rgba(56,189,248,.55);
+          background:linear-gradient(135deg, rgba(26,46,87,.9), rgba(27,38,90,.9));
+          box-shadow:0 0 0 1px rgba(56,189,248,.16), 0 8px 22px rgba(3,10,22,.45);
+        }
+        .pt.on{
+          color:var(--t1);
+          border-color:rgba(56,189,248,.88);
+          background:linear-gradient(135deg, rgba(27,52,94,.95), rgba(35,43,102,.92));
+          box-shadow:0 0 0 1px rgba(56,189,248,.28), inset 0 -2px 0 rgba(125,211,252,.7);
+        }
 
         .kpi-bar{
           display:grid;
@@ -633,9 +665,9 @@ def render_label_analysis():
     <!-- Header -->
     <div class="hdr">
       <div class="plat-bar">
-        <button class="pt on" onclick="setPlatform('spotify',this)">Spotify Global</button>
-        <button class="pt" onclick="setPlatform('itunes',this)">iTunes WW</button>
-        <button class="pt" onclick="setPlatform('compare',this)">Cross-Platform</button>
+        <button class="pt on" onclick="setPlatform('spotify',this)"><span class="pt-ic">&#9835;</span><span>SPOTIFY GLOBAL</span></button>
+        <button class="pt" onclick="setPlatform('itunes',this)"><span class="pt-ic">&#9679;</span><span>ITUNES WW</span></button>
+        <button class="pt" onclick="setPlatform('compare',this)"><span class="pt-ic">&#9673;</span><span>CROSS-PLATFORM</span></button>
       </div>
     </div>
 

@@ -1129,7 +1129,6 @@ def render_debut_tab() -> None:
     kpis       = get_debut_kpis(debut_df, all_df)
     multi_df   = get_multi_track_debutants(debut_df)
     bucket_df  = get_debut_rank_buckets(debut_df)
-    spotlight  = get_acquisition_spotlight(debut_df)
 
     monday     = datetime.now() - timedelta(days=datetime.now().weekday())
     week_num   = monday.strftime("%W")
@@ -1262,60 +1261,7 @@ def render_debut_tab() -> None:
 
     st.markdown("<hr>", unsafe_allow_html=True)
 
-    # ── Row 4: Spotlight & Signal (Side-by-side) ───────────────
-    col_c, col_d = st.columns([1, 1], gap="medium")
-    with col_c:
-        # Strongest Debut (Spotlight)
-        if spotlight:
-            ratio = round(spotlight.get("total_streams", 0) / max(kpis.get("avg_score", 1), 1), 1)
-            st.markdown(
-                f"""
-                <div class="spotlight-card" style="padding:1.1rem 1.25rem;margin-bottom:0.5rem">
-                  <div style="margin-bottom:10px">
-                    <span class="badge-hot">STRONGEST DEBUT</span>
-                  </div>
-                  <div class="sp-name">{spotlight.get("artist_title","—")}</div>
-                  <div class="sp-artist">
-                    <span style="color:var(--db-purple);font-weight:700">{spotlight.get("label","Independent")}</span>
-                    &nbsp;·&nbsp; #{spotlight.get("rank",0)} entry
-                  </div>
-                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-                    <div class="sp-stat">
-                      <div class="sp-lbl">Entry score</div>
-                      <div class="sp-val" style="color:var(--db-green)">{fmt(spotlight.get("total_streams",0))}</div>
-                    </div>
-                    <div class="sp-stat">
-                      <div class="sp-lbl">vs debut avg</div>
-                      <div class="sp-val" style="color:var(--db-amber)">{ratio}×</div>
-                    </div>
-                  </div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-
-    with col_d:
-        # Acquisition signal card
-        if spotlight:
-            st.markdown(
-                f"""
-                <div class="mini-stat-card" style="border-left:4px solid var(--db-green);padding:1.1rem 1.25rem;margin-bottom:0.5rem">
-                  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-                    <div style="font-size:11px;color:var(--db-t3);font-weight:800;letter-spacing:.12em;text-transform:uppercase">Acquisition signal</div>
-                    <span class="badge-hot">A&R PRIORITY</span>
-                  </div>
-                  <div class="sp-name" style="font-size:1.4rem;margin-bottom:0.4rem">{spotlight.get("artist_title","—")}</div>
-                  <div style="font-size:0.95rem;color:var(--db-t2);line-height:1.5">
-                    Recommend prioritized follow-up on retention and territory growth.
-                  </div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-
-    st.markdown("<hr>", unsafe_allow_html=True)
-
-    # ── Row 5: Multi-track debutants ──────────────
+        # ── Row 4: Multi-track debutants ──────────────
     _sec("Multi-track debutants this week", f"{len(multi_df)} artists")
     multi_html = _multi_track_html(multi_df, debut_df)
     st.markdown(
