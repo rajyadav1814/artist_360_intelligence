@@ -1356,7 +1356,7 @@ def render_leaderboard_table_html(leaderboard: pd.DataFrame, max_rows: int) -> N
     <div class='dashboard-card'>
         <div class='section-title'>📊 Leaderboard table</div>
         <div class='section-sub'>Scroll through the latest rank, listener, and points data in one place.</div>
-        <div class='table-wrap' style='max-height:740px; overflow-x:auto; overflow-y:auto;'>
+        <div class='table-wrap' style='max-height:780px; overflow-x:auto; overflow-y:auto;'>
             <table class='leader-table'>
                 <thead>
                     <tr>
