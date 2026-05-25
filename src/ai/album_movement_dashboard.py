@@ -283,12 +283,11 @@ def _build_html(payload: dict) -> str:
 body{{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t1);font-size:15px;line-height:1.55}}
 .hdr{{background:linear-gradient(180deg,#1a2235 0%,var(--bg2) 100%);border-bottom:1px solid var(--border);padding:20px 24px 16px}}
 .hdr-top{{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap;gap:10px}}
-.brand{{font-size:11px;color:var(--t3);letter-spacing:1.4px;text-transform:uppercase;display:flex;align-items:center;gap:7px;margin-bottom:6px;font-weight:600}}
 .live{{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);animation:blink 2s infinite}}
 @keyframes blink{{0%,100%{{opacity:1}}50%{{opacity:.4}}}}
 .dash-title{{font-size:26px;font-weight:700;letter-spacing:-.5px;color:#fff}}
 .dash-sub{{font-size:12px;color:var(--t2);letter-spacing:.3px;margin-top:4px;font-weight:500}}
-.kpi-bar{{display:grid;grid-template-columns:repeat(6,1fr);gap:1px;background:var(--border);border-bottom:1px solid var(--border)}}
+.kpi-bar{{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--border);border-bottom:1px solid var(--border)}}
 .kpi{{background:var(--bg2);padding:16px 18px;transition:.15s}}
 .kpi:hover{{background:var(--bg3)}}
 .kpi-lbl{{font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px;font-weight:600}}
@@ -337,7 +336,6 @@ body{{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--
 <div class='hdr'>
   <div class='hdr-top'>
     <div>
-      <div class='brand'><span id='hdr-window'></span></div>
       <div class='dash-title'>Album Momentum Dashboard</div>
       <div class='dash-sub' id='hdr-sub'></div>
     </div>
@@ -407,7 +405,6 @@ function fmtM(n,dec=2,signed=false){{if(n===null||n===undefined||isNaN(n))return
 const DATES = PAYLOAD.dates;
 
 // Header
-document.getElementById('hdr-window').textContent = PAYLOAD.window_label;
 document.getElementById('hdr-sub').textContent = `${{PAYLOAD.scope}} · iTunes`;
 
 
@@ -419,8 +416,7 @@ const k = PAYLOAD.kpis;
 const kpiHtml = [
   kpiCard('iTunes #1 today', k.it_no1?k.it_no1.a:'—', k.it_no1?`${{k.it_no1.t}} · ${{(k.it_no1.s).toLocaleString()}} pts`:''),
   kpiCard('Biggest rank riser', k.big_rank_riser?(k.big_rank_riser.rg>0?'+'+k.big_rank_riser.rg:k.big_rank_riser.rg):'—', k.big_rank_riser?`${{k.big_rank_riser.n}} · ${{k.big_rank_riser.t}}`:'', 'g'),
-  kpiCard('Biggest faller', k.big_faller?k.big_faller.rg:'—', k.big_faller?`${{k.big_faller.n}} · ${{k.big_faller.t}}`:'', 'r'),
-  kpiCard('Albums rising', k.rising_count, `of ${{k.tracked}} tracked`, 'a'),
+  kpiCard('Biggest faller', k.big_faller?k.big_faller.rg:'—', k.big_faller?`${{k.big_faller.n}} · ${{k.big_faller.t}}`:'', 'r')
 ].join('');
 document.getElementById('kpi-bar').innerHTML = kpiHtml;
 
