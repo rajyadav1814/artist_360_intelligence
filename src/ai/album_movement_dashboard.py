@@ -484,8 +484,8 @@ function renderTable(elId, data){{
           <div class='dual-seg'><div class='dual-fill' style='width:${{sgPct}}%;background:${{sgColor}}'></div></div>
         </div>
       </div>
-      <span style='font-size:13px;color:var(--t3);text-align:center;font-weight:600'>#${{startRank||'—'}}</span>
-      <span style='font-size:13px;color:${{rankColor}};text-align:center;font-weight:700'>#${{latRank||'—'}}</span>
+      <span style='font-size:13px;color:var(--t3);text-align:center;font-weight:600'>${{startRank||'—'}}</span>
+      <span style='font-size:13px;color:${{rankColor}};text-align:center;font-weight:700'>${{latRank||'—'}}</span>
       <span class='tv'>${{valFmt}}</span>
       <span class='tv' style='color:${{sgColor}}'>${{sgSign}}${{sgLabel.replace('+','').replace('−','')}}</span>
       <span style='text-align:right'>${{rankBadge}}</span>
