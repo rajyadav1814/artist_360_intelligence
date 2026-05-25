@@ -1080,7 +1080,7 @@ def render_label_analysis():
             <div class="vb"><div class="vbf" style="width:${pct}%;background:${col}"></div></div>
           </div>
           <span class="tv">${fmtN(t.s)}</span>
-          <span class="tv">#${t.r}</span>
+          <span class="tv">${t.r}</span>
           <span>${gbadge(t.g)}</span>
           <span class="tv">${t.d}d</span>
         </div>`;

@@ -493,10 +493,10 @@ function spotCard(d, kind){{
   return `<div class='spot' ${{style}}>
     <div class='sp-tag'>${{tag}}</div>
     <div class='sp-name'>${{d.n}} — ${{d.t}}</div>
-    <div class='sp-meta'>${{d.lbl}} · #${{startRank}} → #${{endRank}}</div>
+    <div class='sp-meta'>${{d.lbl}} · ${{startRank}} → ${{endRank}}</div>
     <div class='sp-grid'>
-      <div class='sp-s'><div class='sp-s-l'>Start rank</div><div class='sp-s-v'>#${{startRank}}</div></div>
-      <div class='sp-s'><div class='sp-s-l'>Now</div><div class='sp-s-v' style='color:${{accent}}'>#${{endRank}}</div></div>
+      <div class='sp-s'><div class='sp-s-l'>Start rank</div><div class='sp-s-v'>${{startRank}}</div></div>
+      <div class='sp-s'><div class='sp-s-l'>Now</div><div class='sp-s-v' style='color:${{accent}}'>${{endRank}}</div></div>
       <div class='sp-s'><div class='sp-s-l'>Rank gain</div><div class='sp-s-v' style='color:var(--amber)'>+${{d.rg}}</div></div>
       <div class='sp-s'><div class='sp-s-l'>${{metLabel}}</div><div class='sp-s-v' style='color:var(--blue)'>${{kind==='sp'?fmtM(d.sg,2,true):fmtN(d.sg,0)}}</div></div>
     </div>

@@ -1874,11 +1874,7 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
                         daily_parts.append(artist_daily[["day", "date", "artist", "position"]])
 
                     if daily_parts:
-                        line_df = pd.concat(daily_parts, ignore_index=True)
-                        st.info(
-                            "📊 Historical runs are sparse in this window, so missing days are interpolated for smoother day-by-day trends.",
-                            icon="ℹ️",
-                        )
+                        line_df = pd.concat(daily_parts, ignore_index=True) 
 
             best_df = (
                 history.groupby("name", as_index=False)["rank"]
@@ -1924,7 +1920,7 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
         kpi_html = f"""
         <div class='ct-kpi-row'>
           <div class='ct-kpi purple'>
-            <div class='ct-kpi-lbl'>Current #1</div>
+            <div class='ct-kpi-lbl'>Current</div>
             <div class='ct-kpi-val' style='font-size:18px'>{escape(leader['artist'])}</div>
             <div class='ct-kpi-sub'>Position {leader['current']} · best {leader['best']}</div>
           </div>

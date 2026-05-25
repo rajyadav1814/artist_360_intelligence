@@ -371,13 +371,13 @@ def _build_artist_payloads(
             "spStreams": [v if v is not None else 0 for v in ml_series],
             "itScores": it_scores,
             "itRanks": it_ranks,
-            "bestSpRank": f"#{best_sp_rank}" if best_sp_rank else "—",
+            "bestSpRank": f"{best_sp_rank}" if best_sp_rank else "—",
             "bestSpSub": (best_sp_track[:36] if best_sp_rank else "Not in Top 200"),
             "peakStreams": _fmt_n(peak_ml),
             "peakStreamsSub": (f"+{peak_vs_start:.1f}% vs day 1" if peak_vs_start >= 0 else f"{peak_vs_start:.1f}% vs day 1"),
             "trackCount": str(track_count),
             "trackCountSub": ("simultaneous charting" if track_count > 1 else ("single-track play" if track_count == 1 else "not on Spotify Global")),
-            "bestItunes": f"#{best_it_rank}" if best_it_rank else "—",
+            "bestItunes": f"{best_it_rank}" if best_it_rank else "—",
             "itunesSub": (
                 f"Score {_fmt_n(best_it_score)} · {best_it_date.strftime('%b %d')}"
                 if best_it_date else "Not ranked iTunes WW"
@@ -881,7 +881,7 @@ function selectArtist(name){
         </div>
       </div>
       <span class="trk-val">${fmtN(t.streams)}</span>
-      <span class="trk-val">${t.rank?'#'+t.rank:'—'}</span>
+      <span class="trk-val">${t.rank?+t.rank:'—'}</span>
       <span class="trk-val">${t.days}d</span>`;
     tl.appendChild(row);
   });

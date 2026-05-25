@@ -869,7 +869,7 @@ def _debut_table_html(df: pd.DataFrame, score_col: str = "total_streams", max_ro
         rows_html += f"""
         <div class="rank-row"
              style="grid-template-columns:80px 1.8fr 1.2fr 1fr 100px 110px;">
-          <span class="rank-pill {pill_class}">#{rank}</span>
+          <span class="rank-pill {pill_class}">{rank}</span>
           <div>
             <div style="font-size:15px;font-weight:700;color:var(--db-t1);
                         white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:6px">{title}</div>
@@ -921,7 +921,7 @@ def _itunes_debut_table_html(df: pd.DataFrame, max_rows: int = 15) -> str:
         rows_html += f"""
         <div class="rank-row"
              style="grid-template-columns:80px 1.8fr 1.5fr 1fr 100px 80px;">
-          <span class="rank-pill {pill_class}">#{rank}</span>
+          <span class="rank-pill {pill_class}">{rank}</span>
           <div style="font-size:15px;font-weight:700;color:var(--db-t1);
                       white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{title}</div>
           <div style="font-size:13px;color:var(--db-t2);white-space:nowrap;
@@ -1040,7 +1040,7 @@ def _itunes_artist_new_entries_table_html(df: pd.DataFrame) -> str:
         rows_html += f"""
         <div class="rank-row"
              style="grid-template-columns:80px 1.5fr 1fr 120px 120px;">
-          <span class="rank-pill {pill_class}">#{rank}</span>
+          <span class="rank-pill {pill_class}">{rank}</span>
           <div style="font-size:15px;font-weight:700;color:var(--db-t1);
                       white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{artist}</div>
           <div><span class="badge-new">{change}</span></div>
@@ -1161,12 +1161,12 @@ def render_debut_tab() -> None:
           </div>
           <div class="db-kpi k-green">
             <div class="db-kpi-lbl">Best debut rank</div>
-            <div class="db-kpi-val">#{kpis.get('best_rank', 0)}</div>
+            <div class="db-kpi-val">{kpis.get('best_rank', 0)}</div>
             <div class="db-kpi-sub">{best_track_short}</div>
           </div>
           <div class="db-kpi k-purple">
             <div class="db-kpi-lbl">Avg debut rank</div>
-            <div class="db-kpi-val">#{kpis.get('avg_rank', 0)}</div>
+            <div class="db-kpi-val">{kpis.get('avg_rank', 0)}</div>
             <div class="db-kpi-sub">across all new entries</div>
           </div>
           <div class="db-kpi k-amber">
