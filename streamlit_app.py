@@ -3841,6 +3841,8 @@ def show_label_analysis_page() -> None:
 
 def show_debut_report_page() -> None:
     """Wrapper function for Debut Report page"""
+    page_title, page_meta = PAGE_META["Debut Report"]
+    render_header(page_title, page_meta, last_run_label)
     _debut_loader = st.empty()
     _debut_loader.markdown("""
 <style>
