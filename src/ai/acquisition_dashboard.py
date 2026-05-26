@@ -740,7 +740,7 @@ const PLOTLY_LAYOUT_BASE = {
   paper_bgcolor:'rgba(0,0,0,0)',
   plot_bgcolor:'rgba(0,0,0,0)',
   font:{family:'Inter,system-ui,sans-serif',color:'#cdd6e4',size:11},
-  margin:{l:48,r:18,t:10,b:36},
+  margin:{l:48,r:18,t:10,b:58},
   hoverlabel:{bgcolor:'#1f2633',bordercolor:'#3a4661',font:{color:'#fff',size:12}},
   showlegend:false,
   xaxis:{gridcolor:'rgba(255,255,255,0.05)',zerolinecolor:'rgba(255,255,255,0.08)',tickfont:{color:'#8b95ad'},linecolor:'rgba(255,255,255,0.08)'},
@@ -750,6 +750,38 @@ const PLOTLY_CFG = {displaylogo:false,displayModeBar:false,responsive:true};
 function layoutClone(extra){
   const base = JSON.parse(JSON.stringify(PLOTLY_LAYOUT_BASE));
   return Object.assign(base, extra||{});
+}
+function buildDateAxis(labels){
+  const count = labels.length;
+  if(!count){
+    return {tickmode:'array', tickvals:[], ticktext:[]};
+  }
+
+  const targetTicks = count <= 7 ? 7 : count <= 14 ? 8 : 9;
+  const step = Math.max(1, Math.ceil(count / targetTicks));
+  const tickvals = [];
+  const ticktext = [];
+
+  for(let i = 0; i < count; i += step){
+    const label = labels[i];
+    tickvals.push(label);
+    ticktext.push(label.replace(' ', '<br>'));
+  }
+
+  const last = labels[count - 1];
+  if(tickvals[tickvals.length - 1] !== last){
+    tickvals.push(last);
+    ticktext.push(last.replace(' ', '<br>'));
+  }
+
+  return {
+    tickmode:'array',
+    tickvals,
+    ticktext,
+    tickangle:0,
+    tickfont:{color:'#9aa5bd', size:10},
+    automargin:true,
+  };
 }
 
 // ─── Dropdown ────────────────────────────────────────
@@ -835,6 +867,7 @@ function selectArtist(name){
 
   // Spotify trajectory
   requestAnimationFrame(()=>{
+    const sharedDateAxis = Object.assign({}, PLOTLY_LAYOUT_BASE.xaxis, buildDateAxis(DATES));
     const spTrace = {
       x: DATES, y: d.spStreams, type:'scatter', mode:'lines+markers',
       line:{color:d.color, width:3, shape:'spline', smoothing:1.1},
@@ -842,7 +875,10 @@ function selectArtist(name){
       marker:{color:d.color, size:7, line:{color:'#0d1117', width:1.5}},
       hovertemplate:'<b>%{x}</b><br>%{y:,.0f} monthly listeners<extra></extra>'
     };
-    Plotly.react('spTrajChart',[spTrace], layoutClone({yaxis:Object.assign({},PLOTLY_LAYOUT_BASE.yaxis,{tickformat:'.2s'})}), PLOTLY_CFG);
+    Plotly.react('spTrajChart',[spTrace], layoutClone({
+      xaxis: sharedDateAxis,
+      yaxis:Object.assign({},PLOTLY_LAYOUT_BASE.yaxis,{tickformat:'.2s'})
+    }), PLOTLY_CFG);
 
     // iTunes trajectory
     const hasItunes = d.itScores && d.itScores.some(v=>v>0);
@@ -855,7 +891,10 @@ function selectArtist(name){
       hovertemplate:'<b>%{x}</b><br>iTunes points: %{y:,.0f}<extra></extra>',
       connectgaps:true
     };
-    const itLayout = layoutClone({yaxis:Object.assign({},PLOTLY_LAYOUT_BASE.yaxis,{tickformat:'.2s'})});
+    const itLayout = layoutClone({
+      xaxis: sharedDateAxis,
+      yaxis:Object.assign({},PLOTLY_LAYOUT_BASE.yaxis,{tickformat:'.2s'})
+    });
     if(!hasItunes){
       itLayout.annotations = [{text:'Not ranked iTunes WW',xref:'paper',yref:'paper',x:0.5,y:0.5,showarrow:false,font:{color:'#5b657d',size:13}}];
     }
