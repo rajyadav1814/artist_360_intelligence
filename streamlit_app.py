@@ -3841,6 +3841,8 @@ def show_label_analysis_page() -> None:
 
 def show_debut_report_page() -> None:
     """Wrapper function for Debut Report page"""
+    page_title, page_meta = PAGE_META["Debut Report"]
+    render_header(page_title, page_meta, last_run_label)
     _debut_loader = st.empty()
     _debut_loader.markdown("""
 <style>
@@ -3888,7 +3890,7 @@ def show_debut_report_page() -> None:
 </style>
 <div id="dr-loader">
   <div class="dr-ring"></div>
-  <div class="dr-title">Debut Report</div>
+  <div class="dr-title">Debuts Report</div>
 </div>
 """, unsafe_allow_html=True)
     render_debut_tab()

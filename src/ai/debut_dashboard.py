@@ -1168,20 +1168,6 @@ def render_debut_tab() -> None:
     monday     = datetime.now() - timedelta(days=datetime.now().weekday())
     week_num   = monday.strftime("%W")
 
-    # ── Page header ────────────────────────────────────────
-    st.markdown(
-        f"""
-        <div class="db-hero">
-          
-          <div class="db-hero-title">🌟 Debuts Report</div>
-          <div class="db-hero-sub">
-                        Weekly debut intelligence across Spotify Global and iTunes WW &nbsp;·&nbsp;
-                        <b>{kpis.get('total', 0)} new entries</b> detected vs prior week
-          </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
 
     # ── KPI tiles ─────────────────────────────────────────
     best_track_short = (kpis.get("best_track", "—") or "—")[:34]
