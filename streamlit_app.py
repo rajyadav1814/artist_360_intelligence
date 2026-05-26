@@ -1366,7 +1366,7 @@ def render_leaderboard_table_html(leaderboard: pd.DataFrame, max_rows: int) -> N
                         <th>Top market</th>
                         <th>Monthly listeners</th>
                         <th>Peak listeners</th>
-                        <th>Points</th>
+                        <th>Total Streams</th>
                     </tr>
                 </thead>
                 <tbody>
