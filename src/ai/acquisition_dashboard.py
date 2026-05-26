@@ -934,3 +934,24 @@ window.addEventListener('load',()=>{ try{ selectArtist(PAYLOAD.defaultArtist); }
 </script>
 </body></html>
 """.replace("__PAYLOAD__", data_json)
+
+
+def prefetch_acquisition_data() -> None:
+    """Warms up the cache for all three Acquisition dashboards (Artist, Track, and Album) in the background."""
+    try:
+        _load_daily("spotify_daily", "global", 30)
+        _load_daily("itunes_daily", "ww", 30)
+        _load_artist_universe()
+        _load_spotify_artist_series(30)
+        _load_itunes_artist_series(30)
+        
+        from src.ai.track_acquisition_dashboard import _load_window as load_track_window
+        load_track_window("spotify_daily", "global", 7)
+        load_track_window("spotify_daily", "us", 7)
+        load_track_window("itunes_daily", "ww", 7)
+        
+        from src.ai.album_acquisition_dashboard import _load_window as load_album_window
+        load_album_window("itunes_artist_album", "ww", 7)
+    except Exception as e:
+        logger.error(f"Error prefetching acquisition data: {e}")
+

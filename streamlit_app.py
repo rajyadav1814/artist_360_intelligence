@@ -3384,11 +3384,13 @@ try:
         import threading
         from streamlit.runtime.scriptrunner import add_script_run_ctx
         from src.ai.label_analysis_dashboard import prefetch_label_data
+        from src.ai.acquisition_dashboard import prefetch_acquisition_data
         
         def run_prefetch():
             try:
                 prefetch_debut_data()
                 prefetch_label_data()
+                prefetch_acquisition_data()
             except Exception as e:
                 pass
 
