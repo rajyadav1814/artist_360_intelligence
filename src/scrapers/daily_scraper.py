@@ -70,6 +70,8 @@ def scrape_spotify_daily(country: str = "global") -> List[SpotifyDaily]:
         titles = []
         rows_to_process = []
         for _, row in df.iterrows():
+            if len(rows_to_process) >= 100:
+                break
             artist_title = _get_column(row, ["Artist and Title", "Artist - Title", "Video"])
             if artist_title:
                 titles.append(artist_title)

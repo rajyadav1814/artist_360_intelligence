@@ -179,31 +179,66 @@ hr { margin: 1.25rem 0 !important; border: none !important; border-top: 1px soli
 
 /* ── insight cards ── */
 .insight-card, .spotlight-card, .mini-stat-card {
-    background: linear-gradient(180deg, var(--db-bg2) 0%, var(--db-bg3) 100%);
-    border: 1px solid var(--db-line);
+    position: relative;
+    background:
+      radial-gradient(circle at 88% -10%, rgba(96,165,250,.18) 0%, transparent 48%),
+      linear-gradient(180deg, #171e2d 0%, #151b28 100%);
+    border: 1px solid rgba(148,163,184,.22);
     border-radius: 18px;
-    padding: 1.1rem 1.25rem;
+    padding: 1.1rem 1.25rem 1.2rem;
     margin-bottom: 1rem;
-    box-shadow: 0 14px 30px rgba(0,0,0,.22);
-    transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
+    min-height: 204px;
+    box-shadow: 0 16px 32px rgba(0,0,0,.24);
+    overflow: hidden;
+    transition: transform .24s ease, box-shadow .24s ease, border-color .24s ease;
+}
+.insight-card::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 3px;
+    background: linear-gradient(90deg, var(--db-blue), rgba(196,181,253,.85));
 }
 .insight-card:hover {
-    transform: translateY(-2px);
-    border-color: rgba(96,165,250,.4);
-    box-shadow: 0 22px 40px rgba(0,0,0,.32);
+    transform: translateY(-3px);
+    border-color: rgba(96,165,250,.52);
+    box-shadow: 0 24px 44px rgba(0,0,0,.36);
 }
-.insight-icon { font-size: 1.7rem; margin-bottom: 0.5rem; }
+.insight-icon {
+    width: 2.2rem;
+    height: 2.2rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    font-size: 1.15rem;
+    margin-bottom: 0.72rem;
+    background: rgba(96,165,250,.14);
+    border: 1px solid rgba(96,165,250,.26);
+}
 .insight-title {
-    font-size: 11px; color: var(--db-t3);
-    font-weight: 800; letter-spacing: .12em;
-    text-transform: uppercase; margin-bottom: 0.45rem;
+    font-size: 11px;
+    color: #9eabc4;
+    font-weight: 800;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    margin-bottom: 0.48rem;
 }
 .insight-val {
-    font-size: 1.25rem; font-weight: 800;
-    color: var(--db-t1); margin-bottom: 0.5rem;
-    line-height: 1.25;
+    font-size: clamp(1.12rem, 1.05vw + .78rem, 1.9rem);
+    font-weight: 800;
+    color: var(--db-t1);
+    margin-bottom: 0.55rem;
+    line-height: 1.28;
+    letter-spacing: -.01em;
 }
-.insight-desc { font-size: 0.92rem; color: var(--db-t2); line-height: 1.55; }
+.insight-desc {
+    font-size: 0.91rem;
+    color: #c7d1e4;
+    line-height: 1.58;
+}
 
 /* ── section headers ── */
 .sec-hdr {
@@ -869,7 +904,7 @@ def _debut_table_html(df: pd.DataFrame, score_col: str = "total_streams", max_ro
         rows_html += f"""
         <div class="rank-row"
              style="grid-template-columns:80px 1.8fr 1.2fr 1fr 100px 110px;">
-          <span class="rank-pill {pill_class}">#{rank}</span>
+          <span class="rank-pill {pill_class}">{rank}</span>
           <div>
             <div style="font-size:15px;font-weight:700;color:var(--db-t1);
                         white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:6px">{title}</div>
@@ -921,7 +956,7 @@ def _itunes_debut_table_html(df: pd.DataFrame, max_rows: int = 15) -> str:
         rows_html += f"""
         <div class="rank-row"
              style="grid-template-columns:80px 1.8fr 1.5fr 1fr 100px 80px;">
-          <span class="rank-pill {pill_class}">#{rank}</span>
+          <span class="rank-pill {pill_class}">{rank}</span>
           <div style="font-size:15px;font-weight:700;color:var(--db-t1);
                       white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{title}</div>
           <div style="font-size:13px;color:var(--db-t2);white-space:nowrap;
@@ -1040,7 +1075,7 @@ def _itunes_artist_new_entries_table_html(df: pd.DataFrame) -> str:
         rows_html += f"""
         <div class="rank-row"
              style="grid-template-columns:80px 1.5fr 1fr 120px 120px;">
-          <span class="rank-pill {pill_class}">#{rank}</span>
+          <span class="rank-pill {pill_class}">{rank}</span>
           <div style="font-size:15px;font-weight:700;color:var(--db-t1);
                       white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{artist}</div>
           <div><span class="badge-new">{change}</span></div>
@@ -1129,26 +1164,10 @@ def render_debut_tab() -> None:
     kpis       = get_debut_kpis(debut_df, all_df)
     multi_df   = get_multi_track_debutants(debut_df)
     bucket_df  = get_debut_rank_buckets(debut_df)
-    spotlight  = get_acquisition_spotlight(debut_df)
 
     monday     = datetime.now() - timedelta(days=datetime.now().weekday())
     week_num   = monday.strftime("%W")
 
-    # ── Page header ────────────────────────────────────────
-    st.markdown(
-        f"""
-        <div class="db-hero">
-          
-          <div class="db-hero-title">🌟 Chart Debuts Report</div>
-          <div class="db-hero-sub">
-            Spotify Global &nbsp;·&nbsp; iTunes WW &nbsp;·&nbsp;
-            <b>{kpis.get('total', 0)} new entries</b> vs prior week &nbsp;·&nbsp;
-            Week <b>{week_num}</b> · May 2026
-          </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
 
     # ── KPI tiles ─────────────────────────────────────────
     best_track_short = (kpis.get("best_track", "—") or "—")[:34]
@@ -1162,12 +1181,12 @@ def render_debut_tab() -> None:
           </div>
           <div class="db-kpi k-green">
             <div class="db-kpi-lbl">Best debut rank</div>
-            <div class="db-kpi-val">#{kpis.get('best_rank', 0)}</div>
+            <div class="db-kpi-val">{kpis.get('best_rank', 0)}</div>
             <div class="db-kpi-sub">{best_track_short}</div>
           </div>
           <div class="db-kpi k-purple">
             <div class="db-kpi-lbl">Avg debut rank</div>
-            <div class="db-kpi-val">#{kpis.get('avg_rank', 0)}</div>
+            <div class="db-kpi-val">{kpis.get('avg_rank', 0)}</div>
             <div class="db-kpi-sub">across all new entries</div>
           </div>
           <div class="db-kpi k-amber">
@@ -1186,48 +1205,6 @@ def render_debut_tab() -> None:
     )
 
     st.markdown("<hr>", unsafe_allow_html=True)
-
-    # ── Insight cards ──────────────────────────────────────
-    best_track   = kpis.get("best_track", "—")
-    best_rank    = kpis.get("best_rank", 0)
-    multi_artist = multi_df.iloc[0]["artist_title"] if not multi_df.empty else "—"
-    multi_count  = int(multi_df.iloc[0]["track_count"]) if not multi_df.empty else 0
-    sp_count     = len(itunes_df) if not itunes_df.empty else 0
-
-    st.markdown(
-        f"""
-        <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:1.25rem; margin-bottom:1.5rem;">
-          <div class="insight-card">
-            <div class="insight-icon">⚡</div>
-            <div class="insight-title">Strongest debut</div>
-            <div class="insight-val">{best_track[:28]} at #{best_rank}</div>
-            <div class="insight-desc">
-              Entry score {fmt(kpis.get("best_debut_score",0))} —
-              Highest new entry of the week.
-            </div>
-          </div>
-          <div class="insight-card">
-            <div class="insight-icon">🎵</div>
-            <div class="insight-title">Multi-track debutant</div>
-            <div class="insight-val">{multi_artist} — {multi_count} entries</div>
-            <div class="insight-desc">
-              {multi_artist} placed {multi_count} tracks simultaneously this week,
-              the largest single-artist debut footprint in the chart.
-            </div>
-          </div>
-          <div class="insight-card">
-            <div class="insight-icon">🌐</div>
-            <div class="insight-title">iTunes WW debuts</div>
-            <div class="insight-val">{sp_count} new tracks</div>
-            <div class="insight-desc">
-              {sp_count} tracks entered the iTunes WW chart this week.
-              Catalogue re-entries flagged by historical peak rank.
-            </div>
-          </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
 
     # ── Row 0: Latest iTunes Artist New Entries ─────────
     if not itunes_artist_new_df.empty:
@@ -1262,60 +1239,7 @@ def render_debut_tab() -> None:
 
     st.markdown("<hr>", unsafe_allow_html=True)
 
-    # ── Row 4: Spotlight & Signal (Side-by-side) ───────────────
-    col_c, col_d = st.columns([1, 1], gap="medium")
-    with col_c:
-        # Strongest Debut (Spotlight)
-        if spotlight:
-            ratio = round(spotlight.get("total_streams", 0) / max(kpis.get("avg_score", 1), 1), 1)
-            st.markdown(
-                f"""
-                <div class="spotlight-card" style="padding:1.1rem 1.25rem;margin-bottom:0.5rem">
-                  <div style="margin-bottom:10px">
-                    <span class="badge-hot">STRONGEST DEBUT</span>
-                  </div>
-                  <div class="sp-name">{spotlight.get("artist_title","—")}</div>
-                  <div class="sp-artist">
-                    <span style="color:var(--db-purple);font-weight:700">{spotlight.get("label","Independent")}</span>
-                    &nbsp;·&nbsp; #{spotlight.get("rank",0)} entry
-                  </div>
-                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-                    <div class="sp-stat">
-                      <div class="sp-lbl">Entry score</div>
-                      <div class="sp-val" style="color:var(--db-green)">{fmt(spotlight.get("total_streams",0))}</div>
-                    </div>
-                    <div class="sp-stat">
-                      <div class="sp-lbl">vs debut avg</div>
-                      <div class="sp-val" style="color:var(--db-amber)">{ratio}×</div>
-                    </div>
-                  </div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-
-    with col_d:
-        # Acquisition signal card
-        if spotlight:
-            st.markdown(
-                f"""
-                <div class="mini-stat-card" style="border-left:4px solid var(--db-green);padding:1.1rem 1.25rem;margin-bottom:0.5rem">
-                  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-                    <div style="font-size:11px;color:var(--db-t3);font-weight:800;letter-spacing:.12em;text-transform:uppercase">Acquisition signal</div>
-                    <span class="badge-hot">A&R PRIORITY</span>
-                  </div>
-                  <div class="sp-name" style="font-size:1.4rem;margin-bottom:0.4rem">{spotlight.get("artist_title","—")}</div>
-                  <div style="font-size:0.95rem;color:var(--db-t2);line-height:1.5">
-                    Recommend prioritized follow-up on retention and territory growth.
-                  </div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-
-    st.markdown("<hr>", unsafe_allow_html=True)
-
-    # ── Row 5: Multi-track debutants ──────────────
+        # ── Row 4: Multi-track debutants ──────────────
     _sec("Multi-track debutants this week", f"{len(multi_df)} artists")
     multi_html = _multi_track_html(multi_df, debut_df)
     st.markdown(

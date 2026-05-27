@@ -350,8 +350,8 @@ def _build_artist_payloads(
         if best_sp_rank is not None and best_sp_rank <= 10:
             signals.append({
                 "icon": "🏆",
-                "title": f"Top-10 Spotify Global · #{best_sp_rank}",
-                "desc": f"{best_sp_track} reached #{best_sp_rank} on Spotify Global during the window.",
+                "title": f"Top-10 Spotify Global · {best_sp_rank}",
+                "desc": f"{best_sp_track} reached {best_sp_rank} on Spotify Global during the window.",
             })
         if not signals:
             signals.append({
@@ -371,13 +371,13 @@ def _build_artist_payloads(
             "spStreams": [v if v is not None else 0 for v in ml_series],
             "itScores": it_scores,
             "itRanks": it_ranks,
-            "bestSpRank": f"#{best_sp_rank}" if best_sp_rank else "—",
+            "bestSpRank": f"{best_sp_rank}" if best_sp_rank else "—",
             "bestSpSub": (best_sp_track[:36] if best_sp_rank else "Not in Top 200"),
             "peakStreams": _fmt_n(peak_ml),
             "peakStreamsSub": (f"+{peak_vs_start:.1f}% vs day 1" if peak_vs_start >= 0 else f"{peak_vs_start:.1f}% vs day 1"),
             "trackCount": str(track_count),
             "trackCountSub": ("simultaneous charting" if track_count > 1 else ("single-track play" if track_count == 1 else "not on Spotify Global")),
-            "bestItunes": f"#{best_it_rank}" if best_it_rank else "—",
+            "bestItunes": f"{best_it_rank}" if best_it_rank else "—",
             "itunesSub": (
                 f"Score {_fmt_n(best_it_score)} · {best_it_date.strftime('%b %d')}"
                 if best_it_date else "Not ranked iTunes WW"
@@ -396,13 +396,13 @@ def _build_quote(artist: str, tracks: int, momentum: float, best_sp: int | None,
     if peak_ml >= 10_000_000:
         pieces.append(f"{_fmt_n(peak_ml)} Spotify monthly listeners at peak")
     if best_it is not None and best_it <= 10:
-        pieces.append(f"iTunes WW #{best_it}")
+        pieces.append(f"iTunes WW {best_it}")
     elif best_it is not None and best_it <= 50:
         pieces.append(f"iTunes WW top-{best_it}")
     if best_sp is not None and best_sp <= 10:
-        pieces.append(f"{best_track} at #{best_sp} on Spotify Global")
+        pieces.append(f"{best_track} at {best_sp} on Spotify Global")
     elif best_sp is not None:
-        pieces.append(f"Best Spotify Global rank #{best_sp}")
+        pieces.append(f"Best Spotify Global rank {best_sp}")
     if tracks >= 3:
         pieces.append(f"{tracks} simultaneous global tracks")
     if momentum >= 10:
@@ -492,19 +492,12 @@ def render_acquisition() -> None:
 
 
     date_labels = [d.strftime("%b %d") for d in dates]
-    window_label = (
-      f"{len(artist_data)} ranked artists · {period_label} · {len(dates)} days · "
-      f"{dates[0].strftime('%b %d')} – {dates[-1].strftime('%b %d, %Y')}"
-    )
-    fy_label = f"FY{dates[-1].year} · {dates[-1].strftime('%b')} window · Real data"
 
     # Default selected = top of leaderboard
     default_artist = leaderboard[0]["n"] if leaderboard else next(iter(artist_data))
 
     payload = {
         "dates": date_labels,
-        "windowLabel": window_label,
-        "fyLabel": fy_label,
         "artists": artist_data,
         "leaderboard": leaderboard,
         "momentum": momentum_data,
@@ -641,10 +634,9 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
 <div class="hdr">
   <div>
     <div class="brand"></div>
-    <div class="dash-title">Acquisition Recommendation</div>
+    <div class="dash-title">Artist Acquisition</div>
     <div class="dash-sub" id="hdr-sub"></div>
   </div>
-  <div class="fy-pill" id="fy-label"></div>
 </div>
 
 <div class="selector-bar">
@@ -736,8 +728,6 @@ const ALL_ARTISTS = PAYLOAD.allArtists;
 const LEADERBOARD = PAYLOAD.leaderboard;
 const MOMENTUM_DATA = PAYLOAD.momentum;
 
-document.getElementById('hdr-sub').textContent = PAYLOAD.windowLabel;
-document.getElementById('fy-label').textContent = PAYLOAD.fyLabel;
 document.getElementById('acq-meta').textContent = PAYLOAD.windowLabel;
 document.getElementById('dd-count').textContent = ALL_ARTISTS.length + ' artists tracked';
 
@@ -750,7 +740,7 @@ const PLOTLY_LAYOUT_BASE = {
   paper_bgcolor:'rgba(0,0,0,0)',
   plot_bgcolor:'rgba(0,0,0,0)',
   font:{family:'Inter,system-ui,sans-serif',color:'#cdd6e4',size:11},
-  margin:{l:48,r:18,t:10,b:36},
+  margin:{l:48,r:18,t:10,b:58},
   hoverlabel:{bgcolor:'#1f2633',bordercolor:'#3a4661',font:{color:'#fff',size:12}},
   showlegend:false,
   xaxis:{gridcolor:'rgba(255,255,255,0.05)',zerolinecolor:'rgba(255,255,255,0.08)',tickfont:{color:'#8b95ad'},linecolor:'rgba(255,255,255,0.08)'},
@@ -760,6 +750,38 @@ const PLOTLY_CFG = {displaylogo:false,displayModeBar:false,responsive:true};
 function layoutClone(extra){
   const base = JSON.parse(JSON.stringify(PLOTLY_LAYOUT_BASE));
   return Object.assign(base, extra||{});
+}
+function buildDateAxis(labels){
+  const count = labels.length;
+  if(!count){
+    return {tickmode:'array', tickvals:[], ticktext:[]};
+  }
+
+  const targetTicks = count <= 7 ? 7 : count <= 14 ? 8 : 9;
+  const step = Math.max(1, Math.ceil(count / targetTicks));
+  const tickvals = [];
+  const ticktext = [];
+
+  for(let i = 0; i < count; i += step){
+    const label = labels[i];
+    tickvals.push(label);
+    ticktext.push(label.replace(' ', '<br>'));
+  }
+
+  const last = labels[count - 1];
+  if(tickvals[tickvals.length - 1] !== last){
+    tickvals.push(last);
+    ticktext.push(last.replace(' ', '<br>'));
+  }
+
+  return {
+    tickmode:'array',
+    tickvals,
+    ticktext,
+    tickangle:0,
+    tickfont:{color:'#9aa5bd', size:10},
+    automargin:true,
+  };
 }
 
 // ─── Dropdown ────────────────────────────────────────
@@ -845,6 +867,7 @@ function selectArtist(name){
 
   // Spotify trajectory
   requestAnimationFrame(()=>{
+    const sharedDateAxis = Object.assign({}, PLOTLY_LAYOUT_BASE.xaxis, buildDateAxis(DATES));
     const spTrace = {
       x: DATES, y: d.spStreams, type:'scatter', mode:'lines+markers',
       line:{color:d.color, width:3, shape:'spline', smoothing:1.1},
@@ -852,7 +875,10 @@ function selectArtist(name){
       marker:{color:d.color, size:7, line:{color:'#0d1117', width:1.5}},
       hovertemplate:'<b>%{x}</b><br>%{y:,.0f} monthly listeners<extra></extra>'
     };
-    Plotly.react('spTrajChart',[spTrace], layoutClone({yaxis:Object.assign({},PLOTLY_LAYOUT_BASE.yaxis,{tickformat:'.2s'})}), PLOTLY_CFG);
+    Plotly.react('spTrajChart',[spTrace], layoutClone({
+      xaxis: sharedDateAxis,
+      yaxis:Object.assign({},PLOTLY_LAYOUT_BASE.yaxis,{tickformat:'.2s'})
+    }), PLOTLY_CFG);
 
     // iTunes trajectory
     const hasItunes = d.itScores && d.itScores.some(v=>v>0);
@@ -865,7 +891,10 @@ function selectArtist(name){
       hovertemplate:'<b>%{x}</b><br>iTunes points: %{y:,.0f}<extra></extra>',
       connectgaps:true
     };
-    const itLayout = layoutClone({yaxis:Object.assign({},PLOTLY_LAYOUT_BASE.yaxis,{tickformat:'.2s'})});
+    const itLayout = layoutClone({
+      xaxis: sharedDateAxis,
+      yaxis:Object.assign({},PLOTLY_LAYOUT_BASE.yaxis,{tickformat:'.2s'})
+    });
     if(!hasItunes){
       itLayout.annotations = [{text:'Not ranked iTunes WW',xref:'paper',yref:'paper',x:0.5,y:0.5,showarrow:false,font:{color:'#5b657d',size:13}}];
     }
@@ -891,7 +920,7 @@ function selectArtist(name){
         </div>
       </div>
       <span class="trk-val">${fmtN(t.streams)}</span>
-      <span class="trk-val">${t.rank?'#'+t.rank:'—'}</span>
+      <span class="trk-val">${t.rank?+t.rank:'—'}</span>
       <span class="trk-val">${t.days}d</span>`;
     tl.appendChild(row);
   });
@@ -944,3 +973,24 @@ window.addEventListener('load',()=>{ try{ selectArtist(PAYLOAD.defaultArtist); }
 </script>
 </body></html>
 """.replace("__PAYLOAD__", data_json)
+
+
+def prefetch_acquisition_data() -> None:
+    """Warms up the cache for all three Acquisition dashboards (Artist, Track, and Album) in the background."""
+    try:
+        _load_daily("spotify_daily", "global", 30)
+        _load_daily("itunes_daily", "ww", 30)
+        _load_artist_universe()
+        _load_spotify_artist_series(30)
+        _load_itunes_artist_series(30)
+        
+        from src.ai.track_acquisition_dashboard import _load_window as load_track_window
+        load_track_window("spotify_daily", "global", 7)
+        load_track_window("spotify_daily", "us", 7)
+        load_track_window("itunes_daily", "ww", 7)
+        
+        from src.ai.album_acquisition_dashboard import _load_window as load_album_window
+        load_album_window("itunes_artist_album", "ww", 7)
+    except Exception as e:
+        logger.error(f"Error prefetching acquisition data: {e}")
+

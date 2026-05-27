@@ -256,11 +256,9 @@ def render_track_movement() -> None:
     it_spot = it_risers[0] if it_risers else None
 
     date_strs = [d.strftime("%b %d") for d in all_dates]
-    window_label = f"{all_dates[0].strftime('%b %d')}–{all_dates[-1].strftime('%b %d, %Y')} · {PERIOD_LABELS[period_label]}"
 
     payload = {
         "dates": date_strs,
-        "window_label": window_label,
         "scope": scope_label,
         "platform": platform,
         "sp_risers": sp_risers,
@@ -362,7 +360,6 @@ body{{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--
   <div class='hdr-top'>
     <div>
       <div class='dash-title'>Track Momentum Dashboard</div>
-      <div class='dash-sub' id='hdr-window'></div>
       <div class='dash-sub' id='hdr-sub'></div>
     </div>
   </div>
@@ -455,7 +452,6 @@ const PAL=['#fff','#a78bfa','#2dd4bf','#60a5fa','#fbbf24','#f472b6','#34d399','#
 const PAL2=['#22c55e','#a78bfa','#60a5fa','#fbbf24','#2dd4bf','#f472b6','#fb923c','#94a3b8'];
 
 // Header
-document.getElementById('hdr-window').textContent = PAYLOAD.window_label;
 document.getElementById('hdr-sub').textContent = `${{PAYLOAD.scope}} · ${{PLATFORM}} platform${{PLATFORM==='Both'?'s':''}}`;
 
 
@@ -497,10 +493,10 @@ function spotCard(d, kind){{
   return `<div class='spot' ${{style}}>
     <div class='sp-tag'>${{tag}}</div>
     <div class='sp-name'>${{d.n}} — ${{d.t}}</div>
-    <div class='sp-meta'>${{d.lbl}} · #${{startRank}} → #${{endRank}}</div>
+    <div class='sp-meta'>${{d.lbl}} · ${{startRank}} → ${{endRank}}</div>
     <div class='sp-grid'>
-      <div class='sp-s'><div class='sp-s-l'>Start rank</div><div class='sp-s-v'>#${{startRank}}</div></div>
-      <div class='sp-s'><div class='sp-s-l'>Now</div><div class='sp-s-v' style='color:${{accent}}'>#${{endRank}}</div></div>
+      <div class='sp-s'><div class='sp-s-l'>Start rank</div><div class='sp-s-v'>${{startRank}}</div></div>
+      <div class='sp-s'><div class='sp-s-l'>Now</div><div class='sp-s-v' style='color:${{accent}}'>${{endRank}}</div></div>
       <div class='sp-s'><div class='sp-s-l'>Rank gain</div><div class='sp-s-v' style='color:var(--amber)'>+${{d.rg}}</div></div>
       <div class='sp-s'><div class='sp-s-l'>${{metLabel}}</div><div class='sp-s-v' style='color:var(--blue)'>${{kind==='sp'?fmtM(d.sg,2,true):fmtN(d.sg,0)}}</div></div>
     </div>
@@ -545,8 +541,8 @@ function renderTable(elId, data){{
           <div class='dual-seg'><div class='dual-fill' style='width:${{sgPct}}%;background:${{sgColor}}'></div></div>
         </div>
       </div>
-      <span style='font-size:13px;color:var(--t3);text-align:center;font-weight:600'>#${{startRank||'—'}}</span>
-      <span style='font-size:13px;color:${{rankColor}};text-align:center;font-weight:700'>#${{latRank||'—'}}</span>
+      <span style='font-size:13px;color:var(--t3);text-align:center;font-weight:600'>${{startRank||'—'}}</span>
+      <span style='font-size:13px;color:${{rankColor}};text-align:center;font-weight:700'>${{latRank||'—'}}</span>
       <span class='tv'>${{valFmt}}</span>
       <span class='tv' style='color:${{sgColor}}'>${{sgSign}}${{sgLabel.replace('+','').replace('−','')}}</span>
       <span style='text-align:right'>${{rankBadge}}</span>

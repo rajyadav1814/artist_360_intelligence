@@ -35,6 +35,8 @@ def scrape_spotify_artists() -> List[SpotifyArtist]:
 
     rows = table.find_all("tr")
     for row in rows:
+        if len(artists) >= 300:
+            break
         cells = row.find_all("td")
         if len(cells) < 3:
             continue

@@ -1330,12 +1330,7 @@ def render_leaderboard_table_html(leaderboard: pd.DataFrame, max_rows: int) -> N
         rank = int(row["rank"]) if pd.notna(row["rank"]) else "—"
         rank_change = trend_badge_html(str(row.get("rank_change") or ""))
         artist_name = str(row.get("name") or "—")
-        artist_link = str(row.get("profile_url") or "")
-        artist_html = (
-            f"<a href=\"{escape(artist_link)}\" target=\"_blank\" class=\"artist-link\">{escape(artist_name)}</a>"
-            if artist_link
-            else escape(artist_name)
-        )
+        artist_html = escape(artist_name)
         top_song = str(row.get("top_song") or "—").strip()
         top_song_label = escape(top_song if len(top_song) <= 40 else top_song[:38] + "…")
         top_song_html = f"<span title=\"{escape(top_song)}\">{top_song_label}</span>"
@@ -1361,7 +1356,7 @@ def render_leaderboard_table_html(leaderboard: pd.DataFrame, max_rows: int) -> N
     <div class='dashboard-card'>
         <div class='section-title'>📊 Leaderboard table</div>
         <div class='section-sub'>Scroll through the latest rank, listener, and points data in one place.</div>
-        <div class='table-wrap' style='max-height:740px; overflow-x:auto; overflow-y:auto;'>
+        <div class='table-wrap' style='max-height:780px; overflow-x:auto; overflow-y:auto;'>
             <table class='leader-table'>
                 <thead>
                     <tr>
@@ -1371,7 +1366,7 @@ def render_leaderboard_table_html(leaderboard: pd.DataFrame, max_rows: int) -> N
                         <th>Top market</th>
                         <th>Monthly listeners</th>
                         <th>Peak listeners</th>
-                        <th>Points</th>
+                        <th>Total Streams</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -1673,225 +1668,6 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
         else:
             st.info("No iTunes points data is available for the current leaderboard selection.")
 
-    # New Threshold Analysis Row
-    st.markdown(
-        "<div class='lb-section-hdr' style='margin: 0.5rem 0 1rem 0;'>"
-        "<div class='lb-section-title'>⚡ Chart Entry Thresholds</div>"
-        "<span class='lb-section-badge'>Tier benchmarks</span>"
-        "</div>",
-        unsafe_allow_html=True,
-    )
-    
-    target_ranks = [10, 20, 50, 100, 150, 200]
-    threshold_records = []
-    
-    # Sort independently to find the true threshold values
-    pts_sorted = leaderboard.dropna(subset=["total_points"]).sort_values("total_points", ascending=False)
-    lsn_sorted = leaderboard.dropna(subset=["monthly_listeners"]).sort_values("monthly_listeners", ascending=False)
-
-    for r_val in target_ranks:
-        pts = 0.0
-        lsn = 0.0
-        artist_pts = "—"
-        artist_lsn = "—"
-
-        if len(pts_sorted) >= r_val:
-            row_p = pts_sorted.iloc[r_val - 1]
-            pts = float(row_p["total_points"])
-            artist_pts = row_p["name"]
-        elif not pts_sorted.empty:
-            row_p = pts_sorted.iloc[-1]
-            pts = float(row_p["total_points"])
-            artist_pts = row_p["name"]
-
-        if len(lsn_sorted) >= r_val:
-            row_l = lsn_sorted.iloc[r_val - 1]
-            lsn = float(row_l["monthly_listeners"])
-            artist_lsn = row_l["name"]
-        elif not lsn_sorted.empty:
-            row_l = lsn_sorted.iloc[-1]
-            lsn = float(row_l["monthly_listeners"])
-            artist_lsn = row_l["name"]
-
-        threshold_records.append({
-            "Tier": f"Top {r_val}",
-            "Rank": r_val,
-            "Points": pts,
-            "Listeners": lsn,
-            "Artist_Pts": artist_pts,
-            "Artist_Lsn": artist_lsn
-        })
-    
-    if threshold_records:
-        thresh_df = pd.DataFrame(threshold_records)
-        t_col1, t_col2 = st.columns(2, gap="large")
-        
-        with t_col1:
-            st.markdown(
-                """
-                <div class='lb-section'>
-                  <div class='lb-section-hdr'>
-                    <div class='lb-section-title'>📊 Required total points</div>
-                    <span class='lb-section-badge' style='color:var(--lb-purple);border-color:rgba(196,181,253,.45)'>per tier</span>
-                  </div>
-                """,
-                unsafe_allow_html=True
-            )
-            fig_thresh_pts = px.line(
-                thresh_df, x="Tier", y="Points",
-                markers=True, text="Points",
-                color_discrete_sequence=["#c4b5fd"]
-            )
-            fig_thresh_pts.update_traces(
-                line=dict(width=4, shape='spline'),
-                marker=dict(size=10, line=dict(width=2, color='#0d1117')),
-                fill='tozeroy',
-                fillcolor='rgba(196, 181, 253, 0.15)',
-                textposition="top center",
-                texttemplate="%{y:.2s}",
-                hovertemplate="<b>%{x}</b><br>Required Points: %{y:,.0f}<br>Artist at Threshold: %{customdata}<extra></extra>",
-                customdata=thresh_df["Artist_Pts"]
-            )
-            style_figure(fig_thresh_pts, 340)
-            fig_thresh_pts.update_layout(
-                title="", 
-                margin=dict(t=20, b=40, l=40, r=20),
-                xaxis=dict(showgrid=False),
-                yaxis=dict(showgrid=True, gridcolor="rgba(151,163,197,0.08)")
-            )
-            render_plotly_html(fig_thresh_pts)
-            st.markdown("</div>", unsafe_allow_html=True)
-            
-        with t_col2:
-            st.markdown(
-                """
-                <div class='lb-section'>
-                  <div class='lb-section-hdr'>
-                    <div class='lb-section-title'>🎧 Required monthly listeners</div>
-                    <span class='lb-section-badge' style='color:var(--lb-green);border-color:rgba(52,211,153,.45)'>per tier</span>
-                  </div>
-                """,
-                unsafe_allow_html=True
-            )
-            fig_thresh_ls = px.line(
-                thresh_df, x="Tier", y="Listeners",
-                markers=True, text="Listeners",
-                color_discrete_sequence=["#34d399"]
-            )
-            fig_thresh_ls.update_traces(
-                line=dict(width=4, shape='spline'),
-                marker=dict(size=10, line=dict(width=2, color='#0d1117')),
-                fill='tozeroy',
-                fillcolor='rgba(52, 211, 153, 0.15)',
-                textposition="top center",
-                texttemplate="%{y:.2s}",
-                hovertemplate="<b>%{x}</b><br>Required Listeners: %{y:,.0f}<br>Artist at Threshold: %{customdata}<extra></extra>",
-                customdata=thresh_df["Artist_Lsn"]
-            )
-            style_figure(fig_thresh_ls, 340)
-            fig_thresh_ls.update_layout(
-                title="", 
-                margin=dict(t=20, b=40, l=40, r=20),
-                xaxis=dict(showgrid=False),
-                yaxis=dict(showgrid=True, gridcolor="rgba(151,163,197,0.08)")
-            )
-            render_plotly_html(fig_thresh_ls)
-            st.markdown("</div>", unsafe_allow_html=True)
-        
-        # Threshold details table in HTML
-        thresh_rows_html = []
-        for _, t_row in thresh_df.iterrows():
-            tier = escape(str(t_row["Tier"]))
-            pts = fmt_short(t_row["Points"])
-            lsn = fmt_short(t_row["Listeners"])
-            thresh_rows_html.append(
-                f"<tr>"
-                f"<td><span class='badge badge-same' style='min-width: 64px;'>{tier}</span></td>"
-                f"<td class='num-cell' style='font-weight:700; color:var(--lb-purple);'>{pts}</td>"
-                f"<td class='num-cell' style='font-weight:700; color:var(--lb-green);'>{lsn}</td>"
-                f"</tr>"
-            )
-
-        thresh_table_html = f"""
-        <div class='dashboard-card'>
-            <div class='section-title'>📋 Tier Benchmarks Detailed</div>
-            <div class='section-sub'>The minimum requirements to reach specific chart positions based on current data.</div>
-            <div class='table-wrap' style='max-height: 420px;'>
-                <table class='leader-table'>
-                    <thead>
-                        <tr>
-                            <th>Tier</th>
-                            <th style='text-align:right'>Points threshold</th>
-                            <th style='text-align:right'>Listeners threshold</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {''.join(thresh_rows_html)}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-        """
-        st.markdown(thresh_table_html, unsafe_allow_html=True)
-    else:
-        st.info("Not enough data to calculate thresholds for the requested ranks.")
-        artists = leaderboard["name"].dropna().tolist()
-
-        selected_artist = st.selectbox("🔍 Choose an artist", artists, index=0)
-
-        if selected_artist:
-            row = leaderboard.loc[leaderboard["name"] == selected_artist].iloc[0]
-
-            # Single frame containing all artist details, including counts
-            with st.expander("📋 View Artist Details", expanded=True):
-                c1, c2, c3, c4 = st.columns(4)
-                c1.metric("🎵 Songs", int(row.get("songs_count") or 0))
-                c2.metric("💿 Albums", int(row.get("albums_count") or 0))
-                c3.metric("🌎 LATAM Countries", int(row.get("countries_count") or 0))
-                c4.metric("👥 Monthly Listeners", fmt_short(row.get("monthly_listeners") or 0))
-
-                songs_items = [item.strip() for item in str(row.get("top_songs") or "").split("\n") if item.strip()]
-                albums_items = [item.strip() for item in str(row.get("top_albums") or "").split("\n") if item.strip()]
-                countries_items = [item.strip() for item in str(row.get("top_country") or "").split("\n") if item.strip()]
-
-                rank_value = int(row.get("rank")) if pd.notna(row.get("rank")) else 0
-
-                def safe_text(value: object) -> str:
-                    if value is None or pd.isna(value):
-                        return "—"
-                    text = str(value).strip()
-                    return text if text else "—"
-
-                meta_left, meta_right = st.columns(2)
-                with meta_left:
-                    st.markdown(f"**📈 Current Rank:** {rank_value}")
-                    st.markdown(f"**🌍 Top Country:** {safe_text(row.get('display_country'))}")
-                with meta_right:
-                    st.markdown(f"**⭐ Total Points:** {fmt_short(row.get('total_points') or 0)}")
-                    st.markdown(f"**📊 Peak Listeners:** {fmt_short(row.get('peak_listeners') or 0)}")
-
-                left_list, mid_list, right_list = st.columns(3)
-                with left_list:
-                    st.markdown("#### 🎵 Top Songs")
-                    if songs_items:
-                        st.markdown("\n".join(f"{idx}. {item}" for idx, item in enumerate(songs_items, start=1)))
-                    else:
-                        st.caption("No songs available.")
-
-                with mid_list:
-                    st.markdown("#### 💿 Top Albums")
-                    if albums_items:
-                        st.markdown("\n".join(f"{idx}. {item}" for idx, item in enumerate(albums_items, start=1)))
-                    else:
-                        st.caption("No albums available.")
-
-                with right_list:
-                    st.markdown("#### 🗺️ Top Countries")
-                    if countries_items:
-                        st.markdown("\n".join(f"{idx}. {item}" for idx, item in enumerate(countries_items, start=1)))
-                    else:
-                        st.caption("No countries available.")
-
 def resample_tracker_pattern(pattern: list[int], days: int) -> list[int]:
     if not pattern:
         return [1] * max(days, 1)
@@ -2052,7 +1828,6 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
     time_window_days = int(time_range.split()[0])
     using_demo = unique_runs < 3
     if using_demo:
-        st.info("📊 Full ranking history is still building. Using latest snapshot with smoothed trajectory interpolation.", icon="ℹ️")
         line_df, best_df = build_tracker_demo_data(leaderboard, days=time_window_days)
     else:
         history = history.copy()
@@ -2098,11 +1873,7 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
                         daily_parts.append(artist_daily[["day", "date", "artist", "position"]])
 
                     if daily_parts:
-                        line_df = pd.concat(daily_parts, ignore_index=True)
-                        st.info(
-                            "📊 Historical runs are sparse in this window, so missing days are interpolated for smoother day-by-day trends.",
-                            icon="ℹ️",
-                        )
+                        line_df = pd.concat(daily_parts, ignore_index=True) 
 
             best_df = (
                 history.groupby("name", as_index=False)["rank"]
@@ -2148,7 +1919,7 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
         kpi_html = f"""
         <div class='ct-kpi-row'>
           <div class='ct-kpi purple'>
-            <div class='ct-kpi-lbl'>Current #1</div>
+            <div class='ct-kpi-lbl'>Current</div>
             <div class='ct-kpi-val' style='font-size:18px'>{escape(leader['artist'])}</div>
             <div class='ct-kpi-sub'>Position {leader['current']} · best {leader['best']}</div>
           </div>
@@ -2293,57 +2064,58 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
         st.markdown("</div>", unsafe_allow_html=True)
 
     # ── Styled HTML movement table (replaces st.dataframe) ───────────
-    if movement_rows:
-        movement_rows_sorted = sorted(movement_rows, key=lambda r: -r["change"])
-        rows_html = []
-        for r in movement_rows_sorted:
-            ch = r["change"]
-            if ch > 0:
-                pill = f"<span class='ct-pill ct-pill-up'>▲ +{ch}</span>"
-                trend = "<span style='color:#34d399;font-weight:600'>📈 Rising</span>"
-            elif ch < 0:
-                pill = f"<span class='ct-pill ct-pill-down'>▼ {abs(ch)}</span>"
-                trend = "<span style='color:#fb7185;font-weight:600'>📉 Falling</span>"
-            else:
-                pill = "<span class='ct-pill ct-pill-flat'>—</span>"
-                trend = "<span style='color:#cdd6e4;font-weight:600'>➡️ Stable</span>"
-            rows_html.append(
-                f"<tr><td class='ct-artist'>{escape(r['artist'])}</td>"
-                f"<td class='ct-rank-cell'>{r['start']}</td>"
-                f"<td class='ct-rank-cell'>{r['current']}</td>"
-                f"<td class='ct-rank-cell'>{r['best']}</td>"
-                f"<td>{pill}</td>"
-                f"<td>{trend}</td></tr>"
+        if movement_rows:
+            # Sort by 'current' position ascending (best rank first)
+            movement_rows_sorted = sorted(movement_rows, key=lambda r: r["current"])
+            rows_html = []
+            for r in movement_rows_sorted:
+                ch = r["change"]
+                if ch > 0:
+                    pill = f"<span class='ct-pill ct-pill-up'>▲ +{ch}</span>"
+                    trend = "<span style='color:#34d399;font-weight:600'>📈 Rising</span>"
+                elif ch < 0:
+                    pill = f"<span class='ct-pill ct-pill-down'>▼ {abs(ch)}</span>"
+                    trend = "<span style='color:#fb7185;font-weight:600'>📉 Falling</span>"
+                else:
+                    pill = "<span class='ct-pill ct-pill-flat'>—</span>"
+                    trend = "<span style='color:#cdd6e4;font-weight:600'>➡️ Stable</span>"
+                rows_html.append(
+                    f"<tr><td class='ct-artist'>{escape(r['artist'])}</td>"
+                    f"<td class='ct-rank-cell'>{r['start']}</td>"
+                    f"<td class='ct-rank-cell'>{r['current']}</td>"
+                    f"<td class='ct-rank-cell'>{r['best']}</td>"
+                    f"<td>{pill}</td>"
+                    f"<td>{trend}</td></tr>"
+                )
+            table_html = (
+                "<div class='ct-section'>"
+                "<div class='ct-section-ttl'>📊 Detailed Movement Analysis</div>"
+                "<table class='ct-mv-tbl'><thead><tr>"
+                "<th>Artist</th><th>Start</th><th>Current</th><th>Best</th><th>Change</th><th>Trend</th>"
+                "</tr></thead><tbody>"
+                + "".join(rows_html)
+                + "</tbody></table></div>"
             )
-        table_html = (
-            "<div class='ct-section'>"
-            "<div class='ct-section-ttl'>📊 Detailed Movement Analysis</div>"
-            "<table class='ct-mv-tbl'><thead><tr>"
-            "<th>Artist</th><th>Start</th><th>Current</th><th>Best</th><th>Change</th><th>Trend</th>"
-            "</tr></thead><tbody>"
-            + "".join(rows_html)
-            + "</tbody></table></div>"
-        )
-        st.markdown(table_html, unsafe_allow_html=True)
+            st.markdown(table_html, unsafe_allow_html=True)
 
-        movement_df = pd.DataFrame([
-            {
-                "Artist": r["artist"],
-                "Starting Position": r["start"],
-                "Current Position": r["current"],
-                "Best Position": r["best"],
-                "Change": (f"+{r['change']}" if r["change"] > 0 else str(r["change"])),
-                "Trend": ("Rising" if r["change"] > 0 else "Falling" if r["change"] < 0 else "Stable"),
-            }
-            for r in movement_rows_sorted
-        ])
-        st.download_button(
-            "⬇️ Download Detailed Movement Analysis",
-            data=movement_df.to_csv(index=False).encode("utf-8"),
-            file_name="detailed_movement_analysis.csv",
-            mime="text/csv",
-            key="download_detailed_movement_analysis",
-        )
+            movement_df = pd.DataFrame([
+                {
+                    "Artist": r["artist"],
+                    "Starting Position": r["start"],
+                    "Current Position": r["current"],
+                    "Best Position": r["best"],
+                    "Change": (f"+{r['change']}" if r["change"] > 0 else str(r["change"])),
+                    "Trend": ("Rising" if r["change"] > 0 else "Falling" if r["change"] < 0 else "Stable"),
+                }
+                for r in movement_rows_sorted
+            ])
+            st.download_button(
+                "⬇️ Download Detailed Movement Analysis",
+                data=movement_df.to_csv(index=False).encode("utf-8"),
+                file_name="detailed_movement_analysis.csv",
+                mime="text/csv",
+                key="download_detailed_movement_analysis",
+            )
 
 
 
@@ -2973,7 +2745,6 @@ def render_debut_artist_chart(leaderboard: pd.DataFrame) -> None:
     artist_name = escape(str(row.get("name") or "—"))
     page_title_val = escape(str(row.get("page_title") or ""))
     display_country = escape(str(row.get("display_country") or "Global"))
-    top_song = escape(str(row.get("top_song") or "—"))
 
     st.markdown(
         f"""
@@ -3001,16 +2772,6 @@ def render_debut_artist_chart(leaderboard: pd.DataFrame) -> None:
             <div class="spotlight-kpi"><div class="spotlight-kpi-label">Peak Listeners</div><div class="spotlight-kpi-value">{peak_val}</div><div class="spotlight-kpi-note">Historical high</div></div>
             <div class="spotlight-kpi"><div class="spotlight-kpi-label">Total Points</div><div class="spotlight-kpi-value">{points_val}</div><div class="spotlight-kpi-note">Cross-platform score</div></div>
             <div class="spotlight-kpi"><div class="spotlight-kpi-label">Trend</div><div class="spotlight-kpi-value">{escape(trend_change)}</div><div class="spotlight-kpi-note">Rank momentum</div></div>
-        </div>
-
-        <div class="spotlight-panel">
-            <div class="spotlight-panel-header">Artist Profile Details</div>
-            <div class="spotlight-panel-body">
-                <div class="spotlight-meta-grid">
-                    <div><strong>Top Country:</strong> {display_country}</div>
-                    <div><strong>Top Song:</strong> {top_song}</div>
-                </div>
-            </div>
         </div>
 
         <div class="spotlight-panel">
@@ -3612,7 +3373,6 @@ _loader_slot.markdown("""
 <div id="a360-loader">
   <div class="a360-ring"></div>
   <div class="a360-title">Artist 360&deg; Intelligence</div>
-  <div class="a360-sub">Fetching latest chart data&hellip;</div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -3624,11 +3384,13 @@ try:
         import threading
         from streamlit.runtime.scriptrunner import add_script_run_ctx
         from src.ai.label_analysis_dashboard import prefetch_label_data
+        from src.ai.acquisition_dashboard import prefetch_acquisition_data
         
         def run_prefetch():
             try:
                 prefetch_debut_data()
                 prefetch_label_data()
+                prefetch_acquisition_data()
             except Exception as e:
                 pass
 
@@ -4079,6 +3841,8 @@ def show_label_analysis_page() -> None:
 
 def show_debut_report_page() -> None:
     """Wrapper function for Debut Report page"""
+    page_title, page_meta = PAGE_META["Debut Report"]
+    render_header(page_title, page_meta, last_run_label)
     _debut_loader = st.empty()
     _debut_loader.markdown("""
 <style>
@@ -4126,8 +3890,7 @@ def show_debut_report_page() -> None:
 </style>
 <div id="dr-loader">
   <div class="dr-ring"></div>
-  <div class="dr-title">Debut Report</div>
-  <div class="dr-sub">Loading debut data&hellip;</div>
+  <div class="dr-title">Debuts Report</div>
 </div>
 """, unsafe_allow_html=True)
     render_debut_tab()
