@@ -13,16 +13,14 @@ import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as st_components
 
+from src.ai.country_scopes import ITUNES_COMBINED_SCOPES
 from src.database.connection import get_connection
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
 # Region scope -> (itunes_country, itunes_country)
-SCOPES: dict[str, tuple[str, str]] = {
-    "Global / WW": ("global", "ww"),
-    "United States": ("us", "us"),
-}
+SCOPES: dict[str, tuple[str, str]] = ITUNES_COMBINED_SCOPES
 
 PERIOD_DAYS: dict[str, int] = {
     "Latest (5d)": 5,

@@ -1,6 +1,6 @@
 """
 Album Acquisition dashboard — album-level acquisition signals from
-iTunes WW + iTunes WW daily chart data.
+iTunes daily chart data with country-level scope.
 """
 from __future__ import annotations
 
@@ -12,12 +12,16 @@ import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as st_components
 
+from src.ai.country_scopes import ITUNES_COMBINED_SCOPES
 from src.database.connection import get_connection
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
 WINDOW_DAYS = 13
+
+# Country scope labels for the selectbox (human-readable)
+COUNTRY_OPTIONS = list(ITUNES_COMBINED_SCOPES.keys())
 
 
 def _split_at(at: str | None) -> tuple[str, str]:
@@ -273,51 +277,77 @@ def _build_payload(albums: list[dict[str, Any]], dates: list[date], limit: int =
 def render_album_acquisition() -> None:
     st.markdown(
         "<div style='font-size:0.85rem;color:#97a3c5;margin:-0.5rem 0 0.75rem 0'>"
-        "Album-level acquisition intelligence using iTunes WW/US + iTunes WW daily chart data."
+        "Album-level acquisition intelligence across iTunes daily charts."
         "</div>",
         unsafe_allow_html=True,
     )
 
-    days = st.radio("Time window", ["7 Days", "14 Days", "30 Days"], index=0, horizontal=True, key="album_acq_period")
-    if days == "7 Days":
-        window_days = 7
-    elif days == "14 Days":
-        window_days = 14
-    else:
-        window_days = 30
+    c1, c2 = st.columns([1.4, 2.6])
+    with c1:
+        scope_label = st.selectbox(
+            "Focus country",
+            COUNTRY_OPTIONS,
+            index=0,
+            key="album_acq_country",
+        )
+    with c2:
+        days = st.radio(
+            "Time window",
+            ["7 Days", "14 Days", "30 Days"],
+            index=0,
+            horizontal=True,
+            key="album_acq_period",
+        )
 
-    sp_global_df = _load_window("itunes_artist_album", "ww", window_days)
-    sp_us_df = pd.DataFrame()
-    it_df = pd.DataFrame()
+    window_days = {"7 Days": 7, "14 Days": 14, "30 Days": 30}[days]
 
-    if sp_global_df.empty and sp_us_df.empty and it_df.empty:
+    _sp_country, it_country = ITUNES_COMBINED_SCOPES[scope_label]
+
+    # Load the selected country's album chart
+    it_df = _load_window("itunes_artist_album", it_country, window_days)
+
+    # Also load iTunes WW for broader cross-platform signals
+    it_ww_df = _load_window("itunes_artist_album", "ww", window_days) if it_country != "ww" else it_df
+
+    if it_df.empty and it_ww_df.empty:
         st.warning("No daily chart data available to build the album acquisition view.")
         return
 
     date_set = set()
-    if not sp_global_df.empty:
-        date_set.update(sp_global_df["date"].tolist())
-    if not sp_us_df.empty:
-        date_set.update(sp_us_df["date"].tolist())
     if not it_df.empty:
         date_set.update(it_df["date"].tolist())
+    if not it_ww_df.empty:
+        date_set.update(it_ww_df["date"].tolist())
     if not date_set:
         st.warning("No chart dates found in the selected window.")
         return
 
     dates = sorted(date_set)
-    global_albums = _build_album_rows(sp_global_df, it_df, dates, region="Global")
-    us_albums = _build_album_rows(sp_us_df, it_df, dates, region="US")
 
-    if not global_albums and not us_albums:
+    # Build albums for selected focus country
+    focus_albums = _build_album_rows(pd.DataFrame(), it_df, dates, region=scope_label)
+    # Build albums with WW data for broader reach
+    focus_albums_ww = _build_album_rows(pd.DataFrame(), it_ww_df, dates, region=scope_label)
+
+    if not focus_albums and not focus_albums_ww:
         st.warning("No album acquisition rows could be built from the available chart data.")
         return
 
-    payload = _build_payload(global_albums, dates, region_label="iTunes WW")
-    us_payload = _build_payload(us_albums, dates, region_label="iTunes US")
+    region_tag = scope_label.replace(" / ", " ").replace("_", " ").title()
+    payload = _build_payload(focus_albums_ww, dates, region_label=f"iTunes {region_tag}")
+    focus_payload = _build_payload(focus_albums, dates, region_label=f"iTunes {region_tag}")
 
-    payload["usAlbums"] = us_albums
-    payload["usSummary"] = us_payload.get("summary", {})
+    payload["focusAlbums"] = focus_albums
+    payload["focusSummary"] = focus_payload.get("summary", {})
+
+    # Build list of region options
+    region_options = [
+        {"value": "focus", "label": scope_label},
+        {"value": "focus_ww", "label": f"{scope_label} + WW"},
+    ]
+
+    payload["regionOptions"] = region_options
+    payload["defaultRegion"] = "focus_ww"
 
     html = _build_html(payload)
     st_components.html(html, height=1700, scrolling=True)
@@ -449,11 +479,8 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
       <div class="search-wrap">
         <input type="text" id="searchInput" placeholder="Search album or artist..." oninput="applyFilters()">
       </div>
-      <div class="sel-wrap">
-        <select id="regionSel" onchange="changeRegion()">
-          <option value="global">Global Stats</option>
-          <option value="us">United States Stats</option>
-        </select>
+      <div class="sel-wrap" id="regionSelWrap">
+        <select id="regionSel" onchange="changeRegion()"></select>
       </div>
       <div class="sel-wrap">
         <select id="platformSel" onchange="applyFilters()">
@@ -576,6 +603,17 @@ if (SUM) {
   updateKPIs(SUM);
 }
 
+// Populate region selector from payload
+(function initRegionSel() {
+  const sel = document.getElementById('regionSel');
+  const opts = PAYLOAD.regionOptions || [
+    {value: 'focus_ww', label: 'Global / WW'},
+    {value: 'focus', label: 'Focus Country'},
+  ];
+  sel.innerHTML = opts.map(o => `<option value="${o.value}">${o.label}</option>`).join('');
+  sel.value = PAYLOAD.defaultRegion || 'focus_ww';
+})();
+
 let currentSort='acq';
 let currentPeriod='all';
 let selectedId=PAYLOAD.defaultAlbumId;
@@ -584,10 +622,16 @@ let detailItChart=null;
 
 function changeRegion() {
   const r = document.getElementById('regionSel').value;
-  ALBUMS = r === 'global' ? PAYLOAD.albums : PAYLOAD.usAlbums;
-  const sum = r === 'global' ? PAYLOAD.summary : PAYLOAD.usSummary;
-  PAYLOAD.regionLabel = r === 'global' ? 'iTunes WW' : 'iTunes US';
-  updateKPIs(sum);
+  if (r === 'focus') {
+    ALBUMS = PAYLOAD.focusAlbums || PAYLOAD.albums;
+    const sum = PAYLOAD.focusSummary || PAYLOAD.summary;
+    PAYLOAD.regionLabel = (PAYLOAD.regionOptions && PAYLOAD.regionOptions[0]?.label) || 'Focus Country';
+    updateKPIs(sum);
+  } else {
+    ALBUMS = PAYLOAD.albums;
+    PAYLOAD.regionLabel = (PAYLOAD.regionOptions && PAYLOAD.regionOptions[1]?.label) || 'Global / WW';
+    updateKPIs(PAYLOAD.summary);
+  }
   
   selectedId = ALBUMS[0]?.id;
   renderTable();
