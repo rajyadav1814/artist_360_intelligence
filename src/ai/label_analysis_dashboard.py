@@ -350,8 +350,15 @@ def render_label_analysis():
     date_range_label = f"Chromadata · Label Intelligence"
     
     # Week buttons text
-    wkA_range_label = f"Wk A · {min(wkA_dates).strftime('%b %d')}–{max(wkA_dates).strftime('%b %d')}"
-    wkB_range_label = f"Wk B · {min(wkB_dates).strftime('%b %d')}–{max(wkB_dates).strftime('%b %d')}"
+    if wkA_dates:
+      wkA_range_label = f"Wk A · {min(wkA_dates).strftime('%b %d')}–{max(wkA_dates).strftime('%b %d')}"
+    else:
+      wkA_range_label = "Wk A · No data"
+
+    if wkB_dates:
+      wkB_range_label = f"Wk B · {min(wkB_dates).strftime('%b %d')}–{max(wkB_dates).strftime('%b %d')}"
+    else:
+      wkB_range_label = "Wk B · No data"
     
     # ── HTML TEMPLATE ─────────────────────────────────
     html_template = """

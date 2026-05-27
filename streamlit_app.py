@@ -1828,7 +1828,6 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
     time_window_days = int(time_range.split()[0])
     using_demo = unique_runs < 3
     if using_demo:
-        st.info("📊 Full ranking history is still building. Using latest snapshot with smoothed trajectory interpolation.", icon="ℹ️")
         line_df, best_df = build_tracker_demo_data(leaderboard, days=time_window_days)
     else:
         history = history.copy()
