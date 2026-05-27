@@ -2064,57 +2064,58 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
         st.markdown("</div>", unsafe_allow_html=True)
 
     # ── Styled HTML movement table (replaces st.dataframe) ───────────
-    if movement_rows:
-        movement_rows_sorted = sorted(movement_rows, key=lambda r: -r["change"])
-        rows_html = []
-        for r in movement_rows_sorted:
-            ch = r["change"]
-            if ch > 0:
-                pill = f"<span class='ct-pill ct-pill-up'>▲ +{ch}</span>"
-                trend = "<span style='color:#34d399;font-weight:600'>📈 Rising</span>"
-            elif ch < 0:
-                pill = f"<span class='ct-pill ct-pill-down'>▼ {abs(ch)}</span>"
-                trend = "<span style='color:#fb7185;font-weight:600'>📉 Falling</span>"
-            else:
-                pill = "<span class='ct-pill ct-pill-flat'>—</span>"
-                trend = "<span style='color:#cdd6e4;font-weight:600'>➡️ Stable</span>"
-            rows_html.append(
-                f"<tr><td class='ct-artist'>{escape(r['artist'])}</td>"
-                f"<td class='ct-rank-cell'>{r['start']}</td>"
-                f"<td class='ct-rank-cell'>{r['current']}</td>"
-                f"<td class='ct-rank-cell'>{r['best']}</td>"
-                f"<td>{pill}</td>"
-                f"<td>{trend}</td></tr>"
+        if movement_rows:
+            # Sort by 'current' position ascending (best rank first)
+            movement_rows_sorted = sorted(movement_rows, key=lambda r: r["current"])
+            rows_html = []
+            for r in movement_rows_sorted:
+                ch = r["change"]
+                if ch > 0:
+                    pill = f"<span class='ct-pill ct-pill-up'>▲ +{ch}</span>"
+                    trend = "<span style='color:#34d399;font-weight:600'>📈 Rising</span>"
+                elif ch < 0:
+                    pill = f"<span class='ct-pill ct-pill-down'>▼ {abs(ch)}</span>"
+                    trend = "<span style='color:#fb7185;font-weight:600'>📉 Falling</span>"
+                else:
+                    pill = "<span class='ct-pill ct-pill-flat'>—</span>"
+                    trend = "<span style='color:#cdd6e4;font-weight:600'>➡️ Stable</span>"
+                rows_html.append(
+                    f"<tr><td class='ct-artist'>{escape(r['artist'])}</td>"
+                    f"<td class='ct-rank-cell'>{r['start']}</td>"
+                    f"<td class='ct-rank-cell'>{r['current']}</td>"
+                    f"<td class='ct-rank-cell'>{r['best']}</td>"
+                    f"<td>{pill}</td>"
+                    f"<td>{trend}</td></tr>"
+                )
+            table_html = (
+                "<div class='ct-section'>"
+                "<div class='ct-section-ttl'>📊 Detailed Movement Analysis</div>"
+                "<table class='ct-mv-tbl'><thead><tr>"
+                "<th>Artist</th><th>Start</th><th>Current</th><th>Best</th><th>Change</th><th>Trend</th>"
+                "</tr></thead><tbody>"
+                + "".join(rows_html)
+                + "</tbody></table></div>"
             )
-        table_html = (
-            "<div class='ct-section'>"
-            "<div class='ct-section-ttl'>📊 Detailed Movement Analysis</div>"
-            "<table class='ct-mv-tbl'><thead><tr>"
-            "<th>Artist</th><th>Start</th><th>Current</th><th>Best</th><th>Change</th><th>Trend</th>"
-            "</tr></thead><tbody>"
-            + "".join(rows_html)
-            + "</tbody></table></div>"
-        )
-        st.markdown(table_html, unsafe_allow_html=True)
+            st.markdown(table_html, unsafe_allow_html=True)
 
-        movement_df = pd.DataFrame([
-            {
-                "Artist": r["artist"],
-                "Starting Position": r["start"],
-                "Current Position": r["current"],
-                "Best Position": r["best"],
-                "Change": (f"+{r['change']}" if r["change"] > 0 else str(r["change"])),
-                "Trend": ("Rising" if r["change"] > 0 else "Falling" if r["change"] < 0 else "Stable"),
-            }
-            for r in movement_rows_sorted
-        ])
-        st.download_button(
-            "⬇️ Download Detailed Movement Analysis",
-            data=movement_df.to_csv(index=False).encode("utf-8"),
-            file_name="detailed_movement_analysis.csv",
-            mime="text/csv",
-            key="download_detailed_movement_analysis",
-        )
+            movement_df = pd.DataFrame([
+                {
+                    "Artist": r["artist"],
+                    "Starting Position": r["start"],
+                    "Current Position": r["current"],
+                    "Best Position": r["best"],
+                    "Change": (f"+{r['change']}" if r["change"] > 0 else str(r["change"])),
+                    "Trend": ("Rising" if r["change"] > 0 else "Falling" if r["change"] < 0 else "Stable"),
+                }
+                for r in movement_rows_sorted
+            ])
+            st.download_button(
+                "⬇️ Download Detailed Movement Analysis",
+                data=movement_df.to_csv(index=False).encode("utf-8"),
+                file_name="detailed_movement_analysis.csv",
+                mime="text/csv",
+                key="download_detailed_movement_analysis",
+            )
 
 
 
