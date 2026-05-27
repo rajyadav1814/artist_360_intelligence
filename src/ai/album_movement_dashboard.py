@@ -333,14 +333,6 @@ body{{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--
 .section-dot{{width:10px;height:10px;border-radius:50%;display:inline-block;box-shadow:0 0 6px currentColor}}
 </style></head><body>
 
-<div class='hdr'>
-  <div class='hdr-top'>
-    <div>
-      <div class='dash-title'>Album Momentum Dashboard</div>
-      <div class='dash-sub' id='hdr-sub'></div>
-    </div>
-  </div>
-</div>
 
 <div class='kpi-bar' id='kpi-bar'></div>
 
