@@ -87,7 +87,7 @@ def run_daily_charts():
     logger.info("=== Starting Daily Charts scrape (Spotify, iTunes) ===")
     
     # Spotify Daily
-    for country in ["global", "us"]:
+    for country in ["global", "us","ar","bo","br","cl","co","cr","do","ec","hn","ni","pa","pe","py","sv","uy","ve"]:
         try:
             data = scrape_spotify_daily(country=country)
             rows = save_spotify_daily(data)
