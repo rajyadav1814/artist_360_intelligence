@@ -22,6 +22,24 @@ logger = get_logger(__name__)
 SCOPES: dict[str, tuple[str, str]] = {
     "Global / WW": ("global", "ww"),
     "United States": ("us", "us"),
+    "Argentina": ("ar", "ar"),
+    "Bolivia": ("bo", "bo"),
+    "Brazil": ("br", "br"),
+    "Chile": ("cl", "cl"),
+    "Colombia": ("co", "co"),
+    "Costa Rica": ("cr", "cr"),
+    "Dominican Republic": ("do", "do"),
+    "Ecuador": ("ec", "ec"),
+    "El Salvador": ("sv", "sv"),
+    "Guatemala": ("gt", "gt"),
+    "Honduras": ("hn", "hn"),
+    "Mexico": ("mx", "mx"),
+    "Nicaragua": ("ni", "ni"),
+    "Panama": ("pa", "pa"),
+    "Peru": ("pe", "pe"),
+    "Paraguay": ("py", "py"),
+    "Uruguay": ("uy", "uy"),
+    "Venezuela": ("ve", "ve"),
 }
 
 PERIOD_DAYS: dict[str, int] = {
@@ -361,8 +379,9 @@ body{{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--
 
   <div style='display:grid;grid-template-columns:1fr 1fr;gap:16px'>
 
-    <div id='risers-section' style='background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:18px 20px'>
+    <div class='card' id='risers-section'>
       <div class='sh'><span class='sh-l'>📈 Top Risers — rank + metric composite</span></div>
+      <div class='sh-r'>Tracks moving up fastest by combined rank momentum and metric growth.</div>
       <div id='sp-riser-block'>
         <div class='section-label' style='color:var(--green)'>
           <span class='section-dot' style='background:var(--green)'></span>Rank + Streams
@@ -383,8 +402,9 @@ body{{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--
       </div>
     </div>
 
-    <div id='fallers-section' style='background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:18px 20px'>
+    <div class='card' id='fallers-section'>
       <div class='sh'><span class='sh-l'>📉 Top Fallers — rank + metric composite</span></div>
+      <div class='sh-r'>Tracks declining most steeply by combined rank drop and metric loss.</div>
       <div id='sp-faller-block'>
         <div class='section-label' style='color:var(--red)'>
           <span class='section-dot' style='background:var(--red)'></span>Rank + Streams lost
