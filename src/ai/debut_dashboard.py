@@ -1147,9 +1147,11 @@ def _chart_score_distribution(debut_df: pd.DataFrame, score_col: str = "total_st
 #  MAIN RENDER
 # ─────────────────────────────────────────────────────────────
 
-def render_debut_tab() -> None:
+def render_debut_tab(filtered_leaderboard: pd.DataFrame | None = None) -> None:
     """
     Main entry point for the Debut Intelligence Dashboard tab.
+    If filtered_leaderboard is provided, debut data is filtered to only
+    include artists present in the filtered leaderboard.
     """
     # Inject CSS
     st.markdown(DEBUT_CSS, unsafe_allow_html=True)
@@ -1161,8 +1163,31 @@ def render_debut_tab() -> None:
     trending_df= get_new_trending_artists()
     itunes_artist_new_df = get_itunes_artist_new_entries(10)
 
+    # ── Apply country filter from sidebar ──────────────────
+    if filtered_leaderboard is not None and not filtered_leaderboard.empty:
+        allowed_artists = set(filtered_leaderboard["name"].dropna().str.lower().unique())
+
+        def _artist_match(artist_title: str, allowed: set) -> bool:
+            """Check if artist name from 'Artist - Track' format is in allowed set."""
+            name = str(artist_title).split(" - ", 1)[0].strip().lower()
+            return name in allowed
+
+        if not debut_df.empty and "artist_title" in debut_df.columns:
+            debut_df = debut_df[debut_df["artist_title"].apply(lambda x: _artist_match(x, allowed_artists))]
+
+        if not all_df.empty and "artist_title" in all_df.columns:
+            all_df = all_df[all_df["artist_title"].apply(lambda x: _artist_match(x, allowed_artists))]
+
+        if not itunes_df.empty and "artist_title" in itunes_df.columns:
+            itunes_df = itunes_df[itunes_df["artist_title"].apply(lambda x: _artist_match(x, allowed_artists))]
+
+        if not itunes_artist_new_df.empty and "artist_name" in itunes_artist_new_df.columns:
+            itunes_artist_new_df = itunes_artist_new_df[itunes_artist_new_df["artist_name"].str.lower().isin(allowed_artists)]
+
+        if not trending_df.empty and "artist_name" in trending_df.columns:
+            trending_df = trending_df[trending_df["artist_name"].str.lower().isin(allowed_artists)]
+
     kpis       = get_debut_kpis(debut_df, all_df)
-    multi_df   = get_multi_track_debutants(debut_df)
     bucket_df  = get_debut_rank_buckets(debut_df)
 
     monday     = datetime.now() - timedelta(days=datetime.now().weekday())
@@ -1237,15 +1262,7 @@ def render_debut_tab() -> None:
         unsafe_allow_html=True,
     )
 
-    st.markdown("<hr>", unsafe_allow_html=True)
 
-        # ── Row 4: Multi-track debutants ──────────────
-    _sec("Multi-track debutants this week", f"{len(multi_df)} artists")
-    multi_html = _multi_track_html(multi_df, debut_df)
-    st.markdown(
-        f'<div class="db-tbl-wrap" style="max-height:420px;overflow-y:auto">{multi_html}</div>',
-        unsafe_allow_html=True,
-    )
 
 
 
