@@ -1794,14 +1794,64 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
 
     unique_runs = int(history["scraped_at"].nunique()) if not history.empty else 0
 
-    col1, col2 = st.columns([1, 1])
+    # Region filter for Artist Movement tab
+    region_map = {
+        "global": "Global",
+        "us": "United States",
+        "ar": "Argentina",
+        "bo": "Bolivia",
+        "br": "Brazil",
+        "cl": "Chile",
+        "co": "Colombia",
+        "cr": "Costa Rica",
+        "do": "Dominican Republic",
+        "ec": "Ecuador",
+        "sv": "El Salvador",
+        "gt": "Guatemala",
+        "hn": "Honduras",
+        "mx": "Mexico",
+        "ni": "Nicaragua",
+        "pa": "Panama",
+        "pe": "Peru",
+        "py": "Paraguay",
+        "uy": "Uruguay",
+        "ve": "Venezuela",
+    }
+
+    region_keys = list(region_map.keys())
+    col1, col2, col3 = st.columns([1.2, 1, 1])
     with col1:
-        time_range = st.selectbox("📅 Time Range", ["7 days", "14 days", "30 days"], index=1, key="ct_range")
+        selected_region = st.selectbox(
+            "Region",
+            region_keys,
+            index=0,
+            key="ct_region",
+            format_func=lambda code: f"{code} - {region_map[code]}",
+        )
     with col2:
+        time_range = st.selectbox("📅 Time Range", ["7 days", "14 days", "30 days"], index=1, key="ct_range")
+    with col3:
         view_mode = st.selectbox("👁️ View Mode", ["Line Chart", "Area Chart"], index=0, key="ct_view")
 
     time_window_days = int(time_range.split()[0])
     using_demo = unique_runs < 3
+
+    filtered_leaderboard = leaderboard.copy()
+    if selected_region != "global":
+        selected_country = region_map[selected_region]
+        filtered_leaderboard = filtered_leaderboard[
+            filtered_leaderboard["top_country"].astype(str).str.strip() == selected_country
+        ]
+        if filtered_leaderboard.empty:
+            st.warning(f"No artists found for region '{selected_country}'.")
+            return
+    filtered_history = history.copy()
+    if selected_region != "All":
+        valid_artists = filtered_leaderboard["name"].dropna().unique().tolist()
+        filtered_history = filtered_history[filtered_history["name"].isin(valid_artists)]
+
+    history = filtered_history
+    leaderboard = filtered_leaderboard
     if using_demo:
         line_df, best_df = build_tracker_demo_data(leaderboard, days=time_window_days)
     else:
