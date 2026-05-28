@@ -334,11 +334,7 @@ body{{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--
 </style></head><body>
 
 
-<div class='kpi-bar' id='kpi-bar'></div>
-
 <div class='body'>
-
-  <div class='r2' id='spot-row'></div>
 
   <div style='display:grid;grid-template-columns:1fr 1fr;gap:16px'>
 
@@ -395,54 +391,6 @@ const PAYLOAD = {data_json};
 function fmtN(n,dec=1){{if(n===null||n===undefined||isNaN(n))return'—';n=parseFloat(n);const a=Math.abs(n),sign=n<0?'−':n>0?'+':'';if(a>=1e6)return sign+(a/1e6).toFixed(dec)+'M';if(a>=1e3)return sign+(a/1e3).toFixed(0)+'K';return sign+a.toFixed(0);}}
 function fmtM(n,dec=2,signed=false){{if(n===null||n===undefined||isNaN(n))return'—';n=parseFloat(n);const a=Math.abs(n);const sign=signed?(n<0?'−':n>0?'+':''):(n<0?'−':'');return sign+(a/1e6).toFixed(dec)+'M';}}
 const DATES = PAYLOAD.dates;
-
-// Header
-document.getElementById('hdr-sub').textContent = `${{PAYLOAD.scope}} · iTunes`;
-
-
-// KPI bar
-function kpiCard(lbl, val, sub, cls){{
-  return `<div class='kpi'><div class='kpi-lbl'>${{lbl}}</div><div class='kpi-val ${{cls||''}}' style='${{val&&val.length>10?'font-size:12px;margin-top:3px':''}}'>${{val||'—'}}</div><div class='kpi-sub'>${{sub||''}}</div></div>`;
-}}
-const k = PAYLOAD.kpis;
-const kpiHtml = [
-  kpiCard('iTunes #1 today', k.it_no1?k.it_no1.a:'—', k.it_no1?`${{k.it_no1.t}} · ${{(k.it_no1.s).toLocaleString()}} pts`:''),
-  kpiCard('Biggest rank riser', k.big_rank_riser?(k.big_rank_riser.rg>0?'+'+k.big_rank_riser.rg:k.big_rank_riser.rg):'—', k.big_rank_riser?`${{k.big_rank_riser.n}} · ${{k.big_rank_riser.t}}`:'', 'g'),
-  kpiCard('Biggest faller', k.big_faller?k.big_faller.rg:'—', k.big_faller?`${{k.big_faller.n}} · ${{k.big_faller.t}}`:'', 'r')
-].join('');
-document.getElementById('kpi-bar').innerHTML = kpiHtml;
-
-// Spotlights
-function spotCard(d, kind){{
-  if (!d) return '';
-  const tag = "<span class='bp'>🔥 ITUNES TOP RISER</span>";
-  const accent = 'var(--purple)';
-  const metricArr = d.scores || [];
-  const startRank = d.ranks.find(v=>v!==null);
-  const endRank = [...d.ranks].reverse().find(v=>v!==null);
-  const startMet = metricArr.find(v=>v!==null) || 0;
-  const endMet = [...metricArr].reverse().find(v=>v!==null) || 0;
-  const metLabel = 'Score gain';
-  const style = "style='--green:#a78bfa;--teal:#60a5fa'";
-  const rgSign = d.rg > 0 ? '+' : '';
-  const rgColor = d.rg > 0 ? 'var(--green)' : d.rg < 0 ? 'var(--red)' : 'var(--t3)';
-  return `<div class='spot' ${{style}}>
-    <div class='sp-tag'>${{tag}}</div>
-    <div class='sp-name'>${{d.n}} — ${{d.t}}</div>
-    <div class='sp-meta'>${{d.lbl}} · #${{startRank}} → #${{endRank}}</div>
-    <div class='sp-grid'>
-      <div class='sp-s'><div class='sp-s-l'>Start rank</div><div class='sp-s-v'>${{startRank}}</div></div>
-      <div class='sp-s'><div class='sp-s-l'>Now</div><div class='sp-s-v' style='color:${{accent}}'>${{endRank}}</div></div>
-      <div class='sp-s'><div class='sp-s-l'>Rank gain</div><div class='sp-s-v' style='color:${{rgColor}}'>${{rgSign}}${{d.rg}}</div></div>
-      <div class='sp-s'><div class='sp-s-l'>${{metLabel}}</div><div class='sp-s-v' style='color:var(--blue)'>${{fmtN(d.sg,0)}}</div></div>
-    </div>
-  </div>`;
-}}
-const spotHtml = [
-  spotCard(PAYLOAD.it_spot, 'it')
-].filter(Boolean).join('');
-document.getElementById('spot-row').innerHTML = spotHtml;
-document.getElementById('spot-row').style.gridTemplateColumns = '1fr';
 
 // Riser/faller table renderer
 function renderTable(elId, data){{

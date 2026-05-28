@@ -433,44 +433,36 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
 </style>
 </head><body>
 
-<!-- Header -->
-<div class="hdr">
-  <div class="hdr-top">
-    <div>
-      <div class="dash-title">Album Acquisition</div>
-    </div>
-    <div class="filter-bar">
-      <div class="search-wrap">
-        <input type="text" id="searchInput" placeholder="Search album or artist..." oninput="applyFilters()">
-      </div>
-      <div class="sel-wrap">
-        <select id="regionSel" onchange="changeRegion()">
-          <option value="global">Global Stats</option>
-          <option value="us">United States Stats</option>
-        </select>
-      </div>
-      <div class="sel-wrap">
-        <select id="platformSel" onchange="applyFilters()">
-          <option value="all">All Platforms</option>
-          <option value="itunes">iTunes</option>
-        </select>
-      </div>
-      <div class="sel-wrap">
-        <select id="signalSel" onchange="applyFilters()">
-          <option value="all">All Signals</option>
-          <option value="BUY">Strong Buy</option>
-          <option value="WATCH">Watch</option>
-          <option value="HOLD">Hold</option>
-          <option value="PASS">Pass</option>
-        </select>
-      </div>
-      <div class="filter-grp">
-        <button class="fp on" onclick="setPeriod('all',this)">All</button>
-        <button class="fp" onclick="setPeriod('rising',this)">Rising</button>
-        <button class="fp" onclick="setPeriod('stable',this)">Stable</button>
-        <button class="fp" onclick="setPeriod('falling',this)">Falling</button>
-      </div>
-    </div>
+<div class="filter-bar" style="padding:12px 18px;border-bottom:1px solid var(--border);background:var(--bg2)">
+  <div class="search-wrap">
+    <input type="text" id="searchInput" placeholder="Search album or artist..." oninput="applyFilters()">
+  </div>
+  <div class="sel-wrap">
+    <select id="regionSel" onchange="changeRegion()">
+      <option value="global">Global Stats</option>
+      <option value="us">United States Stats</option>
+    </select>
+  </div>
+  <div class="sel-wrap">
+    <select id="platformSel" onchange="applyFilters()">
+      <option value="all">All Platforms</option>
+      <option value="itunes">iTunes</option>
+    </select>
+  </div>
+  <div class="sel-wrap">
+    <select id="signalSel" onchange="applyFilters()">
+      <option value="all">All Signals</option>
+      <option value="BUY">Strong Buy</option>
+      <option value="WATCH">Watch</option>
+      <option value="HOLD">Hold</option>
+      <option value="PASS">Pass</option>
+    </select>
+  </div>
+  <div class="filter-grp">
+    <button class="fp on" onclick="setPeriod('all',this)">All</button>
+    <button class="fp" onclick="setPeriod('rising',this)">Rising</button>
+    <button class="fp" onclick="setPeriod('stable',this)">Stable</button>
+    <button class="fp" onclick="setPeriod('falling',this)">Falling</button>
   </div>
 </div>
 

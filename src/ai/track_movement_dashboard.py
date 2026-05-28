@@ -357,11 +357,7 @@ body{{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--
 </style></head><body>
 
 
-<div class='kpi-bar' id='kpi-bar'></div>
-
 <div class='body'>
-
-  <div class='r2' id='spot-row'></div>
 
   <div style='display:grid;grid-template-columns:1fr 1fr;gap:16px'>
 
@@ -443,10 +439,6 @@ const DATES = PAYLOAD.dates;
 const PAL=['#fff','#a78bfa','#2dd4bf','#60a5fa','#fbbf24','#f472b6','#34d399','#fb923c'];
 const PAL2=['#22c55e','#a78bfa','#60a5fa','#fbbf24','#2dd4bf','#f472b6','#fb923c','#94a3b8'];
 
-// Header
-document.getElementById('hdr-sub').textContent = `${{PAYLOAD.scope}} · ${{PLATFORM}} platform${{PLATFORM==='Both'?'s':''}}`;
-
-
 // Hide blocks per platform filter
 if (!SHOW_SP) {{
   ['sp-riser-block','sp-faller-block'].forEach(id=>{{const e=document.getElementById(id);if(e)e.classList.add('hide');}});
@@ -454,52 +446,6 @@ if (!SHOW_SP) {{
 if (!SHOW_IT) {{
   ['it-riser-block','it-faller-block','it-traj-card','it-scatter-card','it-top20-card'].forEach(id=>{{const e=document.getElementById(id);if(e)e.classList.add('hide');}});
 }}
-
-// KPI bar
-function kpiCard(lbl, val, sub, cls){{
-  return `<div class='kpi'><div class='kpi-lbl'>${{lbl}}</div><div class='kpi-val ${{cls||''}}' style='${{val&&val.length>10?'font-size:12px;margin-top:3px':''}}'>${{val||'—'}}</div><div class='kpi-sub'>${{sub||''}}</div></div>`;
-}}
-const k = PAYLOAD.kpis;
-const kpiHtml = [
-  kpiCard('Spotify #1 today', k.sp_no1?k.sp_no1.a:'—', k.sp_no1?`${{fmtM(k.sp_no1.s,2)}} streams · ${{k.sp_no1.t}}`:''),
-  kpiCard('iTunes #1 today', k.it_no1?k.it_no1.a:'—', k.it_no1?`${{k.it_no1.t}} · ${{(k.it_no1.s).toLocaleString()}} pts`:''),
-  kpiCard('Biggest rank riser', k.big_rank_riser?'+'+k.big_rank_riser.rg:'—', k.big_rank_riser?`${{k.big_rank_riser.n}} · ${{k.big_rank_riser.t}}`:'', 'g'),
-  kpiCard('Biggest stream riser', k.big_stream_riser?fmtM(k.big_stream_riser.sg,2,true):'—', k.big_stream_riser?`${{k.big_stream_riser.n}} · ${{k.big_stream_riser.t}}`:'', 'b'),
-  kpiCard('Biggest faller', k.big_faller?k.big_faller.rg:'—', k.big_faller?`${{k.big_faller.n}} · ${{k.big_faller.t}}`:'', 'r'),
-  kpiCard('Tracks rising', k.rising_count, `of ${{k.tracked}} tracked · both platforms`, 'a'),
-].join('');
-document.getElementById('kpi-bar').innerHTML = kpiHtml;
-
-// Spotlights
-function spotCard(d, kind){{
-  if (!d) return '';
-  const tag = kind==='sp' ? "<span class='bh'>🔥 SPOTIFY TOP RISER</span>" : "<span class='bp'>🔥 ITUNES TOP RISER</span>";
-  const accent = kind==='sp' ? 'var(--green)' : 'var(--purple)';
-  const metricArr = kind==='sp' ? d.streams : d.scores;
-  const startRank = d.ranks.find(v=>v!==null);
-  const endRank = [...d.ranks].reverse().find(v=>v!==null);
-  const startMet = metricArr.find(v=>v!==null) || 0;
-  const endMet = [...metricArr].reverse().find(v=>v!==null) || 0;
-  const metLabel = kind==='sp' ? 'Stream gain' : 'Score gain';
-  const style = kind==='sp' ? '' : "style='--green:#a78bfa;--teal:#60a5fa'";
-  return `<div class='spot' ${{style}}>
-    <div class='sp-tag'>${{tag}}</div>
-    <div class='sp-name'>${{d.n}} — ${{d.t}}</div>
-    <div class='sp-meta'>${{d.lbl}} · ${{startRank}} → ${{endRank}}</div>
-    <div class='sp-grid'>
-      <div class='sp-s'><div class='sp-s-l'>Start rank</div><div class='sp-s-v'>${{startRank}}</div></div>
-      <div class='sp-s'><div class='sp-s-l'>Now</div><div class='sp-s-v' style='color:${{accent}}'>${{endRank}}</div></div>
-      <div class='sp-s'><div class='sp-s-l'>Rank gain</div><div class='sp-s-v' style='color:var(--amber)'>+${{d.rg}}</div></div>
-      <div class='sp-s'><div class='sp-s-l'>${{metLabel}}</div><div class='sp-s-v' style='color:var(--blue)'>${{kind==='sp'?fmtM(d.sg,2,true):fmtN(d.sg,0)}}</div></div>
-    </div>
-  </div>`;
-}}
-const spotHtml = [
-  SHOW_SP ? spotCard(PAYLOAD.sp_spot, 'sp') : '',
-  SHOW_IT ? spotCard(PAYLOAD.it_spot, 'it') : '',
-].filter(Boolean).join('');
-document.getElementById('spot-row').innerHTML = spotHtml;
-if (PLATFORM !== 'Both') document.getElementById('spot-row').style.gridTemplateColumns = '1fr';
 
 // Riser/faller table renderer
 function renderTable(elId, data){{

@@ -669,13 +669,10 @@ def render_label_analysis():
     </head>
     <body>
 
-    <!-- Header -->
-    <div class="hdr">
-      <div class="plat-bar">
-        <button class="pt on" onclick="setPlatform('spotify',this)"><span class="pt-ic">&#9835;</span><span>SPOTIFY GLOBAL</span></button>
-        <button class="pt" onclick="setPlatform('itunes',this)"><span class="pt-ic">&#9679;</span><span>ITUNES WW</span></button>
-        <button class="pt" onclick="setPlatform('compare',this)"><span class="pt-ic">&#9673;</span><span>CROSS-PLATFORM</span></button>
-      </div>
+    <div class="plat-bar" style="margin:14px 18px 0">
+      <button class="pt on" onclick="setPlatform('spotify',this)"><span class="pt-ic">&#9835;</span><span>SPOTIFY GLOBAL</span></button>
+      <button class="pt" onclick="setPlatform('itunes',this)"><span class="pt-ic">&#9679;</span><span>ITUNES WW</span></button>
+      <button class="pt" onclick="setPlatform('compare',this)"><span class="pt-ic">&#9673;</span><span>CROSS-PLATFORM</span></button>
     </div>
 
     <!-- KPI bar -->

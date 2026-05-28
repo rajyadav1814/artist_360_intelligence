@@ -631,14 +631,6 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
 ::-webkit-scrollbar-thumb:hover{background:var(--t4)}
 </style></head><body>
 
-<div class="hdr">
-  <div>
-    <div class="brand"></div>
-    <div class="dash-title">Artist Acquisition</div>
-    <div class="dash-sub" id="hdr-sub"></div>
-  </div>
-</div>
-
 <div class="selector-bar">
   <span class="sel-label">Select artist</span>
   <div class="dd-wrap" id="dd-wrap">

@@ -3393,14 +3393,11 @@ if not runs.empty and runs["finished_at"].notna().any():
 
 
 def show_leaderboard_page() -> None:
-    page_title, page_meta = PAGE_META["Leaderboard"]
-    render_header(page_title, page_meta, last_run_label)
     # Use filtered to reflect both country and artist filters in leaderboard and charts
     render_leaderboard(filtered, runs, max_rows=max_rows)
 
 
 def show_compare_page() -> None:
-    render_header("⚖️ Compare", "Compare leaderboard artists side by side.", last_run_label)
     st.markdown(
         """
         <style>
@@ -3761,21 +3758,15 @@ def show_compare_page() -> None:
 
 
 def show_chart_tracker_page() -> None:
-    page_title, page_meta = PAGE_META["Chart Tracker"]
-    render_header(page_title, page_meta, last_run_label)
     # Use global_filtered to show top artists + selected artist spotlight
     render_chart_tracker(history, global_filtered)
 
 
 def show_stream_trends_page() -> None:
-    page_title, page_meta = PAGE_META["Stream Trends"]
-    render_header(page_title, page_meta, last_run_label)
     render_stream_trends(filtered, leaderboard, top_history, history)
 
 
 def show_debut_artist_page() -> None:
-    page_title, page_meta = PAGE_META["Artist Spotlight"]
-    render_header(page_title, page_meta, last_run_label)
     # Use global_filtered to allow changing artists in the dropdown
     render_debut_artist_chart(global_filtered)
 
@@ -3811,16 +3802,12 @@ def show_pulse_report_page() -> None:
 
 def show_label_analysis_page() -> None:
     """Wrapper function for Label Analysis page"""
-    page_title, page_meta = PAGE_META["Label Analysis"]
-    render_header(page_title, page_meta, last_run_label)
     from src.ai.label_analysis_dashboard import render_label_analysis
     render_label_analysis()
 
 
 def show_debut_report_page() -> None:
     """Wrapper function for Debut Report page"""
-    page_title, page_meta = PAGE_META["Debut Report"]
-    render_header(page_title, page_meta, last_run_label)
     _debut_loader = st.empty()
     _debut_loader.markdown("""
 <style>
@@ -3877,21 +3864,15 @@ def show_debut_report_page() -> None:
 
 def show_movement_page() -> None:
     """Wrapper function for Movement page"""
-    page_title, page_meta = PAGE_META["Movement"]
-    render_header(page_title, page_meta, last_run_label)
-    
     tab1, tab2 = st.tabs(["📈 Track Movement", "💿 Album Movement"])
     with tab1:
-        render_track_movement(filtered)
+        render_track_movement()
     with tab2:
-        render_album_movement(filtered)
+        render_album_movement()
 
 
 def show_acquisition_page() -> None:
     """Wrapper function for Acquisition Recommendation page"""
-    page_title, page_meta = PAGE_META["Acquisition"]
-    render_header(page_title, page_meta, last_run_label)
-    
     tab1, tab2, tab3 = st.tabs(["🎵 Track Acquisition", "💿 Album Acquisition", "🎤 Artist Acquisition"])
     with tab1:
         render_track_acquisition()
