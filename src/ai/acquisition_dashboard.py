@@ -110,15 +110,18 @@ def _load_daily(table: str, country: str, days: int) -> pd.DataFrame:
 def _load_artist_universe() -> pd.DataFrame:
     """Primary universe = artists ranked on iTunes WW on the latest scrape day (~300)."""
     query = """
-        SELECT DISTINCT a.id AS artist_id, a.name
+        SELECT DISTINCT ON (a.id)
+               a.id AS artist_id,
+               a.name,
+               ir.top_country
         FROM itunes_artist_rankings ir
         JOIN artists a ON a.id = ir.artist_id
         WHERE ir.scrape_date = (SELECT MAX(scrape_date) FROM itunes_artist_rankings)
           AND a.name IS NOT NULL
-        ORDER BY a.name
+        ORDER BY a.id, ir.scraped_at DESC
     """
     rows = _run_query(query, ())
-    return pd.DataFrame(rows) if rows else pd.DataFrame(columns=["artist_id", "name"])
+    return pd.DataFrame(rows) if rows else pd.DataFrame(columns=["artist_id", "name", "top_country"])
 
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -436,6 +439,36 @@ def render_acquisition() -> None:
       unsafe_allow_html=True,
     )
 
+    region_map = {
+        "global": "Global",
+        "us": "United States",
+        "ar": "Argentina",
+        "bo": "Bolivia",
+        "br": "Brazil",
+        "cl": "Chile",
+        "co": "Colombia",
+        "cr": "Costa Rica",
+        "do": "Dominican Republic",
+        "ec": "Ecuador",
+        "sv": "El Salvador",
+        "gt": "Guatemala",
+        "hn": "Honduras",
+        "mx": "Mexico",
+        "ni": "Nicaragua",
+        "pa": "Panama",
+        "pe": "Peru",
+        "py": "Paraguay",
+        "uy": "Uruguay",
+        "ve": "Venezuela",
+    }
+    selected_region = st.selectbox(
+        "Region",
+        list(region_map.keys()),
+        index=0,
+        key="acq_region",
+        format_func=lambda code: f"{code} - {region_map[code]}",
+    )
+
     period_map = {"1 Day": 1, "7 Days": 7, "30 Days": 30}
     period_label = st.radio("Time period", list(period_map.keys()), index=2, horizontal=True)
     period_days = period_map[period_label]
@@ -443,6 +476,10 @@ def render_acquisition() -> None:
     sp_df = _load_daily("spotify_daily", "global", period_days)
     it_df = _load_daily("itunes_daily", "ww", period_days)
     universe_df = _load_artist_universe()
+    if selected_region != "global":
+        selected_country = region_map[selected_region]
+        universe_df = universe_df[universe_df["top_country"].astype(str).str.strip() == selected_country]
+
     sp_artist_df = _load_spotify_artist_series(period_days)
     it_artist_df = _load_itunes_artist_series(period_days)
 

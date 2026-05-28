@@ -1846,7 +1846,7 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
             st.warning(f"No artists found for region '{selected_country}'.")
             return
     filtered_history = history.copy()
-    if selected_region != "All":
+    if selected_region != "global":
         valid_artists = filtered_leaderboard["name"].dropna().unique().tolist()
         filtered_history = filtered_history[filtered_history["name"].isin(valid_artists)]
 
