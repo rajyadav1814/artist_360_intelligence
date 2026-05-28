@@ -1333,7 +1333,7 @@ def render_leaderboard_table_html(leaderboard: pd.DataFrame, max_rows: int) -> N
         top_song = str(row.get("top_song") or "—").strip()
         top_song_label = escape(top_song if len(top_song) <= 40 else top_song[:38] + "…")
         top_song_html = f"<span title=\"{escape(top_song)}\">{top_song_label}</span>"
-        country = str(row.get("display_country") or "—").strip()
+        country = str(row.get("top_country") or "—").strip()
         country_html = f"<span class='country-pill'>{escape(country)}</span>" if country and country != "—" else "—"
         monthly = fmt_short(row.get("monthly_listeners"))
         peak = fmt_short(row.get("peak_listeners"))
@@ -1538,13 +1538,11 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
     # ── KPI tiles ─────────────────────────────────────────
     # (removed per request)
 
-    left, right = st.columns([2.2, 1.5], gap="medium")
+    render_leaderboard_table_html(leaderboard, max_rows)
 
-    with left:
-        render_leaderboard_table_html(leaderboard, max_rows)
+    chart_col1, chart_col2 = st.columns(2, gap="medium")
 
-    with right:
-
+    with chart_col1:
         top_ranked = leaderboard.dropna(subset=["rank", "total_points"]).nsmallest(10, "rank").copy()
         if not top_ranked.empty:
             top_ranked = top_ranked.sort_values("rank", ascending=True)
@@ -1560,7 +1558,7 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
                 orientation="v",
                 text="points_label",
                 color="rank",
-                custom_data=["display_country", "rank", "monthly_listeners"],
+                custom_data=["top_country", "rank", "monthly_listeners"],
                 labels={"total_points": "Total Points", "name": ""},
                 color_continuous_scale=["#34d399", "#60a5fa", "#7c5cfc", "#a78bfa", "#f59e0b"],
             )
@@ -1592,6 +1590,7 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
         else:
             st.info("No ranking data available for the current leaderboard selection.")
 
+    with chart_col2:
         # Monthly Listeners
         top_streams = leaderboard.dropna(subset=["monthly_listeners"]).nlargest(8, "monthly_listeners").copy()
         if not top_streams.empty:
@@ -1606,11 +1605,11 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
                 orientation="h",
                 text="listener_label",
                 color="monthly_listeners",
-                custom_data=["display_country", "rank"],
+                custom_data=["top_country", "rank"],
                 labels={"monthly_listeners": "Monthly listeners", "name": ""},
                 color_continuous_scale=["#60a5fa", "#4f8ef7", "#7c5cfc", "#22d3a0"],
             )
-            style_figure(fig_bar, 380)
+            style_figure(fig_bar, 430)
             fig_bar.update_traces(
                 textposition="outside",
                 cliponaxis=False,
@@ -1640,7 +1639,7 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
                 xaxis_tickformat="~s",
                 yaxis_title="",
                 yaxis=dict(automargin=True),
-                uniformtext_minsize=9,
+                uniformtext_minsize=11,
                 uniformtext_mode="hide",
             )
             render_plotly_html(fig_bar)
@@ -3396,8 +3395,8 @@ if not runs.empty and runs["finished_at"].notna().any():
 def show_leaderboard_page() -> None:
     page_title, page_meta = PAGE_META["Leaderboard"]
     render_header(page_title, page_meta, last_run_label)
-    # Use global_filtered to allow the spotlight and full table context
-    render_leaderboard(global_filtered, runs, max_rows=max_rows)
+    # Use filtered to reflect both country and artist filters in leaderboard and charts
+    render_leaderboard(filtered, runs, max_rows=max_rows)
 
 
 def show_compare_page() -> None:
@@ -3872,7 +3871,7 @@ def show_debut_report_page() -> None:
   <div class="dr-title">Debuts Report</div>
 </div>
 """, unsafe_allow_html=True)
-    render_debut_tab()
+    render_debut_tab(filtered)
     _debut_loader.empty()
 
 
@@ -3883,9 +3882,9 @@ def show_movement_page() -> None:
     
     tab1, tab2 = st.tabs(["📈 Track Movement", "💿 Album Movement"])
     with tab1:
-        render_track_movement()
+        render_track_movement(filtered)
     with tab2:
-        render_album_movement()
+        render_album_movement(filtered)
 
 
 def show_acquisition_page() -> None:
@@ -3985,38 +3984,38 @@ with st.sidebar:
     
     # Collapsible advanced settings
     with st.expander("🔍 Search & Filter", expanded=True):
-        artist_rank_sorted = leaderboard.sort_values("rank")["name"].dropna().unique().tolist()
-        artist_options = ["All artists"] + [str(a) for a in artist_rank_sorted]
-        
-        # Initialize session state if not present
-        if "global_selected_artist" not in st.session_state:
-            st.session_state.global_selected_artist = "All artists"
-            
-        try:
-            current_idx = artist_options.index(st.session_state.global_selected_artist)
-        except ValueError:
-            current_idx = 0
-            
-        selected_artist = st.selectbox(
-            "🎤 Artist search", 
-            artist_options, 
-            index=current_idx,
-            key="sidebar_artist_search"
-        )
-        
-        # Update global state
-        if selected_artist != st.session_state.global_selected_artist:
-            st.session_state.global_selected_artist = selected_artist
-            st.rerun()
         latam_only = st.toggle("🌎 Latin America", value=True)
         
         selected_countries = []
         if latam_only:
-            default_countries = sorted([c for c in leaderboard["display_country"].unique().tolist() if c != "—"])
+            latam_country_mapping = {
+                "Argentina": "ar - Argentina",
+                "Bolivia": "bo - Bolivia",
+                "Brazil": "br - Brazil",
+                "Chile": "cl - Chile",
+                "Colombia": "co - Colombia",
+                "Costa Rica": "cr - Costa Rica",
+                "Dominican Republic": "do - Dominican Republic",
+                "Ecuador": "ec - Ecuador",
+                "El Salvador": "sv - El Salvador",
+                "Guatemala": "gt - Guatemala",
+                "Honduras": "hn - Honduras",
+                "Mexico": "mx - Mexico",
+                "Nicaragua": "ni - Nicaragua",
+                "Panama": "pa - Panama",
+                "Peru": "pe - Peru",
+                "Paraguay": "py - Paraguay",
+                "Uruguay": "uy - Uruguay",
+                "Venezuela": "ve - Venezuela"
+            }
+            options = list(latam_country_mapping.keys())
+            default_selection = options
+            
             selected_countries = st.multiselect(
                 "📍 Countries",
-                default_countries or LATAM_COUNTRIES,
-                default=default_countries or LATAM_COUNTRIES[:6],
+                options=options,
+                default=default_selection,
+                format_func=lambda x: latam_country_mapping.get(x, x),
             )
 
     
@@ -4026,14 +4025,13 @@ with st.sidebar:
     # Apply global filters (Latam, Countries)
     global_filtered = leaderboard.copy()
     if latam_only:
-        global_filtered = global_filtered[global_filtered["latam_signal"]]
+        # options is only defined inside the sidebar, so we use LATAM_COUNTRIES or re-define
+        global_filtered = global_filtered[global_filtered["top_country"].isin(latam_country_mapping.keys() if 'latam_country_mapping' in locals() else LATAM_COUNTRIES)]
         if selected_countries:
-            global_filtered = global_filtered[global_filtered["display_country"].isin(selected_countries)]
+            global_filtered = global_filtered[global_filtered["top_country"].isin(selected_countries)]
     
-    # Apply artist filter for appropriate views (Leaderboard list)
+    # Apply global sorting for Leaderboard list
     filtered = global_filtered.copy()
-    if selected_artist != "All artists":
-        filtered = filtered[filtered["name"] == selected_artist]
     filtered = filtered.sort_values("rank")
     
     
