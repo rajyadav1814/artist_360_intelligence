@@ -316,6 +316,13 @@ def render_album_acquisition() -> None:
     payload = _build_payload(global_albums, dates, region_label="iTunes WW")
     us_payload = _build_payload(us_albums, dates, region_label="iTunes US")
 
+    # Ensure required keys always exist even when global_albums is empty
+    payload.setdefault("albums", [])
+    payload.setdefault("dates", [d.strftime("%b %d") for d in dates])
+    payload.setdefault("defaultAlbumId", us_albums[0]["id"] if us_albums else None)
+    payload.setdefault("regionLabel", "iTunes WW")
+    payload.setdefault("summary", {})
+
     payload["usAlbums"] = us_albums
     payload["usSummary"] = us_payload.get("summary", {})
 
@@ -359,20 +366,7 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
 .search-wrap input{width:100%;background:var(--bg3);border:1px solid var(--border2);color:var(--t1);font-size:13px;padding:8px 14px 8px 34px;border-radius:6px;font-family:inherit;outline:none}
 .search-wrap input::placeholder{color:var(--t3)}
 .search-wrap::before{content:'⌕';position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--t3);font-size:16px;pointer-events:none}
-.kpi-bar{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;padding:16px 24px;background:var(--bg)}
-.kpi{position:relative;background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:18px 18px 16px 22px;box-shadow:0 12px 24px rgba(0,0,0,.18);overflow:hidden;transition:transform .2s ease,border-color .2s ease,background-color .2s ease}
-.kpi:hover{transform:translateY(-2px);border-color:rgba(148,163,184,.3);background:var(--bg3)}
-.kpi::before{content:"";position:absolute;left:0;top:14%;bottom:14%;width:4px;border-radius:0 4px 4px 0;background:var(--blue)}
-.kpi.k-green::before{background:var(--green)}
-.kpi.k-amber::before{background:var(--amber)}
-.kpi.k-purple::before{background:var(--purple)}
-.kpi.k-blue::before{background:var(--blue)}
-.kpi.k-red::before{background:var(--red)}
-.kpi-lbl{font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--t3);margin-bottom:10px}
-.kpi-val{font-size:28px;font-weight:900;color:#fff;line-height:1.1;margin-bottom:6px;letter-spacing:-.01em}
-#kpi-fastest{font-size:14px;font-weight:800;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#fff;margin-top:4px}
 .g{color:var(--green)}.r{color:var(--red)}.b{color:var(--blue)}.p{color:var(--purple)}.a{color:var(--amber)}
-.kpi-sub{font-size:12px;color:var(--t2);font-weight:500;line-height:1.35}
 .main-grid{display:grid;grid-template-columns:1fr 500px;gap:0;height:calc(100vh - 200px);min-height:580px}
 .left-panel{border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
 .right-panel{display:flex;flex-direction:column;overflow:hidden;background:var(--bg2)}
@@ -480,15 +474,6 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
   </div>
 </div>
 
-<!-- KPI Bar -->
-<div class="kpi-bar">
-  <div class="kpi k-green"><div class="kpi-lbl">Strong Buy albums</div><div class="kpi-val g" id="kpi-buy">—</div><div class="kpi-sub">of tracked albums</div></div>
-  <div class="kpi k-amber"><div class="kpi-lbl">Top acquisition score</div><div class="kpi-val a" id="kpi-top-score">—</div><div class="kpi-sub" id="kpi-top-title">—</div></div>
-  <div class="kpi k-purple"><div class="kpi-lbl">Fastest rising album</div><div class="kpi-val" id="kpi-fastest">—</div><div class="kpi-sub" id="kpi-fastest-sub">—</div></div>
-  <div class="kpi k-blue"><div class="kpi-lbl">Cross-platform albums</div><div class="kpi-val b" id="kpi-cross">—</div><div class="kpi-sub">on both iTunes + iTunes WW</div></div>
-  <div class="kpi k-red"><div class="kpi-lbl">Avg momentum</div><div class="kpi-val p" id="kpi-momentum">—</div><div class="kpi-sub">across tracked albums</div></div>
-</div>
-
 <!-- Main Grid -->
 <div class="main-grid">
   <div class="left-panel">
@@ -557,38 +542,20 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script>
 const PAYLOAD = __PAYLOAD__;
-const DATES = PAYLOAD.dates;
-let ALBUMS = PAYLOAD.albums;
-let SUM = PAYLOAD.summary || {};
-
-function updateKPIs(sum) {
-  if (!sum) return;
-  document.getElementById('kpi-buy').textContent = sum.strongBuy !== undefined ? sum.strongBuy : '—';
-  document.getElementById('kpi-top-score').textContent = sum.topScore !== undefined ? sum.topScore : '—';
-  document.getElementById('kpi-top-title').textContent = sum.topTitle || '—';
-  document.getElementById('kpi-fastest').textContent = sum.fastest || '—';
-  document.getElementById('kpi-fastest-sub').textContent = sum.fastestSub || '—';
-  document.getElementById('kpi-cross').textContent = sum.crossCount !== undefined ? sum.crossCount : '—';
-  document.getElementById('kpi-momentum').textContent = sum.avgMomentum !== undefined ? `${sum.avgMomentum > 0 ? '+' : ''}${sum.avgMomentum}%` : '—';
-}
-
-if (SUM) {
-  updateKPIs(SUM);
-}
+const DATES = PAYLOAD.dates || [];
+let ALBUMS = (PAYLOAD.albums && PAYLOAD.albums.length) ? PAYLOAD.albums : (PAYLOAD.usAlbums || []);
 
 let currentSort='acq';
 let currentPeriod='all';
-let selectedId=PAYLOAD.defaultAlbumId;
+let selectedId = PAYLOAD.defaultAlbumId || (ALBUMS.length ? ALBUMS[0].id : null);
 let detailChart=null;
 let detailItChart=null;
 
 function changeRegion() {
   const r = document.getElementById('regionSel').value;
   ALBUMS = r === 'global' ? PAYLOAD.albums : PAYLOAD.usAlbums;
-  const sum = r === 'global' ? PAYLOAD.summary : PAYLOAD.usSummary;
   PAYLOAD.regionLabel = r === 'global' ? 'iTunes WW' : 'iTunes US';
-  updateKPIs(sum);
-  
+
   selectedId = ALBUMS[0]?.id;
   renderTable();
   if (selectedId) {
@@ -611,7 +578,7 @@ function selectAlbum(id){selectedId=id;const t=ALBUMS.find(x=>x.id===id);if(!t)r
 function setSort(s,el){currentSort=s;document.querySelectorAll('.sort-btn').forEach(b=>b.classList.remove('on'));el.classList.add('on');renderTable();}
 function setPeriod(p,el){currentPeriod=p;document.querySelectorAll('.fp').forEach(b=>b.classList.remove('on'));el.classList.add('on');renderTable();}
 function applyFilters(){renderTable();}
-renderTable();setTimeout(()=>selectAlbum(PAYLOAD.defaultAlbumId),80);
+renderTable();if(selectedId){setTimeout(()=>selectAlbum(selectedId),80);}
 </script>
 </body></html>
 """.replace("__PAYLOAD__", data_json)

@@ -118,7 +118,7 @@ def render_plotly_html(fig: go.Figure, *, height: int | None = None) -> None:
             .graph-card {{
                 width: 100%;
                 box-sizing: border-box;
-                padding: 14px 14px 10px 14px;
+                padding: 10px 10px 6px 10px;
                 border-radius: 16px;
                 border: 1px solid rgba(73, 104, 160, 0.38);
                 background:
@@ -131,7 +131,7 @@ def render_plotly_html(fig: go.Figure, *, height: int | None = None) -> None:
             .plotly-html-chart .svg-container {{ width: 100% !important; }}
         </style>
         """,
-        height=chart_height + 48,
+        height=chart_height + 32,
         scrolling=False,
     )
 
@@ -1135,17 +1135,16 @@ def style_figure(fig, height: int) -> None:
     fig.update_layout(
         template="plotly_dark",
         height=max(280, int(height)),
-        autosize=True,
-        margin=dict(l=0, r=18, t=62, b=0, pad=0),
+        margin=dict(l=4, r=20, t=56, b=8, pad=0),
         paper_bgcolor="rgba(11,18,32,.98)",
         plot_bgcolor="rgba(8,15,28,.96)",
-        font=dict(color="#f8fbff", family="Inter, ui-sans-serif, system-ui"),
+        font=dict(color="#f8fbff", family="Inter, ui-sans-serif, system-ui", size=11),
         legend_title_text="",
-        title=dict(x=0.03, xanchor="left", font=dict(size=16, color="#f8fbff")),
+        title=dict(x=0.03, xanchor="left", font=dict(size=15, color="#f8fbff")),
         hoverlabel=dict(
             bgcolor="rgba(8,15,28,.98)",
             bordercolor="rgba(34,211,238,.45)",
-            font=dict(color="#f8fbff"),
+            font=dict(color="#f8fbff", size=11),
         ),
     )
     fig.update_xaxes(
@@ -1546,127 +1545,107 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
 
     with right:
 
+        top_ranked = leaderboard.dropna(subset=["rank", "total_points"]).nsmallest(10, "rank").copy()
+        if not top_ranked.empty:
+            top_ranked = top_ranked.sort_values("rank", ascending=True)
+            top_ranked["rank_label"] = "#" + top_ranked["rank"].astype(str)
+            top_ranked["points_label"] = top_ranked["total_points"].apply(fmt_short)
+            rank_colors = ["#34d399", "#4ade80", "#60a5fa", "#7c5cfc", "#a78bfa",
+                           "#c084fc", "#f59e0b", "#f97316", "#fb7185", "#f87171"]
+
+            fig_rank = px.bar(
+                top_ranked,
+                x="name",
+                y="total_points",
+                orientation="v",
+                text="points_label",
+                color="rank",
+                custom_data=["display_country", "rank", "monthly_listeners"],
+                labels={"total_points": "Total Points", "name": ""},
+                color_continuous_scale=["#34d399", "#60a5fa", "#7c5cfc", "#a78bfa", "#f59e0b"],
+            )
+            style_figure(fig_rank, 440)
+            fig_rank.update_traces(
+                textposition="outside",
+                cliponaxis=False,
+                marker=dict(opacity=0.92, line=dict(width=0.6, color="rgba(255,255,255,.12)")),
+                textfont=dict(color="#e0e7ff", size=11),
+                hovertemplate=(
+                    "<b>%{x}</b><br>"
+                    "<b>Rank:</b> #%{customdata[1]}<br>"
+                    "<b>Total Points:</b> %{y:,.0f}<br>"
+                    "<b>Monthly listeners:</b> %{customdata[2]:,.0f}<br>"
+                    "<b>Top market:</b> %{customdata[0]}<extra></extra>"
+                ),
+            )
+            fig_rank.update_layout(
+                title="Leaderboard Ranking",
+                coloraxis=dict(showscale=False),
+                xaxis_title="",
+                yaxis_tickformat="~s",
+                yaxis_title="Total Points",
+                xaxis=dict(automargin=True, tickangle=-20),
+                uniformtext_minsize=9,
+                uniformtext_mode="hide",
+            )
+            render_plotly_html(fig_rank)
+        else:
+            st.info("No ranking data available for the current leaderboard selection.")
+
+        # Monthly Listeners
         top_streams = leaderboard.dropna(subset=["monthly_listeners"]).nlargest(8, "monthly_listeners").copy()
         if not top_streams.empty:
-            top_streams = top_streams.sort_values("monthly_listeners", ascending=False)
+            top_streams = top_streams.sort_values("monthly_listeners", ascending=True)
             top_streams["listener_label"] = top_streams["monthly_listeners"].apply(fmt_short)
             avg_listeners = top_streams["monthly_listeners"].mean()
 
             fig_bar = px.bar(
                 top_streams,
-                x="name",
-                y="monthly_listeners",
-                orientation="v",
+                x="monthly_listeners",
+                y="name",
+                orientation="h",
                 text="listener_label",
                 color="monthly_listeners",
                 custom_data=["display_country", "rank"],
-                labels={"monthly_listeners": "Monthly listeners", "name": "Artist"},
+                labels={"monthly_listeners": "Monthly listeners", "name": ""},
                 color_continuous_scale=["#60a5fa", "#4f8ef7", "#7c5cfc", "#22d3a0"],
             )
+            style_figure(fig_bar, 380)
             fig_bar.update_traces(
                 textposition="outside",
                 cliponaxis=False,
-                marker_line_color="rgba(255,255,255,.15)",
-                marker_line_width=0.8,
-                marker=dict(opacity=0.92, line=dict(width=0.8)),
-                textfont=dict(color="#e0e7ff", size=11, family="Inter, ui-sans-serif, system-ui"),
+                marker=dict(opacity=0.92, line=dict(width=0.6, color="rgba(255,255,255,.12)")),
+                textfont=dict(color="#e0e7ff", size=11),
                 hovertemplate=(
-                    "<b>%{x}</b><br>"
-                    "<b>Monthly listeners:</b> %{y:,.0f}<br>"
-                    "<b>Market:</b> %{customdata[0]}<br>"
-                    "<b>Rank:</b> #%{customdata[1]}<extra></extra>"
+                    "<b>%{y}</b><br>"
+                    "<b>Monthly listeners:</b> %{x:,.0f}<br>"
+                    "<b>Rank:</b> #%{customdata[1]}<br>"
+                    "<b>Market:</b> %{customdata[0]}<extra></extra>"
                 ),
             )
-            fig_bar.add_hline(
-                y=avg_listeners,
+            fig_bar.add_vline(
+                x=avg_listeners,
                 line_dash="dash",
-                line_color="rgba(251,146,60,.8)",
-                line_width=1.8,
+                line_color="rgba(251,146,60,.85)",
+                line_width=2,
                 annotation_text=f"Avg {fmt_short(avg_listeners)}",
                 annotation_position="top right",
                 annotation_font_size=11,
                 annotation_font_color="#fcd34d",
             )
             fig_bar.update_layout(
-                title="Top Artists by Monthly Listeners",
-                coloraxis=dict(
-                    colorscale=["#60a5fa", "#4f8ef7", "#7c5cfc", "#22d3a0"],
-                    showscale=False,
-                ),
-                xaxis_title="",
-                yaxis_tickformat="~s",
-                yaxis_title="Monthly listeners",
-                xaxis=dict(automargin=True, tickangle=-15),
-                plot_bgcolor="rgba(8,15,28,.96)",
-                paper_bgcolor="rgba(11,18,32,.98)",
-                font=dict(color="#e0e7ff", family="Inter, ui-sans-serif, system-ui", size=11),
-                hoverlabel=dict(
-                    bgcolor="rgba(8,15,28,.98)",
-                    bordercolor="rgba(79,142,247,.5)",
-                    font=dict(color="#e0e7ff", size=11),
-                ),
-            )
-            style_figure(fig_bar, 390)
-            render_plotly_html(fig_bar)
-        else:
-            st.info("No monthly listener data is available for the current leaderboard selection.")
-
-        # iTunes Points Chart
-        top_points = leaderboard.dropna(subset=["total_points"]).nlargest(8, "total_points").copy()
-        if not top_points.empty:
-            top_points = top_points.sort_values("total_points", ascending=True)
-            top_points["points_label"] = top_points["total_points"].apply(fmt_short)
-            avg_points = top_points["total_points"].mean()
-
-            fig_points = px.bar(
-                top_points,
-                x="total_points",
-                y="name",
-                orientation="h",
-                text="points_label",
-                color="total_points",
-                custom_data=["display_country", "rank"],
-                labels={"total_points": "iTunes Points", "name": ""},
-                color_continuous_scale=["#a78bfa", "#22d3ee", "#34d399", "#f59e0b"],
-            )
-            fig_points.update_traces(
-                textposition="outside",
-                cliponaxis=False,
-                marker_line_color="rgba(255,255,255,.22)",
-                marker_line_width=1.1,
-                marker=dict(opacity=0.96),
-                textfont=dict(color="#f8fbff", size=12),
-                hovertemplate=(
-                    "<b>%{y}</b><br>"
-                    "iTunes Points: %{x:,.0f}<br>"
-                    "Top LATAM market: %{customdata[0]}<br>"
-                    "Current rank: %{customdata[1]}<extra></extra>"
-                ),
-            )
-            fig_points.add_vline(
-                x=avg_points,
-                line_dash="dash",
-                line_color="rgba(245,158,11,.95)",
-                line_width=2,
-                annotation_text=f"Avg {fmt_short(avg_points)}",
-                annotation_position="top left",
-                annotation_font_size=12,
-                annotation_font_color="#fde68a",
-            )
-            fig_points.update_layout(
-                title="Top Artists by iTunes Points",
-                coloraxis_showscale=False,
-                xaxis_title="iTunes Points",
+                title="Top by Monthly Listeners",
+                coloraxis=dict(showscale=False),
+                xaxis_title="Monthly listeners",
                 xaxis_tickformat="~s",
                 yaxis_title="",
                 yaxis=dict(automargin=True),
-                plot_bgcolor="rgba(8,15,28,.96)",
-                paper_bgcolor="rgba(11,18,32,.98)",
+                uniformtext_minsize=9,
+                uniformtext_mode="hide",
             )
-            style_figure(fig_points, 390)
-            render_plotly_html(fig_points)
+            render_plotly_html(fig_bar)
         else:
-            st.info("No iTunes points data is available for the current leaderboard selection.")
+            st.info("No monthly listener data is available for the current leaderboard selection.")
 
 def resample_tracker_pattern(pattern: list[int], days: int) -> list[int]:
     if not pattern:
