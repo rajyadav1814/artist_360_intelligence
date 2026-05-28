@@ -657,42 +657,6 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
 
 <div class="body">
 
-  <div class="acq-card" id="acq-card">
-    <div class="acq-header">
-      <div class="acq-meta" id="acq-meta">Independent artist · signal</div>
-      <div class="acq-row">
-        <div class="acq-left">
-          <div class="acq-id-row">
-            <div class="acq-avatar" id="acq-avatar">--</div>
-            <div>
-              <div class="acq-name" id="acq-name">—</div>
-              <div class="acq-sublabel" id="acq-sublabel">—</div>
-            </div>
-          </div>
-          <div class="acq-quote" id="acq-quote">—</div>
-        </div>
-        <div id="acq-signal-badge"><span class="signal-badge sb-watch">● WATCH</span></div>
-      </div>
-    </div>
-    <div class="stat-grid" id="stat-grid">
-      <div class="stat-cell"><div class="stat-lbl">Best Spotify Rank</div><div class="stat-val" id="s-rank">—</div><div class="stat-sub" id="s-rank-sub"></div></div>
-      <div class="stat-cell"><div class="stat-lbl">Monthly Listeners · Peak</div><div class="stat-val b" id="s-streams">—</div><div class="stat-sub" id="s-streams-sub"></div></div>
-      <div class="stat-cell"><div class="stat-lbl">Tracks in Top 200</div><div class="stat-val a" id="s-tracks">—</div><div class="stat-sub" id="s-tracks-sub"></div></div>
-      <div class="stat-cell"><div class="stat-lbl">iTunes WW Best</div><div class="stat-val p" id="s-itunes">—</div><div class="stat-sub" id="s-itunes-sub"></div></div>
-    </div>
-  </div>
-
-  <div class="charts-row">
-    <div class="chart-card">
-      <div class="chart-ttl" id="traj-title">Spotify monthly listeners · daily trajectory</div>
-      <div class="cw" style="height:240px" id="spTrajChart"></div>
-    </div>
-    <div class="chart-card">
-      <div class="chart-ttl" id="itunes-title">iTunes WW total points · same period</div>
-      <div class="cw" style="height:240px" id="itTrajChart"></div>
-    </div>
-  </div>
-
   <div class="two-col">
     <div class="track-list">
       <div class="sh"><span class="sh-l" id="tracks-title">Top tracks · Spotify Global</span><span class="sh-r">By total streams</span></div>
@@ -728,7 +692,6 @@ const ALL_ARTISTS = PAYLOAD.allArtists;
 const LEADERBOARD = PAYLOAD.leaderboard;
 const MOMENTUM_DATA = PAYLOAD.momentum;
 
-document.getElementById('acq-meta').textContent = PAYLOAD.windowLabel;
 document.getElementById('dd-count').textContent = ALL_ARTISTS.length + ' artists tracked';
 
 let currentArtist=null;
@@ -836,70 +799,6 @@ function selectArtist(name){
   ddAv.style.background = d.color+'22';
   ddAv.style.color = d.color;
   ddAv.style.border = `1px solid ${d.color}40`;
-
-  // Card accent
-  const card = document.getElementById('acq-card');
-  card.classList.remove('buy','watch','caution');
-  if(d.signalClass==='sb-buy') card.classList.add('buy');
-  else if(d.signalClass==='sb-caution') card.classList.add('caution');
-  else card.classList.add('watch');
-
-  document.getElementById('acq-name').textContent=name;
-  document.getElementById('acq-sublabel').textContent=d.label;
-  document.getElementById('acq-quote').textContent=d.quote;
-  document.getElementById('acq-signal-badge').innerHTML=`<span class="signal-badge ${d.signalClass}">● ${d.signal}</span>`;
-
-  const av=document.getElementById('acq-avatar');
-  av.textContent=d.avatar;
-  av.style.background=d.color+'22';
-  av.style.color=d.color;
-  av.style.border=`1px solid ${d.color}55`;
-
-  document.getElementById('s-rank').textContent=d.bestSpRank;
-  document.getElementById('s-rank-sub').textContent=d.bestSpSub;
-  document.getElementById('s-streams').textContent=d.peakStreams;
-  document.getElementById('s-streams-sub').textContent=d.peakStreamsSub;
-  document.getElementById('s-streams-sub').className='stat-sub '+(d.momentum>=0?'g':'r');
-  document.getElementById('s-tracks').textContent=d.trackCount;
-  document.getElementById('s-tracks-sub').textContent=d.trackCountSub;
-  document.getElementById('s-itunes').textContent=d.bestItunes;
-  document.getElementById('s-itunes-sub').textContent=d.itunesSub;
-
-  // Spotify trajectory
-  requestAnimationFrame(()=>{
-    const sharedDateAxis = Object.assign({}, PLOTLY_LAYOUT_BASE.xaxis, buildDateAxis(DATES));
-    const spTrace = {
-      x: DATES, y: d.spStreams, type:'scatter', mode:'lines+markers',
-      line:{color:d.color, width:3, shape:'spline', smoothing:1.1},
-      fill:'tozeroy', fillcolor:d.color+'25',
-      marker:{color:d.color, size:7, line:{color:'#0d1117', width:1.5}},
-      hovertemplate:'<b>%{x}</b><br>%{y:,.0f} monthly listeners<extra></extra>'
-    };
-    Plotly.react('spTrajChart',[spTrace], layoutClone({
-      xaxis: sharedDateAxis,
-      yaxis:Object.assign({},PLOTLY_LAYOUT_BASE.yaxis,{tickformat:'.2s'})
-    }), PLOTLY_CFG);
-
-    // iTunes trajectory
-    const hasItunes = d.itScores && d.itScores.some(v=>v>0);
-    const itTrace = {
-      x: DATES, y: hasItunes ? d.itScores : DATES.map(()=>null),
-      type:'scatter', mode:'lines+markers',
-      line:{color:'#c4b5fd', width:3, shape:'spline', smoothing:1.1},
-      fill:'tozeroy', fillcolor:'rgba(196,181,253,0.18)',
-      marker:{color:'#c4b5fd', size:7, line:{color:'#0d1117', width:1.5}},
-      hovertemplate:'<b>%{x}</b><br>iTunes points: %{y:,.0f}<extra></extra>',
-      connectgaps:true
-    };
-    const itLayout = layoutClone({
-      xaxis: sharedDateAxis,
-      yaxis:Object.assign({},PLOTLY_LAYOUT_BASE.yaxis,{tickformat:'.2s'})
-    });
-    if(!hasItunes){
-      itLayout.annotations = [{text:'Not ranked iTunes WW',xref:'paper',yref:'paper',x:0.5,y:0.5,showarrow:false,font:{color:'#5b657d',size:13}}];
-    }
-    Plotly.react('itTrajChart',[itTrace], itLayout, PLOTLY_CFG);
-  });
 
   // Tracks
   const tl=document.getElementById('tracks-list');
