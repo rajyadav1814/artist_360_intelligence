@@ -299,7 +299,7 @@ def save_spotify_daily(data: List[SpotifyDaily]) -> int:
                 rows = [
                     (
                         d.date, d.country, d.rank, d.artist_title,
-                        d.days, d.peak, d.streams, d.streams_change, d.total_streams, d.label
+                        d.days, d.peak, d.streams, d.streams_change, d.total_streams, d.label, d.rank_change
                     )
                     for d in data
                 ]
@@ -307,15 +307,9 @@ def save_spotify_daily(data: List[SpotifyDaily]) -> int:
                     cur,
                     """
                     INSERT INTO spotify_daily
-                        (date, country, rank, artist_title, days, peak, streams, streams_change, total_streams, label)
+                        (date, country, rank, artist_title, days, peak, streams, streams_change, total_streams, label, rank_change)
                     VALUES %s
-                    ON CONFLICT (date, country, rank, artist_title) DO UPDATE SET
-                        days = EXCLUDED.days,
-                        peak = EXCLUDED.peak,
-                        streams = EXCLUDED.streams,
-                        streams_change = EXCLUDED.streams_change,
-                        total_streams = EXCLUDED.total_streams,
-                        label = EXCLUDED.label
+                    ON CONFLICT (date, country, rank, artist_title) DO NOTHING
                     """,
                     rows
                 )
@@ -346,14 +340,7 @@ def save_itunes_daily(data: List[ItunesDaily]) -> int:
                     INSERT INTO itunes_daily
                         (date, country, rank, artist_title, days, peak, points, points_change, total_points, label, rank_change)
                     VALUES %s
-                    ON CONFLICT (date, country, rank, artist_title) DO UPDATE SET
-                        days = EXCLUDED.days,
-                        peak = EXCLUDED.peak,
-                        points = EXCLUDED.points,
-                        points_change = EXCLUDED.points_change,
-                        total_points = EXCLUDED.total_points,
-                        label = EXCLUDED.label,
-                        rank_change = EXCLUDED.rank_change
+                    ON CONFLICT (date, country, rank, artist_title) DO NOTHING
                     """,
                     rows
                 )
@@ -384,18 +371,10 @@ def save_itunes_artist_album(data: List[ItunesArtistAlbum]) -> int:
                     INSERT INTO itunes_artist_album
                         (date, country, rank, artist_title, days, peak, points, points_change, total_points, label, rank_change)
                     VALUES %s
-                    ON CONFLICT (date, country, rank, artist_title) DO UPDATE SET
-                        days = EXCLUDED.days,
-                        peak = EXCLUDED.peak,
-                        points = EXCLUDED.points,
-                        points_change = EXCLUDED.points_change,
-                        total_points = EXCLUDED.total_points,
-                        label = EXCLUDED.label,
-                        rank_change = EXCLUDED.rank_change
+                    ON CONFLICT (date, country, rank, artist_title) DO NOTHING
                     """,
                     rows
                 )
                 return len(rows)
     finally:
         conn.close()
-

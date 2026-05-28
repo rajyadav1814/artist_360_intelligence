@@ -75,6 +75,7 @@ class SpotifyDaily:
     streams_change: Optional[int] = None
     total_streams: Optional[int] = None
     label: Optional[str] = None
+    rank_change: Optional[str] = None
 
 
 @dataclass
