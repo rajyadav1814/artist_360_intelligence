@@ -21,25 +21,6 @@ logger = get_logger(__name__)
 # Region scope -> (itunes_country, itunes_country)
 SCOPES: dict[str, tuple[str, str]] = {
     "Global / WW": ("global", "ww"),
-    "United States": ("us", "us"),
-    "Argentina": ("ar", "ar"),
-    "Bolivia": ("bo", "bo"),
-    "Brazil": ("br", "br"),
-    "Chile": ("cl", "cl"),
-    "Colombia": ("co", "co"),
-    "Costa Rica": ("cr", "cr"),
-    "Dominican Republic": ("do", "do"),
-    "Ecuador": ("ec", "ec"),
-    "El Salvador": ("sv", "sv"),
-    "Guatemala": ("gt", "gt"),
-    "Honduras": ("hn", "hn"),
-    "Mexico": ("mx", "mx"),
-    "Nicaragua": ("ni", "ni"),
-    "Panama": ("pa", "pa"),
-    "Peru": ("pe", "pe"),
-    "Paraguay": ("py", "py"),
-    "Uruguay": ("uy", "uy"),
-    "Venezuela": ("ve", "ve"),
 }
 
 PERIOD_DAYS: dict[str, int] = {
