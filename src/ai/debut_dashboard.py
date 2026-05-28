@@ -1055,11 +1055,11 @@ def _itunes_artist_new_entries_table_html(df: pd.DataFrame) -> str:
     header = """
     <div style="display:grid;grid-template-columns:80px 1.5fr 1fr 120px 120px;
                 gap:12px;padding:8px 0;border-bottom:1px solid var(--border);margin-bottom:4px;">
-      <span style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;font-weight:700">Rank</span>
-      <span style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;font-weight:700">Artist</span>
-      <span style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;font-weight:700">Change</span>
-      <span style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;font-weight:700;text-align:right">Points</span>
-      <span style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;font-weight:700;text-align:right">Date</span>
+      <span style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;font-weight:700;text-align:center">Rank</span>
+      <span style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;font-weight:700;text-align:center">Artist</span>
+      <span style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;font-weight:700;text-align:center">Change</span>
+      <span style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;font-weight:700;text-align:center">Points</span>
+      <span style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;font-weight:700;text-align:center">Date</span>
     </div>"""
 
     rows_html = ""
@@ -1075,12 +1075,12 @@ def _itunes_artist_new_entries_table_html(df: pd.DataFrame) -> str:
         rows_html += f"""
         <div class="rank-row"
              style="grid-template-columns:80px 1.5fr 1fr 120px 120px;">
-          <span class="rank-pill {pill_class}">{rank}</span>
+          <span class="rank-pill {pill_class}" style="justify-self:center">{rank}</span>
           <div style="font-size:15px;font-weight:700;color:var(--db-t1);
-                      white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{artist}</div>
-          <div><span class="badge-new">{change}</span></div>
-          <span style="font-size:15px;font-weight:800;color:var(--db-t1);text-align:right">{fmt(points)}</span>
-          <span style="font-size:13px;color:var(--db-t2);text-align:right;font-weight:600">{date_str}</span>
+                      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center">{artist}</div>
+          <div style="display:flex;justify-content:center"><span class="badge-new">{change}</span></div>
+          <span style="font-size:15px;font-weight:800;color:var(--db-t1);text-align:center">{fmt(points)}</span>
+          <span style="font-size:13px;color:var(--db-t2);text-align:center;font-weight:600">{date_str}</span>
         </div>"""
 
     return header + rows_html
