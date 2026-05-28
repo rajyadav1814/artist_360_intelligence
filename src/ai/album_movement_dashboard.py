@@ -419,10 +419,6 @@ function renderTable(elId, data){{
       <div>
         <div class='tn'>${{d.t}}</div>
         <div class='ta'>${{d.n}}</div>
-        <div class='dual-bar'>
-          <div class='dual-seg'><div class='dual-fill' style='width:${{rankPct}}%;background:${{rankColor}}'></div></div>
-          <div class='dual-seg'><div class='dual-fill' style='width:${{sgPct}}%;background:${{sgColor}}'></div></div>
-        </div>
       </div>
       <span style='font-size:13px;color:var(--t3);text-align:center;font-weight:600'>${{startRank||'—'}}</span>
       <span style='font-size:13px;color:${{rankColor}};text-align:center;font-weight:700'>${{latRank||'—'}}</span>
