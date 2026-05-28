@@ -3964,24 +3964,24 @@ with st.sidebar:
         selected_countries = []
         if latam_only:
             latam_country_mapping = {
-                "Argentina": "ar - Argentina",
-                "Bolivia": "bo - Bolivia",
-                "Brazil": "br - Brazil",
-                "Chile": "cl - Chile",
-                "Colombia": "co - Colombia",
-                "Costa Rica": "cr - Costa Rica",
-                "Dominican Republic": "do - Dominican Republic",
-                "Ecuador": "ec - Ecuador",
-                "El Salvador": "sv - El Salvador",
-                "Guatemala": "gt - Guatemala",
-                "Honduras": "hn - Honduras",
-                "Mexico": "mx - Mexico",
-                "Nicaragua": "ni - Nicaragua",
-                "Panama": "pa - Panama",
-                "Peru": "pe - Peru",
-                "Paraguay": "py - Paraguay",
-                "Uruguay": "uy - Uruguay",
-                "Venezuela": "ve - Venezuela"
+                "Argentina": "Argentina",
+                "Bolivia": "Bolivia",
+                "Brazil": "Brazil",
+                "Chile": "Chile",
+                "Colombia": "Colombia",
+                "Costa Rica": "Costa Rica",
+                "Dominican Republic": "Dominican Republic",
+                "Ecuador": "Ecuador",
+                "El Salvador": "El Salvador",
+                "Guatemala": "Guatemala",
+                "Honduras": "Honduras",
+                "Mexico": "Mexico",
+                "Nicaragua": "Nicaragua",
+                "Panama": "Panama",
+                "Peru": "Peru",
+                "Paraguay": "Paraguay",
+                "Uruguay": "Uruguay",
+                "Venezuela": "Venezuela"
             }
             options = list(latam_country_mapping.keys())
             default_selection = options
