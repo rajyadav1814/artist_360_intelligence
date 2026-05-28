@@ -48,10 +48,7 @@ PAGE_META = {
         "🎤 Artist Spotlight",
         "View and analyze individual artist details and chart performance",
     ),
-    "Chart Tracker": (
-        "📈 Chart Tracker",
-        "Historical rank trajectories for top artists, revealing trends and momentum",
-    ),
+
     # "Stream Trends": (
     #     "🎵 Stream Trends",
     #     "Insights into streaming performance, growth patterns, and listener demographics",
@@ -72,10 +69,10 @@ PAGE_META = {
         "⚙️ Ops Monitor",
         "Operational dashboard showing recent data collection runs, their status, and performance metrics",
     ),
-    "Debut Report": (
-        "🌟 Debut Report",
-        "Tracks all new chart entries across Spotify and iTunes for the current week",
-    ),
+    # "Debut Report": (
+    #     "🌟 Debut Report",
+    #     "Tracks all new chart entries across Spotify and iTunes for the current week",
+    # ),
     "Movement": (
         "📊 Movement Dashboard",
         "Daily rank + metric momentum across track and album charts (risers, fallers, trajectories)",
@@ -3864,11 +3861,13 @@ def show_debut_report_page() -> None:
 
 def show_movement_page() -> None:
     """Wrapper function for Movement page"""
-    tab1, tab2 = st.tabs(["📈 Track Movement", "💿 Album Movement"])
+    tab1, tab2, tab3 = st.tabs(["📈 Track Movement", "💿 Album Movement", "🎤 Artist Movement"])
     with tab1:
         render_track_movement()
     with tab2:
         render_album_movement()
+    with tab3:
+        render_chart_tracker(history, global_filtered)
 
 
 def show_acquisition_page() -> None:
@@ -3890,18 +3889,25 @@ app_pages = [
         url_path="leaderboard",
         default=True,
     ),
-    st.Page(
-        show_debut_report_page,
-        title="Debut Report",
-        icon=":material/new_releases:",
-        url_path="debut-report",
+     st.Page(
+        show_movement_page,
+        title="Movement",
+        icon=":material/show_chart:",
+        url_path="movement",
     ),
-    st.Page(
-        show_debut_artist_page,
-        title="Artist Spotlight",
-        icon=":material/person:",
-        url_path="artist-spotlight",
+      st.Page(
+        show_acquisition_page,
+        title="Acquisition",
+        icon=":material/handshake:",
+        url_path="acquisition",
     ),
+
+    # st.Page(
+    #     show_debut_report_page,
+    #     title="Debut Report",
+    #     icon=":material/new_releases:",
+    #     url_path="debut-report",
+    # ),
     st.Page(
         show_label_analysis_page,
         title="Label Analysis",
@@ -3914,24 +3920,12 @@ app_pages = [
     #     icon=":material/label:",
     #     url_path="pulse-report",
     # ),
-    st.Page(
-        show_chart_tracker_page,
-        title="Chart Tracker",
-        icon=":material/desktop_windows:",
-        url_path="chart-tracker",
-    ),
-    st.Page(
-        show_movement_page,
-        title="Movement",
-        icon=":material/show_chart:",
-        url_path="movement",
-    ),
 
-    st.Page(
-        show_acquisition_page,
-        title="Acquisition",
-        icon=":material/handshake:",
-        url_path="acquisition",
+     st.Page(
+        show_debut_artist_page,
+        title="Artist Spotlight",
+        icon=":material/person:",
+        url_path="artist-spotlight",
     ),
     st.Page(
         show_compare_page,
@@ -3970,24 +3964,24 @@ with st.sidebar:
         selected_countries = []
         if latam_only:
             latam_country_mapping = {
-                "Argentina": "ar - Argentina",
-                "Bolivia": "bo - Bolivia",
-                "Brazil": "br - Brazil",
-                "Chile": "cl - Chile",
-                "Colombia": "co - Colombia",
-                "Costa Rica": "cr - Costa Rica",
-                "Dominican Republic": "do - Dominican Republic",
-                "Ecuador": "ec - Ecuador",
-                "El Salvador": "sv - El Salvador",
-                "Guatemala": "gt - Guatemala",
-                "Honduras": "hn - Honduras",
-                "Mexico": "mx - Mexico",
-                "Nicaragua": "ni - Nicaragua",
-                "Panama": "pa - Panama",
-                "Peru": "pe - Peru",
-                "Paraguay": "py - Paraguay",
-                "Uruguay": "uy - Uruguay",
-                "Venezuela": "ve - Venezuela"
+                "Argentina": "Argentina",
+                "Bolivia": "Bolivia",
+                "Brazil": "Brazil",
+                "Chile": "Chile",
+                "Colombia": "Colombia",
+                "Costa Rica": "Costa Rica",
+                "Dominican Republic": "Dominican Republic",
+                "Ecuador": "Ecuador",
+                "El Salvador": "El Salvador",
+                "Guatemala": "Guatemala",
+                "Honduras": "Honduras",
+                "Mexico": "Mexico",
+                "Nicaragua": "Nicaragua",
+                "Panama": "Panama",
+                "Peru": "Peru",
+                "Paraguay": "Paraguay",
+                "Uruguay": "Uruguay",
+                "Venezuela": "Venezuela"
             }
             options = list(latam_country_mapping.keys())
             default_selection = options

@@ -441,6 +441,24 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
     <select id="regionSel" onchange="changeRegion()">
       <option value="global">Global Stats</option>
       <option value="us">United States Stats</option>
+        <option value="ar">Argentina Stats</option>
+          <option value="bo">Bolivia Stats</option>
+          <option value="br">Brazil Stats</option>
+          <option value="cl">Chile Stats</option>
+          <option value="co">Colombia Stats</option>
+          <option value="cr">Costa Rica Stats</option>
+          <option value="do">Dominican Republic Stats</option>
+          <option value="ec">Ecuador Stats</option>
+          <option value="sv">El Salvador Stats</option>
+          <option value="gt">Guatemala Stats</option>
+          <option value="hn">Honduras Stats</option>
+          <option value="mx">Mexico Stats</option>
+          <option value="ni">Nicaragua Stats</option>
+          <option value="pa">Panama Stats</option>
+          <option value="pe">Peru Stats</option>
+          <option value="py">Paraguay Stats</option>
+          <option value="uy">Uruguay Stats</option>
+          <option value="ve">Venezuela Stats</option>
     </select>
   </div>
   <div class="sel-wrap">
