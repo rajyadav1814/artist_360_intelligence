@@ -1366,7 +1366,7 @@ def render_leaderboard_table_html(leaderboard: pd.DataFrame, max_rows: int) -> N
                 <thead>
                     <tr>
                         <th>Rank</th>
-                        <th>Artist</th>
+                        <th>Artist Name</th>
                         <th>Top song</th>
                         <th>Top Album</th>
                         <th>Top market</th>
