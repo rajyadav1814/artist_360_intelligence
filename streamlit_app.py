@@ -39,6 +39,8 @@ if "selected_artists" not in st.session_state:
     st.session_state.selected_artists = []
 if "show_advanced" not in st.session_state:
     st.session_state.show_advanced = False
+if "active_artist_profile" not in st.session_state:
+    st.session_state.active_artist_profile = None
 
 PAGE_META = {
     "Leaderboard": (
@@ -1080,7 +1082,7 @@ def show_artist_details_dialog(row: pd.Series) -> None:
                 st.plotly_chart(fig_trend, use_container_width=True, config={'displayModeBar': False})
 
     with tab2:
-        st.markdown(f"<div style='margin-bottom:20px; font-size:1.1rem; font-weight:700;'>Catalog Intelligence: {escape(artist_name)}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div style='margin-bottom:20px; font-size:1.1rem; font-weight:700;'>Catalog Intelligence</div>", unsafe_allow_html=True)
         cat_cols = st.columns(3)
         cat_metrics = [
             ("Songs Tracked", int(row.get("songs_count", 0)), "kpi-green"),
@@ -1151,7 +1153,7 @@ def show_artist_details_dialog(row: pd.Series) -> None:
             st.info("Detailed platform point distribution not available.")
 
     if st.button("Close Profile", use_container_width=True, type="primary"):
-        st.query_params.clear()
+        st.session_state.active_artist_profile = None
         st.rerun()
 
 
@@ -3602,15 +3604,25 @@ runs = data["runs"]
 history = data["history"]
 top_history = data.get("top_history", pd.DataFrame())
 
+# Handle artist selection from URL. We save the name to session state, clear the 
+# parameters, and rerun to ensure the browser URL remains clean.
+if "artist_name" in st.query_params:
+    st.session_state.active_artist_profile = st.query_params["artist_name"]
+    st.query_params.clear()
+    st.rerun()
+
+def clear_active_profile():
+    """Callback to reset the active popup state when global filters change."""
+    st.session_state.active_artist_profile = None
+
 last_run_label = "n/a"
 if not runs.empty and runs["finished_at"].notna().any():
     last_run_label = runs["finished_at"].dropna().max().strftime("%Y-%m-%d %H:%M")
 
 
 def show_leaderboard_page() -> None:
-    # Handle row selection via query parameters (triggered by table row clicks)
-    if "artist_name" in st.query_params:
-        target_name = st.query_params["artist_name"]
+    if st.session_state.active_artist_profile:
+        target_name = st.session_state.active_artist_profile
         artist_match = leaderboard[leaderboard["name"] == target_name]
         if not artist_match.empty:
             show_artist_details_dialog(artist_match.iloc[0])
@@ -4184,7 +4196,7 @@ with st.sidebar:
     
     # Collapsible advanced settings
     with st.expander("🔍 Search & Filter", expanded=True):
-        latam_only = st.toggle("🌎 Latin America", value=True)
+        latam_only = st.toggle("🌎 Latin America", value=True, on_change=clear_active_profile)
         
         selected_countries = []
         if latam_only:
@@ -4216,6 +4228,7 @@ with st.sidebar:
                 options=options,
                 default=default_selection,
                 format_func=lambda x: latam_country_mapping.get(x, x),
+                on_change=clear_active_profile,
             )
 
     
