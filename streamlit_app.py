@@ -371,6 +371,7 @@ def apply_theme() -> None:
             transition: all 0.25s ease;
             box-shadow: 0 20px 42px rgba(0,0,0,.18);
             margin-bottom: 1.5rem;
+            margin-top: -2.5rem;
         }
         .dashboard-card a {
             color: inherit;
@@ -461,6 +462,7 @@ def apply_theme() -> None:
             height: 100%;
             display: flex;
             flex-direction: column;
+            margin-top: -2.5rem;
             transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
             animation: fadeIn 0.6s ease-out;
         }
@@ -698,6 +700,7 @@ def apply_theme() -> None:
         .stTabs {
             width: 100%;
             border-bottom: none !important;
+            margin-top: -2.5rem;
         }
         .stTabs [data-baseweb="tab-list"] {
             display: grid !important;
