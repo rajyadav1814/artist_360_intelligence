@@ -984,173 +984,334 @@ def show_artist_details_dialog(row: pd.Series) -> None:
         .stDialog [data-testid="stVerticalBlock"] > div:has(button) {
             margin-top: 20px;
         }
+        .dialog-card {
+            background: rgba(17, 25, 40, 0.75);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 14px;
+            padding: 20px;
+            height: 100%;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+        }
+        .dialog-section-header {
+            font-size: 1.1rem;
+            font-weight: 800;
+            color: #fff;
+            margin-bottom: 18px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            padding-bottom: 10px;
+        }
+        .spotlight-summary-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: .85rem;
+        }
+        .spotlight-summary-table td {
+            padding: .6rem .5rem;
+            border-bottom: 1px solid rgba(148,163,184,.08);
+            color: #e7eefc;
+        }
+        .spotlight-summary-table td:last-child {
+            text-align: right;
+            font-weight: 700;
+            color: var(--accent);
+        }
+        .meta-label {
+            color: var(--text2);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+        .spotlight-panel {
+            background: #161b26;
+            border: 1px solid rgba(148,163,184,.15);
+            border-radius: 14px;
+            box-shadow: 0 12px 24px rgba(0,0,0,.18);
+            margin-bottom: 14px;
+        }
+        .spotlight-panel-header {
+            padding: 12px 14px;
+            border-bottom: 1px solid rgba(148,163,184,.12);
+            color: #dbe4ff;
+            font-size: .92rem;
+            font-weight: 800;
+            letter-spacing: .04em;
+            text-transform: uppercase;
+        }
+        .spotlight-panel-body {
+            padding: 14px;
+        }
+        .spotlight-summary-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: .9rem;
+        }
+        .spotlight-summary-table td {
+            padding: .65rem .75rem;
+            border-bottom: 1px solid rgba(148,163,184,.1);
+            color: #e7eefc;
+        }
+        .meta-value {
+            font-size: 0.9rem;
+            color: #fff;
+            margin-bottom: 12px;
+        }
         </style>
     """, unsafe_allow_html=True)
 
-    header_col1, header_col2 = st.columns([1, 3.5])
-    with header_col1:
-        st.markdown(f'<img src="{escape(display_img)}" style="width:100%; border-radius:16px; border:1px solid var(--border); box-shadow: 0 10px 30px rgba(0,0,0,0.4);">', unsafe_allow_html=True)
-    with header_col2:
-        st.markdown(f"<h1 style='margin:0; font-size:2.4rem; font-weight:900;'>{escape(row['name'])}</h1>", unsafe_allow_html=True)
-        st.markdown(f"<div class='profile-rank-badge'>🏆 LEADERBOARD RANK #{int(row['rank'])}</div>", unsafe_allow_html=True)
-        
-        # High level metrics grid using custom KPI card style
-        ma, mb, mc, md = st.columns(4)
-        metrics_head = [
-            ("Listeners", fmt_short(row.get("monthly_listeners")), "kpi-green"),
-            ("Points", fmt_short(row.get("total_points")), ""),
-            ("Markets", f"{int(row.get('num_countries', 0))}", "kpi-amber"),
-            ("Weeks", str(int(row.get('weeks_on_chart', 0))), "kpi-purple")
-        ]
-        cols_head = [ma, mb, mc, md]
-        for col, (lbl, val, cls) in zip(cols_head, metrics_head):
-            col.markdown(f"""
-                <div class='kpi-card {cls}' style='min-height:auto; padding:15px;'>
-                    <div class='kpi-label' style='font-size:0.65rem;'>{lbl}</div>
-                    <div class='kpi-value' style='font-size:1.4rem;'>{val}</div>
+    # --- HERO HEADER ---
+    st.markdown(f"""
+        <div style="display: flex; align-items: center; gap: 24px; margin-bottom: 24px; background: rgba(255,255,255,0.03); padding: 20px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.05);">
+            <img src="{escape(display_img)}" style="width: 120px; height: 120px; border-radius: 18px; object-fit: cover; border: 2px solid rgba(255,255,255,0.1);">
+            <div style="flex: 1;">
+                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 4px;">
+                    <h1 style="margin: 0; font-size: 2.2rem; font-weight: 900; color: #fff;">{escape(artist_name)}</h1>
+                    <span class="profile-rank-badge" style="margin-bottom:0; margin-top:4px;">🏆 RANK #{int(row['rank'])}</span>
                 </div>
-            """, unsafe_allow_html=True)
+                <div style="color: var(--text2); font-size: 0.95rem; opacity: 0.8;">{escape(str(row.get('page_title') or ""))}</div>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
 
+    # --- TOP KPI ROW ---
+    ma, mb, mc, md = st.columns(4)
+    metrics_head = [
+        ("Listeners", fmt_short(row.get("monthly_listeners")), "kpi-green"),
+        ("Points", fmt_short(row.get("total_points")), ""),
+        ("Markets", f"{int(row.get('num_countries', 0))}", "kpi-amber"),
+        ("Longevity", f"{int(row.get('weeks_on_chart', 0))} Wks", "kpi-purple")
+    ]
+    for col, (lbl, val, cls) in zip([ma, mb, mc, md], metrics_head):
+        col.markdown(f"""
+            <div class='kpi-card {cls}' style='min-height:auto; padding:15px;'>
+                <div class='kpi-label' style='font-size:0.65rem;'>{lbl}</div>
+                <div class='kpi-value' style='font-size:1.4rem;'>{val}</div>
+            </div>
+        """, unsafe_allow_html=True)
 
     st.divider()
 
-    # Detailed analysis tabs
-    tab1, tab2, tab3, tab4 = st.tabs([
-        "📈 Performance", 
-        "🎵 Catalog", 
-        "🗺️ Geography",
-        "📊 Platform Mix"
-    ])
+    # --- ROW 1: PERFORMANCE & CATALOG ---
+    c_perf, c_cat = st.columns([1.5, 1])
     
-    with tab1:
-        c1, c2 = st.columns(2)
-        with c1:
-            st.markdown("<div style='margin-bottom:15px; font-weight:700; color:var(--text2); text-transform:uppercase; font-size:0.8rem; letter-spacing:0.05em;'>Audience Scale</div>", unsafe_allow_html=True)
-            sc1, sc2 = st.columns(2)
-            sc1.markdown(f"""
-                <div class='kpi-card kpi-green' style='min-height:auto; padding:12px;'>
-                    <div class='kpi-label' style='font-size:0.6rem;'>Current</div>
-                    <div class='kpi-value' style='font-size:1.2rem;'>{fmt_short(row.get("monthly_listeners"))}</div>
-                </div>
-            """, unsafe_allow_html=True)
-            sc2.markdown(f"""
-                <div class='kpi-card' style='min-height:auto; padding:12px;'>
-                    <div class='kpi-label' style='font-size:0.6rem;'>Peak</div>
-                    <div class='kpi-value' style='font-size:1.2rem;'>{fmt_short(row.get("peak_listeners"))}</div>
-                </div>
-            """, unsafe_allow_html=True)
-            st.markdown(f"<div style='margin-top:15px; color:var(--text2); font-size:0.9rem;'>• Total Scraped Points: <b style='color:var(--text)'>{int(row.get('times_on_chart', 0))}</b></div>", unsafe_allow_html=True)
-            st.markdown(f"<div style='color:var(--text2); font-size:0.9rem;'>• Max Countries Peak: <b style='color:var(--text)'>{int(row.get('max_countries', 0))}</b></div>", unsafe_allow_html=True)
-            
-        with c2:
-            st.markdown("<div style='margin-bottom:15px; font-weight:700; color:var(--text2); text-transform:uppercase; font-size:0.8rem; letter-spacing:0.05em;'>Historical Performance</div>", unsafe_allow_html=True)
-            st.markdown(f"<div style='color:var(--text2); font-size:0.95rem; margin-bottom:8px;'>• Best Rank Ever: <span style='color:var(--accent); font-weight:800;'>#{int(row.get('best_rank', 0))}</span></div>", unsafe_allow_html=True)
-            st.markdown(f"<div style='color:var(--text2); font-size:0.95rem; margin-bottom:8px;'>• Days at #1: <b style='color:var(--text)'>{int(row.get('times_at_top', 0))}</b></div>", unsafe_allow_html=True)
-            if pd.notna(row.get('last_day_at_top')):
-                st.markdown(f"<div style='color:var(--text2); font-size:0.95rem;'>• Last at #1: <b style='color:var(--text)'>{row['last_day_at_top'].strftime('%b %d, %Y')}</b></div>", unsafe_allow_html=True)
-
-        # Add Rank Trend Chart if history is available
-        if 'history' in globals() or 'history' in locals():
-            artist_history = history[history["name"] == artist_name].copy()
-            if not artist_history.empty:
-                st.markdown("<div style='margin:20px 0 10px; font-weight:700; color:var(--text2); text-transform:uppercase; font-size:0.8rem; letter-spacing:0.05em;'>Rank Movement Trend</div>", unsafe_allow_html=True)
-                # Sort for proper line plotting
-                artist_history = artist_history.sort_values("scraped_at")
-                
-                fig_trend = go.Figure()
-                fig_trend.add_trace(go.Scatter(
-                    x=artist_history["scraped_at"],
-                    y=artist_history["rank"],
-                    mode='lines+markers',
-                    line=dict(color='#60a5fa', width=3),
-                    marker=dict(size=6, color='#ffffff', line=dict(width=2, color='#60a5fa')),
-                    hovertemplate="Date: %{x|%b %d}<br>Rank: #%{y}<extra></extra>"
-                ))
-                
-                # Invert y-axis because lower rank is better
-                fig_trend.update_yaxes(autorange="reversed", gridcolor="rgba(255,255,255,0.05)")
-                fig_trend.update_xaxes(showgrid=False, tickfont=dict(color="#8b95ad"))
-                
-                fig_trend.update_layout(
-                    height=260,
-                    margin=dict(l=0, r=0, t=10, b=0),
-                    paper_bgcolor="rgba(0,0,0,0)",
-                    plot_bgcolor="rgba(0,0,0,0)",
-                    font=dict(color="#8b95ad"),
-                    hovermode="x unified"
-                )
-                st.plotly_chart(fig_trend, use_container_width=True, config={'displayModeBar': False})
-
-    with tab2:
-        st.markdown(f"<div style='margin-bottom:20px; font-size:1.1rem; font-weight:700;'>Catalog Intelligence</div>", unsafe_allow_html=True)
-        cat_cols = st.columns(3)
-        cat_metrics = [
-            ("Songs Tracked", int(row.get("songs_count", 0)), "kpi-green"),
-            ("Albums Tracked", int(row.get("albums_count", 0)), "kpi-purple"),
-            ("Charting Markets", int(row.get("num_countries", 0)), "kpi-amber")
-        ]
-        for col, (lbl, val, cls) in zip(cat_cols, cat_metrics):
-            col.markdown(f"""
-                <div class='kpi-card {cls}' style='min-height:auto; padding:15px;'>
-                    <div class='kpi-label' style='font-size:0.65rem;'>{lbl}</div>
-                    <div class='kpi-value' style='font-size:1.4rem;'>{val}</div>
-                </div>
-            """, unsafe_allow_html=True)
+    with c_perf:
+        st.markdown('<div class="dialog-card">', unsafe_allow_html=True)
+        st.markdown('<div class="dialog-section-header">📈 Performance Summary</div>', unsafe_allow_html=True)
         
-        st.divider()
-        
-        c1, c2 = st.columns([1, 1])
-        with c1:
-            st.markdown(f"##### 🏆 Top Songs ({int(row.get('songs_count', 0))})")
-            songs = str(row.get("top_songs") or "").split("\n")
-            for s in songs[:10]:
-                if s.strip(): st.markdown(f"- {escape(s.strip())}")
-        with c2:
-            st.markdown(f"##### 💿 Top Albums ({int(row.get('albums_count', 0))})")
-            albums = str(row.get("top_albums") or "").split("\n")
-            for a in albums[:10]:
-                if a.strip(): st.markdown(f"- {escape(a.strip())}")
-                
-    with tab3:
-        st.markdown(f"<div style='margin-bottom:20px; font-size:1.1rem; font-weight:700;'>🌎 Global Footprint <span style='color:var(--text2); font-weight:400; font-size:0.9rem;'>({int(row.get('num_countries', 0))} total / {int(row.get('countries_count', 0))} LATAM)</span></div>", unsafe_allow_html=True)
+        perf_sub1, perf_sub2 = st.columns(2)
+        with perf_sub1:
+            st.markdown("<div class='meta-label'>Best Global Rank</div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='meta-value' style='color:var(--accent); font-weight:800; font-size:1.2rem;'>#{int(row.get('best_rank', 0))}</div>", unsafe_allow_html=True)
+            st.markdown("<div class='meta-label'>Days at #1</div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='meta-value'>{int(row.get('times_at_top', 0))} Days</div>", unsafe_allow_html=True)
+        with perf_sub2:
+            st.markdown("<div class='meta-label'>Peak Listeners</div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='meta-value'>{fmt_short(row.get('peak_listeners'))}</div>", unsafe_allow_html=True)
+            st.markdown("<div class='meta-label'>Max Markets Peak</div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='meta-value'>{int(row.get('max_countries', 0))}</div>", unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    with c_cat:
+        st.markdown('<div class="dialog-card">', unsafe_allow_html=True)
+        st.markdown('<div class="dialog-section-header">🎵 Catalog Intelligence</div>', unsafe_allow_html=True)
+        st.markdown(f"<div class='meta-label'>Top Songs ({int(row.get('songs_count', 0))})</div>", unsafe_allow_html=True)
+        songs = str(row.get("top_songs") or "").split("\n")
+        songs_list = "".join([f"<li style='font-size:0.85rem; margin-bottom:4px; color:#e0e7ff;'>{escape(s.strip())}</li>" for s in songs[:5] if s.strip()])
+        st.markdown(f"<ul style='margin:0 0 16px 0; padding-left:18px;'>{songs_list}</ul>", unsafe_allow_html=True)
+        st.markdown(f"<div class='meta-label'>Top Albums ({int(row.get('albums_count', 0))})</div>", unsafe_allow_html=True)
+        albums = str(row.get("top_albums") or "").split("\n")
+        albums_list = "".join([f"<li style='font-size:0.85rem; margin-bottom:4px; color:#e0e7ff;'>{escape(a.strip())}</li>" for a in albums[:3] if a.strip()])
+        st.markdown(f"<ul style='margin:0; padding-left:18px;'>{albums_list}</ul>", unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    # --- ROW 2: GEOGRAPHY & PLATFORM MIX ---
+    c_geo, c_mix = st.columns([1, 1.5])
+    
+    with c_geo:
+        st.markdown('<div class="dialog-card">', unsafe_allow_html=True)
+        st.markdown('<div class="dialog-section-header">🌎 Global Footprint</div>', unsafe_allow_html=True)
+        st.markdown(f"<div class='meta-label'>Territories: {int(row.get('num_countries', 0))} total</div>", unsafe_allow_html=True)
+        st.markdown(f"<div style='margin-bottom:12px; color:var(--accent2); font-size:0.8rem; font-weight:700;'>{int(row.get('countries_count', 0))} LATAM Markets</div>", unsafe_allow_html=True)
         countries = str(row.get("top_countries") or "").split("\n")
         if countries and countries[0]:
-            cols = st.columns(3)
-            for i, country in enumerate(countries[:24]):
-                if country.strip():
-                    cols[i % 3].markdown(f"<div style='padding:8px; background:rgba(255,255,255,0.03); border-radius:8px; margin-bottom:8px; border:1px solid var(--border); font-size:0.85rem;'>• {escape(country.strip())}</div>", unsafe_allow_html=True)
+            c_list = "".join([f"<div style='padding:4px 8px; background:rgba(255,255,255,0.03); border-radius:6px; margin-bottom:5px; border:1px solid rgba(255,255,255,0.05); font-size:0.8rem;'>{escape(c.strip())}</div>" for c in countries[:8] if c.strip()])
+            st.markdown(c_list, unsafe_allow_html=True)
         else:
             st.info("No granular market data available for this artist yet.")
-
-    with tab4:
-        st.markdown("<div style='margin-bottom:20px; font-size:1.1rem; font-weight:700;'>📊 Platform Distribution (Points)</div>", unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+            
+    with c_mix:
+        st.markdown('<div class="dialog-card">', unsafe_allow_html=True)
+        st.markdown('<div class="dialog-section-header">📊 Platform Mix</div>', unsafe_allow_html=True)
         point_data = {
             "iTunes": row.get("itunes_points", 0),
             "Spotify": row.get("spotify_points", 0),
             "Apple Music": row.get("apple_music_points", 0),
             "Shazam": row.get("shazam_points", 0),
             "YouTube": row.get("youtube_points", 0),
-            "Other": row.get("other_points", 0),
         }
-        # Filter zero points and ensure numeric
         point_data = {k: float(v) for k, v in point_data.items() if v and not pd.isna(v) and v > 0}
         if point_data:
             fig = px.pie(
                 names=list(point_data.keys()),
                 values=list(point_data.values()),
-                hole=0.4,
+                hole=0.6,
                 color_discrete_sequence=px.colors.qualitative.Pastel
             )
             fig.update_layout(
-                showlegend=True, 
-                height=350, 
-                margin=dict(l=0, r=0, t=10, b=0), 
+                showlegend=True, height=220, margin=dict(l=0, r=0, t=0, b=0), 
                 paper_bgcolor="rgba(0,0,0,0)",
-                legend=dict(font=dict(color="#ffffff"))
+                legend=dict(font=dict(color="#ffffff", size=10), orientation="v", yanchor="middle", y=0.5, xanchor="right", x=1.1)
             )
             st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
         else:
-            st.info("Detailed platform point distribution not available.")
+            st.info("Platform point distribution not available.")
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    # --- ROW 3: ACQUISITION & MOMENTUM ---
+    c_acq, c_mov = st.columns(2)
+
+    with c_acq:
+        st.markdown('<div class="dialog-card">', unsafe_allow_html=True)
+        st.markdown("<div class='dialog-section-header'>🎯 Acquisition Strategy</div>", unsafe_allow_html=True)
+        
+        peak_ml = row.get("peak_listeners", 0) or 0
+        curr_rank = row.get("rank", 100) or 100
+        songs_count = row.get("songs_count", 0) or 0
+        best_rank_ever = row.get("best_rank", 100) or 100
+        ml_score = min(100, int(peak_ml / 1_000_000))
+        itunes_bonus = max(0, 60 - int(curr_rank))
+        chart_bonus = min(40, int(songs_count) * 4) + (max(0, 50 - int(best_rank_ever)))
+        rc = str(row.get("rank_change") or "0").replace('+', '').replace('-', '')
+        mom_bonus = min(40, int(rc) if rc.isdigit() else 0)
+        acq_score = max(0, ml_score + itunes_bonus + chart_bonus + mom_bonus)
+        
+        if acq_score >= 120: signal, sig_cls = "STRONG BUY", "kpi-green"
+        elif acq_score >= 80: signal, sig_cls = "WATCH", "kpi-amber"
+        else: signal, sig_cls = "MONITOR", ""
+
+        st.markdown(f"""
+            <div class='kpi-card {sig_cls}' style='min-height:auto; padding:20px; margin-bottom:20px;'>
+                <div class='kpi-label' style='font-size:0.7rem;'>Recommendation</div>
+                <div class='kpi-value' style='font-size:1.8rem;'>{signal}</div>
+                <div class='kpi-delta' style='color:#fff; font-weight:700; font-size:0.85rem;'>Composite Score: {acq_score}</div>
+            </div>
+        """, unsafe_allow_html=True)
+        
+        sig_html = ""
+        if peak_ml >= 1_000_000: sig_html += "<div style='font-size:0.85rem; color:#fff; margin-bottom:6px;'>✅ <b>Audience Scale</b>: Confirmed > 1M ML</div>"
+        if best_rank_ever <= 20: sig_html += "<div style='font-size:0.85rem; color:#fff; margin-bottom:6px;'>✅ <b>Chart Elite</b>: Top 20 Global placement</div>"
+        if int(row.get("num_countries", 0)) >= 10: sig_html += "<div style='font-size:0.85rem; color:#fff; margin-bottom:6px;'>✅ <b>Global Reach</b>: 10+ Territories</div>"
+        if songs_count >= 5: sig_html += "<div style='font-size:0.85rem; color:#fff; margin-bottom:6px;'>✅ <b>Catalog Depth</b>: 5+ Active tracks</div>"
+        st.markdown(sig_html, unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    with c_mov:
+        st.markdown('<div class="dialog-card">', unsafe_allow_html=True)
+        st.markdown("<div class='dialog-section-header'>⚡ Momentum Signals</div>", unsafe_allow_html=True)
+        
+        trend = str(row.get("rank_change") or "=")
+        status_txt, status_clr = ("New Entry", "#60a5fa") if trend == "NEW" else (f"Improving (+{trend[1:]})", "#34d399") if trend.startswith('+') else (f"Cooling ({trend})", "#fb7185") if trend.startswith('-') else ("Stable", "#cdd6e4")
+
+        st.markdown(f"""
+            <div style='background:rgba(255,255,255,0.03); border-radius:12px; padding:18px; border:1px solid rgba(255,255,255,0.05); margin-bottom:20px;'>
+                <div class='meta-label'>Current Velocity</div>
+                <div style='font-size:1.35rem; font-weight:900; color:{status_clr};'>{status_txt}</div>
+            </div>
+        """, unsafe_allow_html=True)
+
+        st.markdown("<div class='meta-label'>Top-1 History</div>", unsafe_allow_html=True)
+        st.markdown(f"<div style='font-size:1rem; color:#fff; margin-bottom:8px;'>👑 <b>{int(row.get('times_at_top', 0))} Days</b> at #1 Globally</div>", unsafe_allow_html=True)
+        if pd.notna(row.get('last_day_at_top')):
+            st.markdown(f"<div style='font-size:0.85rem; color:var(--text2);'>Last seen at top: {row['last_day_at_top'].strftime('%b %d, %Y')}</div>", unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    # --- ROW 4: ARTIST MOVEMENT CHART ---
+    st.markdown('<div class="dialog-card" style="margin-bottom:24px;">', unsafe_allow_html=True)
+    st.markdown('<div class="dialog-section-header">🎤 Historical Movement Tracker</div>', unsafe_allow_html=True)
+    
+    art_hist = data["history"][data["history"]["name"] == artist_name].copy() if not data["history"].empty else pd.DataFrame()
+    art_sp_hist = data["spotify_history"][data["spotify_history"]["name"] == artist_name].copy() if "spotify_history" in data else pd.DataFrame()
+    
+    if not art_hist.empty or not art_sp_hist.empty:
+        c_hist1, c_hist2 = st.columns(2)
+        with c_hist1:
+            if not art_hist.empty:
+                art_hist = art_hist.sort_values("scraped_at")
+                fig_rank_move = go.Figure(go.Scatter(
+                    x=art_hist["scraped_at"], y=art_hist["rank"],
+                    mode='lines+markers', line=dict(color='#60a5fa', width=3),
+                    marker=dict(size=6, color='#ffffff', line=dict(width=2, color='#60a5fa')),
+                    hovertemplate="Date: %{x|%b %d}<br>Rank: #%{y}<extra></extra>"
+                ))
+                fig_rank_move.update_yaxes(autorange="reversed", gridcolor="rgba(255,255,255,0.05)")
+                fig_rank_move.update_layout(
+                    height=280, title="Rank History (30 Days)", margin=dict(l=0, r=0, t=30, b=0),
+                    paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                    font=dict(color="#8b95ad", size=10), hovermode="x unified"
+                )
+                st.plotly_chart(fig_rank_move, use_container_width=True, config={'displayModeBar': False})
+            else:
+                st.info("No historical rank data found for this artist.")
+        with c_hist2:
+            if not art_sp_hist.empty:
+                art_sp_hist = art_sp_hist.sort_values("scraped_at")
+                fig_sp_move = go.Figure(go.Scatter(
+                    x=art_sp_hist["scraped_at"], y=art_sp_hist["monthly_listeners"],
+                    mode='lines+markers', line=dict(color='#22d3a0', width=3),
+                    marker=dict(size=6, color='#ffffff', line=dict(width=2, color='#22d3a0')),
+                    hovertemplate="Date: %{x|%b %d}<br>Listeners: %{y:,}<extra></extra>"
+                ))
+                fig_sp_move.update_layout(
+                    height=280, title="Listener Trend (30 Days)", margin=dict(l=0, r=0, t=30, b=0),
+                    paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                    font=dict(color="#8b95ad", size=10), hovermode="x unified"
+                )
+                st.plotly_chart(fig_sp_move, use_container_width=True, config={'displayModeBar': False})
+            else:
+                st.info("No historical listener data found for this artist.")
+    else:
+        st.info("Long-term historical movement data is currently being populated.")
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # --- ROW 5: SPOTLIGHT & METADATA ---
+    col_sum1, col_sum2 = st.columns([2, 1])
+    with col_sum1:
+        st.markdown('<div class="dialog-card">', unsafe_allow_html=True)
+        st.markdown("<div class='dialog-section-header'>🔍 Spotlight Profile Summary</div>", unsafe_allow_html=True)
+        st.markdown(f"""
+            <table class='spotlight-summary-table'>
+                <tbody>
+                    <tr><td>Global Chart Rank</td><td>#{int(row.get('rank', 0))}</td></tr>
+                    <tr><td>Active Monthly Listeners</td><td>{fmt_short(row.get('monthly_listeners'))}</td></tr>
+                    <tr><td>Peak Audience Size</td><td>{fmt_short(row.get('peak_listeners'))}</td></tr>
+                    <tr><td>Total Weighted Points</td><td>{fmt_short(row.get('total_points'))}</td></tr>
+                    <tr><td>Catalog (Tracks/Albums)</td><td>{int(row.get('songs_count', 0))} / {int(row.get('albums_count', 0))}</td></tr>
+                    <tr><td>LATAM Market Signal</td><td>{int(row.get('countries_count', 0))} Markets</td></tr>
+                </tbody>
+            </table>
+        """, unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+        
+    with col_sum2:
+        st.markdown('<div class="dialog-card">', unsafe_allow_html=True)
+        st.markdown("<div class='dialog-section-header'>📂 Source Metadata</div>", unsafe_allow_html=True)
+        if row.get("page_title"):
+            st.markdown("<div class='meta-label'>Source Page</div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='meta-value' style='font-size:0.8rem;'>{escape(row['page_title'])}</div>", unsafe_allow_html=True)
+        if row.get("snapshot_text"):
+            st.markdown("<div class='meta-label'>Data Version</div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='meta-value' style='font-size:0.8rem;'>{escape(row['snapshot_text'])}</div>", unsafe_allow_html=True)
+        if row.get("scrape_date"):
+            st.markdown("<div class='meta-label'>Latest Refresh</div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='meta-value' style='font-size:0.8rem;'>{row['scrape_date'].strftime('%b %d, %Y')}</div>", unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    st.markdown("<div style='text-align:center; padding:15px; color:var(--text2); font-size:0.75rem; opacity:0.6;'>💡 Compiled intelligence from live Kworb chart snapshots and historical profile data.</div>", unsafe_allow_html=True)
 
 
 def trend_badge_html(value: str | None) -> str:
