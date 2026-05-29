@@ -371,7 +371,7 @@ def apply_theme() -> None:
             transition: all 0.25s ease;
             box-shadow: 0 20px 42px rgba(0,0,0,.18);
             margin-bottom: 1.5rem;
-            margin-top: -2.5rem;
+            margin-top: -2.0rem;
         }
         .dashboard-card a {
             color: inherit;
