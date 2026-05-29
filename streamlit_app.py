@@ -3801,11 +3801,18 @@ def show_leaderboard_page() -> None:
     # This allows the dialog to open on the very first run after a click.
     target_name = st.query_params.get("artist_name") or st.session_state.active_artist_profile
     
+    # If a profile was active, but the artist is no longer in the filtered data
+    # (e.g., due to a filter change), we should not attempt to show the dialog.
+    if target_name and target_name not in filtered["name"].values:
+        st.session_state.active_artist_profile = None
+        if "artist_name" in st.query_params:
+            st.query_params.clear()
+        target_name = None # Ensure we don't proceed with the dialog
+
     if target_name:
         artist_match = leaderboard[leaderboard["name"] == target_name]
         if not artist_match.empty:
             show_artist_details_dialog(artist_match.iloc[0])
-            # Clear the trigger state so the dialog doesn't re-open on next interaction
             st.session_state.active_artist_profile = None
             if "artist_name" in st.query_params:
                 st.query_params.clear()
