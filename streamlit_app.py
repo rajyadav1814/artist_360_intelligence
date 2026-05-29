@@ -4382,7 +4382,7 @@ with st.sidebar:
     
     # Collapsible advanced settings
     with st.expander("🔍 Search & Filter", expanded=False):
-        latam_only = st.toggle("🌎 Latin America", value=True)
+        latam_only = st.toggle("🌎 Latin America", value=False)
         
         selected_countries = []
         if latam_only:
