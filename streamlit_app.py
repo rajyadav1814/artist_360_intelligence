@@ -32,6 +32,12 @@ from src.ai.album_acquisition_dashboard import render_album_acquisition
 from src.database.connection import get_connection
 from src.scrapers.artist_details_scraper import LATIN_AMERICAN_COUNTRIES
 from src.utils.image_utils import get_artist_image_url, get_fallback_avatar_url
+from src.utils.theme import (
+    apply_theme_css,
+    init_theme,
+    inject_theme_js,
+    render_theme_toggle,
+)
 
 
 st.set_page_config(
@@ -50,6 +56,9 @@ if "show_advanced" not in st.session_state:
     st.session_state.show_advanced = False
 if "active_artist_profile" not in st.session_state:
     st.session_state.active_artist_profile = None
+
+# Initialize theme
+init_theme()
 
 PAGE_META = {
     "Leaderboard": (
@@ -117,6 +126,17 @@ def render_plotly_html(fig: go.Figure, *, height: int | None = None) -> None:
         default_width="100%",
         default_height=f"{chart_height}px",
     )
+    # Theme-aware graph-card colors
+    is_dark = st.session_state.get("theme", "dark") == "dark"
+    if is_dark:
+        card_bg = "linear-gradient(180deg, rgba(17, 28, 47, 0.92), rgba(10, 17, 31, 0.95))"
+        card_border = "rgba(73, 104, 160, 0.38)"
+        card_shadow = "0 14px 30px rgba(3, 9, 22, 0.35)"
+    else:
+        card_bg = "linear-gradient(180deg, rgba(255,255,255,.98), rgba(248,250,252,.99))"
+        card_border = "rgba(148,163,184,0.38)"
+        card_shadow = "0 4px 12px rgba(0, 0, 0, 0.08)"
+
     st_components.html(
         f"""
         <div class="graph-card">
@@ -129,10 +149,9 @@ def render_plotly_html(fig: go.Figure, *, height: int | None = None) -> None:
                 box-sizing: border-box;
                 padding: 10px 10px 6px 10px;
                 border-radius: 16px;
-                border: 1px solid rgba(73, 104, 160, 0.38);
-                background:
-                    linear-gradient(180deg, rgba(17, 28, 47, 0.92), rgba(10, 17, 31, 0.95));
-                box-shadow: 0 14px 30px rgba(3, 9, 22, 0.35);
+                border: 1px solid {card_border};
+                background: {card_bg};
+                box-shadow: {card_shadow};
             }}
             .plotly-html-chart {{ width: 100%; }}
             .plotly-html-chart .js-plotly-plot,
@@ -146,6 +165,9 @@ def render_plotly_html(fig: go.Figure, *, height: int | None = None) -> None:
 
 
 def apply_theme() -> None:
+    """Apply global theme CSS with light/dark mode support using CSS variables."""
+    current_theme = st.session_state.get("theme", "dark")
+    st.markdown(apply_theme_css(theme=current_theme), unsafe_allow_html=True)
     st.markdown(
         """
         <style>
@@ -1528,34 +1550,63 @@ def latest_source_rows(runs: pd.DataFrame) -> pd.DataFrame:
 
 
 def style_figure(fig, height: int) -> None:
+    is_dark = st.session_state.get("theme", "dark") == "dark"
+
+    if is_dark:
+        template = "plotly_dark"
+        paper_bg = "rgba(11,18,32,.98)"
+        plot_bg = "rgba(8,15,28,.96)"
+        font_color = "#f8fbff"
+        title_color = "#f8fbff"
+        hover_bg = "rgba(8,15,28,.98)"
+        hover_border = "rgba(34,211,238,.45)"
+        grid_color = "rgba(162,176,208,.14)"
+        grid_color_y = "rgba(162,176,208,.10)"
+        zero_color = "rgba(162,176,208,.12)"
+        line_color = "rgba(162,176,208,.22)"
+        tick_color = "rgba(162,176,208,.22)"
+    else:
+        template = "plotly_white"
+        paper_bg = "rgba(255,255,255,.98)"
+        plot_bg = "rgba(248,250,252,.96)"
+        font_color = "#1e293b"
+        title_color = "#0f172a"
+        hover_bg = "rgba(255,255,255,.98)"
+        hover_border = "rgba(37,99,235,.45)"
+        grid_color = "rgba(0,0,0,.08)"
+        grid_color_y = "rgba(0,0,0,.06)"
+        zero_color = "rgba(0,0,0,.06)"
+        line_color = "rgba(0,0,0,.14)"
+        tick_color = "rgba(0,0,0,.14)"
+
     fig.update_layout(
-        template="plotly_dark",
+        template=template,
         height=max(280, int(height)),
         margin=dict(l=4, r=20, t=56, b=8, pad=0),
-        paper_bgcolor="rgba(11,18,32,.98)",
-        plot_bgcolor="rgba(8,15,28,.96)",
-        font=dict(color="#f8fbff", family="Inter, ui-sans-serif, system-ui", size=11),
+        paper_bgcolor=paper_bg,
+        plot_bgcolor=plot_bg,
+        font=dict(color=font_color, family="Inter, ui-sans-serif, system-ui", size=11),
         legend_title_text="",
-        title=dict(x=0.03, xanchor="left", font=dict(size=15, color="#f8fbff")),
+        title=dict(x=0.03, xanchor="left", font=dict(size=15, color=title_color)),
         hoverlabel=dict(
-            bgcolor="rgba(8,15,28,.98)",
-            bordercolor="rgba(34,211,238,.45)",
-            font=dict(color="#f8fbff", size=11),
+            bgcolor=hover_bg,
+            bordercolor=hover_border,
+            font=dict(color=font_color, size=11),
         ),
     )
     fig.update_xaxes(
-        gridcolor="rgba(162,176,208,.14)",
-        zerolinecolor="rgba(162,176,208,.12)",
-        linecolor="rgba(162,176,208,.22)",
-        tickcolor="rgba(162,176,208,.22)",
+        gridcolor=grid_color,
+        zerolinecolor=zero_color,
+        linecolor=line_color,
+        tickcolor=tick_color,
         tickfont=dict(size=11),
         title_font=dict(size=12),
     )
     fig.update_yaxes(
-        gridcolor="rgba(162,176,208,.10)",
-        zerolinecolor="rgba(162,176,208,.10)",
-        linecolor="rgba(162,176,208,.22)",
-        tickcolor="rgba(162,176,208,.22)",
+        gridcolor=grid_color_y,
+        zerolinecolor=zero_color,
+        linecolor=line_color,
+        tickcolor=tick_color,
         tickfont=dict(size=11),
         title_font=dict(size=12),
     )
@@ -1582,6 +1633,27 @@ def render_header(title: str, meta: str, last_run_label: str) -> None:
 def render_footer() -> None:
     st.markdown(
         """
+        <style>
+        .app-footer {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+            padding: 18px 0 28px;
+            color: var(--text2);
+            font-size: 0.9rem;
+            text-align: center;
+        }
+        .app-footer a {
+            color: var(--text);
+            font-weight: 700;
+            text-decoration: none;
+        }
+        .app-footer a:hover {
+            color: var(--accent);
+        }
+        </style>
         <div class="app-footer">
             <div><a href="mailto:info@chromadata.com">info@chromadata.com</a></div>
             <div>© 2026 - Chromadata. All rights reserved.</div>
@@ -1797,143 +1869,186 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
     top_artist_row = leaderboard.sort_values("rank").head(1)
     top_artist_name = str(top_artist_row.iloc[0]["name"]) if not top_artist_row.empty else "—"
 
+    is_dark = st.session_state.get("theme", "dark") == "dark"
+
+    if is_dark:
+        lb_bg2 = "#161b26"
+        lb_bg3 = "#1f2633"
+        lb_bg4 = "#283041"
+        lb_line = "rgba(148,163,184,.15)"
+        lb_t1 = "#ffffff"
+        lb_t2 = "#cdd6e4"
+        lb_t3 = "#8b95ad"
+        lb_blue = "#60a5fa"
+        lb_green = "#34d399"
+        lb_purple = "#c4b5fd"
+        lb_amber = "#fcd34d"
+        lb_pink = "#f9a8d4"
+        lb_red = "#fb7185"
+        lb_hero_bg = "linear-gradient(135deg, #1a2238 0%, #1f1a3a 50%, #261d3d 100%)"
+        lb_hero_shadow = "0 24px 60px rgba(0,0,0,.35)"
+        lb_shadow = "0 12px 24px rgba(0,0,0,.18)"
+        lb_shadow_sm = "0 14px 30px rgba(0,0,0,.18)"
+        lb_hover_line = "rgba(148,163,184,.3)"
+        lb_chart_hover = "rgba(96,165,250,.4)"
+    else:
+        lb_bg2 = "#ffffff"
+        lb_bg3 = "#f1f5f9"
+        lb_bg4 = "#e2e8f0"
+        lb_line = "rgba(0,0,0,.10)"
+        lb_t1 = "#0f172a"
+        lb_t2 = "#475569"
+        lb_t3 = "#64748b"
+        lb_blue = "#2563eb"
+        lb_green = "#16a34a"
+        lb_purple = "#7c3aed"
+        lb_amber = "#d97706"
+        lb_pink = "#db2777"
+        lb_red = "#dc2626"
+        lb_hero_bg = "linear-gradient(135deg, #f0f4f8 0%, #faf5ff 50%, #f0fdf4 100%)"
+        lb_hero_shadow = "0 8px 24px rgba(0,0,0,.10)"
+        lb_shadow = "0 4px 12px rgba(0,0,0,.06)"
+        lb_shadow_sm = "0 4px 12px rgba(0,0,0,.06)"
+        lb_hover_line = "rgba(0,0,0,.20)"
+        lb_chart_hover = "rgba(37,99,235,.4)"
+
     st.markdown(
-        """
+        f"""
         <style>
         /* ── leaderboard scoped palette ── */
-        :root {
-            --lb-bg2: #161b26;
-            --lb-bg3: #1f2633;
-            --lb-bg4: #283041;
-            --lb-line: rgba(148,163,184,.15);
-            --lb-t1: #ffffff;
-            --lb-t2: #cdd6e4;
-            --lb-t3: #8b95ad;
-            --lb-blue:   #60a5fa;
-            --lb-green:  #34d399;
-            --lb-purple: #c4b5fd;
-            --lb-amber:  #fcd34d;
-            --lb-pink:   #f9a8d4;
-            --lb-red:    #fb7185;
-        }
+        :root {{
+            --lb-bg2: {lb_bg2};
+            --lb-bg3: {lb_bg3};
+            --lb-bg4: {lb_bg4};
+            --lb-line: {lb_line};
+            --lb-t1: {lb_t1};
+            --lb-t2: {lb_t2};
+            --lb-t3: {lb_t3};
+            --lb-blue:   {lb_blue};
+            --lb-green:  {lb_green};
+            --lb-purple: {lb_purple};
+            --lb-amber:  {lb_amber};
+            --lb-pink:   {lb_pink};
+            --lb-red:    {lb_red};
+        }}
         /* hero */
-        .lb-hero {
+        .lb-hero {{
             position: relative;
-            background: linear-gradient(135deg, #1a2238 0%, #1f1a3a 50%, #261d3d 100%);
-            border: 1px solid rgba(148,163,184,.18);
+            background: {lb_hero_bg};
+            border: 1px solid {lb_line};
             border-radius: 20px;
             padding: 24px 28px;
             margin-bottom: 1.4rem;
-            box-shadow: 0 24px 60px rgba(0,0,0,.35);
+            box-shadow: {lb_hero_shadow};
             overflow: hidden;
-        }
-        .lb-hero::after {
+        }}
+        .lb-hero::after {{
             content: ""; position: absolute; right: -120px; top: -120px;
             width: 320px; height: 320px;
             background: radial-gradient(circle, rgba(96,165,250,.18), transparent 60%);
             pointer-events: none;
-        }
-        .lb-hero-eyebrow {
+        }}
+        .lb-hero-eyebrow {{
             display: inline-flex; align-items: center; gap: 10px;
             font-size: 12px; font-weight: 800; letter-spacing: .18em;
             text-transform: uppercase; color: var(--lb-t3); margin-bottom: 12px;
-        }
-        .lb-hero-dot {
+        }}
+        .lb-hero-dot {{
             width: 10px; height: 10px; border-radius: 50%;
             background: var(--lb-green);
             box-shadow: 0 0 0 4px rgba(52,211,153,.18), 0 0 14px rgba(52,211,153,.55);
             animation: lb-pulse 2s ease-in-out infinite;
-        }
-        @keyframes lb-pulse {
-            0%,100% { box-shadow: 0 0 0 4px rgba(52,211,153,.18), 0 0 14px rgba(52,211,153,.55); }
-            50%     { box-shadow: 0 0 0 8px rgba(52,211,153,.05), 0 0 22px rgba(52,211,153,.85); }
-        }
-        .lb-hero-title { font-size: 2.2rem; font-weight: 900; letter-spacing: -.02em; color: var(--lb-t1); margin-bottom: 6px; line-height: 1.1; }
-        .lb-hero-sub { font-size: 0.95rem; color: var(--lb-t2); font-weight: 500; }
-        .lb-hero-sub b { color: var(--lb-t1); font-weight: 700; }
+        }}
+        @keyframes lb-pulse {{
+            0%,100% {{ box-shadow: 0 0 0 4px rgba(52,211,153,.18), 0 0 14px rgba(52,211,153,.55); }}
+            50%     {{ box-shadow: 0 0 0 8px rgba(52,211,153,.05), 0 0 22px rgba(52,211,153,.85); }}
+        }}
+        .lb-hero-title {{ font-size: 2.2rem; font-weight: 900; letter-spacing: -.02em; color: var(--lb-t1); margin-bottom: 6px; line-height: 1.1; }}
+        .lb-hero-sub {{ font-size: 0.95rem; color: var(--lb-t2); font-weight: 500; }}
+        .lb-hero-sub b {{ color: var(--lb-t1); font-weight: 700; }}
 
         /* KPI tiles */
-        .lb-kpi-grid {
+        .lb-kpi-grid {{
             display: grid;
             grid-template-columns: repeat(5, 1fr);
             gap: 14px;
             margin-bottom: 1.4rem;
-        }
-        .lb-kpi {
+        }}
+        .lb-kpi {{
             position: relative;
             background: var(--lb-bg2);
             border: 1px solid var(--lb-line);
             border-radius: 16px;
             padding: 18px 18px 16px 22px;
-            box-shadow: 0 12px 24px rgba(0,0,0,.18);
+            box-shadow: {lb_shadow};
             overflow: hidden;
             transition: transform .2s ease, border-color .2s ease;
-        }
-        .lb-kpi:hover { transform: translateY(-2px); border-color: rgba(148,163,184,.3); }
-        .lb-kpi::before {
+        }}
+        .lb-kpi:hover {{ transform: translateY(-2px); border-color: {lb_hover_line}; }}
+        .lb-kpi::before {{
             content:""; position:absolute; left:0; top:14%; bottom:14%; width:4px;
             border-radius: 0 4px 4px 0; background: var(--lb-blue);
-        }
-        .lb-kpi.k-blue::before   { background: var(--lb-blue); }
-        .lb-kpi.k-green::before  { background: var(--lb-green); }
-        .lb-kpi.k-purple::before { background: var(--lb-purple); }
-        .lb-kpi.k-amber::before  { background: var(--lb-amber); }
-        .lb-kpi.k-pink::before   { background: var(--lb-pink); }
-        .lb-kpi-lbl { font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--lb-t3); margin-bottom: 10px; }
-        .lb-kpi-val { font-size: 26px; font-weight: 900; color: var(--lb-t1); line-height: 1.1; margin-bottom: 6px; letter-spacing: -.01em; }
-        .lb-kpi.k-blue   .lb-kpi-val { color: var(--lb-blue); }
-        .lb-kpi.k-green  .lb-kpi-val { color: var(--lb-green); }
-        .lb-kpi.k-purple .lb-kpi-val { color: var(--lb-purple); }
-        .lb-kpi.k-amber  .lb-kpi-val { color: var(--lb-amber); }
-        .lb-kpi.k-pink   .lb-kpi-val { color: var(--lb-pink); }
-        .lb-kpi-sub { font-size: 12px; color: var(--lb-t2); font-weight: 500; line-height: 1.35; }
+        }}
+        .lb-kpi.k-blue::before   {{ background: var(--lb-blue); }}
+        .lb-kpi.k-green::before  {{ background: var(--lb-green); }}
+        .lb-kpi.k-purple::before {{ background: var(--lb-purple); }}
+        .lb-kpi.k-amber::before  {{ background: var(--lb-amber); }}
+        .lb-kpi.k-pink::before   {{ background: var(--lb-pink); }}
+        .lb-kpi-lbl {{ font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--lb-t3); margin-bottom: 10px; }}
+        .lb-kpi-val {{ font-size: 26px; font-weight: 900; color: var(--lb-t1); line-height: 1.1; margin-bottom: 6px; letter-spacing: -.01em; }}
+        .lb-kpi.k-blue   .lb-kpi-val {{ color: var(--lb-blue); }}
+        .lb-kpi.k-green  .lb-kpi-val {{ color: var(--lb-green); }}
+        .lb-kpi.k-purple .lb-kpi-val {{ color: var(--lb-purple); }}
+        .lb-kpi.k-amber  .lb-kpi-val {{ color: var(--lb-amber); }}
+        .lb-kpi.k-pink   .lb-kpi-val {{ color: var(--lb-pink); }}
+        .lb-kpi-sub {{ font-size: 12px; color: var(--lb-t2); font-weight: 500; line-height: 1.35; }}
 
         /* sectioned cards */
-        .lb-section {
+        .lb-section {{
             background: var(--lb-bg2);
             border: 1px solid var(--lb-line);
             border-radius: 16px;
             padding: 18px 20px 14px;
             margin-bottom: 1.4rem;
-            box-shadow: 0 14px 30px rgba(0,0,0,.18);
-        }
-        .lb-section-hdr {
+            box-shadow: {lb_shadow_sm};
+        }}
+        .lb-section-hdr {{
             display:flex; align-items:center; justify-content:space-between;
             margin-bottom: 12px;
-        }
-        .lb-section-title { font-size: 1.05rem; font-weight: 800; color: var(--lb-t1); letter-spacing: -.005em; }
-        .lb-section-badge {
+        }}
+        .lb-section-title {{ font-size: 1.05rem; font-weight: 800; color: var(--lb-t1); letter-spacing: -.005em; }}
+        .lb-section-badge {{
             font-size: 11px; font-weight: 700; letter-spacing: .1em;
             text-transform: uppercase; color: var(--lb-t2);
             background: var(--lb-bg3); border: 1px solid var(--lb-line);
             padding: 5px 12px; border-radius: 999px;
-        }
+        }}
 
         /* Plotly chart wrapper */
-        [data-testid="stPlotlyChart"] {
+        [data-testid="stPlotlyChart"] {{
             background: var(--lb-bg2);
             border: 1px solid var(--lb-line);
             border-radius: 16px;
             padding: 0.5rem 0.5rem 0.25rem;
             margin-top: 0 !important;
             margin-bottom: 0.85rem !important;
-            box-shadow: 0 14px 30px rgba(0,0,0,.18);
+            box-shadow: {lb_shadow_sm};
             transition: border-color 0.2s ease, transform 0.2s ease;
-        }
-        [data-testid="stPlotlyChart"]:hover {
-            border-color: rgba(96,165,250,.4);
+        }}
+        [data-testid="stPlotlyChart"]:hover {{
+            border-color: {lb_chart_hover};
             transform: translateY(-2px);
-        }
+        }}
         /* last chart in right column: drop bottom margin so column matches table card */
-        [data-testid="column"]:nth-child(2) [data-testid="stPlotlyChart"]:last-of-type {
+        [data-testid="column"]:nth-child(2) [data-testid="stPlotlyChart"]:last-of-type {{
             margin-bottom: 0 !important;
-        }
+        }}
         /* dashboard-card wrapping the table: trim margins */
-        [data-testid="column"]:nth-child(1) .dashboard-card {
+        [data-testid="column"]:nth-child(1) .dashboard-card {{
             margin-bottom: 0 !important;
-        }
-        [data-testid="column"]:nth-child(2) > div:first-child { padding-top: 0 !important; margin-top: 0 !important; }
-        [data-testid="column"]:nth-child(2) .element-container:first-of-type { margin-top: 0 !important; }
+        }}
+        [data-testid="column"]:nth-child(2) > div:first-child {{ padding-top: 0 !important; margin-top: 0 !important; }}
+        [data-testid="column"]:nth-child(2) .element-container:first-of-type {{ margin-top: 0 !important; }}
         </style>
         """,
         unsafe_allow_html=True,
@@ -1967,11 +2082,13 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
                 color_continuous_scale=["#34d399", "#60a5fa", "#7c5cfc", "#a78bfa", "#f59e0b"],
             )
             style_figure(fig_rank, 440)
+            text_color_rank = "#1e293b" if not is_dark else "#e0e7ff"
+            marker_line_color = "rgba(0,0,0,.08)" if not is_dark else "rgba(255,255,255,.12)"
             fig_rank.update_traces(
                 textposition="outside",
                 cliponaxis=False,
-                marker=dict(opacity=0.92, line=dict(width=0.6, color="rgba(255,255,255,.12)")),
-                textfont=dict(color="#e0e7ff", size=11),
+                marker=dict(opacity=0.92, line=dict(width=0.6, color=marker_line_color)),
+                textfont=dict(color=text_color_rank, size=11),
                 hovertemplate=(
                     "<b>%{x}</b><br>"
                     "<b>Rank:</b> #%{customdata[1]}<br>"
@@ -2014,11 +2131,14 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
                 color_continuous_scale=["#60a5fa", "#4f8ef7", "#7c5cfc", "#22d3a0"],
             )
             style_figure(fig_bar, 430)
+            text_color_bar = "#1e293b" if not is_dark else "#e0e7ff"
+            marker_line_color_bar = "rgba(0,0,0,.08)" if not is_dark else "rgba(255,255,255,.12)"
+            avg_annotation_color = "#b45309" if not is_dark else "#fcd34d"
             fig_bar.update_traces(
                 textposition="outside",
                 cliponaxis=False,
-                marker=dict(opacity=0.92, line=dict(width=0.6, color="rgba(255,255,255,.12)")),
-                textfont=dict(color="#e0e7ff", size=11),
+                marker=dict(opacity=0.92, line=dict(width=0.6, color=marker_line_color_bar)),
+                textfont=dict(color=text_color_bar, size=11),
                 hovertemplate=(
                     "<b>%{y}</b><br>"
                     "<b>Monthly listeners:</b> %{x:,.0f}<br>"
@@ -2034,7 +2154,7 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
                 annotation_text=f"Avg {fmt_short(avg_listeners)}",
                 annotation_position="top right",
                 annotation_font_size=11,
-                annotation_font_color="#fcd34d",
+                annotation_font_color=avg_annotation_color,
             )
             fig_bar.update_layout(
                 title="Top by Monthly Listeners",
@@ -2118,82 +2238,89 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
         st.warning("Not enough ranking data available yet.")
         return
 
-    # ── Inject Chart Tracker styles (scoped) ─────────────────────────
+    # ── Inject Chart Tracker styles (scoped) — theme-aware ────────────
     st.markdown(
         """
         <style>
         .ct-hero{
-            background:linear-gradient(135deg,#1a2235 0%,#161b26 100%);
-            border:1px solid #2a3446;border-radius:14px;padding:22px 26px;
+            background:var(--surface-card);
+            border:1px solid var(--border);
+            border-radius:14px;padding:22px 26px;
             position:relative;overflow:hidden;margin-bottom:18px;
-            box-shadow:0 4px 24px rgba(0,0,0,.35);
+            box-shadow:var(--shadow-md,0 8px 24px rgba(0,0,0,.18));
         }
         .ct-hero::before{
             content:'';position:absolute;top:0;left:0;right:0;height:3px;
-            background:linear-gradient(90deg,#34d399,#60a5fa,#c4b5fd);
+            background:var(--accent-gradient);
         }
         .ct-tag{
-            font-size:11px;color:#8b95ad;letter-spacing:1.4px;text-transform:uppercase;
+            font-size:11px;color:var(--text2);letter-spacing:1.4px;text-transform:uppercase;
             font-weight:700;display:flex;align-items:center;gap:8px;margin-bottom:8px;
         }
         .ct-live{
-            width:8px;height:8px;border-radius:50%;background:#34d399;
-            box-shadow:0 0 8px #34d399;animation:ctblink 2s infinite;
+            width:8px;height:8px;border-radius:50%;background:var(--success);
+            box-shadow:0 0 8px var(--success);animation:ctblink 2s infinite;
         }
         @keyframes ctblink{0%,100%{opacity:1}50%{opacity:.4}}
-        .ct-title{font-size:26px;font-weight:700;letter-spacing:-.5px;color:#fff;margin-bottom:4px}
-        .ct-sub{font-size:13px;color:#cdd6e4;font-weight:500}
+        .ct-title{font-size:26px;font-weight:700;letter-spacing:-.5px;color:var(--text);margin-bottom:4px}
+        .ct-sub{font-size:13px;color:var(--text2);font-weight:500}
 
         .ct-kpi-row{
             display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px;
         }
         .ct-kpi{
-            background:#161b26;border:1px solid #2a3446;border-radius:12px;
+            background:var(--surface2);
+            border:1px solid var(--border);
+            border-radius:12px;
             padding:16px 18px;transition:.15s;position:relative;overflow:hidden;
         }
-        .ct-kpi:hover{transform:translateY(-2px);border-color:#3a4661;
-            box-shadow:0 6px 18px rgba(0,0,0,.35)}
+        .ct-kpi:hover{transform:translateY(-2px);border-color:var(--border-light);
+            box-shadow:var(--shadow-hover,0 10px 26px rgba(0,0,0,.12))}
         .ct-kpi::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%;
             background:var(--accent,#60a5fa)}
-        .ct-kpi-lbl{font-size:10px;color:#8b95ad;text-transform:uppercase;
+        .ct-kpi-lbl{font-size:10px;color:var(--text2);text-transform:uppercase;
             letter-spacing:.7px;font-weight:600;margin-bottom:6px}
-        .ct-kpi-val{font-size:24px;font-weight:700;color:#fff;
+        .ct-kpi-val{font-size:24px;font-weight:700;color:var(--text);
             letter-spacing:-.4px;line-height:1.15;font-variant-numeric:tabular-nums}
-        .ct-kpi-sub{font-size:11px;color:#cdd6e4;margin-top:4px;font-weight:500}
-        .ct-kpi.up{--accent:#34d399}.ct-kpi.up .ct-kpi-val{color:#34d399}
-        .ct-kpi.down{--accent:#fb7185}.ct-kpi.down .ct-kpi-val{color:#fb7185}
-        .ct-kpi.purple{--accent:#c4b5fd}.ct-kpi.purple .ct-kpi-val{color:#c4b5fd}
-        .ct-kpi.amber{--accent:#fcd34d}.ct-kpi.amber .ct-kpi-val{color:#fcd34d}
+        .ct-kpi-sub{font-size:11px;color:var(--text2);margin-top:4px;font-weight:500}
+        .ct-kpi.up{--accent:var(--success)}.ct-kpi.up .ct-kpi-val{color:var(--success)}
+        .ct-kpi.down{--accent:var(--danger,#fb7185)}.ct-kpi.down .ct-kpi-val{color:var(--danger,#fb7185)}
+        .ct-kpi.purple{--accent:var(--accent-purple,#7c3aed)}.ct-kpi.purple .ct-kpi-val{color:var(--accent-purple,#7c3aed)}
+        .ct-kpi.amber{--accent:var(--warning,#fcd34d)}.ct-kpi.amber .ct-kpi-val{color:var(--warning,#fcd34d)}
 
         .ct-section{
-            background:#161b26;border:1px solid #2a3446;border-radius:12px;
+            background:var(--surface2);
+            border:1px solid var(--border);
+            border-radius:12px;
             padding:8px 8px 4px;margin-bottom:18px;
         }
         .ct-section-ttl{
-            font-size:13px;color:#cdd6e4;font-weight:600;text-transform:uppercase;
-            letter-spacing:.6px;padding:10px 14px 8px;border-bottom:1px solid #2a3446;
+            font-size:13px;color:var(--text2);font-weight:600;text-transform:uppercase;
+            letter-spacing:.6px;padding:10px 14px 8px;border-bottom:1px solid var(--border);
             display:flex;align-items:center;gap:8px;margin-bottom:6px;
         }
 
         /* Movement table */
         .ct-mv-tbl{width:100%;border-collapse:collapse;font-size:13px}
         .ct-mv-tbl thead th{
-            font-size:10px;color:#8b95ad;text-transform:uppercase;letter-spacing:.6px;
-            font-weight:600;padding:10px 14px;border-bottom:1px solid #3a4661;text-align:left;
+            font-size:10px;color:var(--text2);text-transform:uppercase;letter-spacing:.6px;
+            font-weight:600;padding:10px 14px;border-bottom:1px solid var(--border);text-align:left;
+            background:var(--surface-table-header,var(--surface3));
         }
         .ct-mv-tbl tbody td{
-            padding:12px 14px;border-bottom:1px solid #2a3446;color:#fff;
+            padding:12px 14px;border-bottom:1px solid var(--border);color:var(--text);
         }
-        .ct-mv-tbl tbody tr:hover{background:#1f2633}
+        .ct-mv-tbl tbody tr:nth-child(odd){background:var(--surface-table-row-alt,var(--surface3))}
+        .ct-mv-tbl tbody tr:hover{background:var(--surface3)}
         .ct-mv-tbl tbody tr:last-child td{border-bottom:none}
-        .ct-rank-cell{font-weight:600;font-variant-numeric:tabular-nums;color:#cdd6e4}
-        .ct-artist{font-weight:600;color:#fff}
+        .ct-rank-cell{font-weight:600;font-variant-numeric:tabular-nums;color:var(--text2)}
+        .ct-artist{font-weight:600;color:var(--text)}
         .ct-pill{display:inline-flex;align-items:center;gap:4px;
             font-size:11px;font-weight:700;padding:4px 10px;border-radius:5px;
             font-variant-numeric:tabular-nums}
-        .ct-pill-up{background:rgba(52,211,153,.15);color:#34d399;border:1px solid rgba(52,211,153,.4)}
-        .ct-pill-down{background:rgba(251,113,133,.15);color:#fb7185;border:1px solid rgba(251,113,133,.4)}
-        .ct-pill-flat{background:#1f2633;color:#cdd6e4;border:1px solid #3a4661}
+        .ct-pill-up{background:var(--up-bg,rgba(52,211,153,.15));color:var(--up-text,var(--success));border:1px solid rgba(52,211,153,.35)}
+        .ct-pill-down{background:var(--down-bg,rgba(251,113,133,.15));color:var(--down-text,var(--danger,#fb7185));border:1px solid rgba(251,113,133,.35)}
+        .ct-pill-flat{background:var(--surface3);color:var(--text2);border:1px solid var(--border)}
         </style>
         """,
         unsafe_allow_html=True,
@@ -2870,15 +2997,19 @@ def render_debut_artist_chart(leaderboard: pd.DataFrame) -> None:
     st.markdown(
         f"""
         <style>
+        /* Theme-aware Artist Spotlight styles */
         .artist-spotlight-hero {{
             position: relative;
-            background: linear-gradient(135deg, #1a2238 0%, #1f1a3a 50%, #261d3d 100%);
-            border: 1px solid rgba(148,163,184,.18);
+            background: var(--surface-card);
+            border: 1px solid var(--border);
             border-radius: 20px;
             padding: 24px 28px;
             margin-bottom: 1.4rem;
-            box-shadow: 0 24px 60px rgba(0,0,0,.35);
+            box-shadow: var(--shadow-lg);
             overflow: hidden;
+        }}
+        html[data-theme="light"] .artist-spotlight-hero {{
+            box-shadow: var(--shadow-md);
         }}
         .artist-spotlight-hero::after {{
             content: "";
@@ -2887,7 +3018,7 @@ def render_debut_artist_chart(leaderboard: pd.DataFrame) -> None:
             top: -120px;
             width: 320px;
             height: 320px;
-            background: radial-gradient(circle, rgba(96,165,250,.18), transparent 60%);
+            background: radial-gradient(circle, rgba(var(--accent-blue-rgb), .14), transparent 60%);
             pointer-events: none;
         }}
         .artist-spotlight-eyebrow {{
@@ -2898,32 +3029,32 @@ def render_debut_artist_chart(leaderboard: pd.DataFrame) -> None:
             font-weight: 800;
             letter-spacing: .18em;
             text-transform: uppercase;
-            color: #8b95ad;
+            color: var(--text2);
             margin-bottom: 12px;
         }}
         .artist-spotlight-dot {{
             width: 10px;
             height: 10px;
             border-radius: 50%;
-            background: #34d399;
-            box-shadow: 0 0 0 4px rgba(52,211,153,.18), 0 0 14px rgba(52,211,153,.55);
+            background: var(--accent2);
+            box-shadow: 0 0 0 4px rgba(52,211,153,.18), 0 0 14px rgba(52,211,153,.45);
             animation: lb-pulse 2s ease-in-out infinite;
         }}
         .artist-spotlight-title {{
             font-size: 2.2rem;
             font-weight: 900;
             letter-spacing: -.02em;
-            color: #ffffff;
+            color: var(--text-heading);
             margin-bottom: 6px;
             line-height: 1.1;
         }}
         .artist-spotlight-sub {{
             font-size: 0.95rem;
-            color: #cdd6e4;
+            color: var(--text2);
             font-weight: 500;
         }}
         .artist-spotlight-sub b {{
-            color: #ffffff;
+            color: var(--text);
             font-weight: 700;
         }}
         .spotlight-kpi-grid {{
@@ -2933,15 +3064,18 @@ def render_debut_artist_chart(leaderboard: pd.DataFrame) -> None:
             margin: 14px 0 16px;
         }}
         .spotlight-kpi {{
-            background: linear-gradient(180deg, #161b26 0%, #11182c 100%);
-            border: 1px solid rgba(148,163,184,.15);
+            background: var(--surface-card);
+            border: 1px solid var(--border);
             border-radius: 14px;
             padding: 16px;
-            box-shadow: 0 12px 24px rgba(0,0,0,.18);
+            box-shadow: var(--shadow-sm);
             min-height: 100px;
         }}
+        html[data-theme="light"] .spotlight-kpi {{
+            box-shadow: var(--shadow-sm);
+        }}
         .spotlight-kpi-label {{
-            color: #8b95ad;
+            color: var(--text2);
             font-size: .72rem;
             text-transform: uppercase;
             letter-spacing: .08em;
@@ -2949,27 +3083,27 @@ def render_debut_artist_chart(leaderboard: pd.DataFrame) -> None:
             margin-bottom: 6px;
         }}
         .spotlight-kpi-value {{
-            color: #ffffff;
+            color: var(--text-heading);
             font-size: 1.45rem;
             font-weight: 900;
             line-height: 1.1;
             margin-bottom: 4px;
         }}
         .spotlight-kpi-note {{
-            color: #cdd6e4;
+            color: var(--text2);
             font-size: .82rem;
         }}
         .spotlight-panel {{
-            background: #161b26;
-            border: 1px solid rgba(148,163,184,.15);
+            background: var(--surface);
+            border: 1px solid var(--border);
             border-radius: 14px;
-            box-shadow: 0 12px 24px rgba(0,0,0,.18);
+            box-shadow: var(--shadow-sm);
             margin-bottom: 14px;
         }}
         .spotlight-panel-header {{
             padding: 12px 14px;
-            border-bottom: 1px solid rgba(148,163,184,.12);
-            color: #dbe4ff;
+            border-bottom: 1px solid var(--border);
+            color: var(--text-heading);
             font-size: .92rem;
             font-weight: 800;
             letter-spacing: .04em;
@@ -2989,7 +3123,7 @@ def render_debut_artist_chart(leaderboard: pd.DataFrame) -> None:
             gap: 14px;
         }}
         .spotlight-list-title {{
-            color: #b9c7ea;
+            color: var(--text2);
             font-size: .86rem;
             font-weight: 800;
             margin-bottom: 8px;
@@ -2997,12 +3131,12 @@ def render_debut_artist_chart(leaderboard: pd.DataFrame) -> None:
         .spotlight-list {{
             margin: 0;
             padding-left: 18px;
-            color: #f8fbff;
+            color: var(--text);
             line-height: 1.65;
             font-size: .9rem;
         }}
         .spotlight-list-empty {{
-            color: #8b95ad;
+            color: var(--text2);
             font-size: .88rem;
         }}
         .spotlight-summary-table {{
@@ -3012,17 +3146,17 @@ def render_debut_artist_chart(leaderboard: pd.DataFrame) -> None:
         }}
         .spotlight-summary-table th {{
             text-align: left;
-            color: #8b95ad;
+            color: var(--text2);
             font-size: .72rem;
             text-transform: uppercase;
             letter-spacing: .08em;
             padding: .65rem .75rem;
-            border-bottom: 1px solid rgba(148,163,184,.15);
+            border-bottom: 1px solid var(--border);
         }}
         .spotlight-summary-table td {{
             padding: .65rem .75rem;
-            border-bottom: 1px solid rgba(148,163,184,.1);
-            color: #e7eefc;
+            border-bottom: 1px solid var(--border-light);
+            color: var(--text);
         }}
         .spotlight-artist-hero {{
             display: grid;
@@ -3035,12 +3169,12 @@ def render_debut_artist_chart(leaderboard: pd.DataFrame) -> None:
             width: 100%;
             max-width: 180px;
             border-radius: 24px;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+            box-shadow: var(--shadow-md);
             border: 2px solid var(--border);
         }}
         .spotlight-artist-name {{
             margin: 0 0 4px 0;
-            color: #ffffff;
+            color: var(--text-heading);
             font-size: 2rem;
             font-weight: 900;
             letter-spacing: -.01em;
@@ -3062,8 +3196,7 @@ def render_debut_artist_chart(leaderboard: pd.DataFrame) -> None:
             .spotlight-artist-hero {{ grid-template-columns: 1fr; }}
         }}
         </style>
-        <div>
-        </div>
+        <div></div>
         """,
         unsafe_allow_html=True,
     )
@@ -3705,6 +3838,9 @@ def render_chatbot_widget() -> None:
         
 
 
+# Inject theme initialization JS (reads localStorage, applies data-theme)
+inject_theme_js()
+
 apply_theme()
 
 _loader_slot = st.empty()
@@ -3721,7 +3857,7 @@ _loader_slot.markdown("""
 #a360-loader {
     position: fixed;
     inset: 0;
-    background: #07101f;
+    background: var(--loader-bg);
     z-index: 99999;
     display: flex;
     flex-direction: column;
@@ -3825,8 +3961,8 @@ def show_compare_page() -> None:
             margin-bottom: 0.9rem;
             padding: 0.75rem 0.9rem;
             border-radius: 12px;
-            border: 1px solid rgba(79,142,247,.35);
-            background: rgba(79,142,247,.12);
+            border: 1px solid var(--info-text);
+            background: var(--info-bg);
             color: var(--text);
             font-size: 0.9rem;
             font-weight: 600;
@@ -3838,14 +3974,14 @@ def show_compare_page() -> None:
             margin: 0.75rem 0 1rem;
         }
         .cmp-card {
-            background: linear-gradient(180deg, rgba(17,26,46,.95), rgba(11,18,32,.98));
-            border: 1px solid rgba(79,142,247,.26);
+            background: var(--surface-card);
+            border: 1px solid var(--border-card);
             border-radius: 14px;
             padding: 0.9rem 1rem;
-            box-shadow: 0 12px 26px rgba(0,0,0,.2);
+            box-shadow: var(--shadow-sm);
         }
         .cmp-artist {
-            color: #ffffff;
+            color: var(--text-heading);
             font-size: 1rem;
             font-weight: 800;
             margin-bottom: 0.6rem;
@@ -3856,7 +3992,7 @@ def show_compare_page() -> None:
             grid-template-columns: 1fr auto;
             gap: 0.5rem;
             padding: 0.3rem 0;
-            border-bottom: 1px solid rgba(148,163,184,.16);
+            border-bottom: 1px solid var(--border);
             font-size: 0.84rem;
         }
         .cmp-metric:last-child {
@@ -3881,10 +4017,10 @@ def show_compare_page() -> None:
         }
         .cmp-table-wrap {
             margin-top: 0.65rem;
-            border: 1px solid rgba(79,142,247,.22);
+            border: 1px solid var(--border);
             border-radius: 12px;
             overflow-x: auto;
-            background: rgba(11,18,32,.75);
+            background: var(--surface2);
         }
         .cmp-table {
             width: 100%;
@@ -3898,12 +4034,12 @@ def show_compare_page() -> None:
             letter-spacing: .06em;
             text-transform: uppercase;
             font-size: .7rem;
-            border-bottom: 1px solid rgba(148,163,184,.2);
-            background: rgba(8,15,28,.96);
+            border-bottom: 1px solid var(--border);
+            background: var(--surface-table-header);
         }
         .cmp-table td {
             padding: 0.6rem 0.74rem;
-            border-bottom: 1px solid rgba(148,163,184,.12);
+            border-bottom: 1px solid var(--border);
             color: var(--text);
             vertical-align: top;
         }
@@ -3912,9 +4048,9 @@ def show_compare_page() -> None:
         }
         .cmp-warning {
             margin-top: 0.8rem;
-            border: 1px solid rgba(245,166,35,.45);
-            background: rgba(245,166,35,.14);
-            color: #ffe6b1;
+            border: 1px solid var(--warning);
+            background: var(--warning-bg);
+            color: var(--warning-text);
             border-radius: 12px;
             padding: 0.72rem 0.88rem;
             font-size: 0.88rem;
@@ -3950,6 +4086,7 @@ def show_compare_page() -> None:
             rank_value = int(artist_data["rank"]) if pd.notna(artist_data.get("rank")) else "-"
             monthly_value = fmt_short(artist_data.get("monthly_listeners", 0))
             songs_count = artist_data.get("songs_count", 0)
+            albums_count = artist_data.get("albums_count", 0)
             countries_count = artist_data.get("countries_count", 0)
 
             metric_cards.append(
@@ -3961,6 +4098,8 @@ def show_compare_page() -> None:
                 f"<span class='cmp-metric-value'>{escape(monthly_value)}</span></div>"
                 "<div class='cmp-metric'><span class='cmp-metric-label'>Songs</span>"
                 f"<span class='cmp-metric-value'>{int(songs_count) if pd.notna(songs_count) else 0}</span></div>"
+                "<div class='cmp-metric'><span class='cmp-metric-label'>Albums</span>"
+                f"<span class='cmp-metric-value'>{int(albums_count) if pd.notna(albums_count) else 0}</span></div>"
                 "<div class='cmp-metric'><span class='cmp-metric-label'>LATAM Countries</span>"
                 f"<span class='cmp-metric-value'>{int(countries_count) if pd.notna(countries_count) else 0}</span></div>"
                 "</div>"
@@ -3977,6 +4116,14 @@ def show_compare_page() -> None:
             ("🌎 LATAM Countries",   "countries_count"),
             ("⭐ Total Points",      "total_points"),
         ]
+
+        current_theme = st.session_state.get("theme", "dark")
+        is_dark = current_theme == "dark"
+        hth_card_bg = "rgba(17,26,46,.88)" if is_dark else "rgba(255,255,255,.96)"
+        hth_card_border = "rgba(79,142,247,.18)" if is_dark else "rgba(148,163,184,.45)"
+        hth_label_color = "#8b95ad" if is_dark else "#475569"
+        hth_name_color = "#cdd6e4" if is_dark else "#0f172a"
+        hth_track_bg = "rgba(255,255,255,.07)" if is_dark else "rgba(0,0,0,.06)"
 
         hth_rows = ""
         for label, col in cmp_metrics:
@@ -3996,32 +4143,32 @@ def show_compare_page() -> None:
                 bars_html += (
                     f"<div style='margin-bottom:6px;'>"
                     f"<div style='display:flex;justify-content:space-between;font-size:.78rem;margin-bottom:3px;'>"
-                    f"<span style='color:#cdd6e4;font-weight:600;'>{escape(str(aname))}{crown}</span>"
+                    f"<span style='color:{hth_name_color};font-weight:600;'>{escape(str(aname))}{crown}</span>"
                     f"<span style='color:{color};font-weight:800;font-variant-numeric:tabular-nums;'>{display_v}</span>"
                     f"</div>"
-                    f"<div style='height:10px;border-radius:999px;background:rgba(255,255,255,.07);overflow:hidden;'>"
+                    f"<div style='height:10px;border-radius:999px;background:{hth_track_bg};overflow:hidden;'>"
                     f"<div style='height:100%;width:{pct:.1f}%;border-radius:999px;"
                     f"background:linear-gradient(90deg,{color}cc,{color});transition:width 1s ease;'></div>"
                     f"</div></div>"
                 )
             hth_rows += (
-                f"<div style='background:rgba(17,26,46,.85);border:1px solid rgba(79,142,247,.18);"
+                f"<div style='background:{hth_card_bg};border:1px solid {hth_card_border};"
                 f"border-radius:12px;padding:0.75rem 0.9rem;'>"
                 f"<div style='font-size:.8rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;"
-                f"color:#8b95ad;margin-bottom:0.55rem;'>{label}</div>"
+                f"color:{hth_label_color};margin-bottom:0.55rem;'>{label}</div>"
                 f"{bars_html}</div>"
             )
 
         st.markdown(
             f"""
             <div style='margin:0.5rem 0 1.25rem;'>
-                <div style='font-size:1.05rem;font-weight:800;color:#fff;
+                <div style='font-size:1.05rem;font-weight:800;color:var(--text-heading);
                     letter-spacing:-.01em;margin-bottom:0.75rem;display:flex;
                     align-items:center;gap:0.5rem;'>
                     ⚡ Head-to-Head Breakdown
                     <span style='font-size:.72rem;font-weight:700;letter-spacing:.1em;
-                        text-transform:uppercase;color:#8b95ad;background:rgba(148,163,184,.1);
-                        border:1px solid rgba(148,163,184,.2);padding:3px 10px;border-radius:999px;'>
+                        text-transform:uppercase;color:var(--text2);background:var(--surface2);
+                        border:1px solid var(--border);padding:3px 10px;border-radius:999px;'>
                         All metrics
                     </span>
                 </div>
@@ -4376,6 +4523,9 @@ with st.sidebar:
         """,
         unsafe_allow_html=True,
     )
+    
+    # Theme toggle button
+    render_theme_toggle()
     
     # Proper sidebar routing for all dashboard views
     current_page = st.navigation(app_pages, position="sidebar", expanded=True)

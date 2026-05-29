@@ -82,6 +82,7 @@ def load_data():
 def render_label_analysis():
     """Render the Label Analysis dashboard with dynamic data."""
     df_spotify, df_itunes = load_data()
+    current_theme = st.session_state.get("theme", "dark")
     
     if df_spotify.empty and df_itunes.empty:
         st.info("ℹ️ No daily data found in spotify_daily and itunes_daily tables. Please run the scrapers to populate these tables.")
@@ -363,7 +364,7 @@ def render_label_analysis():
     # ── HTML TEMPLATE ─────────────────────────────────
     html_template = """
     <!DOCTYPE html>
-    <html lang="en">
+    <html lang="en" data-theme="__THEME__">
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -388,14 +389,31 @@ def render_label_analysis():
           --purple:#c4b5fd;--amber:#fcd34d;--teal:#5eead4;--pink:#f9a8d4;
           --sony:#fb7185;--umg:#c4b5fd;--wmg:#fcd34d;--indie:#34d399;--other:#60a5fa;
         }
+        [data-theme="light"]:root{
+          --bg:#f8fafc;
+          --bg2:#ffffff;
+          --bg3:#f1f5f9;
+          --bg4:#e2e8f0;
+          --border:rgba(148,163,184,.35);
+          --border2:rgba(148,163,184,.55);
+          --t1:#0f172a;
+          --t2:#334155;
+          --t3:#64748b;
+          --gd:rgba(34,197,94,.14);
+          --rd:rgba(239,68,68,.16);
+          --bd:rgba(59,130,246,.16);
+        }
         body{
-          background: linear-gradient(180deg,#0d1117 0%,#161b26 100%);
+          background: linear-gradient(180deg,var(--bg) 0%,var(--bg2) 100%);
           font-family:'Inter',system-ui,sans-serif;
           color:var(--t1);
           font-size:13px;
           overflow-x:hidden;
           padding-bottom:30px;
           animation: fadeIn 0.5s ease-out;
+        }
+        [data-theme="light"] body{
+          background: linear-gradient(180deg,#f8fafc 0%,#e2e8f0 100%);
         }
         @keyframes fadeIn {
             from { opacity: 0; transform: translateY(8px); }
@@ -431,6 +449,7 @@ def render_label_analysis():
           50%{opacity:.3; box-shadow: 0 0 0 6px rgba(34,211,160,.05), 0 0 16px rgba(34,211,160,.7);}
         }
         .title{font-size:24px;font-weight:900;letter-spacing:-.03em;color:#ffffff;line-height:1.15;}
+        [data-theme="light"] .title{color:var(--t1);}
         .sub{font-size:11px;color:var(--t2);font-weight:500;margin-top:5px;letter-spacing:.02em;}
         
         .controls{display:flex;gap:6px;align-items:center;flex-wrap:wrap;position:relative;z-index:2;}
@@ -462,6 +481,9 @@ def render_label_analysis():
           border-color:rgba(96,165,250,.55);
           box-shadow:0 10px 20px rgba(0,0,0,.22);
         }
+        [data-theme="light"] .fp{color:var(--t2);}
+        [data-theme="light"] .fp:hover{background:rgba(59,130,246,.12);color:var(--t1);}
+        [data-theme="light"] .fp.on{background:linear-gradient(135deg, rgba(59,130,246,.16), rgba(196,181,253,.18));border-color:rgba(59,130,246,.45);box-shadow:0 10px 20px rgba(0,0,0,.12);}
         
         .plat-bar{
           display:flex;
@@ -472,6 +494,7 @@ def render_label_analysis():
           position:relative;
           z-index:2;
         }
+        [data-theme="light"] .plat-bar{border-bottom:1px solid var(--border);}
         .pt{
           flex:1;
           min-width:0;
@@ -492,6 +515,12 @@ def render_label_analysis():
           transition:all .22s ease;
           box-shadow:inset 0 0 0 1px rgba(15,23,42,.45);
         }
+        [data-theme="light"] .pt{
+          border:1px solid rgba(148,163,184,.55);
+          background:linear-gradient(135deg, rgba(255,255,255,.98), rgba(241,245,249,.96));
+          color:var(--t1);
+          box-shadow:inset 0 0 0 1px rgba(226,232,240,.8);
+        }
         .pt-ic{
           width:16px;
           text-align:center;
@@ -510,6 +539,11 @@ def render_label_analysis():
           border-color:rgba(56,189,248,.88);
           background:linear-gradient(135deg, rgba(27,52,94,.95), rgba(35,43,102,.92));
           box-shadow:0 0 0 1px rgba(56,189,248,.28), inset 0 -2px 0 rgba(125,211,252,.7);
+        }
+        [data-theme="light"] .pt.on{
+          border-color:rgba(59,130,246,.55);
+          background:linear-gradient(135deg, rgba(226,232,240,.98), rgba(226,232,240,.94));
+          box-shadow:0 0 0 1px rgba(59,130,246,.25), inset 0 -2px 0 rgba(125,211,252,.35);
         }
 
         .kpi-bar{
@@ -547,6 +581,7 @@ def render_label_analysis():
         .kpi.k-purple .kpi-val{color:var(--purple);}
         .kpi.k-amber .kpi-val{color:var(--amber);}
         .kpi.k-pink .kpi-val{color:var(--pink);}
+        [data-theme="light"] .kpi-val{color:var(--t1);}
         
         .kpi-sub{font-size:12px;color:var(--t2);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 
@@ -564,6 +599,7 @@ def render_label_analysis():
           box-shadow:0 14px 30px rgba(0,0,0,.22);
           transition:all .25s ease;
         }
+        [data-theme="light"] .card{background:linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);box-shadow:0 12px 24px rgba(0,0,0,.08);}
         .card:hover{
           border-color:rgba(96,165,250,.4);
           box-shadow:0 22px 40px rgba(0,0,0,.32);
@@ -579,6 +615,7 @@ def render_label_analysis():
           padding-bottom:8px;
           border-bottom:1px solid var(--border);
         }
+        [data-theme="light"] .card-ttl{color:var(--t2);}
 
         .sh{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;padding:0 2px;}
         .sh-l{font-size:13px;font-weight:700;color:var(--t1);letter-spacing:-.01em;}
@@ -599,6 +636,7 @@ def render_label_analysis():
           overflow:hidden;
           box-shadow:0 12px 24px rgba(0,0,0,.18);
         }
+        [data-theme="light"] .lc{box-shadow:0 12px 24px rgba(0,0,0,.08);}
         .lc:hover{
           border-color:var(--accent-color) !important;
           background:linear-gradient(180deg, var(--bg2) 0%, var(--bg3) 100%);
@@ -610,12 +648,14 @@ def render_label_analysis():
           border-color:var(--accent-color) !important;
           box-shadow: 0 14px 32px rgba(0, 0, 0, 0.35);
         }
+        [data-theme="light"] .lc.on{background:linear-gradient(180deg, #f8fafc 0%, #eef2f6 100%);}
         .lc::before{
           content:'';position:absolute;top:0;left:0;right:0;height:3px;
           background:var(--accent-color);
         }
         .lc-name{font-size:11px;font-weight:800;color:var(--accent-color);letter-spacing:.5px;margin-bottom:4px;}
         .lc-streams{font-size:18px;font-weight:900;letter-spacing:-.02em;margin-bottom:3px;color:#ffffff;}
+        [data-theme="light"] .lc-streams{color:var(--t1);}
         .lc-sub{font-size:10px;color:var(--t2);margin-bottom:6px;}
         .lc-share{font-size:11.5px;font-weight:800;margin-top:6px;display:flex;align-items:center;gap:4px;}
 
@@ -625,6 +665,8 @@ def render_label_analysis():
         .trk{display:grid;gap:6px;padding:8px 10px;border-bottom:1px solid rgba(148,163,184,.04);align-items:center;cursor:pointer;transition:all 0.15s ease;border-radius:8px;}
         .trk:hover{background:rgba(96,165,250,.08);transform:scale(1.005);}
         .trk:last-child{border-bottom:none}
+        [data-theme="light"] .trk{border-bottom:1px solid rgba(148,163,184,.12);}
+        [data-theme="light"] .trk:hover{background:rgba(59,130,246,.08);}
         .rn{font-size:11px;color:var(--t3);text-align:center;font-weight:700;}
         .tn{font-size:12px;font-weight:600;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
         .ta{font-size:10px;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
@@ -651,6 +693,7 @@ def render_label_analysis():
         .mkt-label{font-size:11px;color:var(--t1);min-width:95px;font-weight:600;}
         .mkt-bar-bg{flex:1;height:6px;background:var(--bg4);border-radius:3px;overflow:hidden}
         .mkt-bar-fg{height:100%;border-radius:3px}
+        [data-theme="light"] .mkt-bar-bg{background:var(--bg3);}
         .mkt-pct{font-size:11.5px;font-weight:700;min-width:38px;text-align:right}
         .mkt-tracks{font-size:9.5px;color:var(--t3);min-width:54px;text-align:right;font-weight:600;}
 
@@ -777,6 +820,11 @@ def render_label_analysis():
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
     <script>
     // ── Real data ─────────────────────────────────────────
+    const THEME="__THEME__";
+    // Ensure iframe picks up theme attribute for CSS selectors
+    document.documentElement.setAttribute('data-theme', THEME);
+    document.body.setAttribute('data-theme', THEME);
+
     const LABEL_COLORS={
       'Sony Music':'#fb7185','Universal Music':'#c4b5fd',
       'Warner Music':'#fcd34d','Independent':'#34d399','Other/Indie':'#60a5fa'
@@ -800,7 +848,13 @@ def render_label_analysis():
     function fmtN(n,d=1){if(!n&&n!==0)return'—';const a=Math.abs(n);if(a>=1e9)return(n/1e9).toFixed(d)+'B';if(a>=1e6)return(n/1e6).toFixed(d)+'M';if(a>=1e3)return(n/1e3).toFixed(0)+'K';return Math.round(n).toLocaleString();}
     function gbadge(g){const cls=g>=0?'gb-up':'gb-dn';return`<span class="gb ${cls}">${g>=0?'+':''}${g}%</span>`;}
 
-    const CDARK={responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:'rgba(255, 255, 255, 0.04)'},ticks:{color:'#8b95ad',font:{size:9}}},y:{grid:{color:'rgba(255, 255, 255, 0.04)'},ticks:{color:'#8b95ad',font:{size:9}}}}};
+    // Theme-aware chart options (so light theme gridlines/ticks stay visible)
+    const GRID_COLOR = THEME==='light' ? 'rgba(100,116,139,0.25)' : 'rgba(255, 255, 255, 0.04)';
+    const TICK_COLOR = THEME==='light' ? '#334155' : '#8b95ad';
+    const RADAR_GRID_COLOR = THEME==='light' ? 'rgba(100,116,139,0.35)' : 'rgba(255, 255, 255, 0.08)';
+    const RADAR_TICK_COLOR = TICK_COLOR;
+
+    const CBASE={responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:GRID_COLOR},ticks:{color:TICK_COLOR,font:{size:9}}},y:{grid:{color:GRID_COLOR},ticks:{color:TICK_COLOR,font:{size:9}}}}};
 
     // ── Label selector cards ──────────────────────────────
     function buildLabelCards(){
@@ -870,15 +924,15 @@ def render_label_analysis():
     function buildSpTrend(){
       if(spTrendChart)spTrendChart.destroy();
       const ctx=document.getElementById('spTrendChart').getContext('2d');
-      spTrendChart=new Chart(ctx,{type:'line',data:{labels:DATES,datasets:LABELS_ORDER.map(lg=>({
+       spTrendChart=new Chart(ctx,{type:'line',data:{labels:DATES,datasets:LABELS_ORDER.map(lg=>({
         label:lg,data:DAILY[lg],borderColor:LABEL_COLORS[lg],
         backgroundColor:LABEL_COLORS[lg]+'18',
         borderWidth:1.5,tension:.4,fill:false,pointRadius:0,
         pointHoverRadius:4,spanGaps:true,
-      }))},options:{...CDARK,interaction:{mode:'index',intersect:false},
-        plugins:{legend:{display:true,position:'top',labels:{color:'#8b95ad',font:{size:9},boxWidth:10,padding:8}}},
-        scales:{x:{...CDARK.scales.x},y:{...CDARK.scales.y,ticks:{...CDARK.scales.y.ticks,callback:v=>fmtN(v,0).replace('+','')}}}}});
-    }
+       }))},options:{...CBASE,interaction:{mode:'index',intersect:false},
+        plugins:{legend:{display:true,position:'top',labels:{color:TICK_COLOR,font:{size:9},boxWidth:10,padding:8}}},
+        scales:{x:{...CBASE.scales.x},y:{...CBASE.scales.y,ticks:{...CBASE.scales.y.ticks,callback:v=>fmtN(v,0).replace('+','')}}}}});
+     }
 
     // ── Spotify bar chart ─────────────────────────────────
     function buildSpBar(){
@@ -890,25 +944,25 @@ def render_label_analysis():
         latestStreams[lg] = vals && vals.length > 0 ? vals[vals.length - 1] : 0;
       });
       
-      spBarChart=new Chart(ctx,{type:'bar',data:{labels:LABELS_ORDER,datasets:[{data:LABELS_ORDER.map(l=>latestStreams[l]),backgroundColor:LABELS_ORDER.map(l=>LABEL_COLORS[l]),borderRadius:4}]},options:{...CDARK,indexAxis:'y',plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>fmtN(c.raw)+' streams'}}},scales:{x:{...CDARK.scales.x,ticks:{...CDARK.scales.x.ticks,callback:v=>fmtN(v,0).replace('+','')}},y:{...CDARK.scales.y}}}});
-    }
+       spBarChart=new Chart(ctx,{type:'bar',data:{labels:LABELS_ORDER,datasets:[{data:LABELS_ORDER.map(l=>latestStreams[l]),backgroundColor:LABELS_ORDER.map(l=>LABEL_COLORS[l]),borderRadius:4}]},options:{...CBASE,indexAxis:'y',plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>fmtN(c.raw)+' streams'}}},scales:{x:{...CBASE.scales.x,ticks:{...CBASE.scales.x.ticks,callback:v=>fmtN(v,0).replace('+','')}},y:{...CBASE.scales.y}}}});
+     }
 
     // ── Track count chart ─────────────────────────────────
     function buildTrackCount(){
       if(trackCountChart)trackCountChart.destroy();
       const ctx=document.getElementById('trackCountChart').getContext('2d');
-      trackCountChart=new Chart(ctx,{type:'bar',data:{labels:LABELS_ORDER,datasets:[
-        {label:'Spotify',data:LABELS_ORDER.map(l=>SP_DATA[l]?.tracks||0),backgroundColor:LABELS_ORDER.map(l=>LABEL_COLORS[l]+'99'),borderRadius:3},
-        {label:'iTunes',data:LABELS_ORDER.map(l=>IT_DATA[l]?.tracks||0),backgroundColor:LABELS_ORDER.map(l=>LABEL_COLORS[l]+'44'),borderRadius:3},
-      ]},options:{...CDARK,plugins:{legend:{display:true,position:'top',labels:{color:'#8b95ad',font:{size:9},boxWidth:8,padding:6}}},scales:{x:{...CDARK.scales.x,ticks:{...CDARK.scales.x.ticks,maxRotation:0}},y:{...CDARK.scales.y}}}});
-    }
+       trackCountChart=new Chart(ctx,{type:'bar',data:{labels:LABELS_ORDER,datasets:[
+         {label:'Spotify',data:LABELS_ORDER.map(l=>SP_DATA[l]?.tracks||0),backgroundColor:LABELS_ORDER.map(l=>LABEL_COLORS[l]+'99'),borderRadius:3},
+         {label:'iTunes',data:LABELS_ORDER.map(l=>IT_DATA[l]?.tracks||0),backgroundColor:LABELS_ORDER.map(l=>LABEL_COLORS[l]+'44'),borderRadius:3},
+       ]},options:{...CBASE,plugins:{legend:{display:true,position:'top',labels:{color:TICK_COLOR,font:{size:9},boxWidth:8,padding:6}}},scales:{x:{...CBASE.scales.x,ticks:{...CBASE.scales.x.ticks,maxRotation:0}},y:{...CBASE.scales.y}}}});
+     }
 
     // ── iTunes trend chart ────────────────────────────────
     function buildItTrend(){
       if(itTrendChart)itTrendChart.destroy();
       const ctx=document.getElementById('itTrendChart').getContext('2d');
-      itTrendChart=new Chart(ctx,{type:'bar',data:{labels:LABELS_ORDER,datasets:[{data:LABELS_ORDER.map(l=>IT_DATA[l]?.score||0),backgroundColor:LABELS_ORDER.map(l=>LABEL_COLORS[l]),borderRadius:4}]},options:{...CDARK,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>'Score: '+c.raw.toLocaleString()}}},scales:{x:{...CDARK.scales.x},y:{...CDARK.scales.y,ticks:{...CDARK.scales.y.ticks,callback:v=>fmtN(v,0).replace('+','')}}}}});
-    }
+       itTrendChart=new Chart(ctx,{type:'bar',data:{labels:LABELS_ORDER,datasets:[{data:LABELS_ORDER.map(l=>IT_DATA[l]?.score||0),backgroundColor:LABELS_ORDER.map(l=>LABEL_COLORS[l]),borderRadius:4}]},options:{...CBASE,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>'Score: '+c.raw.toLocaleString()}}},scales:{x:{...CBASE.scales.x},y:{...CBASE.scales.y,ticks:{...CBASE.scales.y.ticks,callback:v=>fmtN(v,0).replace('+','')}}}}});
+     }
 
     // ── iTunes bubble chart ───────────────────────────────
     function buildItBubble(){
@@ -919,8 +973,8 @@ def render_label_analysis():
         const avg = d.tracks > 0 ? Math.round(d.score/d.tracks) : 0;
         return{x:d.tracks,y:avg,r:Math.max(6,Math.min(20,d.score/60000)),label:lg,color:LABEL_COLORS[lg]};
       });
-      itBubbleChart=new Chart(ctx,{type:'bubble',data:{datasets:pts.map(p=>({label:p.label,data:[{x:p.x,y:p.y,r:p.r}],backgroundColor:p.color+'80',borderColor:p.color}))},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${c.raw.y.toLocaleString()} avg score · ${c.raw.x} tracks`}}},scales:{x:{grid:{color:'rgba(255, 255, 255, 0.04)'},ticks:{color:'#8b95ad',font:{size:9}},title:{display:true,text:'Track count',color:'#8b95ad',font:{size:9}}},y:{grid:{color:'rgba(255, 255, 255, 0.04)'},ticks:{color:'#8b95ad',font:{size:9}},title:{display:true,text:'Avg score per track',color:'#8b95ad',font:{size:9}}}}}});
-    }
+       itBubbleChart=new Chart(ctx,{type:'bubble',data:{datasets:pts.map(p=>({label:p.label,data:[{x:p.x,y:p.y,r:p.r}],backgroundColor:p.color+'80',borderColor:p.color}))},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${c.raw.y.toLocaleString()} avg score · ${c.raw.x} tracks`}}},scales:{x:{grid:{color:GRID_COLOR},ticks:{color:TICK_COLOR,font:{size:9}},title:{display:true,text:'Track count',color:TICK_COLOR,font:{size:9}}},y:{grid:{color:GRID_COLOR},ticks:{color:TICK_COLOR,font:{size:9}},title:{display:true,text:'Avg score per track',color:TICK_COLOR,font:{size:9}}}}}});
+     }
 
     // ── Cross-platform radar ──────────────────────────────
     function buildCross(){
@@ -932,7 +986,7 @@ def render_label_analysis():
       const maxIt = Math.max(...LABELS_ORDER.map(lg => IT_DATA[lg].score)) || 1;
       const maxTk = Math.max(...LABELS_ORDER.map(lg => SP_DATA[lg].tracks)) || 1;
       
-      crossChart=new Chart(ctx,{
+       crossChart=new Chart(ctx,{
         type:'radar',
         data:{
           labels:dims,
@@ -960,7 +1014,7 @@ def render_label_analysis():
               display:true,
               position:'bottom',
               labels:{
-                color:'#8b95ad',
+                color:TICK_COLOR,
                 font:{size:9},
                 boxWidth:10
               }
@@ -968,10 +1022,10 @@ def render_label_analysis():
           },
           scales:{
             r:{
-              grid:{color:'rgba(255, 255, 255, 0.08)'},
+              grid:{color:RADAR_GRID_COLOR},
               ticks:{display:false},
               pointLabels:{
-                color:'#8b95ad',
+                color:RADAR_TICK_COLOR,
                 font:{size:9}
               },
               min:0,
@@ -979,7 +1033,7 @@ def render_label_analysis():
             }
           }
         }
-      });
+       });
 
     }
 
@@ -1171,6 +1225,7 @@ def render_label_analysis():
     
     # Perform standard placeholder replacement
     html_code = html_template \
+        .replace('__THEME__', current_theme) \
         .replace('__DATE_RANGE_LABEL__', date_range_label) \
         .replace('__LEN_UNIQUE_DATES__', str(len(unique_dates_sorted))) \
         .replace('__WKA_RANGE_LABEL__', wkA_range_label) \
