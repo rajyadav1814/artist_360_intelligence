@@ -1311,7 +1311,6 @@ def show_artist_details_dialog(row: pd.Series) -> None:
             st.markdown(f"<div class='meta-value' style='font-size:0.8rem;'>{row['scrape_date'].strftime('%b %d, %Y')}</div>", unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
-    st.markdown("<div style='text-align:center; padding:15px; color:var(--text2); font-size:0.75rem; opacity:0.6;'>💡 Compiled intelligence from live Kworb chart snapshots and historical profile data.</div>", unsafe_allow_html=True)
 
 
 def trend_badge_html(value: str | None) -> str:
