@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from html import escape
+from urllib.parse import quote
 
 import pandas as pd
 import plotly.express as px
@@ -949,6 +950,211 @@ def fmt_short(value: float | int | None) -> str:
     return f"{value:.0f}"
 
 
+@st.dialog("Artist Intelligence Profile", width="large")
+def show_artist_details_dialog(row: pd.Series) -> None:
+    """Displays a detailed popup for the selected artist."""
+    artist_name = row["name"]
+    real_img_url = get_artist_image_url(row["name"])
+    display_img = real_img_url if real_img_url else get_fallback_avatar_url(row["name"])
+    
+    # Scoped styles for the dialog to match dashboard card aesthetic
+    st.markdown("""
+        <style>
+        div[role="dialog"] {
+            background: linear-gradient(180deg, #0f172a 0%, #020617 100%) !important;
+            border: 1px solid rgba(79, 142, 247, 0.25) !important;
+            box-shadow: 0 25px 60px rgba(0, 0, 0, 0.6) !important;
+            width: 95vw !important;
+            max-width: 1600px !important;
+        }
+        .profile-rank-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            background: rgba(34, 211, 238, 0.15);
+            color: var(--accent);
+            border-radius: 8px;
+            font-weight: 800;
+            font-size: 0.85rem;
+            letter-spacing: 0.05em;
+            margin-bottom: 16px;
+            border: 1px solid rgba(34, 211, 238, 0.3);
+        }
+        .stDialog [data-testid="stVerticalBlock"] > div:has(button) {
+            margin-top: 20px;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
+    header_col1, header_col2 = st.columns([1, 3.5])
+    with header_col1:
+        st.markdown(f'<img src="{escape(display_img)}" style="width:100%; border-radius:16px; border:1px solid var(--border); box-shadow: 0 10px 30px rgba(0,0,0,0.4);">', unsafe_allow_html=True)
+    with header_col2:
+        st.markdown(f"<h1 style='margin:0; font-size:2.4rem; font-weight:900;'>{escape(row['name'])}</h1>", unsafe_allow_html=True)
+        st.markdown(f"<div class='profile-rank-badge'>🏆 LEADERBOARD RANK #{int(row['rank'])}</div>", unsafe_allow_html=True)
+        
+        # High level metrics grid using custom KPI card style
+        ma, mb, mc, md = st.columns(4)
+        metrics_head = [
+            ("Listeners", fmt_short(row.get("monthly_listeners")), "kpi-green"),
+            ("Points", fmt_short(row.get("total_points")), ""),
+            ("Markets", f"{int(row.get('num_countries', 0))}", "kpi-amber"),
+            ("Weeks", str(int(row.get('weeks_on_chart', 0))), "kpi-purple")
+        ]
+        cols_head = [ma, mb, mc, md]
+        for col, (lbl, val, cls) in zip(cols_head, metrics_head):
+            col.markdown(f"""
+                <div class='kpi-card {cls}' style='min-height:auto; padding:15px;'>
+                    <div class='kpi-label' style='font-size:0.65rem;'>{lbl}</div>
+                    <div class='kpi-value' style='font-size:1.4rem;'>{val}</div>
+                </div>
+            """, unsafe_allow_html=True)
+
+
+    st.divider()
+
+    # Detailed analysis tabs
+    tab1, tab2, tab3, tab4 = st.tabs([
+        "📈 Performance", 
+        "🎵 Catalog", 
+        "🗺️ Geography",
+        "📊 Platform Mix"
+    ])
+    
+    with tab1:
+        c1, c2 = st.columns(2)
+        with c1:
+            st.markdown("<div style='margin-bottom:15px; font-weight:700; color:var(--text2); text-transform:uppercase; font-size:0.8rem; letter-spacing:0.05em;'>Audience Scale</div>", unsafe_allow_html=True)
+            sc1, sc2 = st.columns(2)
+            sc1.markdown(f"""
+                <div class='kpi-card kpi-green' style='min-height:auto; padding:12px;'>
+                    <div class='kpi-label' style='font-size:0.6rem;'>Current</div>
+                    <div class='kpi-value' style='font-size:1.2rem;'>{fmt_short(row.get("monthly_listeners"))}</div>
+                </div>
+            """, unsafe_allow_html=True)
+            sc2.markdown(f"""
+                <div class='kpi-card' style='min-height:auto; padding:12px;'>
+                    <div class='kpi-label' style='font-size:0.6rem;'>Peak</div>
+                    <div class='kpi-value' style='font-size:1.2rem;'>{fmt_short(row.get("peak_listeners"))}</div>
+                </div>
+            """, unsafe_allow_html=True)
+            st.markdown(f"<div style='margin-top:15px; color:var(--text2); font-size:0.9rem;'>• Total Scraped Points: <b style='color:var(--text)'>{int(row.get('times_on_chart', 0))}</b></div>", unsafe_allow_html=True)
+            st.markdown(f"<div style='color:var(--text2); font-size:0.9rem;'>• Max Countries Peak: <b style='color:var(--text)'>{int(row.get('max_countries', 0))}</b></div>", unsafe_allow_html=True)
+            
+        with c2:
+            st.markdown("<div style='margin-bottom:15px; font-weight:700; color:var(--text2); text-transform:uppercase; font-size:0.8rem; letter-spacing:0.05em;'>Historical Performance</div>", unsafe_allow_html=True)
+            st.markdown(f"<div style='color:var(--text2); font-size:0.95rem; margin-bottom:8px;'>• Best Rank Ever: <span style='color:var(--accent); font-weight:800;'>#{int(row.get('best_rank', 0))}</span></div>", unsafe_allow_html=True)
+            st.markdown(f"<div style='color:var(--text2); font-size:0.95rem; margin-bottom:8px;'>• Days at #1: <b style='color:var(--text)'>{int(row.get('times_at_top', 0))}</b></div>", unsafe_allow_html=True)
+            if pd.notna(row.get('last_day_at_top')):
+                st.markdown(f"<div style='color:var(--text2); font-size:0.95rem;'>• Last at #1: <b style='color:var(--text)'>{row['last_day_at_top'].strftime('%b %d, %Y')}</b></div>", unsafe_allow_html=True)
+
+        # Add Rank Trend Chart if history is available
+        if 'history' in globals() or 'history' in locals():
+            artist_history = history[history["name"] == artist_name].copy()
+            if not artist_history.empty:
+                st.markdown("<div style='margin:20px 0 10px; font-weight:700; color:var(--text2); text-transform:uppercase; font-size:0.8rem; letter-spacing:0.05em;'>Rank Movement Trend</div>", unsafe_allow_html=True)
+                # Sort for proper line plotting
+                artist_history = artist_history.sort_values("scraped_at")
+                
+                fig_trend = go.Figure()
+                fig_trend.add_trace(go.Scatter(
+                    x=artist_history["scraped_at"],
+                    y=artist_history["rank"],
+                    mode='lines+markers',
+                    line=dict(color='#60a5fa', width=3),
+                    marker=dict(size=6, color='#ffffff', line=dict(width=2, color='#60a5fa')),
+                    hovertemplate="Date: %{x|%b %d}<br>Rank: #%{y}<extra></extra>"
+                ))
+                
+                # Invert y-axis because lower rank is better
+                fig_trend.update_yaxes(autorange="reversed", gridcolor="rgba(255,255,255,0.05)")
+                fig_trend.update_xaxes(showgrid=False, tickfont=dict(color="#8b95ad"))
+                
+                fig_trend.update_layout(
+                    height=260,
+                    margin=dict(l=0, r=0, t=10, b=0),
+                    paper_bgcolor="rgba(0,0,0,0)",
+                    plot_bgcolor="rgba(0,0,0,0)",
+                    font=dict(color="#8b95ad"),
+                    hovermode="x unified"
+                )
+                st.plotly_chart(fig_trend, use_container_width=True, config={'displayModeBar': False})
+
+    with tab2:
+        st.markdown(f"<div style='margin-bottom:20px; font-size:1.1rem; font-weight:700;'>Catalog Intelligence: {escape(artist_name)}</div>", unsafe_allow_html=True)
+        cat_cols = st.columns(3)
+        cat_metrics = [
+            ("Songs Tracked", int(row.get("songs_count", 0)), "kpi-green"),
+            ("Albums Tracked", int(row.get("albums_count", 0)), "kpi-purple"),
+            ("Charting Markets", int(row.get("num_countries", 0)), "kpi-amber")
+        ]
+        for col, (lbl, val, cls) in zip(cat_cols, cat_metrics):
+            col.markdown(f"""
+                <div class='kpi-card {cls}' style='min-height:auto; padding:15px;'>
+                    <div class='kpi-label' style='font-size:0.65rem;'>{lbl}</div>
+                    <div class='kpi-value' style='font-size:1.4rem;'>{val}</div>
+                </div>
+            """, unsafe_allow_html=True)
+        
+        st.divider()
+        
+        c1, c2 = st.columns([1, 1])
+        with c1:
+            st.markdown(f"##### 🏆 Top Songs ({int(row.get('songs_count', 0))})")
+            songs = str(row.get("top_songs") or "").split("\n")
+            for s in songs[:10]:
+                if s.strip(): st.markdown(f"- {escape(s.strip())}")
+        with c2:
+            st.markdown(f"##### 💿 Top Albums ({int(row.get('albums_count', 0))})")
+            albums = str(row.get("top_albums") or "").split("\n")
+            for a in albums[:10]:
+                if a.strip(): st.markdown(f"- {escape(a.strip())}")
+                
+    with tab3:
+        st.markdown(f"<div style='margin-bottom:20px; font-size:1.1rem; font-weight:700;'>🌎 Global Footprint <span style='color:var(--text2); font-weight:400; font-size:0.9rem;'>({int(row.get('num_countries', 0))} total / {int(row.get('countries_count', 0))} LATAM)</span></div>", unsafe_allow_html=True)
+        countries = str(row.get("top_countries") or "").split("\n")
+        if countries and countries[0]:
+            cols = st.columns(3)
+            for i, country in enumerate(countries[:24]):
+                if country.strip():
+                    cols[i % 3].markdown(f"<div style='padding:8px; background:rgba(255,255,255,0.03); border-radius:8px; margin-bottom:8px; border:1px solid var(--border); font-size:0.85rem;'>• {escape(country.strip())}</div>", unsafe_allow_html=True)
+        else:
+            st.info("No granular market data available for this artist yet.")
+
+    with tab4:
+        st.markdown("<div style='margin-bottom:20px; font-size:1.1rem; font-weight:700;'>📊 Platform Distribution (Points)</div>", unsafe_allow_html=True)
+        point_data = {
+            "iTunes": row.get("itunes_points", 0),
+            "Spotify": row.get("spotify_points", 0),
+            "Apple Music": row.get("apple_music_points", 0),
+            "Shazam": row.get("shazam_points", 0),
+            "YouTube": row.get("youtube_points", 0),
+            "Other": row.get("other_points", 0),
+        }
+        # Filter zero points and ensure numeric
+        point_data = {k: float(v) for k, v in point_data.items() if v and not pd.isna(v) and v > 0}
+        if point_data:
+            fig = px.pie(
+                names=list(point_data.keys()),
+                values=list(point_data.values()),
+                hole=0.4,
+                color_discrete_sequence=px.colors.qualitative.Pastel
+            )
+            fig.update_layout(
+                showlegend=True, 
+                height=350, 
+                margin=dict(l=0, r=0, t=10, b=0), 
+                paper_bgcolor="rgba(0,0,0,0)",
+                legend=dict(font=dict(color="#ffffff"))
+            )
+            st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+        else:
+            st.info("Detailed platform point distribution not available.")
+
+    if st.button("Close Profile", use_container_width=True, type="primary"):
+        st.query_params.clear()
+        st.rerun()
+
+
 def trend_badge_html(value: str | None) -> str:
     token = str(value or "=").strip().upper()
     if token == "NEW":
@@ -1330,7 +1536,8 @@ def render_leaderboard_table_html(leaderboard: pd.DataFrame, max_rows: int) -> N
         rank = int(row["rank"]) if pd.notna(row["rank"]) else "—"
         rank_change = trend_badge_html(str(row.get("rank_change") or ""))
         artist_name = str(row.get("name") or "—")
-        artist_html = escape(artist_name)
+        artist_url_name = quote(artist_name)
+        artist_html = f"<a href='?artist_name={artist_url_name}' target='_self' class='artist-link' title='Click for full profile'>{escape(artist_name)}</a>"
         top_song = str(row.get("top_song") or "—").strip()
         top_song_label = escape(top_song if len(top_song) <= 40 else top_song[:38] + "…")
         top_song_html = f"<span title=\"{escape(top_song)}\">{top_song_label}</span>"
@@ -3401,6 +3608,13 @@ if not runs.empty and runs["finished_at"].notna().any():
 
 
 def show_leaderboard_page() -> None:
+    # Handle row selection via query parameters (triggered by table row clicks)
+    if "artist_name" in st.query_params:
+        target_name = st.query_params["artist_name"]
+        artist_match = leaderboard[leaderboard["name"] == target_name]
+        if not artist_match.empty:
+            show_artist_details_dialog(artist_match.iloc[0])
+
     # Use filtered to reflect both country and artist filters in leaderboard and charts
     render_leaderboard(filtered, runs, max_rows=max_rows)
 
