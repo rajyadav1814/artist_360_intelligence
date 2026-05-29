@@ -1096,6 +1096,10 @@ def load_dashboard_data() -> dict[str, pd.DataFrame]:
         lambda value: value.split("\n")[0].strip() if str(value).strip() else "—"
     )
 
+    leaderboard["top_album"] = leaderboard["top_albums"].fillna("").apply(
+        lambda value: value.split("\n")[0].strip() if str(value).strip() else "—"
+    )
+
     def filter_latam_countries(countries_blob: str) -> list[str]:
         return [
             item.strip()
@@ -1330,6 +1334,9 @@ def render_leaderboard_table_html(leaderboard: pd.DataFrame, max_rows: int) -> N
         top_song = str(row.get("top_song") or "—").strip()
         top_song_label = escape(top_song if len(top_song) <= 40 else top_song[:38] + "…")
         top_song_html = f"<span title=\"{escape(top_song)}\">{top_song_label}</span>"
+        top_album = str(row.get("top_album") or "—").strip()
+        top_album_label = escape(top_album if len(top_album) <= 40 else top_album[:38] + "…")
+        top_album_html = f"<span title=\"{escape(top_album)}\">{top_album_label}</span>"    
         country = str(row.get("top_country") or "—").strip()
         country_html = f"<span class='country-pill'>{escape(country)}</span>" if country and country != "—" else "—"
         monthly = fmt_short(row.get("monthly_listeners"))
@@ -1339,12 +1346,14 @@ def render_leaderboard_table_html(leaderboard: pd.DataFrame, max_rows: int) -> N
         rows_html.append(
             f"<tr>"
             f"<td class='pos-cell'>{rank}</td>"
-            f"<td class='artist-cell'>{artist_html}<div class='small-note'>{rank_change}</div></td>"
+            f"<td class='artist-cell'>{artist_html}</td>"
             f"<td>{top_song_html}</td>"
+            f"<td>{top_album_html}</td>"
             f"<td>{country_html}</td>"
             f"<td class='num-cell'>{monthly}</td>"
             f"<td class='num-cell'>{peak}</td>"
             f"<td class='num-cell'>{points}</td>"
+            f"<td>{rank_change}</td>"
             f"</tr>"
         )
 
@@ -1359,10 +1368,12 @@ def render_leaderboard_table_html(leaderboard: pd.DataFrame, max_rows: int) -> N
                         <th>Rank</th>
                         <th>Artist</th>
                         <th>Top song</th>
+                        <th>Top Album</th>
                         <th>Top market</th>
                         <th>Monthly listeners</th>
                         <th>Peak listeners</th>
                         <th>Total Streams</th>
+                        <th>Trend</th>
                     </tr>
                 </thead>
                 <tbody>
