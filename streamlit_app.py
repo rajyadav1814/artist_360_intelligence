@@ -392,7 +392,7 @@ def apply_theme() -> None:
         }
         .pos-cell { color:#dbe4ff; font-weight:800; width:46px; }
         .artist-cell { font-weight:700; }
-        .num-cell { text-align:right; font-variant-numeric:tabular-nums; }
+        .num-cell { text-align:left; font-variant-numeric:tabular-nums; }
         .country-pill {
             display:inline-block; padding:4px 10px; border-radius:999px; background:rgba(34,211,160,.12);
             color:#8ff0cf; font-size:.75rem; font-weight:700;
@@ -530,7 +530,7 @@ def apply_theme() -> None:
         .pos-cell { color:#dbe4ff; font-weight:800; width:44px; }
         .artist-cell { font-weight:700; }
         .muted { color:var(--text2); }
-        .num-cell { text-align:right; font-variant-numeric:tabular-nums; }
+        .num-cell { text-align:left; font-variant-numeric:tabular-nums; }
         .country-pill {
             display:inline-block; padding:2px 8px; border-radius:999px; background:rgba(34,211,160,.12);
             color:#8ff0cf; font-size:.75rem; font-weight:700;
