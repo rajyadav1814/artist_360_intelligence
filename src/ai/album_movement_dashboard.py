@@ -183,10 +183,8 @@ def _top20_today(df: pd.DataFrame, latest: date) -> list[dict[str, Any]]:
 # ─────────────────────────── render ───────────────────────────────
 
 def render_album_movement() -> None:
-    current_theme = st.session_state.get("theme", "dark")
-    sub_color = "#97a3c5" if current_theme == "dark" else "#64748b"
     st.markdown(
-        f"<div style='font-size:0.85rem;color:{sub_color};margin:-0.5rem 0 0.75rem 0'>"
+        "<div style='font-size:0.85rem;color:#97a3c5;margin:-0.5rem 0 0.75rem 0'>"
         "Rank + metric momentum across iTunes and iTunes daily charts."
         "</div>",
         unsafe_allow_html=True,
@@ -260,98 +258,45 @@ def render_album_movement() -> None:
         },
     }
 
-    html = _build_html(payload, theme=current_theme)
+    html = _build_html(payload)
     st_components.html(html, height=1700, scrolling=True)
 
 
 # ─────────────────────────── HTML template ───────────────────────────
 
-def _build_html(payload: dict, theme: str = "dark") -> str:
+def _build_html(payload: dict) -> str:
     data_json = json.dumps(payload, default=str)
-    is_dark = theme == "dark"
-    
-    if is_dark:
-        bg = "#0d1117"
-        bg2 = "#161b26"
-        bg3 = "#1f2633"
-        bg4 = "#283041"
-        border = "#2a3446"
-        border2 = "#3a4661"
-        t1 = "#ffffff"
-        t2 = "#cdd6e4"
-        t3 = "#8b95ad"
-        t4 = "#5b657d"
-        green = "#34d399"
-        gd = "rgba(52,211,153,.18)"
-        red = "#fb7185"
-        rd = "rgba(251,113,133,.18)"
-        blue = "#60a5fa"
-        bd = "rgba(96,165,250,.18)"
-        purple = "#c4b5fd"
-        pd = "rgba(196,181,253,.18)"
-        amber = "#fcd34d"
-        teal = "#5eead4"
-        pink = "#f9a8d4"
-        hdr_bg = "linear-gradient(180deg,#1a2235 0%,var(--bg2) 100%)"
-        spot_bg = "linear-gradient(135deg,#1a2235 0%,var(--bg2) 100%)"
-        spot_shadow = "0 4px 20px rgba(0,0,0,.3)"
-    else:
-        bg = "#f8fafc"
-        bg2 = "#ffffff"
-        bg3 = "#f1f5f9"
-        bg4 = "#e2e8f0"
-        border = "#d1d5db"
-        border2 = "#e2e8f0"
-        t1 = "#1e293b"
-        t2 = "#475569"
-        t3 = "#64748b"
-        t4 = "#94a3b8"
-        green = "#16a34a"
-        gd = "rgba(22,163,74,.12)"
-        red = "#dc2626"
-        rd = "rgba(220,38,38,.12)"
-        blue = "#2563eb"
-        bd = "rgba(37,99,235,.12)"
-        purple = "#7c3aed"
-        pd = "rgba(124,58,237,.12)"
-        amber = "#d97706"
-        teal = "#0d9488"
-        pink = "#db2777"
-        hdr_bg = "linear-gradient(180deg,#f0f4f8 0%,var(--bg2) 100%)"
-        spot_bg = "linear-gradient(135deg,#f0f4f8 0%,var(--bg2) 100%)"
-        spot_shadow = "0 2px 10px rgba(0,0,0,.08)"
-
     return f"""
 <!DOCTYPE html><html><head><meta charset='utf-8'>
 <style>
 *{{box-sizing:border-box;margin:0;padding:0}}
 :root{{
-  --bg:{bg};--bg2:{bg2};--bg3:{bg3};--bg4:{bg4};
-  --border:{border};--border2:{border2};
-  --t1:{t1};--t2:{t2};--t3:{t3};--t4:{t4};
-  --green:{green};--gd:{gd};
-  --red:{red};--rd:{rd};
-  --blue:{blue};--bd:{bd};
-  --purple:{purple};--pd:{pd};
-  --amber:{amber};--teal:{teal};--pink:{pink};
+  --bg:#0d1117;--bg2:#161b26;--bg3:#1f2633;--bg4:#283041;
+  --border:#2a3446;--border2:#3a4661;
+  --t1:#ffffff;--t2:#cdd6e4;--t3:#8b95ad;--t4:#5b657d;
+  --green:#34d399;--gd:rgba(52,211,153,.18);
+  --red:#fb7185;--rd:rgba(251,113,133,.18);
+  --blue:#60a5fa;--bd:rgba(96,165,250,.18);
+  --purple:#c4b5fd;--pd:rgba(196,181,253,.18);
+  --amber:#fcd34d;--teal:#5eead4;--pink:#f9a8d4;
 }}
 body{{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t1);font-size:15px;line-height:1.55}}
-.hdr{{background:{hdr_bg};border-bottom:1px solid var(--border);padding:20px 24px 16px}}
+.hdr{{background:linear-gradient(180deg,#1a2235 0%,var(--bg2) 100%);border-bottom:1px solid var(--border);padding:20px 24px 16px}}
 .hdr-top{{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap;gap:10px}}
 .live{{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);animation:blink 2s infinite}}
 @keyframes blink{{0%,100%{{opacity:1}}50%{{opacity:.4}}}}
-.dash-title{{font-size:26px;font-weight:700;letter-spacing:-.5px;color:{t1}}}
+.dash-title{{font-size:26px;font-weight:700;letter-spacing:-.5px;color:#fff}}
 .dash-sub{{font-size:12px;color:var(--t2);letter-spacing:.3px;margin-top:4px;font-weight:500}}
 .kpi-bar{{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--border);border-bottom:1px solid var(--border)}}
 .kpi{{background:var(--bg2);padding:16px 18px;transition:.15s}}
 .kpi:hover{{background:var(--bg3)}}
 .kpi-lbl{{font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px;font-weight:600}}
-.kpi-val{{font-size:24px;font-weight:700;letter-spacing:-.5px;line-height:1.15;color:{t1}}}
+.kpi-val{{font-size:24px;font-weight:700;letter-spacing:-.5px;line-height:1.15;color:#fff}}
 .kpi-sub{{font-size:11px;color:var(--t2);margin-top:5px;font-weight:500}}
 .kpi-val.g{{color:var(--green)}}.kpi-val.r{{color:var(--red)}}.kpi-val.p{{color:var(--purple)}}.kpi-val.a{{color:var(--amber)}}.kpi-val.b{{color:var(--blue)}}
 .body{{padding:20px 22px;display:flex;flex-direction:column;gap:20px}}
 .sh{{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}}
-.sh-l{{font-size:16px;font-weight:600;color:{t1};letter-spacing:-.2px}}
+.sh-l{{font-size:16px;font-weight:600;color:#fff;letter-spacing:-.2px}}
 .sh-r{{font-size:11px;color:var(--t2);background:var(--bg3);padding:5px 12px;border-radius:5px;border:1px solid var(--border2);font-weight:500}}
 .r2{{display:grid;grid-template-columns:1fr 1fr;gap:16px}}
 .card{{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:18px 20px}}
@@ -362,7 +307,7 @@ body{{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--
 .trk:hover{{background:var(--bg3);margin:0 -8px;padding:11px 8px;border-radius:6px}}
 .trk:last-child{{border-bottom:none}}
 .rn{{font-size:13px;color:var(--t3);text-align:center;min-width:20px;font-weight:600}}
-.tn{{font-size:14px;font-weight:600;color:{t1};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:-.1px}}
+.tn{{font-size:14px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:-.1px}}
 .ta{{font-size:11px;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:3px;font-weight:500}}
 .tv{{font-size:13px;color:var(--t1);text-align:right;white-space:nowrap;font-weight:600;font-variant-numeric:tabular-nums}}
 .dual-bar{{display:flex;gap:4px;margin-top:6px;height:5px}}
@@ -373,15 +318,15 @@ body{{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--
 .bn{{display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;padding:4px 9px;border-radius:5px;background:var(--bg3);color:var(--t2);min-width:42px;border:1px solid var(--border2)}}
 .bh{{display:inline-flex;font-size:11px;font-weight:700;padding:5px 10px;border-radius:5px;background:rgba(252,211,77,.15);color:var(--amber);border:1px solid rgba(252,211,77,.4);letter-spacing:.4px}}
 .bp{{display:inline-flex;font-size:11px;font-weight:700;padding:5px 10px;border-radius:5px;background:var(--pd);color:var(--purple);border:1px solid rgba(196,181,253,.4);letter-spacing:.4px}}
-.spot{{background:{spot_bg};border:1px solid var(--border2);border-radius:12px;padding:20px 22px;position:relative;overflow:hidden;box-shadow:{spot_shadow}}}
+.spot{{background:linear-gradient(135deg,#1a2235 0%,var(--bg2) 100%);border:1px solid var(--border2);border-radius:12px;padding:20px 22px;position:relative;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.3)}}
 .spot::before{{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--green),var(--teal))}}
 .sp-tag{{font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px;font-weight:600}}
-.sp-name{{font-size:22px;font-weight:700;letter-spacing:-.5px;line-height:1.2;margin-bottom:6px;color:{t1}}}
+.sp-name{{font-size:22px;font-weight:700;letter-spacing:-.5px;line-height:1.2;margin-bottom:6px;color:#fff}}
 .sp-meta{{font-size:12px;color:var(--t2);margin-bottom:16px;font-weight:500}}
 .sp-grid{{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}}
 .sp-s{{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px 14px}}
 .sp-s-l{{font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px;font-weight:600}}
-.sp-s-v{{font-size:20px;font-weight:700;color:{t1};letter-spacing:-.4px;font-variant-numeric:tabular-nums}}
+.sp-s-v{{font-size:20px;font-weight:700;color:#fff;letter-spacing:-.4px;font-variant-numeric:tabular-nums}}
 .cw{{position:relative;width:100%}}
 .hide{{display:none !important}}
 .section-label{{font-size:13px;font-weight:700;letter-spacing:.5px;margin-bottom:14px;display:flex;align-items:center;gap:8px;text-transform:uppercase}}
@@ -451,7 +396,7 @@ const DATES = PAYLOAD.dates;
 function renderTable(elId, data){{
   const el = document.getElementById(elId);
   if (!el) return;
-  if (!data || !data.length) {{ el.innerHTML = "<div style='color:{t3};font-size:10px;padding:14px 0'>No data in selected window.</div>"; return; }}
+  if (!data || !data.length) {{ el.innerHTML = "<div style='color:#444;font-size:10px;padding:14px 0'>No data in selected window.</div>"; return; }}
   el.innerHTML = '';
   const maxRg = Math.max(...data.map(d=>Math.abs(d.rg)),1);
   const maxSg = Math.max(...data.map(d=>Math.abs(d.sg)),1);
