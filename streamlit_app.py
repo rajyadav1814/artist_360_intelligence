@@ -1152,10 +1152,6 @@ def show_artist_details_dialog(row: pd.Series) -> None:
         else:
             st.info("Detailed platform point distribution not available.")
 
-    if st.button("Close Profile", use_container_width=True, type="primary"):
-        st.session_state.active_artist_profile = None
-        st.rerun()
-
 
 def trend_badge_html(value: str | None) -> str:
     token = str(value or "=").strip().upper()
@@ -3603,14 +3599,6 @@ leaderboard = data["leaderboard"]
 runs = data["runs"]
 history = data["history"]
 top_history = data.get("top_history", pd.DataFrame())
-
-# Handle artist selection from URL. We save the name to session state, clear the 
-# parameters, and rerun to ensure the browser URL remains clean.
-if "artist_name" in st.query_params:
-    st.session_state.active_artist_profile = st.query_params["artist_name"]
-    st.query_params.clear()
-    st.rerun()
-
 def clear_active_profile():
     """Callback to reset the active popup state when global filters change."""
     st.session_state.active_artist_profile = None
@@ -3621,11 +3609,18 @@ if not runs.empty and runs["finished_at"].notna().any():
 
 
 def show_leaderboard_page() -> None:
-    if st.session_state.active_artist_profile:
-        target_name = st.session_state.active_artist_profile
+    # Check if an artist profile was requested via URL query parameters
+    # This allows the dialog to open on the very first run after a click.
+    target_name = st.query_params.get("artist_name") or st.session_state.active_artist_profile
+    
+    if target_name:
         artist_match = leaderboard[leaderboard["name"] == target_name]
         if not artist_match.empty:
             show_artist_details_dialog(artist_match.iloc[0])
+            # Clear the trigger state so the dialog doesn't re-open on next interaction
+            st.session_state.active_artist_profile = None
+            if "artist_name" in st.query_params:
+                st.query_params.clear()
 
     # Use filtered to reflect both country and artist filters in leaderboard and charts
     render_leaderboard(filtered, runs, max_rows=max_rows)
