@@ -17,7 +17,16 @@ import threading
 from streamlit.runtime.scriptrunner import add_script_run_ctx
 from src.ai.track_movement_dashboard import render_track_movement
 from src.ai.album_movement_dashboard import render_album_movement
-from src.ai.acquisition_dashboard import render_acquisition
+from src.ai.acquisition_dashboard import (
+    render_acquisition,
+    _load_daily,
+    _load_artist_universe,
+    _load_spotify_artist_series,
+    _load_itunes_artist_series,
+    _build_artist_payloads,
+    _fmt_n as acq_fmt_n,
+    WINDOW_DAYS,
+)
 from src.ai.track_acquisition_dashboard import render_track_acquisition
 from src.ai.album_acquisition_dashboard import render_album_acquisition
 from src.database.connection import get_connection
@@ -954,12 +963,31 @@ def fmt_short(value: float | int | None) -> str:
 
 @st.dialog("Artist Intelligence Profile", width="large")
 def show_artist_details_dialog(row: pd.Series) -> None:
-    """Displays a detailed popup for the selected artist."""
+    """Displays a detailed popup for the selected artist with Spotlight + Acquisition data."""
     artist_name = row["name"]
     real_img_url = get_artist_image_url(row["name"])
     display_img = real_img_url if real_img_url else get_fallback_avatar_url(row["name"])
-    
-    # Scoped styles for the dialog to match dashboard card aesthetic
+
+    # Pre-compute all values
+    rank_val = int(row.get("rank")) if pd.notna(row.get("rank")) else 0
+    songs_val = int(row.get("songs_count")) if pd.notna(row.get("songs_count")) else 0
+    albums_val = int(row.get("albums_count")) if pd.notna(row.get("albums_count")) else 0
+    countries_val = int(row.get("countries_count")) if pd.notna(row.get("countries_count")) else 0
+    monthly_val = fmt_short(row.get("monthly_listeners")) if pd.notna(row.get("monthly_listeners")) else "—"
+    peak_val = fmt_short(row.get("peak_listeners")) if pd.notna(row.get("peak_listeners")) else "—"
+    points_val = fmt_short(row.get("total_points")) if pd.notna(row.get("total_points")) else "—"
+    trend_change = str(row.get("rank_change") or "=").strip()
+    display_country = escape(str(row.get("display_country") or row.get("top_country") or "Global"))
+
+    songs_items = [item.strip() for item in str(row.get("top_songs") or "").split("\n") if item.strip()]
+    albums_items = [item.strip() for item in str(row.get("top_albums") or "").split("\n") if item.strip()]
+    countries_items = [item.strip() for item in str(row.get("top_countries") or "").split("\n") if item.strip()]
+
+    songs_html = "".join(f"<li>{escape(item)}</li>" for item in songs_items) if songs_items else "<div style='color:#8b95ad;font-size:.88rem;'>No songs available.</div>"
+    albums_html = "".join(f"<li>{escape(item)}</li>" for item in albums_items) if albums_items else "<div style='color:#8b95ad;font-size:.88rem;'>No albums available.</div>"
+    countries_html = "".join(f"<li>{escape(item)}</li>" for item in countries_items) if countries_items else "<div style='color:#8b95ad;font-size:.88rem;'>No countries available.</div>"
+
+    # Scoped styles for the dialog
     st.markdown("""
         <style>
         div[role="dialog"] {
@@ -969,349 +997,349 @@ def show_artist_details_dialog(row: pd.Series) -> None:
             width: 95vw !important;
             max-width: 1600px !important;
         }
-        .profile-rank-badge {
-            display: inline-block;
-            padding: 4px 12px;
-            background: rgba(34, 211, 238, 0.15);
-            color: var(--accent);
-            border-radius: 8px;
-            font-weight: 800;
-            font-size: 0.85rem;
-            letter-spacing: 0.05em;
-            margin-bottom: 16px;
-            border: 1px solid rgba(34, 211, 238, 0.3);
+        .dlg-section { margin-bottom: 20px; }
+        .dlg-section-title {
+            font-size: 1.05rem; font-weight: 800; color: #ffffff;
+            letter-spacing: -.01em; margin-bottom: 14px; padding-bottom: 10px;
+            border-bottom: 1px solid rgba(148,163,184,.15);
+            display: flex; align-items: center; gap: 10px;
         }
-        .stDialog [data-testid="stVerticalBlock"] > div:has(button) {
-            margin-top: 20px;
+        .dlg-section-badge {
+            font-size: .68rem; font-weight: 700; letter-spacing: .1em;
+            text-transform: uppercase; color: #8b95ad;
+            background: rgba(148,163,184,.1); border: 1px solid rgba(148,163,184,.2);
+            padding: 3px 10px; border-radius: 999px;
         }
-        .dialog-card {
-            background: rgba(17, 25, 40, 0.75);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 14px;
-            padding: 20px;
-            height: 100%;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+        .dlg-kpi-grid {
+            display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 10px; margin: 12px 0 16px;
         }
-        .dialog-section-header {
-            font-size: 1.1rem;
-            font-weight: 800;
-            color: #fff;
-            margin-bottom: 18px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-            padding-bottom: 10px;
+        .dlg-kpi {
+            background: linear-gradient(180deg, #161b26 0%, #11182c 100%);
+            border: 1px solid rgba(148,163,184,.15); border-radius: 12px;
+            padding: 14px; box-shadow: 0 8px 20px rgba(0,0,0,.15);
         }
-        .spotlight-summary-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: .85rem;
+        .dlg-kpi-label {
+            color: #8b95ad; font-size: .68rem; text-transform: uppercase;
+            letter-spacing: .08em; font-weight: 800; margin-bottom: 4px;
         }
-        .spotlight-summary-table td {
-            padding: .6rem .5rem;
-            border-bottom: 1px solid rgba(148,163,184,.08);
-            color: #e7eefc;
+        .dlg-kpi-value { color: #fff; font-size: 1.3rem; font-weight: 900; line-height: 1.1; }
+        .dlg-kpi-note { color: #cdd6e4; font-size: .78rem; margin-top: 3px; }
+        .dlg-panel {
+            background: #161b26; border: 1px solid rgba(148,163,184,.15);
+            border-radius: 12px; box-shadow: 0 8px 20px rgba(0,0,0,.15); margin-bottom: 14px;
         }
-        .spotlight-summary-table td:last-child {
-            text-align: right;
-            font-weight: 700;
-            color: var(--accent);
+        .dlg-panel-header {
+            padding: 10px 14px; border-bottom: 1px solid rgba(148,163,184,.12);
+            color: #dbe4ff; font-size: .88rem; font-weight: 800;
+            letter-spacing: .04em; text-transform: uppercase;
         }
-        .meta-label {
-            color: var(--text2);
-            font-size: 0.75rem;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            font-weight: 700;
-            margin-bottom: 4px;
+        .dlg-panel-body { padding: 14px; }
+        .dlg-lists-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+        .dlg-list-title { color: #b9c7ea; font-size: .82rem; font-weight: 800; margin-bottom: 6px; }
+        .dlg-list { margin: 0; padding-left: 18px; color: #f8fbff; line-height: 1.6; font-size: .85rem; }
+        .dlg-hero {
+            display: grid; grid-template-columns: minmax(100px, 150px) 1fr;
+            gap: 16px; align-items: center; margin-bottom: 14px;
         }
-        .spotlight-panel {
-            background: #161b26;
-            border: 1px solid rgba(148,163,184,.15);
-            border-radius: 14px;
-            box-shadow: 0 12px 24px rgba(0,0,0,.18);
-            margin-bottom: 14px;
+        .dlg-hero img {
+            width: 100%; max-width: 150px; border-radius: 20px;
+            box-shadow: 0 16px 36px rgba(0,0,0,0.4); border: 2px solid rgba(148,163,184,.18);
         }
-        .spotlight-panel-header {
-            padding: 12px 14px;
-            border-bottom: 1px solid rgba(148,163,184,.12);
-            color: #dbe4ff;
-            font-size: .92rem;
-            font-weight: 800;
-            letter-spacing: .04em;
-            text-transform: uppercase;
+        .dlg-hero-name { margin: 0 0 4px; color: #fff; font-size: 1.8rem; font-weight: 900; letter-spacing: -.01em; }
+        .dlg-hero-badges { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+        .dlg-badge {
+            display: inline-block; padding: 4px 12px; border-radius: 8px;
+            font-weight: 800; font-size: .8rem; letter-spacing: .04em;
         }
-        .spotlight-panel-body {
-            padding: 14px;
+        .dlg-badge-rank { background: rgba(34,211,238,.15); color: #22d3ee; border: 1px solid rgba(34,211,238,.3); }
+        .dlg-badge-country { background: rgba(52,211,153,.15); color: #34d399; border: 1px solid rgba(52,211,153,.3); }
+        .dlg-badge-ml { background: rgba(148,163,184,.12); color: #cdd6e4; border: 1px solid rgba(148,163,184,.2); }
+        .dlg-acq-signal {
+            display: inline-flex; align-items: center; gap: 6px;
+            font-size: .78rem; font-weight: 700; padding: 6px 14px;
+            border-radius: 8px; letter-spacing: .04em; text-transform: uppercase;
         }
-        .spotlight-summary-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: .9rem;
+        .dlg-sig-buy { background: rgba(52,211,153,.18); color: #34d399; border: 1px solid rgba(52,211,153,.4); }
+        .dlg-sig-watch { background: rgba(96,165,250,.18); color: #60a5fa; border: 1px solid rgba(96,165,250,.4); }
+        .dlg-sig-caution { background: rgba(251,113,133,.18); color: #fb7185; border: 1px solid rgba(251,113,133,.4); }
+        .dlg-sig-row {
+            display: flex; align-items: flex-start; gap: 12px;
+            padding: 10px 0; border-bottom: 1px solid rgba(148,163,184,.1);
         }
-        .spotlight-summary-table td {
-            padding: .65rem .75rem;
-            border-bottom: 1px solid rgba(148,163,184,.1);
-            color: #e7eefc;
+        .dlg-sig-row:last-child { border-bottom: none; }
+        .dlg-sig-icon { font-size: 18px; flex-shrink: 0; }
+        .dlg-sig-title { font-size: .85rem; font-weight: 600; color: #fff; margin-bottom: 2px; }
+        .dlg-sig-desc { font-size: .78rem; color: #cdd6e4; line-height: 1.5; }
+        .dlg-trk-row {
+            display: grid; grid-template-columns: 28px 1fr 72px 56px;
+            gap: 6px; padding: 8px 0; border-bottom: 1px solid rgba(148,163,184,.1);
+            align-items: center; font-size: .82rem;
         }
-        .meta-value {
-            font-size: 0.9rem;
-            color: #fff;
-            margin-bottom: 12px;
+        .dlg-trk-row:last-child { border-bottom: none; }
+        .dlg-trk-rank { color: #8b95ad; text-align: center; font-weight: 600; }
+        .dlg-trk-name { color: #fff; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .dlg-trk-val { color: #cdd6e4; text-align: right; font-variant-numeric: tabular-nums; }
+        .dlg-summary-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+        .dlg-summary-table th {
+            text-align: left; color: #8b95ad; font-size: .68rem;
+            text-transform: uppercase; letter-spacing: .08em;
+            padding: .55rem .65rem; border-bottom: 1px solid rgba(148,163,184,.15);
+        }
+        .dlg-summary-table td {
+            padding: .55rem .65rem; border-bottom: 1px solid rgba(148,163,184,.1); color: #e7eefc;
+        }
+        @media (max-width: 980px) {
+            .dlg-kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            .dlg-lists-grid { grid-template-columns: 1fr; }
+            .dlg-hero { grid-template-columns: 1fr; }
         }
         </style>
     """, unsafe_allow_html=True)
 
-    # --- HERO HEADER ---
+    # ════════════════════════════════════════════════════════════════
+    # SECTION 1: ARTIST SPOTLIGHT HERO
+    # ════════════════════════════════════════════════════════════════
     st.markdown(f"""
-        <div style="display: flex; align-items: center; gap: 24px; margin-bottom: 24px; background: rgba(255,255,255,0.03); padding: 20px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.05);">
-            <img src="{escape(display_img)}" style="width: 120px; height: 120px; border-radius: 18px; object-fit: cover; border: 2px solid rgba(255,255,255,0.1);">
-            <div style="flex: 1;">
-                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 4px;">
-                    <h1 style="margin: 0; font-size: 2.2rem; font-weight: 900; color: #fff;">{escape(artist_name)}</h1>
-                    <span class="profile-rank-badge" style="margin-bottom:0; margin-top:4px;">🏆 RANK #{int(row['rank'])}</span>
+        <div class="dlg-hero">
+            <div><img src="{escape(display_img)}" alt="{escape(artist_name)}"></div>
+            <div>
+                <h2 class="dlg-hero-name">{escape(artist_name)}</h2>
+                <div class="dlg-hero-badges">
+                    <span class="dlg-badge dlg-badge-rank">🏆 #{rank_val}</span>
+                    <span class="dlg-badge dlg-badge-country">🌎 {display_country}</span>
+                    <span class="dlg-badge dlg-badge-ml">🎧 {monthly_val} Monthly</span>
                 </div>
-                <div style="color: var(--text2); font-size: 0.95rem; opacity: 0.8;">{escape(str(row.get('page_title') or ""))}</div>
             </div>
         </div>
     """, unsafe_allow_html=True)
 
-    # --- TOP KPI ROW ---
-    ma, mb, mc, md = st.columns(4)
-    metrics_head = [
-        ("Listeners", fmt_short(row.get("monthly_listeners")), "kpi-green"),
-        ("Points", fmt_short(row.get("total_points")), ""),
-        ("Markets", f"{int(row.get('num_countries', 0))}", "kpi-amber"),
-        ("Longevity", f"{int(row.get('weeks_on_chart', 0))} Wks", "kpi-purple")
-    ]
-    for col, (lbl, val, cls) in zip([ma, mb, mc, md], metrics_head):
-        col.markdown(f"""
-            <div class='kpi-card {cls}' style='min-height:auto; padding:15px;'>
-                <div class='kpi-label' style='font-size:0.65rem;'>{lbl}</div>
-                <div class='kpi-value' style='font-size:1.4rem;'>{val}</div>
+    # ════════════════════════════════════════════════════════════════
+    # SECTION 2: SPOTLIGHT KPI GRID
+    # ════════════════════════════════════════════════════════════════
+    st.markdown(f"""
+        <div class="dlg-section">
+            <div class="dlg-section-title">📊 Artist Spotlight <span class="dlg-section-badge">Overview</span></div>
+            <div class="dlg-kpi-grid">
+                <div class="dlg-kpi"><div class="dlg-kpi-label">Current Rank</div><div class="dlg-kpi-value">{rank_val}</div><div class="dlg-kpi-note">Latest chart position</div></div>
+                <div class="dlg-kpi"><div class="dlg-kpi-label">Songs</div><div class="dlg-kpi-value">{songs_val}</div><div class="dlg-kpi-note">Catalog tracks</div></div>
+                <div class="dlg-kpi"><div class="dlg-kpi-label">Albums</div><div class="dlg-kpi-value">{albums_val}</div><div class="dlg-kpi-note">Catalog albums</div></div>
+                <div class="dlg-kpi"><div class="dlg-kpi-label">LATAM Countries</div><div class="dlg-kpi-value">{countries_val}</div><div class="dlg-kpi-note">Market presence</div></div>
+                <div class="dlg-kpi"><div class="dlg-kpi-label">Monthly Listeners</div><div class="dlg-kpi-value">{monthly_val}</div><div class="dlg-kpi-note">Current audience</div></div>
+                <div class="dlg-kpi"><div class="dlg-kpi-label">Peak Listeners</div><div class="dlg-kpi-value">{peak_val}</div><div class="dlg-kpi-note">Historical high</div></div>
+                <div class="dlg-kpi"><div class="dlg-kpi-label">Total Points</div><div class="dlg-kpi-value">{points_val}</div><div class="dlg-kpi-note">Cross-platform score</div></div>
+                <div class="dlg-kpi"><div class="dlg-kpi-label">Trend</div><div class="dlg-kpi-value">{escape(trend_change)}</div><div class="dlg-kpi-note">Rank momentum</div></div>
             </div>
-        """, unsafe_allow_html=True)
+        </div>
+    """, unsafe_allow_html=True)
 
-    st.divider()
+    # ════════════════════════════════════════════════════════════════
+    # SECTION 3: TOP TRACKS, ALBUMS & COUNTRIES
+    # ════════════════════════════════════════════════════════════════
+    st.markdown(f"""
+        <div class="dlg-panel">
+            <div class="dlg-panel-header">Top Tracks, Albums & Countries</div>
+            <div class="dlg-panel-body">
+                <div class="dlg-lists-grid">
+                    <div><div class="dlg-list-title">Top Tracks</div><ol class="dlg-list">{songs_html}</ol></div>
+                    <div><div class="dlg-list-title">Top Albums</div><ol class="dlg-list">{albums_html}</ol></div>
+                    <div><div class="dlg-list-title">Top Countries</div><ol class="dlg-list">{countries_html}</ol></div>
+                </div>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
 
-    # --- ROW 1: PERFORMANCE & CATALOG ---
-    c_perf, c_cat = st.columns([1.5, 1])
+    # ════════════════════════════════════════════════════════════════
+    # SECTION 4: PERFORMANCE SUMMARY TABLE
+    # ════════════════════════════════════════════════════════════════
+    st.markdown(f"""
+        <div class="dlg-panel">
+            <div class="dlg-panel-header">Performance Summary</div>
+            <div class="dlg-panel-body">
+                <table class="dlg-summary-table">
+                    <thead><tr><th>Metric</th><th>Value</th></tr></thead>
+                    <tbody>
+                        <tr><td>Rank</td><td>{rank_val}</td></tr>
+                        <tr><td>Monthly Listeners</td><td>{monthly_val}</td></tr>
+                        <tr><td>Peak Listeners</td><td>{peak_val}</td></tr>
+                        <tr><td>Songs</td><td>{songs_val}</td></tr>
+                        <tr><td>Albums</td><td>{albums_val}</td></tr>
+                        <tr><td>LATAM Countries</td><td>{countries_val}</td></tr>
+                        <tr><td>Total Points</td><td>{points_val}</td></tr>
+                        <tr><td>Best Rank Ever</td><td>#{int(row.get('best_rank', 0))}</td></tr>
+                        <tr><td>Days at #1</td><td>{int(row.get('times_at_top', 0))}</td></tr>
+                        <tr><td>Weeks on Chart</td><td>{int(row.get('weeks_on_chart', 0))}</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
+
+    # ════════════════════════════════════════════════════════════════
+    # SECTION 5: RANK TREND CHART
+    # ════════════════════════════════════════════════════════════════
+    if 'history' in globals() or 'history' in locals():
+        artist_history = history[history["name"] == artist_name].copy()
+        if not artist_history.empty:
+            st.markdown("<div class='dlg-section-title'>📈 Rank Movement Trend <span class='dlg-section-badge'>Historical</span></div>", unsafe_allow_html=True)
+            artist_history = artist_history.sort_values("scraped_at")
+            fig_trend = go.Figure()
+            fig_trend.add_trace(go.Scatter(
+                x=artist_history["scraped_at"], y=artist_history["rank"],
+                mode='lines+markers',
+                line=dict(color='#60a5fa', width=3),
+                marker=dict(size=6, color='#ffffff', line=dict(width=2, color='#60a5fa')),
+                hovertemplate="Date: %{x|%b %d}<br>Rank: #%{y}<extra></extra>"
+            ))
+            fig_trend.update_yaxes(autorange="reversed", gridcolor="rgba(255,255,255,0.05)")
+            fig_trend.update_xaxes(showgrid=False, tickfont=dict(color="#8b95ad"))
+            fig_trend.update_layout(
+                height=240, margin=dict(l=0, r=0, t=10, b=0),
+                paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                font=dict(color="#8b95ad"), hovermode="x unified"
+            )
+            st.plotly_chart(fig_trend, use_container_width=True, config={'displayModeBar': False})
+
+    # ════════════════════════════════════════════════════════════════
+    # SECTION 7: ACQUISITION INTELLIGENCE
+    # ════════════════════════════════════════════════════════════════
+    st.markdown("<div class='dlg-section-title'>🎯 Acquisition Intelligence <span class='dlg-section-badge'>Commercial Signals</span></div>", unsafe_allow_html=True)
     
-    with c_perf:
-        st.markdown('<div class="dialog-card">', unsafe_allow_html=True)
-        st.markdown('<div class="dialog-section-header">📈 Performance Summary</div>', unsafe_allow_html=True)
-        
-        perf_sub1, perf_sub2 = st.columns(2)
-        with perf_sub1:
-            st.markdown("<div class='meta-label'>Best Global Rank</div>", unsafe_allow_html=True)
-            st.markdown(f"<div class='meta-value' style='color:var(--accent); font-weight:800; font-size:1.2rem;'>#{int(row.get('best_rank', 0))}</div>", unsafe_allow_html=True)
-            st.markdown("<div class='meta-label'>Days at #1</div>", unsafe_allow_html=True)
-            st.markdown(f"<div class='meta-value'>{int(row.get('times_at_top', 0))} Days</div>", unsafe_allow_html=True)
-        with perf_sub2:
-            st.markdown("<div class='meta-label'>Peak Listeners</div>", unsafe_allow_html=True)
-            st.markdown(f"<div class='meta-value'>{fmt_short(row.get('peak_listeners'))}</div>", unsafe_allow_html=True)
-            st.markdown("<div class='meta-label'>Max Markets Peak</div>", unsafe_allow_html=True)
-            st.markdown(f"<div class='meta-value'>{int(row.get('max_countries', 0))}</div>", unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    with c_cat:
-        st.markdown('<div class="dialog-card">', unsafe_allow_html=True)
-        st.markdown('<div class="dialog-section-header">🎵 Catalog Intelligence</div>', unsafe_allow_html=True)
-        st.markdown(f"<div class='meta-label'>Top Songs ({int(row.get('songs_count', 0))})</div>", unsafe_allow_html=True)
-        songs = str(row.get("top_songs") or "").split("\n")
-        songs_list = "".join([f"<li style='font-size:0.85rem; margin-bottom:4px; color:#e0e7ff;'>{escape(s.strip())}</li>" for s in songs[:5] if s.strip()])
-        st.markdown(f"<ul style='margin:0 0 16px 0; padding-left:18px;'>{songs_list}</ul>", unsafe_allow_html=True)
-        st.markdown(f"<div class='meta-label'>Top Albums ({int(row.get('albums_count', 0))})</div>", unsafe_allow_html=True)
-        albums = str(row.get("top_albums") or "").split("\n")
-        albums_list = "".join([f"<li style='font-size:0.85rem; margin-bottom:4px; color:#e0e7ff;'>{escape(a.strip())}</li>" for a in albums[:3] if a.strip()])
-        st.markdown(f"<ul style='margin:0; padding-left:18px;'>{albums_list}</ul>", unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    # --- ROW 2: GEOGRAPHY & PLATFORM MIX ---
-    c_geo, c_mix = st.columns([1, 1.5])
-    
-    with c_geo:
-        st.markdown('<div class="dialog-card">', unsafe_allow_html=True)
-        st.markdown('<div class="dialog-section-header">🌎 Global Footprint</div>', unsafe_allow_html=True)
-        st.markdown(f"<div class='meta-label'>Territories: {int(row.get('num_countries', 0))} total</div>", unsafe_allow_html=True)
-        st.markdown(f"<div style='margin-bottom:12px; color:var(--accent2); font-size:0.8rem; font-weight:700;'>{int(row.get('countries_count', 0))} LATAM Markets</div>", unsafe_allow_html=True)
-        countries = str(row.get("top_countries") or "").split("\n")
-        if countries and countries[0]:
-            c_list = "".join([f"<div style='padding:4px 8px; background:rgba(255,255,255,0.03); border-radius:6px; margin-bottom:5px; border:1px solid rgba(255,255,255,0.05); font-size:0.8rem;'>{escape(c.strip())}</div>" for c in countries[:8] if c.strip()])
-            st.markdown(c_list, unsafe_allow_html=True)
-        else:
-            st.info("No granular market data available for this artist yet.")
-        st.markdown('</div>', unsafe_allow_html=True)
-            
-    with c_mix:
-        st.markdown('<div class="dialog-card">', unsafe_allow_html=True)
-        st.markdown('<div class="dialog-section-header">📊 Platform Mix</div>', unsafe_allow_html=True)
-        point_data = {
-            "iTunes": row.get("itunes_points", 0),
-            "Spotify": row.get("spotify_points", 0),
-            "Apple Music": row.get("apple_music_points", 0),
-            "Shazam": row.get("shazam_points", 0),
-            "YouTube": row.get("youtube_points", 0),
+    acq_loader_slot = st.empty()
+    acq_loader_slot.markdown("""
+        <style>
+        @keyframes acq-spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .acq-loader-box {
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            gap: 14px; padding: 40px 20px;
+            background: rgba(17, 26, 46, 0.5); border-radius: 12px;
+            border: 1px solid rgba(148, 163, 184, 0.15); margin: 16px 0;
         }
-        point_data = {k: float(v) for k, v in point_data.items() if v and not pd.isna(v) and v > 0}
-        if point_data:
-            fig = px.pie(
-                names=list(point_data.keys()),
-                values=list(point_data.values()),
-                hole=0.6,
-                color_discrete_sequence=px.colors.qualitative.Pastel
-            )
-            fig.update_layout(
-                showlegend=True, height=220, margin=dict(l=0, r=0, t=0, b=0), 
-                paper_bgcolor="rgba(0,0,0,0)",
-                legend=dict(font=dict(color="#ffffff", size=10), orientation="v", yanchor="middle", y=0.5, xanchor="right", x=1.1)
-            )
-            st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
-        else:
-            st.info("Platform point distribution not available.")
-        st.markdown('</div>', unsafe_allow_html=True)
+        .acq-loader-ring {
+            width: 38px; height: 38px; border-radius: 50%;
+            border: 3px solid rgba(79, 142, 247, 0.18);
+            border-top-color: #60a5fa;
+            animation: acq-spin 1s linear infinite;
+        }
+        .acq-loader-text {
+            font-size: .88rem; font-weight: 600; color: #cdd6e4;
+        }
+        </style>
+        <div class="acq-loader-box">
+            <div class="acq-loader-ring"></div>
+            <div class="acq-loader-text">Loading profile data...</div>
+        </div>
+    """, unsafe_allow_html=True)
 
-    # --- ROW 3: ACQUISITION & MOMENTUM ---
-    c_acq, c_mov = st.columns(2)
+    try:
+        # Use a container to replace the loader once data is ready
+        acq_content_slot = st.empty()
+        with acq_content_slot.container():
+            sp_df = _load_daily("spotify_daily", "global", WINDOW_DAYS)
+            it_df = _load_daily("itunes_daily", "ww", WINDOW_DAYS)
+            universe_df = _load_artist_universe()
+            sp_artist_df = _load_spotify_artist_series(WINDOW_DAYS)
+            it_artist_df = _load_itunes_artist_series(WINDOW_DAYS)
 
-    with c_acq:
-        st.markdown('<div class="dialog-card">', unsafe_allow_html=True)
-        st.markdown("<div class='dialog-section-header'>🎯 Acquisition Strategy</div>", unsafe_allow_html=True)
-        
-        peak_ml = row.get("peak_listeners", 0) or 0
-        curr_rank = row.get("rank", 100) or 100
-        songs_count = row.get("songs_count", 0) or 0
-        best_rank_ever = row.get("best_rank", 100) or 100
-        ml_score = min(100, int(peak_ml / 1_000_000))
-        itunes_bonus = max(0, 60 - int(curr_rank))
-        chart_bonus = min(40, int(songs_count) * 4) + (max(0, 50 - int(best_rank_ever)))
-        rc = str(row.get("rank_change") or "0").replace('+', '').replace('-', '')
-        mom_bonus = min(40, int(rc) if rc.isdigit() else 0)
-        acq_score = max(0, ml_score + itunes_bonus + chart_bonus + mom_bonus)
-        
-        if acq_score >= 120: signal, sig_cls = "STRONG BUY", "kpi-green"
-        elif acq_score >= 80: signal, sig_cls = "WATCH", "kpi-amber"
-        else: signal, sig_cls = "MONITOR", ""
+            date_set = set()
+            if not sp_artist_df.empty:
+                date_set.update(sp_artist_df["scrape_date"].unique())
+            if not it_artist_df.empty:
+                date_set.update(it_artist_df["scrape_date"].unique())
+            dates = sorted(date_set)
 
-        st.markdown(f"""
-            <div class='kpi-card {sig_cls}' style='min-height:auto; padding:20px; margin-bottom:20px;'>
-                <div class='kpi-label' style='font-size:0.7rem;'>Recommendation</div>
-                <div class='kpi-value' style='font-size:1.8rem;'>{signal}</div>
-                <div class='kpi-delta' style='color:#fff; font-weight:700; font-size:0.85rem;'>Composite Score: {acq_score}</div>
-            </div>
-        """, unsafe_allow_html=True)
-        
-        sig_html = ""
-        if peak_ml >= 1_000_000: sig_html += "<div style='font-size:0.85rem; color:#fff; margin-bottom:6px;'>✅ <b>Audience Scale</b>: Confirmed > 1M ML</div>"
-        if best_rank_ever <= 20: sig_html += "<div style='font-size:0.85rem; color:#fff; margin-bottom:6px;'>✅ <b>Chart Elite</b>: Top 20 Global placement</div>"
-        if int(row.get("num_countries", 0)) >= 10: sig_html += "<div style='font-size:0.85rem; color:#fff; margin-bottom:6px;'>✅ <b>Global Reach</b>: 10+ Territories</div>"
-        if songs_count >= 5: sig_html += "<div style='font-size:0.85rem; color:#fff; margin-bottom:6px;'>✅ <b>Catalog Depth</b>: 5+ Active tracks</div>"
-        st.markdown(sig_html, unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
+            if dates and not universe_df.empty:
+                # Clear the loader once we start processing
+                acq_loader_slot.empty()
 
-    with c_mov:
-        st.markdown('<div class="dialog-card">', unsafe_allow_html=True)
-        st.markdown("<div class='dialog-section-header'>⚡ Momentum Signals</div>", unsafe_allow_html=True)
-        
-        trend = str(row.get("rank_change") or "=")
-        status_txt, status_clr = ("New Entry", "#60a5fa") if trend == "NEW" else (f"Improving (+{trend[1:]})", "#34d399") if trend.startswith('+') else (f"Cooling ({trend})", "#fb7185") if trend.startswith('-') else ("Stable", "#cdd6e4")
+                all_payloads = _build_artist_payloads(universe_df, sp_artist_df, it_artist_df, sp_df, it_df, dates)
+                acq = all_payloads.get(artist_name)
 
-        st.markdown(f"""
-            <div style='background:rgba(255,255,255,0.03); border-radius:12px; padding:18px; border:1px solid rgba(255,255,255,0.05); margin-bottom:20px;'>
-                <div class='meta-label'>Current Velocity</div>
-                <div style='font-size:1.35rem; font-weight:900; color:{status_clr};'>{status_txt}</div>
-            </div>
-        """, unsafe_allow_html=True)
+                if acq:
+                    sig_text = acq["signal"]
+                    sig_cls = "dlg-sig-buy" if "BUY" in sig_text else ("dlg-sig-caution" if "CAUT" in sig_text else "dlg-sig-watch")
 
-        st.markdown("<div class='meta-label'>Top-1 History</div>", unsafe_allow_html=True)
-        st.markdown(f"<div style='font-size:1rem; color:#fff; margin-bottom:8px;'>👑 <b>{int(row.get('times_at_top', 0))} Days</b> at #1 Globally</div>", unsafe_allow_html=True)
-        if pd.notna(row.get('last_day_at_top')):
-            st.markdown(f"<div style='font-size:0.85rem; color:var(--text2);'>Last seen at top: {row['last_day_at_top'].strftime('%b %d, %Y')}</div>", unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
+                    st.markdown(f"""
+                        <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px;flex-wrap:wrap;">
+                            <span class="dlg-acq-signal {sig_cls}">{sig_text}</span>
+                            <span style="color:#cdd6e4;font-size:.88rem;font-weight:600;">
+                                Acquisition Score: <b style="color:#fff;font-size:1.1rem;">{acq['acqScore']}</b>
+                            </span>
+                            <span style="color:#cdd6e4;font-size:.88rem;">
+                                Label: <b style="color:#fff;">{escape(acq['label'])}</b>
+                            </span>
+                            <span style="color:{'#34d399' if acq['momentum'] >= 0 else '#fb7185'};font-size:.88rem;font-weight:700;">
+                                {'+' if acq['momentum'] >= 0 else ''}{acq['momentum']}% momentum
+                            </span>
+                        </div>
+                    """, unsafe_allow_html=True)
 
-    # --- ROW 4: ARTIST MOVEMENT CHART ---
-    st.markdown('<div class="dialog-card" style="margin-bottom:24px;">', unsafe_allow_html=True)
-    st.markdown('<div class="dialog-section-header">🎤 Historical Movement Tracker</div>', unsafe_allow_html=True)
-    
-    art_hist = data["history"][data["history"]["name"] == artist_name].copy() if not data["history"].empty else pd.DataFrame()
-    art_sp_hist = data["spotify_history"][data["spotify_history"]["name"] == artist_name].copy() if "spotify_history" in data else pd.DataFrame()
-    
-    if not art_hist.empty or not art_sp_hist.empty:
-        c_hist1, c_hist2 = st.columns(2)
-        with c_hist1:
-            if not art_hist.empty:
-                art_hist = art_hist.sort_values("scraped_at")
-                fig_rank_move = go.Figure(go.Scatter(
-                    x=art_hist["scraped_at"], y=art_hist["rank"],
-                    mode='lines+markers', line=dict(color='#60a5fa', width=3),
-                    marker=dict(size=6, color='#ffffff', line=dict(width=2, color='#60a5fa')),
-                    hovertemplate="Date: %{x|%b %d}<br>Rank: #%{y}<extra></extra>"
-                ))
-                fig_rank_move.update_yaxes(autorange="reversed", gridcolor="rgba(255,255,255,0.05)")
-                fig_rank_move.update_layout(
-                    height=280, title="Rank History (30 Days)", margin=dict(l=0, r=0, t=30, b=0),
-                    paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-                    font=dict(color="#8b95ad", size=10), hovermode="x unified"
-                )
-                st.plotly_chart(fig_rank_move, use_container_width=True, config={'displayModeBar': False})
+                    # Acquisition KPIs
+                    st.markdown(f"""
+                        <div class="dlg-kpi-grid">
+                            <div class="dlg-kpi"><div class="dlg-kpi-label">Best Spotify Rank</div><div class="dlg-kpi-value">{acq['bestSpRank']}</div><div class="dlg-kpi-note">{escape(str(acq['bestSpSub']))}</div></div>
+                            <div class="dlg-kpi"><div class="dlg-kpi-label">Peak Streams</div><div class="dlg-kpi-value">{acq['peakStreams']}</div><div class="dlg-kpi-note">{escape(str(acq['peakStreamsSub']))}</div></div>
+                            <div class="dlg-kpi"><div class="dlg-kpi-label">Tracks Charting</div><div class="dlg-kpi-value">{acq['trackCount']}</div><div class="dlg-kpi-note">{escape(str(acq['trackCountSub']))}</div></div>
+                            <div class="dlg-kpi"><div class="dlg-kpi-label">Best iTunes WW</div><div class="dlg-kpi-value">{acq['bestItunes']}</div><div class="dlg-kpi-note">{escape(str(acq['itunesSub']))}</div></div>
+                        </div>
+                    """, unsafe_allow_html=True)
+
+                    # Top Tracks on Spotify Global
+                    if acq.get("tracks"):
+                        tracks_rows = ""
+                        for i, t in enumerate(acq["tracks"]):
+                            tracks_rows += f"""<div class="dlg-trk-row">
+                                <span class="dlg-trk-rank">{i+1}</span>
+                                <span class="dlg-trk-name">{escape(str(t['name']))}</span>
+                                <span class="dlg-trk-val">{acq_fmt_n(t['streams'])}</span>
+                                <span class="dlg-trk-val">#{t['rank'] if t.get('rank') else '—'}</span>
+                            </div>"""
+                        st.markdown(f"""
+                            <div class="dlg-panel">
+                                <div class="dlg-panel-header">Top Tracks · Spotify Global</div>
+                                <div class="dlg-panel-body">
+                                    <div class="dlg-trk-row" style="border-bottom:1px solid rgba(148,163,184,.2);font-size:.7rem;color:#8b95ad;text-transform:uppercase;letter-spacing:.06em;font-weight:700;">
+                                        <span style="text-align:center;">#</span><span>Track</span><span style="text-align:right;">Streams</span><span style="text-align:right;">Best</span>
+                                    </div>
+                                    {tracks_rows}
+                                </div>
+                            </div>
+                        """, unsafe_allow_html=True)
+
+                    # Acquisition Signals
+                    if acq.get("signals"):
+                        sig_rows = ""
+                        for s in acq["signals"]:
+                            sig_rows += f"""<div class="dlg-sig-row">
+                                <span class="dlg-sig-icon">{s['icon']}</span>
+                                <div><div class="dlg-sig-title">{escape(s['title'])}</div><div class="dlg-sig-desc">{escape(s['desc'])}</div></div>
+                            </div>"""
+                        st.markdown(f"""
+                            <div class="dlg-panel">
+                                <div class="dlg-panel-header">Why This Artist · Signals</div>
+                                <div class="dlg-panel-body">{sig_rows}</div>
+                            </div>
+                        """, unsafe_allow_html=True)
+
+                    # Quote
+                    if acq.get("quote"):
+                        st.markdown(f"""
+                            <div style="border-left:3px solid rgba(96,165,250,.5);padding:10px 16px;margin:8px 0 16px;
+                                background:rgba(96,165,250,.06);border-radius:0 8px 8px 0;
+                                font-size:.88rem;color:#cdd6e4;line-height:1.65;font-style:italic;">
+                                {escape(acq['quote'])}
+                            </div>
+                        """, unsafe_allow_html=True)
+
+                else:
+                    acq_loader_slot.empty()
+                    st.info(f"No acquisition data available for {artist_name} in the current {WINDOW_DAYS}-day window.")
             else:
-                st.info("No historical rank data found for this artist.")
-        with c_hist2:
-            if not art_sp_hist.empty:
-                art_sp_hist = art_sp_hist.sort_values("scraped_at")
-                fig_sp_move = go.Figure(go.Scatter(
-                    x=art_sp_hist["scraped_at"], y=art_sp_hist["monthly_listeners"],
-                    mode='lines+markers', line=dict(color='#22d3a0', width=3),
-                    marker=dict(size=6, color='#ffffff', line=dict(width=2, color='#22d3a0')),
-                    hovertemplate="Date: %{x|%b %d}<br>Listeners: %{y:,}<extra></extra>"
-                ))
-                fig_sp_move.update_layout(
-                    height=280, title="Listener Trend (30 Days)", margin=dict(l=0, r=0, t=30, b=0),
-                    paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-                    font=dict(color="#8b95ad", size=10), hovermode="x unified"
-                )
-                st.plotly_chart(fig_sp_move, use_container_width=True, config={'displayModeBar': False})
-            else:
-                st.info("No historical listener data found for this artist.")
-    else:
-        st.info("Long-term historical movement data is currently being populated.")
-    st.markdown('</div>', unsafe_allow_html=True)
-
-    # --- ROW 5: SPOTLIGHT & METADATA ---
-    col_sum1, col_sum2 = st.columns([2, 1])
-    with col_sum1:
-        st.markdown('<div class="dialog-card">', unsafe_allow_html=True)
-        st.markdown("<div class='dialog-section-header'>🔍 Spotlight Profile Summary</div>", unsafe_allow_html=True)
-        st.markdown(f"""
-            <table class='spotlight-summary-table'>
-                <tbody>
-                    <tr><td>Global Chart Rank</td><td>#{int(row.get('rank', 0))}</td></tr>
-                    <tr><td>Active Monthly Listeners</td><td>{fmt_short(row.get('monthly_listeners'))}</td></tr>
-                    <tr><td>Peak Audience Size</td><td>{fmt_short(row.get('peak_listeners'))}</td></tr>
-                    <tr><td>Total Weighted Points</td><td>{fmt_short(row.get('total_points'))}</td></tr>
-                    <tr><td>Catalog (Tracks/Albums)</td><td>{int(row.get('songs_count', 0))} / {int(row.get('albums_count', 0))}</td></tr>
-                    <tr><td>LATAM Market Signal</td><td>{int(row.get('countries_count', 0))} Markets</td></tr>
-                </tbody>
-            </table>
-        """, unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
-        
-    with col_sum2:
-        st.markdown('<div class="dialog-card">', unsafe_allow_html=True)
-        st.markdown("<div class='dialog-section-header'>📂 Source Metadata</div>", unsafe_allow_html=True)
-        if row.get("page_title"):
-            st.markdown("<div class='meta-label'>Source Page</div>", unsafe_allow_html=True)
-            st.markdown(f"<div class='meta-value' style='font-size:0.8rem;'>{escape(row['page_title'])}</div>", unsafe_allow_html=True)
-        if row.get("snapshot_text"):
-            st.markdown("<div class='meta-label'>Data Version</div>", unsafe_allow_html=True)
-            st.markdown(f"<div class='meta-value' style='font-size:0.8rem;'>{escape(row['snapshot_text'])}</div>", unsafe_allow_html=True)
-        if row.get("scrape_date"):
-            st.markdown("<div class='meta-label'>Latest Refresh</div>", unsafe_allow_html=True)
-            st.markdown(f"<div class='meta-value' style='font-size:0.8rem;'>{row['scrape_date'].strftime('%b %d, %Y')}</div>", unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
-
-
+                acq_loader_slot.empty()
+                st.info("No acquisition date range available — data may still be loading.")
+    except Exception as exc:
+        acq_loader_slot.empty()
+        st.warning(f"Could not load acquisition data: {exc}")
 
 def trend_badge_html(value: str | None) -> str:
     token = str(value or "=").strip().upper()
