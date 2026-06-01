@@ -376,8 +376,12 @@ def _build_artist_payloads(
             "originalItRanks": it_ranks,
             "bestSpRank": f"{best_sp_rank}" if best_sp_rank else "—",
             "bestSpSub": (best_sp_track[:36] if best_sp_rank else "Not in Top 200"),
+            "peakStreams": _fmt_n(peak_ml),
+            "peakStreamsSub": "Peak Spotify listeners",
             "peakStreamsVal": peak_ml,
             "trackCount": str(track_count),
+            "trackCountSub": "Simultaneous tracks",
+            "bestItunes": str(best_it_rank) if best_it_rank else "—",
             "itunesSub": (
                 f"Score {_fmt_n(best_it_score)} · {best_it_date.strftime('%b %d')}"
                 if best_it_date else "Not ranked iTunes WW"
