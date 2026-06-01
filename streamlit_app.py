@@ -99,7 +99,7 @@ PAGE_META = {
     ),
 }
 
-CHART_COLORS = ["#4f8ef7", "#22d3a0", "#f5a623", "#7c5cfc", "#e84545", "#06b6d4", "#ec4899", "#84cc16", "#f97316", "#a855f7"]
+CHART_COLORS = ["#fb7185", "#60a5fa", "#34d399", "#c4b5fd", "#fcd34d", "#5eead4", "#f9a8d4", "#84cc16", "#f97316", "#a855f7"]
 PLOTLY_CONFIG = {"displaylogo": False, "displayModeBar": False, "responsive": True}
 TRACKER_TOP_ARTISTS = 10
 LATAM_COUNTRIES = sorted(LATIN_AMERICAN_COUNTRIES)
@@ -150,9 +150,9 @@ def apply_theme() -> None:
         """
         <style>
         :root {
-            --bg:#050816; --surface:#0b1220; --surface2:#111a2e; --surface3:#17233a;
-            --border:#23314f; --accent:#22d3ee; --accent2:#34d399; --accent3:#f59e0b;
-            --warn:#fbbf24; --danger:#fb7185; --text:#f8fbff; --text2:#a2b0d0;
+            --bg:#0d1117; --surface:#161b26; --surface2:#1f2633; --surface3:#283041;
+            --border:rgba(148,163,184,.15); --accent:#fb7185; --accent2:#60a5fa; --accent3:#34d399;
+            --warn:#fcd34d; --danger:#fb7185; --text:#ffffff; --text2:#cdd6e4;
         }
         
         /* Smooth animations */
@@ -175,9 +175,9 @@ def apply_theme() -> None:
         
         .stApp { 
             background:
-                radial-gradient(circle at top left, rgba(34,211,238,.16), transparent 26%),
-                radial-gradient(circle at top right, rgba(52,211,153,.13), transparent 24%),
-                linear-gradient(180deg,#050816 0%,#081322 52%,#07111f 100%); 
+                radial-gradient(circle at top left, rgba(251,113,133,.12), transparent 28%),
+                radial-gradient(circle at bottom right, rgba(96,165,250,.1), transparent 30%),
+                linear-gradient(180deg, #0d1117 0%, #161b26 100%);
             color:var(--text);
             animation: fadeIn 0.6s ease-out;
         }
@@ -219,8 +219,8 @@ def apply_theme() -> None:
             position:absolute; left:1rem; top:1rem;
             width:42px; height:42px; border-radius:12px; display:flex; align-items:center; justify-content:center;
             font-size:1.15rem; font-weight:900; color:#fff;
-            background:linear-gradient(135deg, #4f8ef7 0%, #7c5cfc 55%, #22d3a0 100%);
-            box-shadow:0 10px 24px rgba(79,142,247,.28);
+            background:linear-gradient(135deg, #fb7185 0%, #f43f5e 55%, #be123c 100%);
+            box-shadow:0 10px 24px rgba(251,113,133,.28);
         }
         [data-testid="stSidebarHeader"]::after {
             content:"Artist 360° Intelligence";
@@ -245,11 +245,11 @@ def apply_theme() -> None:
             transition: all 0.2s ease !important;
         }
         [data-testid="stSidebarNav"] a:hover {
-            background: rgba(79, 142, 247, 0.12) !important;
+            background: rgba(251, 113, 133, 0.12) !important;
             color: var(--accent) !important;
         }
         [data-testid="stSidebarNav"] a[aria-current="page"] {
-            background: rgba(79, 142, 247, 0.2) !important;
+            background: rgba(251, 113, 133, 0.2) !important;
             color: var(--accent) !important;
         }
         [data-testid="stSidebarNav"] a > span:first-child,
@@ -288,13 +288,13 @@ def apply_theme() -> None:
         .brand-logo {
             width:42px; height:42px; border-radius:12px; display:flex; align-items:center; justify-content:center;
             font-size:1.15rem; font-weight:900; color:#fff;
-            background:linear-gradient(135deg, #4f8ef7 0%, #7c5cfc 55%, #22d3a0 100%);
-            box-shadow:0 10px 24px rgba(79,142,247,.28);
+            background:linear-gradient(135deg, #fb7185 0%, #f43f5e 55%, #be123c 100%);
+            box-shadow:0 10px 24px rgba(251,113,133,.28);
             transition: transform 0.3s ease, box-shadow 0.3s ease;
         }
         .brand-logo:hover {
             transform: rotate(5deg) scale(1.1);
-            box-shadow:0 15px 35px rgba(79,142,247,.4);
+            box-shadow:0 15px 35px rgba(251,113,133,.4);
         }
         .sidebar-logo { font-size:1.2rem; font-weight:800; letter-spacing:.2px; line-height:1.15; }
         .sidebar-sub { color:var(--text2); font-size:.8rem; margin-top:.18rem; }
@@ -309,11 +309,11 @@ def apply_theme() -> None:
             cursor: pointer;
         }
         div[data-testid="stRadio"] [role="radiogroup"] label:hover {
-            background:rgba(79,142,247,.12); border-color:rgba(79,142,247,.25);
+            background:rgba(251,113,133,.12); border-color:rgba(251,113,133,.25);
             transform: translateX(4px);
         }
         div[data-testid="stRadio"] [role="radiogroup"] label[data-checked="true"] {
-            background:rgba(79,142,247,.18); border-color:rgba(79,142,247,.4);
+            background:rgba(251,113,133,.18); border-color:rgba(251,113,133,.4);
         }
         div[data-testid="stRadio"] [role="radiogroup"] label > div:first-child {
             display:none !important;
@@ -332,8 +332,8 @@ def apply_theme() -> None:
             margin-bottom: 1rem;
             padding: 1.15rem 1.25rem;
             border-radius: 16px;
-            border: 1px solid rgba(79,142,247,.28);
-            background: linear-gradient(120deg, rgba(7,14,28,.92) 0%, rgba(9,18,36,.96) 62%, rgba(12,41,58,.88) 100%);
+            border: 1px solid rgba(251,113,133,.22);
+            background: linear-gradient(135deg, #1a2238 0%, #1f1a3a 50%, #261d3d 100%);
             box-shadow: 0 18px 42px rgba(0,0,0,.24), inset 0 1px 0 rgba(255,255,255,.03);
             position: relative;
             overflow: hidden;
@@ -342,7 +342,7 @@ def apply_theme() -> None:
             content: "";
             position: absolute;
             inset: 0;
-            background: linear-gradient(90deg, rgba(79,142,247,.07), rgba(34,211,160,.06));
+            background: linear-gradient(90deg, rgba(251,113,133,.07), rgba(96,165,250,.06));
             pointer-events: none;
         }
         .page-header-content {
@@ -357,7 +357,7 @@ def apply_theme() -> None:
         
         .dashboard-card:hover {
             box-shadow:0 18px 42px rgba(0,0,0,.35);
-            border-color: rgba(79,142,247,.3);
+            border-color: rgba(251,113,133,.3);
         }
         .section-title { 
             font-size:1rem; font-weight:700; margin-bottom:.2rem;
@@ -438,18 +438,18 @@ def apply_theme() -> None:
             color: var(--text); text-decoration: none;
         }
         .action-btn:hover {
-            background: rgba(79,142,247,.15);
+            background: rgba(251,113,133,.15);
             border-color: var(--accent);
             transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(79,142,247,.2);
+            box-shadow: 0 4px 12px rgba(251,113,133,.2);
         }
         .action-btn-primary {
-            background: linear-gradient(135deg, #4f8ef7, #7c5cfc);
+            background: linear-gradient(135deg, #fb7185, #f43f5e);
             border-color: transparent;
         }
         .action-btn-primary:hover {
-            background: linear-gradient(135deg, #6fa3f9, #9175fd);
-            box-shadow: 0 6px 20px rgba(79,142,247,.4);
+            background: linear-gradient(135deg, #fb923c, #fb7185);
+            box-shadow: 0 6px 20px rgba(251,113,133,.4);
         }
         .kpi-card {
             background: #111827;
@@ -482,9 +482,9 @@ def apply_theme() -> None:
         .kpi-card:hover::before {
             height: 5px;
         }
-        .kpi-green::before { background: linear-gradient(90deg, var(--accent3), #16a34a); }
-        .kpi-amber::before { background: linear-gradient(90deg, var(--warn), #f97316); }
-        .kpi-red::before { background: linear-gradient(90deg, var(--danger), #be123c); }
+        .kpi-green::before { background: linear-gradient(90deg, #34d399, #10b981); }
+        .kpi-amber::before { background: linear-gradient(90deg, #fcd34d, #f59e0b); }
+        .kpi-red::before { background: linear-gradient(90deg, #fb7185, #e11d48); }
         .kpi-label { 
             color:var(--text2); font-size:.76rem; text-transform:uppercase; 
             letter-spacing:.08em; margin-bottom: 0.5rem;
@@ -504,7 +504,7 @@ def apply_theme() -> None:
             border-radius: 999px; overflow: hidden; margin-top: auto;
         }
         .progress-fill {
-            height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent3));
+            height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent2));
             border-radius: 999px; transition: width 1.5s cubic-bezier(0.4, 0, 0.2, 1);
         }
         .table-wrap { margin-top: 1rem; overflow-x:auto; overflow-y:auto; max-height:640px; padding-right: 0.25rem; }
@@ -589,7 +589,7 @@ def apply_theme() -> None:
             transform: translateX(-50%) translateY(0);
             opacity: 0;
             transition: opacity 0.3s ease, transform 0.3s ease;
-            border: 1px solid rgba(79, 142, 247, 0.4);
+            border: 1px solid rgba(251, 113, 133, 0.4);
             box-shadow: 0 25px 60px rgba(0,0,0,0.8);
             font-size: 0.86rem;
             line-height: 1.6;
@@ -608,7 +608,7 @@ def apply_theme() -> None:
         .tooltip .tooltiptext::after {
             content: ""; position: absolute; bottom: 100%; left: 50%;
             margin-left: -10px; border-width: 10px; border-style: solid;
-            border-color: transparent transparent rgba(13, 20, 38, 0.99) transparent;
+            border-color: transparent transparent rgba(13, 17, 23, 0.99) transparent;
         }
         .tooltip .tooltiptext::before {
             content: "";
@@ -631,7 +631,7 @@ def apply_theme() -> None:
             background: transparent;
         }
         .tooltip .tooltiptext::-webkit-scrollbar-thumb {
-            background: rgba(79, 142, 247, 0.4);
+            background: rgba(251, 113, 133, 0.4);
             border-radius: 10px;
         }
         textarea, input, [data-baseweb="select"] > div {
@@ -758,7 +758,7 @@ def apply_theme() -> None:
             transform: translateY(-2px);
         }
         .stTabs [aria-selected="true"] {
-            background: linear-gradient(135deg, rgba(79,142,247,.2), rgba(124,92,252,.2));
+            background: linear-gradient(135deg, rgba(251, 113, 133, 0.2), rgba(196, 181, 253, 0.2));
             border-color: var(--accent);
             color: var(--text);
             border-bottom: 1px solid var(--accent) !important;
@@ -786,7 +786,7 @@ def apply_theme() -> None:
         }
         .stButton button:hover {
             transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(79,142,247,.3);
+            box-shadow: 0 6px 20px rgba(251, 113, 133, 0.3);
         }
         
         /* Hide ALL Streamlit running/status indicators */
@@ -914,12 +914,12 @@ def apply_theme() -> None:
         
         /* Slider styling */
         .stSlider [role="slider"] {
-            background: linear-gradient(135deg, #4f8ef7, #7c5cfc) !important;
+            background: linear-gradient(135deg, #fb7185, #60a5fa) !important;
         }
         
         /* Toggle switch */
         [data-testid="stCheckbox"] input[type="checkbox"]:checked + div {
-            background: linear-gradient(135deg, #4f8ef7, #7c5cfc) !important;
+            background: linear-gradient(135deg, #fb7185, #60a5fa) !important;
         }
 
         /* Global footer */
@@ -996,7 +996,7 @@ def show_artist_details_dialog(row: pd.Series) -> None:
         <style>
         div[role="dialog"] {
             background: linear-gradient(180deg, #0f172a 0%, #020617 100%) !important;
-            border: 1px solid rgba(79, 142, 247, 0.25) !important;
+            border: 1px solid rgba(251, 113, 133, 0.25) !important;
             box-shadow: 0 25px 60px rgba(0, 0, 0, 0.6) !important;
             width: 95vw !important;
             max-width: 1600px !important;
@@ -1221,8 +1221,8 @@ def show_artist_details_dialog(row: pd.Series) -> None:
         }
         .acq-loader-ring {
             width: 38px; height: 38px; border-radius: 50%;
-            border: 3px solid rgba(79, 142, 247, 0.18);
-            border-top-color: #60a5fa;
+            border: 3px solid rgba(251, 113, 133, 0.18);
+            border-top-color: #fb7185;
             animation: acq-spin 1s linear infinite;
         }
         .acq-loader-text {
@@ -3390,8 +3390,8 @@ def render_chatbot_widget() -> None:
                                 color: #ffffff;
                                 font-size: 30px;
                                 line-height: 1;
-                                background: linear-gradient(135deg, #4f8ef7 0%, #7c5cfc 60%, #22d3a0 100%);
-                                box-shadow: 0 14px 36px rgba(79, 142, 247, 0.35);
+                                background: linear-gradient(135deg, #fb7185 0%, #f43f5e 60%, #be123c 100%);
+                                box-shadow: 0 14px 36px rgba(251, 113, 133, 0.35);
                             }}
                             .a360-chatbot-toggle:hover {{
                                 transform: translateY(-2px);
@@ -3423,7 +3423,7 @@ def render_chatbot_widget() -> None:
                                 display: flex;
                                 align-items: center;
                                 justify-content: space-between;
-                                background: linear-gradient(135deg, #4f8ef7 0%, #7c5cfc 60%, #22d3a0 100%);
+                                background: linear-gradient(135deg, #fb7185 0%, #f43f5e 60%, #be123c 100%);
                                 color: #ffffff;
                                 cursor: grab;
                                 user-select: none;
@@ -3491,9 +3491,9 @@ def render_chatbot_widget() -> None:
                             }}
                             .a360-chatbot-error-btn {{
                                 margin-top: 12px;
-                                border: 1px solid #4f8ef7;
+                                border: 1px solid #fb7185;
                                 color: #e8f0ff;
-                                background: rgba(79,142,247,0.15);
+                                background: rgba(251,113,133,0.15);
                                 border-radius: 8px;
                                 padding: 8px 12px;
                                 cursor: pointer;
@@ -3737,8 +3737,8 @@ _loader_slot.markdown("""
 #a360-loader .a360-ring {
     width: 64px;
     height: 64px;
-    border: 3px solid rgba(79,142,247,0.15);
-    border-top-color: #4f8ef7;
+    border: 3px solid rgba(251,113,133,0.15);
+    border-top-color: #fb7185;
     border-radius: 50%;
     animation: a360-spin 0.9s linear infinite;
 }

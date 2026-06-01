@@ -485,7 +485,7 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
       </div>
     </div>
     <div class="tbl-hdr" style="grid-template-columns:24px 1fr 50px 70px 80px 100px 75px">
-      <span>Sr. No.</span><span>Album · Artist</span><span style="text-align:right">Rank</span>
+      <span>Sr. No.</span><span>Artist · Album</span><span style="text-align:right">Rank</span>
       <span style="text-align:right">Points</span><span style="text-align:right">Momentum</span>
       <span style="text-align:right;padding-right:12px">Signal</span><span style="text-align:right">Acq Score</span>
     </div>
