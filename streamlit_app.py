@@ -49,10 +49,13 @@ if "selected_artists" not in st.session_state:
     st.session_state.selected_artists = []
 if "show_advanced" not in st.session_state:
     st.session_state.show_advanced = False
-if "active_artist_profile" not in st.session_state:
-    st.session_state.active_artist_profile = None
+# ── Persistent Theme Management ─────────────────────────────
+if "theme" in st.query_params:
+    st.session_state.dark_mode = st.query_params["theme"] == "dark"
 if "dark_mode" not in st.session_state:
     st.session_state.dark_mode = True
+if "active_artist_profile" not in st.session_state:
+    st.session_state.active_artist_profile = None
 
 PAGE_META = {
     "Leaderboard": (
@@ -1183,15 +1186,30 @@ def show_artist_details_dialog(row: pd.Series) -> None:
             width: 95vw !important;
             max-width: 1600px !important;
         }}
-        /* Fix close button visibility and styling for Light/Dark modes */
+        /* Enhanced close button styling - Perfected for visibility in both modes */
         button[data-testid="stBaseButton-close"] {{
-            color: {dlg_text1} !important;
-            opacity: 0.8 !important;
+            color: {"#000000" if not is_dark else "#FFFFFF"} !important;
+            background-color: {"rgba(0,0,0,0.08)" if not is_dark else "rgba(255,255,255,0.12)"} !important;
+            border: 1px solid {"rgba(0,0,0,0.15)" if not is_dark else "rgba(255,255,255,0.2)"} !important;
+            border-radius: 50% !important;
+            opacity: 1 !important;
+            width: 32px !important;
+            height: 32px !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
         }}
         button[data-testid="stBaseButton-close"]:hover {{
-            opacity: 1 !important;
-            background-color: {dlg_badge_bg} !important;
-            color: #fb7185 !important;
+            background-color: #fb7185 !important;
+            color: #ffffff !important;
+            border-color: #fb7185 !important;
+            transform: scale(1.1) rotate(90deg) !important;
+        }}
+        button[data-testid="stBaseButton-close"] svg {{
+            fill: currentColor !important;
+            width: 18px !important;
+            height: 18px !important;
         }}
         .dlg-section {{ margin-bottom: 20px; }}
         .dlg-section-title {{
@@ -1922,12 +1940,13 @@ def prepare_leaderboard_table(leaderboard: pd.DataFrame, max_rows: int) -> pd.Da
 def render_leaderboard_table_html(leaderboard: pd.DataFrame, max_rows: int) -> None:
     table_df = leaderboard.head(max_rows).copy()
     rows_html = []
+    current_theme = "dark" if st.session_state.get("dark_mode", True) else "light"
     for _, row in table_df.iterrows():
         rank = int(row["rank"]) if pd.notna(row["rank"]) else "—"
         rank_change = trend_badge_html(str(row.get("rank_change") or ""))
         artist_name = str(row.get("name") or "—")
         artist_url_name = quote(artist_name)
-        artist_html = f"<a href='?artist_name={artist_url_name}' target='_self' class='artist-link' title='Click for full profile'>{escape(artist_name)}</a>"
+        artist_html = f"<a href='?artist_name={artist_url_name}&theme={current_theme}' target='_self' class='artist-link' title='Click for full profile'>{escape(artist_name)}</a>"
         top_song = str(row.get("top_song") or "—").strip()
         top_song_label = escape(top_song if len(top_song) <= 40 else top_song[:38] + "…")
         top_song_html = f"<span title=\"{escape(top_song)}\">{top_song_label}</span>"
@@ -4665,6 +4684,7 @@ with st.sidebar:
             use_container_width=True,
         ):
             st.session_state.dark_mode = not is_dark
+            st.query_params["theme"] = "dark" if st.session_state.dark_mode else "light"
             st.rerun()
     
     # Apply global filters (Latam, Countries)
