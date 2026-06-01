@@ -1413,7 +1413,7 @@ def load_dashboard_data() -> dict[str, pd.DataFrame]:
                 SELECT artist_id
                 FROM itunes_artist_rankings r
                 JOIN latest_run lr ON r.scraped_at = lr.ts
-                WHERE r.rank <= {TRACKER_TOP_ARTISTS}
+                WHERE r.rank <= 300
             )
             SELECT a.name, r.rank, r.scraped_at
             FROM itunes_artist_rankings r
