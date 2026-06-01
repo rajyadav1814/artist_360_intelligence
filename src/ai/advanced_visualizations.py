@@ -29,7 +29,7 @@ PALETTE_MODERN = {
 }
 
 PALETTE_DARK_BG = {
-    "bg": "rgba(18,24,42,1)",
+    "bg": "#0d1117",
     "grid": "rgba(151,163,197,.12)",
     "border": "rgba(151,163,197,.18)",
     "text": "#eef2ff",

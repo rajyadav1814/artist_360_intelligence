@@ -390,6 +390,7 @@ def render_label_analysis():
           overflow-x:hidden;
           padding-bottom:30px;
           animation: fadeIn 0.5s ease-out;
+          margin-top: -1.0rem;
         }
         @keyframes fadeIn {
             from { opacity: 0; transform: translateY(8px); }

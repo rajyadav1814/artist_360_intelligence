@@ -41,7 +41,7 @@ PALETTE_GRADIENT_PERFORMANCE = ["#7c3aed", "#3b82f6", "#06b6d4"]
 PALETTE_GRADIENT_HEATMAP = ["#eff6ff", "#3b82f6", "#1e40af"]
 
 PALETTE_DARK = {
-    "bg": "rgba(15, 23, 42, 1)",
+    "bg": "#0d1117",
     "grid": "rgba(148, 163, 184, 0.1)",
     "border": "rgba(148, 163, 184, 0.2)",
     "text": "#f1f5f9",

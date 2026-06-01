@@ -94,6 +94,7 @@ hr { margin: 1.25rem 0 !important; border: none !important; border-top: 1px soli
     border-radius: 20px;
     padding: 26px 30px;
     margin-bottom: 1.6rem;
+    margin-top: 1.5rem;
     box-shadow: 0 24px 60px rgba(0,0,0,.35);
     overflow: hidden;
 }
@@ -135,6 +136,7 @@ hr { margin: 1.25rem 0 !important; border: none !important; border-top: 1px soli
     display: grid;
     grid-template-columns: repeat(5, 1fr);
     gap: 14px;
+    margin-top: 1.5rem;
     margin-bottom: 1.5rem;
 }
 .db-kpi {

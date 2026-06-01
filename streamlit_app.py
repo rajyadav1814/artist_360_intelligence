@@ -321,6 +321,7 @@ def apply_theme(dark_mode: bool = False) -> None:
             padding-right: clamp(0.85rem, 1.8vw, 1.6rem);
             padding-left: clamp(0.85rem, 1.8vw, 1.6rem);
             padding-bottom: 6rem;
+            margin-top: 1.5rem;
         }
         div[data-testid="stHorizontalBlock"] {
             gap: clamp(0.75rem, 1.4vw, 1.1rem);
@@ -1402,8 +1403,8 @@ def show_artist_details_dialog(row: pd.Series) -> None:
         }}
         .acq-loader-ring {{
             width: 38px; height: 38px; border-radius: 50%;
-            border: 3px solid rgba(79, 142, 247, 0.18);
-            border-top-color: #60a5fa;
+            border: 3px solid rgba(251, 113, 133, 0.18);
+            border-top-color: #fb7185;
             animation: acq-spin 1s linear infinite;
         }}
         .acq-loader-text {{
@@ -1594,7 +1595,7 @@ def load_dashboard_data() -> dict[str, pd.DataFrame]:
                 SELECT artist_id
                 FROM itunes_artist_rankings r
                 JOIN latest_run lr ON r.scraped_at = lr.ts
-                WHERE r.rank <= {TRACKER_TOP_ARTISTS}
+                WHERE r.rank <= 300
             )
             SELECT a.name, r.rank, r.scraped_at
             FROM itunes_artist_rankings r
@@ -2024,6 +2025,7 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
             border-radius: 20px;
             padding: 24px 28px;
             margin-bottom: 1.4rem;
+            margin-top: 1.0rem;
             box-shadow: 0 24px 60px rgba(0,0,0,.35);
             overflow: hidden;
         }
@@ -3149,7 +3151,8 @@ def render_debut_artist_chart(leaderboard: pd.DataFrame) -> None:
             display: grid;
             grid-template-columns: repeat(4, minmax(0, 1fr));
             gap: 12px;
-            margin: 14px 0 16px;
+            margin-top: 1.0rem;
+            margin-bottom: 1rem;
         }}
         .spotlight-kpi {{
             background: linear-gradient(180deg, var(--surface2) 0%, var(--surface) 100%);
@@ -3248,7 +3251,8 @@ def render_debut_artist_chart(leaderboard: pd.DataFrame) -> None:
             grid-template-columns: minmax(120px, 180px) 1fr;
             gap: 18px;
             align-items: center;
-            margin: 12px 0 16px;
+            margin-top: 1.0rem;
+            margin-bottom: 1rem;
         }}
         .spotlight-artist-image {{
             width: 100%;
@@ -3940,7 +3944,7 @@ _loader_slot.markdown("""
 #a360-loader {
     position: fixed;
     inset: 0;
-    background: #07101f;
+    background: #0d1117;
     z-index: 99999;
     display: flex;
     flex-direction: column;
@@ -4463,7 +4467,7 @@ def show_debut_report_page() -> None:
 #dr-loader {
     position: fixed;
     inset: 0;
-    background: #07101f;
+    background: #0d1117;
     z-index: 99999;
     display: flex;
     flex-direction: column;

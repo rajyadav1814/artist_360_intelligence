@@ -343,7 +343,7 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
           <span class='section-dot' style='background:var(--purple)'></span>ITUNES — Rank + Score
         </div>
         <div class='trk-hdr' style='grid-template-columns:24px 1fr 50px 50px 64px 64px 60px'>
-          <span></span><span>Album · Artist</span><span style='text-align:center'>Start</span><span style='text-align:center'>Now</span><span style='text-align:right'>Score</span><span style='text-align:right'>+Score</span><span style='text-align:right'>Δ Rank</span>
+          <span></span><span>Artist · Album</span><span style='text-align:center'>Start</span><span style='text-align:center'>Now</span><span style='text-align:right'>Score</span><span style='text-align:right'>+Score</span><span style='text-align:right'>Δ Rank</span>
         </div>
         <div id='it-risers'></div>
       </div>
@@ -356,7 +356,7 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
           <span class='section-dot' style='background:var(--red)'></span>ITUNES — Rank + Score lost
         </div>
         <div class='trk-hdr' style='grid-template-columns:24px 1fr 50px 50px 64px 64px 60px'>
-          <span></span><span>Album · Artist</span><span style='text-align:center'>Start</span><span style='text-align:center'>Now</span><span style='text-align:right'>Score</span><span style='text-align:right'>Lost</span><span style='text-align:right'>Δ Rank</span>
+          <span></span><span>Artist · Album</span><span style='text-align:center'>Start</span><span style='text-align:center'>Now</span><span style='text-align:right'>Score</span><span style='text-align:right'>Lost</span><span style='text-align:right'>Δ Rank</span>
         </div>
         <div id='it-fallers'></div>
       </div>

@@ -186,6 +186,30 @@ def _top20_today(df: pd.DataFrame, latest: date) -> list[dict[str, Any]]:
     return out
 
 
+def _records_to_df(records: list[dict], metric_key: str) -> pd.DataFrame:
+    """Helper to convert movement records back to a flat DataFrame for display."""
+    if not records:
+        return pd.DataFrame()
+    data = []
+    metric_label = "Streams" if metric_key == "streams" else "Score"
+    for r in records:
+        ranks = r.get("ranks", [])
+        first_rank = next((x for x in ranks if x is not None), None)
+        last_rank = next((x for x in reversed(ranks) if x is not None), None)
+        
+        data.append({
+            "Artist": r["n"],
+            "Track": r["t"],
+            "Label": r["lbl"],
+            "Start Rank": first_rank or "—",
+            "Latest Rank": last_rank or "—",
+            "Rank Delta": r["rg"],
+            f"Latest {metric_label}": next((x for x in reversed(r.get(metric_key, [])) if x is not None), 0),
+            f"{metric_label} Delta": r["sg"],
+        })
+    return pd.DataFrame(data)
+
+
 # ─────────────────────────── render ───────────────────────────────
 
 def render_track_movement() -> None:
@@ -366,7 +390,7 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
           <span class='section-dot' style='background:var(--green)'></span>Rank + Streams
         </div>
         <div class='trk-hdr' style='grid-template-columns:24px 1fr 50px 50px 64px 64px 60px'>
-          <span></span><span>Track · Artist</span><span style='text-align:center'>Start</span><span style='text-align:center'>Now</span><span style='text-align:right'>Streams</span><span style='text-align:right'>+Streams</span><span style='text-align:right'>Δ Rank</span>
+          <span></span><span>Artist · Track</span><span style='text-align:center'>Start</span><span style='text-align:center'>Now</span><span style='text-align:right'>Streams</span><span style='text-align:right'>+Streams</span><span style='text-align:right'>Δ Rank</span>
         </div>
         <div id='sp-risers'></div>
       </div>
@@ -375,7 +399,7 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
           <span class='section-dot' style='background:var(--purple)'></span>ITUNES — Rank + Score
         </div>
         <div class='trk-hdr' style='grid-template-columns:24px 1fr 50px 50px 64px 64px 60px'>
-          <span></span><span>Track · Artist</span><span style='text-align:center'>Start</span><span style='text-align:center'>Now</span><span style='text-align:right'>Score</span><span style='text-align:right'>+Score</span><span style='text-align:right'>Δ Rank</span>
+          <span></span><span>Artist · Track</span><span style='text-align:center'>Start</span><span style='text-align:center'>Now</span><span style='text-align:right'>Score</span><span style='text-align:right'>+Score</span><span style='text-align:right'>Δ Rank</span>
         </div>
         <div id='it-risers'></div>
       </div>
@@ -388,7 +412,7 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
           <span class='section-dot' style='background:var(--red)'></span>Rank + Streams lost
         </div>
         <div class='trk-hdr' style='grid-template-columns:24px 1fr 50px 50px 64px 64px 60px'>
-          <span></span><span>Track · Artist</span><span style='text-align:center'>Start</span><span style='text-align:center'>Now</span><span style='text-align:right'>Streams</span><span style='text-align:right'>Lost</span><span style='text-align:right'>Δ Rank</span>
+          <span></span><span>Artist · Track</span><span style='text-align:center'>Start</span><span style='text-align:center'>Now</span><span style='text-align:right'>Streams</span><span style='text-align:right'>Lost</span><span style='text-align:right'>Δ Rank</span>
         </div>
         <div id='sp-fallers'></div>
       </div>
@@ -397,7 +421,7 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
           <span class='section-dot' style='background:var(--red)'></span>ITUNES — Rank + Score lost
         </div>
         <div class='trk-hdr' style='grid-template-columns:24px 1fr 50px 50px 64px 64px 60px'>
-          <span></span><span>Track · Artist</span><span style='text-align:center'>Start</span><span style='text-align:center'>Now</span><span style='text-align:right'>Score</span><span style='text-align:right'>Lost</span><span style='text-align:right'>Δ Rank</span>
+          <span></span><span>Artist · Track</span><span style='text-align:center'>Start</span><span style='text-align:center'>Now</span><span style='text-align:right'>Score</span><span style='text-align:right'>Lost</span><span style='text-align:right'>Δ Rank</span>
         </div>
         <div id='it-fallers'></div>
       </div>
