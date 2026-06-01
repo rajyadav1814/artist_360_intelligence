@@ -50,12 +50,46 @@ if "selected_artists" not in st.session_state:
 if "show_advanced" not in st.session_state:
     st.session_state.show_advanced = False
 # ── Persistent Theme Management ─────────────────────────────
+# 1. Check URL parameters first (e.g. from toggle)
 if "theme" in st.query_params:
     st.session_state.dark_mode = st.query_params["theme"] == "dark"
-if "dark_mode" not in st.session_state:
+# 2. Check cookies to avoid the redirect flicker on refresh
+elif hasattr(st, "context") and hasattr(st.context, "cookies") and "theme" in st.context.cookies:
+    st.session_state.dark_mode = st.context.cookies["theme"] == "dark"
+# 3. Fallback to default
+elif "dark_mode" not in st.session_state:
     st.session_state.dark_mode = True
+
 if "active_artist_profile" not in st.session_state:
     st.session_state.active_artist_profile = None
+
+# Inject JS to sync theme with localStorage AND Cookies
+st_components.html(
+    f"""
+    <script>
+        const urlParams = new URLSearchParams(window.parent.location.search);
+        const urlTheme = urlParams.get('theme');
+        const storedTheme = window.parent.localStorage.getItem('theme');
+        const currentPythonTheme = "{ 'dark' if st.session_state.dark_mode else 'light' }";
+        
+        // Ensure localStorage and Cookie stay in sync with Python state
+        if (urlTheme) {{
+            window.parent.localStorage.setItem('theme', urlTheme);
+            window.parent.document.cookie = `theme=${{urlTheme}}; path=/; max-age=31536000`;
+        }} else if (storedTheme && storedTheme !== currentPythonTheme) {{
+            // Only redirect if absolutely necessary (should be rare now due to cookies)
+            urlParams.set('theme', storedTheme);
+            window.parent.location.search = urlParams.toString();
+        }} else {{
+            // Keep cookies updated even without URL param
+            window.parent.localStorage.setItem('theme', currentPythonTheme);
+            window.parent.document.cookie = `theme=${{currentPythonTheme}}; path=/; max-age=31536000`;
+        }}
+    </script>
+    """,
+    height=0,
+    width=0,
+)
 
 PAGE_META = {
     "Leaderboard": (
@@ -4466,7 +4500,9 @@ def show_ai_analyst_page() -> None:
         """,
         unsafe_allow_html=True
     )
-    st_components.iframe("https://artist360-chatbot.vercel.app/", height=1000, scrolling=False)
+    is_dark = st.session_state.get("dark_mode", True)
+    bot_url = "https://artist360-chatbot.vercel.app/" if is_dark else "https://artist360-chatbot.vercel.app/white"
+    st_components.iframe(bot_url, height=1000, scrolling=False)
 
 
 def show_pulse_report_page() -> None:
