@@ -3725,7 +3725,7 @@ _loader_slot.markdown("""
 #a360-loader {
     position: fixed;
     inset: 0;
-    background: #07101f;
+    background: #0d1117;
     z-index: 99999;
     display: flex;
     flex-direction: column;
@@ -4246,7 +4246,7 @@ def show_debut_report_page() -> None:
 #dr-loader {
     position: fixed;
     inset: 0;
-    background: #07101f;
+    background: #0d1117;
     z-index: 99999;
     display: flex;
     flex-direction: column;
