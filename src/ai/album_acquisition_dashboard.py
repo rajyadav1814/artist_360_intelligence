@@ -327,7 +327,7 @@ def render_album_acquisition() -> None:
     payload["usAlbums"] = us_albums
     payload["usSummary"] = us_payload.get("summary", {})
 
-    html = _build_html(payload, dark_mode=st.session_state.get("dark_mode", False))
+    html = _build_html(payload, dark_mode=st.session_state.get("dark_mode", True))
     st_components.html(html, height=1700, scrolling=True)
 
 

@@ -310,7 +310,7 @@ def render_track_movement() -> None:
         },
     }
 
-    html = _build_html(payload, dark_mode=st.session_state.get("dark_mode", False))
+    html = _build_html(payload, dark_mode=st.session_state.get("dark_mode", True))
     st_components.html(html, height=1700, scrolling=True)
 
 

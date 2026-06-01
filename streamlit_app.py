@@ -52,7 +52,7 @@ if "show_advanced" not in st.session_state:
 if "active_artist_profile" not in st.session_state:
     st.session_state.active_artist_profile = None
 if "dark_mode" not in st.session_state:
-    st.session_state.dark_mode = False
+    st.session_state.dark_mode = True
 
 PAGE_META = {
     "Leaderboard": (
@@ -112,7 +112,7 @@ LOAD_TIMEOUT_MS = 20000
 
 def render_plotly_html(fig: go.Figure, *, height: int | None = None, dark_mode: bool | None = None) -> None:
     if dark_mode is None:
-        dark_mode = st.session_state.get("dark_mode", False)
+        dark_mode = st.session_state.get("dark_mode", True)
 
     chart_height = height or (int(fig.layout.height) if fig.layout.height else 520)
     fig.update_layout(
@@ -159,7 +159,7 @@ def render_plotly_html(fig: go.Figure, *, height: int | None = None, dark_mode: 
     )
 
 
-def apply_theme(dark_mode: bool = False) -> None:
+def apply_theme(dark_mode: bool = True) -> None:
     # ── CSS variable sets ───────────────────────────────────────────
     if dark_mode:
         # Dark theme – deep navy (previous style)
@@ -1161,7 +1161,7 @@ def show_artist_details_dialog(row: pd.Series) -> None:
     countries_html = "".join(f"<li>{escape(item)}</li>" for item in countries_items) if countries_items else "<div style='color:#8b95ad;font-size:.88rem;'>No countries available.</div>"
 
     # Scoped styles for the dialog
-    is_dark = st.session_state.get("dark_mode", False)
+    is_dark = st.session_state.get("dark_mode", True)
     
     dlg_bg = "linear-gradient(180deg, rgba(15,12,30,0.98) 0%, rgba(10,7,24,1) 100%)" if is_dark else "linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(248,249,251,1) 100%)"
     dlg_border = "rgba(251, 113, 133, 0.25)" if is_dark else "rgba(251, 113, 133, 0.15)"
@@ -1182,6 +1182,16 @@ def show_artist_details_dialog(row: pd.Series) -> None:
             box-shadow: 0 25px 60px rgba(0, 0, 0, 0.6) !important;
             width: 95vw !important;
             max-width: 1600px !important;
+        }}
+        /* Fix close button visibility and styling for Light/Dark modes */
+        button[data-testid="stBaseButton-close"] {{
+            color: {dlg_text1} !important;
+            opacity: 0.8 !important;
+        }}
+        button[data-testid="stBaseButton-close"]:hover {{
+            opacity: 1 !important;
+            background-color: {dlg_badge_bg} !important;
+            color: #fb7185 !important;
         }}
         .dlg-section {{ margin-bottom: 20px; }}
         .dlg-section-title {{
@@ -1712,7 +1722,7 @@ def latest_source_rows(runs: pd.DataFrame) -> pd.DataFrame:
 
 def style_figure(fig, height: int, dark_mode: bool | None = None) -> None:
     if dark_mode is None:
-        dark_mode = st.session_state.get("dark_mode", False)
+        dark_mode = st.session_state.get("dark_mode", True)
 
     text_color = "#cdd6e4" if dark_mode else "#1A1A1A"
     grid_color = "rgba(255,255,255,0.06)" if dark_mode else "rgba(0,0,0,0.06)"
@@ -1988,7 +1998,7 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
     top_artist_row = leaderboard.sort_values("rank").head(1)
     top_artist_name = str(top_artist_row.iloc[0]["name"]) if not top_artist_row.empty else "—"
 
-    is_dark = st.session_state.get("dark_mode", False)
+    is_dark = st.session_state.get("dark_mode", True)
     
     # Python-level dynamic CSS to ensure no variable inheritance issues
     lb_bg2 = "#161b26" if is_dark else "#FFFFFF"
@@ -2545,7 +2555,7 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
     BRIGHT_PALETTE = ["#60a5fa", "#34d399", "#c4b5fd", "#fcd34d", "#fb7185",
                       "#6EE7B7", "#FF61D2", "#34D399", "#FFB547", "#31C3FF"]
 
-    is_dark = st.session_state.get("dark_mode", False)
+    is_dark = st.session_state.get("dark_mode", True)
     bg_color_marker = "#0d1117" if is_dark else "#F5F6FA"
 
     fig_line = go.Figure()
@@ -3928,7 +3938,7 @@ def render_chatbot_widget() -> None:
         
 
 
-apply_theme(dark_mode=st.session_state.get("dark_mode", False))
+apply_theme(dark_mode=st.session_state.get("dark_mode", True))
 
 _loader_slot = st.empty()
 _loader_slot.markdown("""
@@ -4266,7 +4276,7 @@ def show_compare_page() -> None:
 
         with comp_col1:
             fig_comp_listeners = go.Figure()
-            is_dark = st.session_state.get("dark_mode", False)
+            is_dark = st.session_state.get("dark_mode", True)
             text_color = "#fff" if is_dark else "#1A1A1A"
             for idx_a, aname in enumerate(selected_for_comparison):
                 sl = comparison_data[comparison_data["name"] == aname]
@@ -4644,16 +4654,14 @@ with st.sidebar:
 
     
     with st.expander("🎛️ Display Options", expanded=True):
-        max_rows = st.slider("📊 Table rows", min_value=10, max_value=300, value=15, step=5)
+        max_rows = st.slider("📊 Table rows", min_value=15, max_value=300, value=15, step=5)
         
         # ── Dark / Light mode toggle ───────────────────────────────
-        is_dark = st.session_state.get("dark_mode", False)
+        is_dark = st.session_state.get("dark_mode", True)
         toggle_label = "☀️ Light Mode" if is_dark else "🌙 Dark Mode"
-        toggle_help  = "Switch to light theme" if is_dark else "Switch to dark theme"
         if st.button(
             toggle_label,
             key="theme_toggle_btn",
-            help=toggle_help,
             use_container_width=True,
         ):
             st.session_state.dark_mode = not is_dark
