@@ -532,7 +532,7 @@ def apply_theme(dark_mode: bool = True) -> None:
             font-size:1rem; font-weight:700; margin-bottom:.2rem;
             display: flex; align-items: center; gap: 0.5rem;
         }
-        .section-sub { color:var(--text2); font-size:.82rem; margin-bottom:1rem; }
+        .section-sub { color:var(--text2); font-size:.82rem; margin-bottom:1rem; font-weight:500; }
         .dashboard-card {
             background: linear-gradient(180deg, var(--surface), var(--surface2));
             border: 1px solid var(--border);
@@ -4425,7 +4425,7 @@ def show_compare_page() -> None:
             style_figure(fig_comp_points, 310, dark_mode=is_dark)
             render_plotly_html(fig_comp_points)
 
-        with st.expander("📋 View Detailed Comparison Table"):
+        with st.expander("📋 View Detailed Comparison Table", expanded=True):
             table_rows: list[str] = []
             for _, row in comparison_data.iterrows():
                 rank_val = int(row["rank"]) if pd.notna(row.get("rank")) else "-"
