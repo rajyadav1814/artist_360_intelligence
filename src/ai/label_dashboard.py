@@ -11,6 +11,7 @@ import plotly.graph_objects as go
 import plotly.express as px
 from src.database.connection import get_connection
 from src.utils.logger import get_logger
+from src.utils.ui import custom_selectbox
 
 logger = get_logger(__name__)
 
@@ -674,7 +675,7 @@ def render_pulse_report():
             font-weight: 900;
             letter-spacing: -0.05em;
             margin-bottom: 0.5rem;
-            color: #ffffff;
+            color: #1A1A1A;
             text-shadow: 0 2px 4px rgba(0,0,0,0.3);
             position: relative;
             z-index: 1;
@@ -876,7 +877,7 @@ def render_pulse_report():
             font-size: 2rem;
             font-weight: 900;
             margin-bottom: 0.5rem;
-            color: #ffffff;
+            color: #1A1A1A;
         }
         .acquisition-meta {
             color: rgba(255, 255, 255, 0.9);
@@ -904,7 +905,7 @@ def render_pulse_report():
             margin-bottom: 0.5rem;
         }
         .acquisition-metric-value {
-            color: #ffffff;
+            color: #1A1A1A;
             font-size: 1.25rem;
             font-weight: 800;
         }
@@ -943,7 +944,7 @@ def render_pulse_report():
         }
         .stTabs [aria-selected="true"] {
             background: var(--gradient-primary) !important;
-            color: #ffffff !important;
+            color: #1A1A1A !important;
         }
 
         /* Info Messages */
@@ -1292,11 +1293,13 @@ def render_pulse_report():
                 f"{row['artist_title']} — {row['label']} ({format_number(row['week_streams'])} streams)"
                 for _, row in candidate_df.iterrows()
             ]
-            selected_index = st.selectbox(
+            selected_label = custom_selectbox(
                 "Select candidate artist",
-                list(range(len(option_labels))),
-                format_func=lambda i: option_labels[i],
+                option_labels,
+                index=0,
+                key="label_dash_candidate"
             )
+            selected_index = option_labels.index(selected_label) if selected_label in option_labels else 0
             selected_row = candidate_df.iloc[selected_index]
             candidate = get_acquisition_candidate(
                 artist_title=selected_row['artist_title'],

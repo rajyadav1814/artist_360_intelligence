@@ -19,6 +19,11 @@ logger = get_logger(__name__)
 
 WINDOW_DAYS = 13
 
+# ─────────────────────── theme CSS ──────────────────────────────
+_THEME_LIGHT = ":root{--bg:#F5F6FA;--bg2:#FFFFFF;--bg3:#F8F9FB;--bg4:#EEF1F7;--border:rgba(148,163,184,.2);--border2:rgba(148,163,184,.35);--t1:#1A1A1A;--t2:#4A5568;--t3:#8A8FA3;--t4:#A0AEC0;--green:#34d399;--gd:rgba(52,211,153,.18);--red:#fb7185;--rd:rgba(251,113,133,.18);--blue:#60a5fa;--bd:rgba(96,165,250,.18);--purple:#c4b5fd;--pd:rgba(196,181,253,.18);--amber:#fcd34d;--teal:#5eead4;--pink:#f9a8d4;}"
+_THEME_DARK  = ":root{--bg:#0d1117;--bg2:#161b27;--bg3:#1a2035;--bg4:#1e2740;--border:rgba(41,52,85,.7);--border2:rgba(58,70,97,.8);--t1:#e2e8f0;--t2:#94a3b8;--t3:#8b95ad;--t4:#6b7a99;--green:#34d399;--gd:rgba(52,211,153,.18);--red:#fb7185;--rd:rgba(251,113,133,.18);--blue:#60a5fa;--bd:rgba(96,165,250,.18);--purple:#c4b5fd;--pd:rgba(196,181,253,.18);--amber:#fcd34d;--teal:#5eead4;--pink:#f9a8d4;}"
+
+
 
 def _split_at(at: str | None) -> tuple[str, str]:
     if not at:
@@ -326,39 +331,31 @@ def render_track_acquisition() -> None:
     payload["usTracks"] = us_tracks
     payload["usSummary"] = us_payload.get("summary", {})
 
-    html = _build_html(payload)
+    html = _build_html(payload, dark_mode=st.session_state.get("dark_mode", False))
     st_components.html(html, height=1700, scrolling=True)
 
 
-def _build_html(payload: dict[str, Any]) -> str:
+def _build_html(payload: dict[str, Any], dark_mode: bool = False) -> str:
     data_json = json.dumps(payload, default=str)
+    theme_css = _THEME_DARK if dark_mode else _THEME_LIGHT
     return """
 <!DOCTYPE html><html><head><meta charset='utf-8'>
 <style>
+__THEME__
 *{box-sizing:border-box;margin:0;padding:0}
-:root{
-  --bg:#0d1117;--bg2:#161b26;--bg3:#1f2633;--bg4:#283041;
-  --border:#2a3446;--border2:#3a4661;
-  --t1:#ffffff;--t2:#cdd6e4;--t3:#8b95ad;--t4:#5b657d;
-  --green:#34d399;--gd:rgba(52,211,153,.18);
-  --red:#fb7185;--rd:rgba(251,113,133,.18);
-  --blue:#60a5fa;--bd:rgba(96,165,250,.18);
-  --purple:#c4b5fd;--pd:rgba(196,181,253,.18);
-  --amber:#fcd34d;--teal:#5eead4;--pink:#f9a8d4;
-}
 body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t1);font-size:13px;line-height:1.55}
 .hdr{background:linear-gradient(180deg,#1a2235 0%,var(--bg2) 100%);border-bottom:1px solid var(--border);padding:20px 24px 16px}
 .hdr-top{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;margin-bottom:12px}
 .brand{font-size:11px;color:var(--t3);letter-spacing:1.4px;text-transform:uppercase;display:flex;align-items:center;gap:7px;margin-bottom:6px;font-weight:600}
 .live{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);animation:blink 2s infinite}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.4}}
-.dash-title{font-size:26px;font-weight:700;letter-spacing:-.5px;color:#fff}
+.dash-title{font-size:26px;font-weight:700;letter-spacing:-.5px;color:#1A1A1A}
 .dash-sub{font-size:12px;color:var(--t2);letter-spacing:.3px;margin-top:4px;font-weight:500}
 .filter-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .filter-grp{display:flex;gap:3px;background:var(--bg3);padding:4px;border-radius:8px;border:1px solid var(--border2)}
 .fp{font-size:13px;font-weight:600;padding:6px 14px;border:none;border-radius:6px;cursor:pointer;background:transparent;color:var(--t3);transition:.15s;letter-spacing:.3px}
 .fp:hover{color:var(--t1)}
-.fp.on{background:var(--bg4);color:#fff}
+.fp.on{background:var(--bg4);color:#1A1A1A}
 .sel-wrap{position:relative}
 .sel-wrap select{background:var(--bg3);border:1px solid var(--border2);color:var(--t2);font-size:13px;padding:8px 32px 8px 14px;border-radius:6px;cursor:pointer;appearance:none;font-family:inherit;letter-spacing:.3px;font-weight:600}
 .sel-wrap::after{content:'▾';position:absolute;right:12px;top:50%;transform:translateY(-50%);color:var(--t3);pointer-events:none;font-size:14px}
@@ -400,14 +397,14 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
 .sig-pass{background:var(--rd);color:var(--red);border:1px solid rgba(251,113,133,.35)}
 .detail-hdr{padding:20px 22px 16px;border-bottom:1px solid var(--border);background:var(--bg2);flex-shrink:0}
 .detail-accent{height:3px;background:linear-gradient(90deg,var(--green),var(--teal));margin:-20px -22px 16px;margin-bottom:16px}
-.detail-title{font-size:18px;font-weight:700;letter-spacing:-.3px;margin-bottom:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#fff}
+.detail-title{font-size:18px;font-weight:700;letter-spacing:-.3px;margin-bottom:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#1A1A1A}
 .detail-artist{font-size:12px;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;font-weight:600}
 .detail-label-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px}
 .pill-lbl{font-size:10px;color:var(--t2);padding:4px 10px;border-radius:12px;border:1px solid var(--border2);background:var(--bg3);font-weight:600}
 .detail-stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px}
 .ds{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px 14px}
 .ds-l{font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px;font-weight:600}
-.ds-v{font-size:18px;font-weight:700;letter-spacing:-.3px;color:#fff}
+.ds-v{font-size:18px;font-weight:700;letter-spacing:-.3px;color:#1A1A1A}
 .ds-s{font-size:10px;color:var(--t2);margin-top:3px;font-weight:500}
 .detail-body{flex:1;overflow-y:auto;padding:16px 22px}
 .detail-body::-webkit-scrollbar{width:5px}
@@ -424,7 +421,7 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
 .sig-title{font-size:13px;font-weight:600;color:var(--t1);margin-bottom:3px}
 .sig-desc{font-size:12px;color:var(--t2);line-height:1.55}
 .score-ring{display:flex;align-items:center;gap:14px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:14px 18px;margin-bottom:16px}
-.ring-num{font-size:32px;font-weight:700;letter-spacing:-.5px;color:#fff}
+.ring-num{font-size:32px;font-weight:700;letter-spacing:-.5px;color:#1A1A1A}
 .ring-info{flex:1}
 .ring-lbl{font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px;font-weight:600}
 .ring-bar-bg{height:6px;background:var(--bg4);border-radius:3px;overflow:hidden}
@@ -593,4 +590,4 @@ function applyFilters(){renderTable();}
 renderTable();if(selectedId){setTimeout(()=>selectTrack(selectedId),80);}
 </script>
 </body></html>
-""".replace("__PAYLOAD__", data_json)
+""".replace("__PAYLOAD__", data_json).replace("__THEME__", theme_css)
