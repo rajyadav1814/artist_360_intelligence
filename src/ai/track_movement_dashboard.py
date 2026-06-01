@@ -180,6 +180,30 @@ def _top20_today(df: pd.DataFrame, latest: date) -> list[dict[str, Any]]:
     return out
 
 
+def _records_to_df(records: list[dict], metric_key: str) -> pd.DataFrame:
+    """Helper to convert movement records back to a flat DataFrame for display."""
+    if not records:
+        return pd.DataFrame()
+    data = []
+    metric_label = "Streams" if metric_key == "streams" else "Score"
+    for r in records:
+        ranks = r.get("ranks", [])
+        first_rank = next((x for x in ranks if x is not None), None)
+        last_rank = next((x for x in reversed(ranks) if x is not None), None)
+        
+        data.append({
+            "Artist": r["n"],
+            "Track": r["t"],
+            "Label": r["lbl"],
+            "Start Rank": first_rank or "—",
+            "Latest Rank": last_rank or "—",
+            "Rank Delta": r["rg"],
+            f"Latest {metric_label}": next((x for x in reversed(r.get(metric_key, [])) if x is not None), 0),
+            f"{metric_label} Delta": r["sg"],
+        })
+    return pd.DataFrame(data)
+
+
 # ─────────────────────────── render ───────────────────────────────
 
 def render_track_movement() -> None:
