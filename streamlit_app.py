@@ -190,6 +190,7 @@ def apply_theme() -> None:
             padding-right: clamp(0.85rem, 1.8vw, 1.6rem);
             padding-left: clamp(0.85rem, 1.8vw, 1.6rem);
             padding-bottom: 6rem;
+            margin-top: 1.5rem;
         }
         div[data-testid="stHorizontalBlock"] {
             gap: clamp(0.75rem, 1.4vw, 1.1rem);
@@ -1824,6 +1825,7 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
             border-radius: 20px;
             padding: 24px 28px;
             margin-bottom: 1.4rem;
+            margin-top: 1.0rem;
             box-shadow: 0 24px 60px rgba(0,0,0,.35);
             overflow: hidden;
         }
@@ -2930,7 +2932,8 @@ def render_debut_artist_chart(leaderboard: pd.DataFrame) -> None:
             display: grid;
             grid-template-columns: repeat(4, minmax(0, 1fr));
             gap: 12px;
-            margin: 14px 0 16px;
+            margin-top: 1.0rem;
+            margin-bottom: 1rem;
         }}
         .spotlight-kpi {{
             background: linear-gradient(180deg, #161b26 0%, #11182c 100%);
@@ -3029,7 +3032,8 @@ def render_debut_artist_chart(leaderboard: pd.DataFrame) -> None:
             grid-template-columns: minmax(120px, 180px) 1fr;
             gap: 18px;
             align-items: center;
-            margin: 12px 0 16px;
+            margin-top: 1.0rem;
+            margin-bottom: 1rem;
         }}
         .spotlight-artist-image {{
             width: 100%;
