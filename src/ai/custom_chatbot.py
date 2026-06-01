@@ -1444,7 +1444,7 @@ def _render_empty_state() -> None:
             div.cat-btn-active > div[data-testid="stButton"] > button {
                 background: rgba(123, 145, 255, 0.2) !important;
                 border-color: rgba(123, 145, 255, 0.5) !important;
-                color: #ffffff !important;
+                color: #1A1A1A !important;
                 font-weight: 600 !important;
             }
 
@@ -1462,7 +1462,7 @@ def _render_empty_state() -> None:
             }
             div.q-capsule-wrapper > div[data-testid="stButton"] > button:hover {
                 border-color: rgba(123, 145, 255, 0.4) !important;
-                color: #ffffff !important;
+                color: #1A1A1A !important;
             }
             </style>
             """,
@@ -1586,7 +1586,7 @@ def render_custom_chatbot() -> None:
         div[data-testid="stChatInput"] textarea, div[data-testid="stChatInput"] input {
             background: transparent !important;
             border: none !important;
-            color: #ffffff !important;
+            color: #1A1A1A !important;
             box-shadow: none !important;
             padding: 0.6rem 0.9rem !important;
         }

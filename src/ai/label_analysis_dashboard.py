@@ -7,6 +7,11 @@ from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
+# ─────────────────────── theme CSS ──────────────────────────────
+_THEME_LIGHT = ":root{--bg:#F5F6FA;--bg2:#FFFFFF;--bg3:#F8F9FB;--bg4:#EEF1F7;--border:rgba(148,163,184,.2);--border2:rgba(148,163,184,.35);--t1:#1A1A1A;--t2:#4A5568;--t3:#8A8FA3;--t4:#A0AEC0;--green:#34d399;--gd:rgba(52,211,153,.18);--red:#fb7185;--rd:rgba(251,113,133,.18);--blue:#60a5fa;--bd:rgba(96,165,250,.18);--purple:#c4b5fd;--pd:rgba(196,181,253,.18);--amber:#fcd34d;--teal:#5eead4;--pink:#f9a8d4;}"
+_THEME_DARK  = ":root{--bg:#0d1117;--bg2:#161b27;--bg3:#1a2035;--bg4:#1e2740;--border:rgba(41,52,85,.7);--border2:rgba(58,70,97,.8);--t1:#e2e8f0;--t2:#94a3b8;--t3:#8b95ad;--t4:#6b7a99;--green:#34d399;--gd:rgba(52,211,153,.18);--red:#fb7185;--rd:rgba(251,113,133,.18);--blue:#60a5fa;--bd:rgba(96,165,250,.18);--purple:#c4b5fd;--pd:rgba(196,181,253,.18);--amber:#fcd34d;--teal:#5eead4;--pink:#f9a8d4;}"
+
+
 def classify_label(label_str):
     """Categorize raw label names into one of the 5 major groups."""
     if not label_str:
@@ -81,6 +86,8 @@ def load_data():
 
 def render_label_analysis():
     """Render the Label Analysis dashboard with dynamic data."""
+    dark_mode = st.session_state.get("dark_mode", False)
+    theme_css = _THEME_DARK if dark_mode else _THEME_LIGHT
     df_spotify, df_itunes = load_data()
     
     if df_spotify.empty and df_itunes.empty:
@@ -371,25 +378,12 @@ def render_label_analysis():
         <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap">
         <style>
         *{box-sizing:border-box;margin:0;padding:0}
-        :root{
-          --bg:#0d1117;
-          --bg2:#161b26;
-          --bg3:#1f2633;
-          --bg4:#283041;
-          --border:rgba(148,163,184,.15);
-          --border2:rgba(148,163,184,.28);
-          --t1:#ffffff;
-          --t2:#cdd6e4;
-          --t3:#8b95ad;
-          
-          --green:#34d399;--gd:rgba(52,211,153,.18);
-          --red:#fb7185;--rd:rgba(251,113,133,.18);
-          --blue:#60a5fa;--bd:rgba(96,165,250,.18);
-          --purple:#c4b5fd;--amber:#fcd34d;--teal:#5eead4;--pink:#f9a8d4;
+        __THEME__
+        :root {
           --sony:#fb7185;--umg:#c4b5fd;--wmg:#fcd34d;--indie:#34d399;--other:#60a5fa;
         }
         body{
-          background: linear-gradient(180deg,#0d1117 0%,#161b26 100%);
+          background: var(--bg);
           font-family:'Inter',system-ui,sans-serif;
           color:var(--t1);
           font-size:13px;
@@ -431,14 +425,14 @@ def render_label_analysis():
           0%,100%{opacity:1; box-shadow: 0 0 0 3px rgba(34,211,160,.15), 0 0 10px rgba(34,211,160,.5);}
           50%{opacity:.3; box-shadow: 0 0 0 6px rgba(34,211,160,.05), 0 0 16px rgba(34,211,160,.7);}
         }
-        .title{font-size:24px;font-weight:900;letter-spacing:-.03em;color:#ffffff;line-height:1.15;}
+        .title{font-size:24px;font-weight:900;letter-spacing:-.03em;color:var(--t1);line-height:1.15;}
         .sub{font-size:11px;color:var(--t2);font-weight:500;margin-top:5px;letter-spacing:.02em;}
         
         .controls{display:flex;gap:6px;align-items:center;flex-wrap:wrap;position:relative;z-index:2;}
         .pill-grp{
           display:flex;
           gap:4px;
-          background:rgba(13,17,23,.55);
+          background:var(--bg3);
           padding:4px;
           border-radius:12px;
           border:1px solid var(--border);
@@ -485,32 +479,32 @@ def render_label_analysis():
           letter-spacing:.9px;
           text-transform:uppercase;
           padding:11px 16px;
-          border:1px solid rgba(56,189,248,.25);
+          border:1px solid var(--border2);
           border-radius:12px;
-          background:linear-gradient(135deg, rgba(12,24,48,.88), rgba(20,25,66,.88));
-          color:rgba(226,232,240,.92);
+          background:var(--bg3);
+          color:var(--t2);
           cursor:pointer;
           transition:all .22s ease;
-          box-shadow:inset 0 0 0 1px rgba(15,23,42,.45);
+          box-shadow:none;
         }
         .pt-ic{
           width:16px;
           text-align:center;
-          color:rgba(186,230,253,.96);
+          color:var(--t3);
           font-size:12px;
           line-height:1;
         }
         .pt:hover{
           color:var(--t1);
-          border-color:rgba(56,189,248,.55);
-          background:linear-gradient(135deg, rgba(26,46,87,.9), rgba(27,38,90,.9));
-          box-shadow:0 0 0 1px rgba(56,189,248,.16), 0 8px 22px rgba(3,10,22,.45);
+          border-color:var(--blue);
+          background:var(--bg2);
+          box-shadow:0 8px 22px rgba(0,0,0,.05);
         }
         .pt.on{
           color:var(--t1);
-          border-color:rgba(56,189,248,.88);
-          background:linear-gradient(135deg, rgba(27,52,94,.95), rgba(35,43,102,.92));
-          box-shadow:0 0 0 1px rgba(56,189,248,.28), inset 0 -2px 0 rgba(125,211,252,.7);
+          border-color:var(--blue);
+          background:rgba(96,165,250,.12);
+          box-shadow:inset 0 0 0 1px var(--blue);
         }
 
         .kpi-bar{
@@ -542,7 +536,7 @@ def render_label_analysis():
         .kpi.k-pink::before{background:var(--pink);}
         
         .kpi-lbl{font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.12em;font-weight:800;margin-bottom:10px;}
-        .kpi-val{font-size:26px;font-weight:900;letter-spacing:-.02em;line-height:1.1;color:#ffffff;}
+        .kpi-val{font-size:26px;font-weight:900;letter-spacing:-.02em;line-height:1.1;color:var(--t1);}
         .kpi.k-blue .kpi-val{color:var(--blue);}
         .kpi.k-green .kpi-val{color:var(--green);}
         .kpi.k-purple .kpi-val{color:var(--purple);}
@@ -583,7 +577,7 @@ def render_label_analysis():
 
         .sh{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;padding:0 2px;}
         .sh-l{font-size:13px;font-weight:700;color:var(--t1);letter-spacing:-.01em;}
-        .sh-r{font-size:9.5px;font-weight:700;color:var(--t2);background:rgba(13,17,23,.65);padding:3px 10px;border-radius:999px;border:1px solid var(--border);}
+        .sh-r{font-size:9.5px;font-weight:700;color:var(--t2);background:var(--bg3);padding:3px 10px;border-radius:999px;border:1px solid var(--border);}
 
         .cw{position:relative;width:100%}
 
@@ -607,16 +601,16 @@ def render_label_analysis():
           box-shadow:0 18px 36px rgba(0,0,0,.28);
         }
         .lc.on{
-          background:linear-gradient(180deg, rgba(22,27,38,1) 0%, rgba(31,38,51,1) 100%);
+          background:var(--bg4);
           border-color:var(--accent-color) !important;
-          box-shadow: 0 14px 32px rgba(0, 0, 0, 0.35);
+          box-shadow: 0 14px 32px rgba(0, 0, 0, 0.15);
         }
         .lc::before{
           content:'';position:absolute;top:0;left:0;right:0;height:3px;
           background:var(--accent-color);
         }
         .lc-name{font-size:11px;font-weight:800;color:var(--accent-color);letter-spacing:.5px;margin-bottom:4px;}
-        .lc-streams{font-size:18px;font-weight:900;letter-spacing:-.02em;margin-bottom:3px;color:#ffffff;}
+        .lc-streams{font-size:18px;font-weight:900;letter-spacing:-.02em;margin-bottom:3px;color:var(--t1);}
         .lc-sub{font-size:10px;color:var(--t2);margin-bottom:6px;}
         .lc-share{font-size:11.5px;font-weight:800;margin-top:6px;display:flex;align-items:center;gap:4px;}
 
@@ -694,11 +688,11 @@ def render_label_analysis():
       <div id="pane-spotify" class="pane on">
         <div class="r24">
           <div class="card">
-            <div class="card-ttl">Spotify global — daily streams by label group <span style="float:right;font-size:9px;font-weight:700;color:var(--t2);background:rgba(13,17,23,.65);padding:2px 8px;border-radius:999px;border:1px solid var(--border)">Live Window</span></div>
+            <div class="card-ttl">Spotify global — daily streams by label group <span style="float:right;font-size:9px;font-weight:700;color:var(--t2);background:var(--bg3);padding:2px 8px;border-radius:999px;border:1px solid var(--border)">Live Window</span></div>
             <div class="cw" style="height:240px"><canvas id="spTrendChart"></canvas></div>
           </div>
           <div class="card">
-            <div class="card-ttl">Market share — streams <span style="float:right;font-size:9px;font-weight:700;color:var(--t2);background:rgba(13,17,23,.65);padding:2px 8px;border-radius:999px;border:1px solid var(--border)">Total window</span></div>
+            <div class="card-ttl">Market share — streams <span style="float:right;font-size:9px;font-weight:700;color:var(--t2);background:var(--bg3);padding:2px 8px;border-radius:999px;border:1px solid var(--border)">Total window</span></div>
             <div style="margin-bottom:10px" id="mkt-share-sp"></div>
             <div style="border-top:1px solid var(--border);padding-top:12px;margin-top:4px">
               <div class="card-ttl" style="margin-bottom:8px">Week-over-week shift</div>
@@ -716,7 +710,7 @@ def render_label_analysis():
             <div id="sp-track-list" style="max-height:480px;overflow-y:auto;padding-right:4px;"></div>
           </div>
           <div class="card">
-            <div class="card-ttl">Label stream comparison — Latest Snapshot <span style="float:right;font-size:9px;font-weight:700;color:var(--t2);background:rgba(13,17,23,.65);padding:2px 8px;border-radius:999px;border:1px solid var(--border)">Daily snapshot</span></div>
+            <div class="card-ttl">Label stream comparison — Latest Snapshot <span style="float:right;font-size:9px;font-weight:700;color:var(--t2);background:var(--bg3);padding:2px 8px;border-radius:999px;border:1px solid var(--border)">Daily snapshot</span></div>
             <div class="cw" style="height:280px"><canvas id="spBarChart"></canvas></div>
             <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:12px">
               <div class="card-ttl" style="margin-bottom:8px">Track count by label</div>
@@ -730,11 +724,11 @@ def render_label_analysis():
       <div id="pane-itunes" class="pane">
         <div class="r24">
           <div class="card">
-            <div class="card-ttl">iTunes WW — cumulative score by label group <span style="float:right;font-size:9px;font-weight:700;color:var(--t2);background:rgba(13,17,23,.65);padding:2px 8px;border-radius:999px;border:1px solid var(--border)">Total window</span></div>
+            <div class="card-ttl">iTunes WW — cumulative score by label group <span style="float:right;font-size:9px;font-weight:700;color:var(--t2);background:var(--bg3);padding:2px 8px;border-radius:999px;border:1px solid var(--border)">Total window</span></div>
             <div class="cw" style="height:240px"><canvas id="itTrendChart"></canvas></div>
           </div>
           <div class="card">
-            <div class="card-ttl">iTunes market share — score <span style="float:right;font-size:9px;font-weight:700;color:var(--t2);background:rgba(13,17,23,.65);padding:2px 8px;border-radius:999px;border:1px solid var(--border)">Live Window</span></div>
+            <div class="card-ttl">iTunes market share — score <span style="float:right;font-size:9px;font-weight:700;color:var(--t2);background:var(--bg3);padding:2px 8px;border-radius:999px;border:1px solid var(--border)">Live Window</span></div>
             <div id="mkt-share-it"></div>
           </div>
         </div>
@@ -762,7 +756,7 @@ def render_label_analysis():
             <div class="cw" style="height:260px"><canvas id="crossChart"></canvas></div>
           </div>
           <div class="card">
-            <div class="card-ttl">Label health matrix <span style="float:right;font-size:9px;font-weight:700;color:var(--t2);background:rgba(13,17,23,.65);padding:2px 8px;border-radius:999px;border:1px solid var(--border)">Both platforms</span></div>
+            <div class="card-ttl">Label health matrix <span style="float:right;font-size:9px;font-weight:700;color:var(--t2);background:var(--bg3);padding:2px 8px;border-radius:999px;border:1px solid var(--border)">Both platforms</span></div>
             <div id="health-matrix"></div>
           </div>
         </div>
@@ -1182,7 +1176,8 @@ def render_label_analysis():
         .replace('__DAILY__', json.dumps(daily)) \
         .replace('__SP_TRACKS__', json.dumps(sp_tracks)) \
         .replace('__IT_TRACKS__', json.dumps(it_tracks)) \
-        .replace('__KPI_DATA__', json.dumps(kpi_data))
+        .replace('__KPI_DATA__', json.dumps(kpi_data))\
+        .replace('__THEME__', theme_css)
     
     # Render with Streamlit Components
     st.components.v1.html(html_code, height=1320, scrolling=True)
