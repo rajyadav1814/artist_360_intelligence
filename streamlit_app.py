@@ -32,7 +32,7 @@ from src.ai.album_acquisition_dashboard import render_album_acquisition
 from src.database.connection import get_connection
 from src.scrapers.artist_details_scraper import LATIN_AMERICAN_COUNTRIES
 from src.utils.image_utils import get_artist_image_url, get_fallback_avatar_url
-from src.utils.ui import custom_selectbox
+from src.utils.ui import custom_selectbox, custom_multiselect
 
 
 st.set_page_config(
@@ -4213,7 +4213,7 @@ def show_compare_page() -> None:
     )
 
     available_artists = leaderboard["name"].dropna().tolist()[:20]
-    selected_for_comparison = st.multiselect(
+    selected_for_comparison = custom_multiselect(
         "Select artists to compare",
         available_artists,
         default=available_artists[:2] if len(available_artists) >= 2 else available_artists,
@@ -4699,12 +4699,13 @@ with st.sidebar:
             options = list(latam_country_mapping.keys())
             default_selection = options
             
-            selected_countries = st.multiselect(
+            selected_countries = custom_multiselect(
                 "📍 Countries",
                 options=options,
                 default=default_selection,
                 format_func=lambda x: latam_country_mapping.get(x, x),
                 on_change=clear_active_profile,
+                key="sidebar_countries_filter"
             )
 
     
