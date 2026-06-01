@@ -102,7 +102,7 @@ PAGE_META = {
     ),
 }
 
-CHART_COLORS = ["#6C5CE7", "#31C3FF", "#FF4FCB", "#34D399", "#FFB547", "#8B7CFF", "#FF61D2", "#10B981", "#58D5FF", "#FFC46B"]
+CHART_COLORS = ["#fb7185", "#60a5fa", "#34d399", "#c4b5fd", "#fcd34d", "#5eead4", "#f9a8d4", "#84cc16", "#f97316", "#a855f7"]
 PLOTLY_CONFIG = {"displaylogo": False, "displayModeBar": False, "responsive": True}
 TRACKER_TOP_ARTISTS = 10
 LATAM_COUNTRIES = sorted(LATIN_AMERICAN_COUNTRIES)
@@ -165,11 +165,11 @@ def apply_theme(dark_mode: bool = False) -> None:
         # Dark theme – deep navy (previous style)
         root_vars = """
         :root {
-            --bg:#0d1117; --surface:#161b27; --surface2:#1a2035; --surface3:#1e2740;
-            --border:rgba(41,52,85,.7); --accent:#6C5CE7; --accent2:#31C3FF; --accent3:#FFB547;
-            --warn:#FFB547; --danger:#FF4FCB; --text:#e2e8f0; --text2:#8b95ad;
-            --primary:#6C5CE7; --primary-light:#8B7CFF; --primary-dark:#5B4BDB;
-            --cyan:#31C3FF; --pink:#FF4FCB; --green:#34D399; --orange:#FFB547;
+            --bg:#0d1117; --surface:#161b26; --surface2:#1f2633; --surface3:#283041;
+            --border:rgba(148,163,184,.15); --accent:#fb7185; --accent2:#60a5fa; --accent3:#34d399;
+            --warn:#fcd34d; --danger:#fb7185; --text:#ffffff; --text2:#cdd6e4;
+            --primary:#fb7185; --primary-light:#fda4af; --primary-dark:#be123c;
+            --cyan:#60a5fa; --pink:#fb7185; --green:#34d399; --orange:#fcd34d;
         }"""
         # Extra dark overrides
         theme_extra = """
@@ -180,10 +180,10 @@ def apply_theme(dark_mode: bool = False) -> None:
             background: linear-gradient(180deg, rgba(22,27,39,1), rgba(26,32,53,1)) !important;
         }
         .kpi-card {
-            background: linear-gradient(180deg, rgba(22,27,39,1), rgba(26,32,53,1)) !important;
+            background: linear-gradient(180deg, #161b26, #1f2633) !important;
         }
         .page-header-box {
-            background: linear-gradient(120deg, rgba(22,27,39,1) 0%, rgba(26,32,53,1) 62%, rgba(30,39,64,1) 100%) !important;
+            background: linear-gradient(135deg, #1a2238 0%, #1f1a3a 50%, #261d3d 100%) !important;
         }
         .leader-table thead th {
             background: rgba(22,27,39,0.97) !important;
@@ -195,7 +195,7 @@ def apply_theme(dark_mode: bool = False) -> None:
             background: var(--surface2) !important;
         }
         .stTabs [aria-selected="true"] {
-            background: linear-gradient(135deg, rgba(108,92,231,.30), rgba(139,124,255,.22)) !important;
+            background: linear-gradient(135deg, rgba(251,113,133,.22), rgba(196,181,253,.18)) !important;
         }
         .stPlotlyChart {
             background: var(--surface2) !important;
@@ -228,10 +228,10 @@ def apply_theme(dark_mode: bool = False) -> None:
         root_vars = """
         :root {
             --bg:#F5F6FA; --surface:#FFFFFF; --surface2:#F8F9FB; --surface3:#EEF1F7;
-            --border:#E9ECF2; --accent:#6C5CE7; --accent2:#31C3FF; --accent3:#FFB547;
-            --warn:#FFB547; --danger:#FF4FCB; --text:#1A1A1A; --text2:#8A8FA3;
-            --primary:#6C5CE7; --primary-light:#8B7CFF; --primary-dark:#5B4BDB;
-            --cyan:#31C3FF; --pink:#FF4FCB; --green:#34D399; --orange:#FFB547;
+            --border:#E9ECF2; --accent:#fb7185; --accent2:#60a5fa; --accent3:#34d399;
+            --warn:#fcd34d; --danger:#fb7185; --text:#1A1A1A; --text2:#8A8FA3;
+            --primary:#fb7185; --primary-light:#fda4af; --primary-dark:#be123c;
+            --cyan:#60a5fa; --pink:#fb7185; --green:#34d399; --orange:#fcd34d;
         }"""
         theme_extra = """
         [data-testid="stSidebarHeader"] {
@@ -247,24 +247,24 @@ def apply_theme(dark_mode: bool = False) -> None:
             background: linear-gradient(120deg, rgba(255,255,255,1) 0%, rgba(248,249,251,1) 62%, rgba(240,244,250,1) 100%) !important;
         }
         .leader-table {
-            border: 2px solid #6C5CE7 !important;
+            border: 2px solid #fb7185 !important;
             border-radius: 12px !important;
             overflow: hidden !important;
         }
         .leader-table thead th {
             background: linear-gradient(135deg, #F8F9FB 0%, #FFFFFF 100%) !important;
             color: #1A1A1A !important;
-            border-bottom: 2px solid rgba(108, 92, 231, 0.25) !important;
+            border-bottom: 2px solid rgba(251, 113, 133, 0.25) !important;
             font-weight: 700 !important;
         }
         .leader-table tbody tr {
-            border-bottom: 1px solid rgba(108, 92, 231, 0.1) !important;
+            border-bottom: 1px solid rgba(251, 113, 133, 0.1) !important;
         }
         .leader-table tbody tr:nth-child(even) {
-            background: rgba(108, 92, 231, 0.04) !important;
+            background: rgba(251, 113, 133, 0.04) !important;
         }
         .leader-table tbody tr:hover {
-            background: rgba(108, 92, 231, 0.12) !important;
+            background: rgba(251, 113, 133, 0.12) !important;
         }
         .leader-table tbody td {
             color: #1A1A1A !important;
@@ -351,8 +351,8 @@ def apply_theme(dark_mode: bool = False) -> None:
             position:absolute; left:1rem; top:1rem;
             width:42px; height:42px; border-radius:12px; display:flex; align-items:center; justify-content:center;
             font-size:1.15rem; font-weight:900; color:#fff;
-            background:linear-gradient(135deg, #6C5CE7 0%, #8B7CFF 55%, #31C3FF 100%);
-            box-shadow:0 10px 24px rgba(108,92,231,.35);
+            background:linear-gradient(135deg, #fb7185 0%, #f43f5e 55%, #be123c 100%);
+            box-shadow:0 10px 24px rgba(251,113,133,.35);
         }
         [data-testid="stSidebarHeader"]::after {
             content:"Artist 360° Intelligence";
@@ -377,11 +377,11 @@ def apply_theme(dark_mode: bool = False) -> None:
             transition: all 0.2s ease !important;
         }
         [data-testid="stSidebarNav"] a:hover {
-            background: rgba(108, 92, 231, 0.15) !important;
+            background: rgba(251, 113, 133, 0.15) !important;
             color: var(--primary-light) !important;
         }
         [data-testid="stSidebarNav"] a[aria-current="page"] {
-            background: rgba(108, 92, 231, 0.25) !important;
+            background: rgba(251, 113, 133, 0.25) !important;
             color: var(--primary-light) !important;
         }
         [data-testid="stSidebarNav"] a > span:first-child,
@@ -420,19 +420,19 @@ def apply_theme(dark_mode: bool = False) -> None:
         .brand-logo {
             width:42px; height:42px; border-radius:12px; display:flex; align-items:center; justify-content:center;
             font-size:1.15rem; font-weight:900; color:#fff;
-            background:linear-gradient(135deg, #6C5CE7 0%, #8B7CFF 55%, #31C3FF 100%);
-            box-shadow:0 10px 24px rgba(108,92,231,.35);
+            background:linear-gradient(135deg, #fb7185 0%, #f43f5e 55%, #be123c 100%);
+            box-shadow:0 10px 24px rgba(251,113,133,.35);
             transition: transform 0.3s ease, box-shadow 0.3s ease;
         }
         .brand-logo:hover {
             transform: rotate(5deg) scale(1.1);
-            box-shadow:0 15px 35px rgba(108,92,231,.45);
+            box-shadow:0 15px 35px rgba(251,113,133,.45);
         }
         .sidebar-logo { font-size:1.2rem; font-weight:800; letter-spacing:.2px; line-height:1.15; }
         .sidebar-sub { color:var(--text2); font-size:.8rem; margin-top:.18rem; }
         .sidebar-badge {
             display:inline-block; margin-top:.45rem; padding:3px 8px; border-radius:999px;
-            background:rgba(108,92,231,.22); color:#C4B5FD; font-size:.75rem; font-weight:700;
+            background:rgba(251,113,133,.22); color:#FDA4AF; font-size:.75rem; font-weight:700;
         }
         div[data-testid="stRadio"] > label { font-size:.82rem; font-weight:700; color:var(--text2) !important; }
         div[data-testid="stRadio"] [role="radiogroup"] label {
@@ -441,11 +441,11 @@ def apply_theme(dark_mode: bool = False) -> None:
             cursor: pointer;
         }
         div[data-testid="stRadio"] [role="radiogroup"] label:hover {
-            background:rgba(108,92,231,.15); border-color:rgba(108,92,231,.30);
+            background:rgba(251,113,133,.12); border-color:rgba(251,113,133,.25);
             transform: translateX(4px);
         }
         div[data-testid="stRadio"] [role="radiogroup"] label[data-checked="true"] {
-            background:rgba(108,92,231,.22); border-color:rgba(108,92,231,.45);
+            background:rgba(251,113,133,.18); border-color:rgba(251,113,133,.4);
         }
         div[data-testid="stRadio"] [role="radiogroup"] label > div:first-child {
             display:none !important;
@@ -464,9 +464,9 @@ def apply_theme(dark_mode: bool = False) -> None:
             margin-bottom: 1rem;
             padding: 1.15rem 1.25rem;
             border-radius: 16px;
-            border: 1px solid rgba(108,92,231,.20);
-            background: linear-gradient(120deg, rgba(255,255,255,1) 0%, rgba(248,249,251,1) 62%, rgba(240,244,250,1) 100%);
-            box-shadow: 0 4px 12px rgba(108,92,231,.08), inset 0 1px 0 rgba(255,255,255,.5);
+            border: 1px solid rgba(251,113,133,.22);
+            background: linear-gradient(135deg, #1a2238 0%, #1f1a3a 50%, #261d3d 100%);
+            box-shadow: 0 18px 42px rgba(0,0,0,.24), inset 0 1px 0 rgba(255,255,255,.03);
             position: relative;
             overflow: hidden;
         }
@@ -474,7 +474,7 @@ def apply_theme(dark_mode: bool = False) -> None:
             content: "";
             position: absolute;
             inset: 0;
-            background: linear-gradient(90deg, rgba(108,92,231,.07), rgba(49,195,255,.05));
+            background: linear-gradient(90deg, rgba(251,113,133,.07), rgba(96,165,250,.06));
             pointer-events: none;
         }
         .page-header-content {
@@ -488,8 +488,8 @@ def apply_theme(dark_mode: bool = False) -> None:
         }
         
         .dashboard-card:hover {
-            box-shadow:0 10px 30px rgba(108,92,231,.14);
-            border-color: rgba(108,92,231,.35);
+            box-shadow:0 18px 42px rgba(0,0,0,.35);
+            border-color: rgba(251,113,133,.3);
         }
         .section-title { 
             font-size:1rem; font-weight:700; margin-bottom:.2rem;
@@ -497,12 +497,12 @@ def apply_theme(dark_mode: bool = False) -> None:
         }
         .section-sub { color:var(--text2); font-size:.82rem; margin-bottom:1rem; }
         .dashboard-card {
-            background: linear-gradient(180deg, rgba(255,255,255,1), rgba(248,249,251,1));
-            border: 1px solid rgba(108,92,231,.12);
+            background: linear-gradient(180deg, var(--surface), var(--surface2));
+            border: 1px solid var(--border);
             border-radius: 20px;
             padding: 1rem 1.15rem;
             transition: all 0.25s ease;
-            box-shadow: 0 10px 30px rgba(108,92,231,.08);
+            box-shadow: 0 10px 30px rgba(0,0,0,.15);
             margin-bottom: 1.5rem;
             margin-top: -2.0rem;
         }
@@ -531,9 +531,9 @@ def apply_theme(dark_mode: bool = False) -> None:
             color: var(--text);
         }
         .leader-table tbody tr:hover { 
-            background:rgba(108,92,231,.10); 
+            background:rgba(251,113,133,.12); 
             transform: scale(1.004);
-            box-shadow: 0 8px 20px rgba(108,92,231,.08);
+            box-shadow: 0 8px 20px rgba(0,0,0,.1);
         }
         .leader-table tbody tr {
             transition: all 0.18s ease;
@@ -559,7 +559,7 @@ def apply_theme(dark_mode: bool = False) -> None:
         .badge-dn:hover { background:rgba(232,69,69,.25); }
         .badge-same { background:rgba(151,163,197,.14); color:#c4d0f3; }
         .badge-new { 
-            background:rgba(108,92,231,.16); color:#b7d4ff;
+            background:rgba(251,113,133,.18); color:#FDA4AF;
             animation: pulse 2s infinite;
         }
         
@@ -572,22 +572,22 @@ def apply_theme(dark_mode: bool = False) -> None:
             color: var(--text); text-decoration: none;
         }
         .action-btn:hover {
-            background: rgba(108,92,231,.15);
+            background: rgba(251,113,133,.15);
             border-color: var(--primary);
             transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(108,92,231,.25);
+            box-shadow: 0 4px 12px rgba(251,113,133,.2);
         }
         .action-btn-primary {
-            background: linear-gradient(135deg, #6C5CE7, #8B7CFF);
+            background: linear-gradient(135deg, #fb7185, #f43f5e);
             border-color: transparent;
         }
         .action-btn-primary:hover {
-            background: linear-gradient(135deg, #7C6DF0, #9B8CFF);
-            box-shadow: 0 6px 20px rgba(108,92,231,.4);
+            background: linear-gradient(135deg, #fda4af, #fb7185);
+            box-shadow: 0 6px 20px rgba(251,113,133,.4);
         }
         .kpi-card {
-            background: linear-gradient(180deg, rgba(255,255,255,1), rgba(248,249,251,1));
-            border: 1px solid rgba(108,92,231,.12);
+            background: var(--surface);
+            border: 1px solid var(--border);
             border-radius: 20px;
             padding: 24px 20px 18px;
             min-height: 158px;
@@ -600,26 +600,26 @@ def apply_theme(dark_mode: bool = False) -> None:
             margin-top: -2.5rem;
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             animation: fadeIn 0.6s ease-out;
-            box-shadow: 0 10px 30px rgba(108,92,231,.08);
+            box-shadow: 0 10px 30px rgba(0,0,0,.15);
         }
         .kpi-card:hover {
             transform: translateY(-4px);
-            box-shadow: 0 20px 40px rgba(108,92,231,.14);
-            border-color: rgba(108,92,231,.30);
+            box-shadow: 0 20px 40px rgba(0,0,0,.25);
+            border-color: rgba(251,113,133,.3);
             z-index: 1000;
         }
         .kpi-card::before {
             content:''; position:absolute; top:0; left:0; right:0; height:3px;
             border-radius: 20px 20px 0 0;
-            background: linear-gradient(90deg, var(--primary), var(--primary-light));
+            background: linear-gradient(90deg, var(--accent), var(--accent2));
             transition: height 0.3s ease;
         }
         .kpi-card:hover::before {
             height: 4px;
         }
-        .kpi-green::before { background: linear-gradient(90deg, #34D399, #10B981); }
-        .kpi-amber::before { background: linear-gradient(90deg, #FFB547, #FFC46B); }
-        .kpi-red::before { background: linear-gradient(90deg, #FF4FCB, #FF61D2); }
+        .kpi-green::before { background: linear-gradient(90deg, #34d399, #10b981); }
+        .kpi-amber::before { background: linear-gradient(90deg, #fcd34d, #f59e0b); }
+        .kpi-red::before { background: linear-gradient(90deg, #fb7185, #e11d48); }
         .kpi-label { 
             color:var(--text2); font-size:.76rem; text-transform:uppercase; 
             letter-spacing:.08em; margin-bottom: 0.5rem;
@@ -639,7 +639,7 @@ def apply_theme(dark_mode: bool = False) -> None:
             border-radius: 999px; overflow: hidden; margin-top: auto;
         }
         .progress-fill {
-            height: 100%; background: linear-gradient(90deg, var(--primary), var(--primary-light));
+            height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent2));
             border-radius: 999px; transition: width 1.5s cubic-bezier(0.4, 0, 0.2, 1);
         }
         .table-wrap { margin-top: 1rem; overflow-x:auto; overflow-y:auto; max-height:640px; padding-right: 0.25rem; }
@@ -647,7 +647,7 @@ def apply_theme(dark_mode: bool = False) -> None:
             width:100%;
             border-collapse: collapse;
             font-size: .92rem;
-            border: 2px solid rgba(108, 92, 231, 0.3);
+            border: 2px solid rgba(251, 113, 133, 0.25);
             border-radius: 12px;
             overflow: hidden;
         }
@@ -661,14 +661,14 @@ def apply_theme(dark_mode: bool = False) -> None:
             font-size: .73rem;
             letter-spacing: .06em;
             text-transform: uppercase;
-            border-bottom: 2px solid rgba(108, 92, 231, 0.25);
+            border-bottom: 2px solid rgba(251, 113, 133, 0.22);
             background: linear-gradient(135deg, var(--surface2) 0%, var(--surface) 100%);
             backdrop-filter: blur(8px);
             font-weight: 700;
         }
         .leader-table tbody td {
             padding: .75rem .85rem;
-            border-bottom: 1px solid rgba(108, 92, 231, 0.08);
+            border-bottom: 1px solid var(--border);
             vertical-align: middle;
             color: var(--text);
             font-weight: 500;
@@ -678,11 +678,11 @@ def apply_theme(dark_mode: bool = False) -> None:
             background: var(--surface);
         }
         .leader-table tbody tr:nth-child(even) {
-            background: rgba(108, 92, 231, 0.04);
+            background: rgba(251, 113, 133, 0.04);
         }
         .leader-table tbody tr:hover { 
-            background: rgba(108, 92, 231, 0.12);
-            box-shadow: inset 0 0 12px rgba(108, 92, 231, 0.08);
+            background: rgba(251, 113, 133, 0.12);
+            box-shadow: inset 0 0 12px rgba(0,0,0,0.1);
         }
         .pos-cell {
             color: var(--primary);
@@ -709,7 +709,7 @@ def apply_theme(dark_mode: bool = False) -> None:
             color: var(--text); font-size:.75rem; font-weight:700;
         }
         .badge { 
-            display:inline-block; padding:3px 8px; border-radius:999px; 
+            display:inline-block; padding:4px 10px; border-radius:999px; 
             font-size:.72rem; font-weight:800; transition: all 0.2s ease;
             cursor: default;
             color: var(--text);
@@ -723,7 +723,7 @@ def apply_theme(dark_mode: bool = False) -> None:
         .badge-dn:hover { background:rgba(232,69,69,.25); }
         .badge-same { background:rgba(151,163,197,.14); color: var(--text); }
         .badge-new { 
-            background:rgba(108,92,231,.18); color: var(--text);
+            background:rgba(251,113,133,.18); color: #FDA4AF;
             animation: pulse 2s infinite;
         }
         
@@ -735,9 +735,9 @@ def apply_theme(dark_mode: bool = False) -> None:
         .tooltip .tooltiptext {
             visibility: hidden;
             width: 360px;
-            background-color: rgba(255, 255, 255, 0.99);
+            background-color: rgba(13, 17, 23, 0.99);
             backdrop-filter: blur(16px);
-            color: var(--text);
+            color: #ffffff;
             text-align: left;
             border-radius: 14px;
             padding: 16px 20px;
@@ -748,7 +748,7 @@ def apply_theme(dark_mode: bool = False) -> None:
             transform: translateX(-50%) translateY(0);
             opacity: 0;
             transition: opacity 0.3s ease, transform 0.3s ease;
-            border: 1px solid rgba(108, 92, 231, 0.35);
+            border: 1px solid rgba(251, 113, 133, 0.4);
             box-shadow: 0 10px 30px rgba(0,0,0,0.1);
             font-size: 0.86rem;
             line-height: 1.6;
@@ -767,7 +767,7 @@ def apply_theme(dark_mode: bool = False) -> None:
         .tooltip .tooltiptext::after {
             content: ""; position: absolute; bottom: 100%; left: 50%;
             margin-left: -10px; border-width: 10px; border-style: solid;
-            border-color: transparent transparent rgba(255, 255, 255, 0.99) transparent;
+            border-color: transparent transparent rgba(13, 17, 23, 0.99) transparent;
         }
         .tooltip .tooltiptext::before {
             content: "";
@@ -790,7 +790,7 @@ def apply_theme(dark_mode: bool = False) -> None:
             background: transparent;
         }
         .tooltip .tooltiptext::-webkit-scrollbar-thumb {
-            background: rgba(108,92,231,.35);
+            background: rgba(251, 113, 133, 0.4);
             border-radius: 10px;
         }
         textarea, input, [data-baseweb="select"] > div {
@@ -851,8 +851,8 @@ def apply_theme(dark_mode: bool = False) -> None:
         
         /* Comparison mode highlight */
         .comparison-highlight {
-            border: 2px solid var(--accent);
-            background: rgba(108,92,231,.08);
+            border: 2px solid var(--primary);
+            background: rgba(251,113,133,.08);
             animation: pulse 1.5s ease-in-out 3;
         }
         
@@ -912,22 +912,22 @@ def apply_theme(dark_mode: bool = False) -> None:
             padding-top: 0.85rem;
         }
         .stTabs [data-baseweb="tab"]:hover {
-            background: rgba(108,92,231,.15);
-            border-color: rgba(108,92,231,.30);
+            background: rgba(251,113,133,.12);
+            border-color: rgba(251,113,133,.25);
             transform: translateY(-2px);
         }
         .stTabs [aria-selected="true"] {
-            background: linear-gradient(135deg, rgba(108,92,231,.22), rgba(139,124,255,.18));
+            background: linear-gradient(135deg, rgba(251,113,133,.22), rgba(196,181,253,.18));
             border-color: var(--primary);
             color: var(--text);
-            border-bottom: 1px solid var(--primary) !important;
+            border-bottom: 1px solid var(--accent) !important;
         }
         .stPlotlyChart, div[data-testid="stDataFrame"], div[data-testid="stTable"] {
             width: 100% !important;
         }
         .stPlotlyChart {
-            background: var(--surface2);
-            border: 1px solid rgba(108,92,231,.15);
+            background: var(--surface);
+            border: 1px solid var(--border);
             border-radius: 20px;
             padding: 1rem;
             box-shadow: 0 10px 30px rgba(108,92,231,.08);
@@ -942,14 +942,14 @@ def apply_theme(dark_mode: bool = False) -> None:
         .stButton button {
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             border-radius: 12px;
-            background: rgba(108, 92, 231, 0.12) !important;
-            border: 1px solid rgba(108, 92, 231, 0.25) !important;
+            background: rgba(251, 113, 133, 0.12) !important;
+            border: 1px solid rgba(251, 113, 133, 0.25) !important;
             color: var(--text) !important;
         }
         .stButton button:hover {
             transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(108,92,231,.3);
-            background: rgba(108, 92, 231, 0.22) !important;
+            box-shadow: 0 6px 20px rgba(251, 113, 133, 0.3);
+            background: rgba(251, 113, 133, 0.22) !important;
         }
 
         /* Selectbox enhancement - dropdown styling - REMOVED (using custom HTML) */
@@ -1052,7 +1052,7 @@ def apply_theme(dark_mode: bool = False) -> None:
             border-radius: 8px;
         }
         .streamlit-expanderHeader:hover {
-            background: rgba(108,92,231,.08);
+            background: rgba(251,113,133,.08);
         }
         
         /* Download button styling */
@@ -1081,12 +1081,12 @@ def apply_theme(dark_mode: bool = False) -> None:
         
         /* Slider styling */
         .stSlider [role="slider"] {
-            background: linear-gradient(135deg, #6C5CE7, #8B7CFF) !important;
+            background: linear-gradient(135deg, #fb7185, #fda4af) !important;
         }
         
         /* Toggle switch */
         [data-testid="stCheckbox"] input[type="checkbox"]:checked + div {
-            background: linear-gradient(135deg, #6C5CE7, #8B7CFF) !important;
+            background: linear-gradient(135deg, #fb7185, #fda4af) !important;
         }
 
         /* Global footer */
@@ -1164,7 +1164,7 @@ def show_artist_details_dialog(row: pd.Series) -> None:
     is_dark = st.session_state.get("dark_mode", False)
     
     dlg_bg = "linear-gradient(180deg, rgba(15,12,30,0.98) 0%, rgba(10,7,24,1) 100%)" if is_dark else "linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(248,249,251,1) 100%)"
-    dlg_border = "rgba(108, 92, 231, 0.25)" if is_dark else "rgba(108, 92, 231, 0.15)"
+    dlg_border = "rgba(251, 113, 133, 0.25)" if is_dark else "rgba(251, 113, 133, 0.15)"
     dlg_text1 = "#e2e8f0" if is_dark else "#1A1A1A"
     dlg_text2 = "#94a3b8" if is_dark else "#4A5568"
     dlg_border2 = "rgba(0,0,0,.1)" if not is_dark else "rgba(255,255,255,.1)"
@@ -1238,7 +1238,7 @@ def show_artist_details_dialog(row: pd.Series) -> None:
             display: inline-block; padding: 4px 12px; border-radius: 8px;
             font-weight: 800; font-size: .8rem; letter-spacing: .04em;
         }}
-        .dlg-badge-rank {{ background: rgba(108,92,231,.15); color: #8B7CFF; border: 1px solid rgba(108,92,231,.3); }}
+        .dlg-badge-rank {{ background: rgba(251,113,133,.15); color: #FDA4AF; border: 1px solid rgba(251,113,133,.3); }}
         .dlg-badge-country {{ background: rgba(52,211,153,.15); color: #34d399; border: 1px solid rgba(52,211,153,.3); }}
         .dlg-badge-ml {{ background: {dlg_badge_bg}; color: {dlg_text2}; border: 1px solid {dlg_border2}; }}
         .dlg-acq-signal {{
@@ -1247,7 +1247,7 @@ def show_artist_details_dialog(row: pd.Series) -> None:
             border-radius: 8px; letter-spacing: .04em; text-transform: uppercase;
         }}
         .dlg-sig-buy {{ background: rgba(52,211,153,.18); color: #34d399; border: 1px solid rgba(52,211,153,.4); }}
-        .dlg-sig-watch {{ background: rgba(49,195,255,.18); color: #31C3FF; border: 1px solid rgba(49,195,255,.4); }}
+        .dlg-sig-watch {{ background: rgba(96,165,250,.18); color: #60a5fa; border: 1px solid rgba(96,165,250,.4); }}
         .dlg-sig-caution {{ background: rgba(251,113,133,.18); color: #fb7185; border: 1px solid rgba(251,113,133,.4); }}
         .dlg-sig-row {{
             display: flex; align-items: flex-start; gap: 12px;
@@ -1829,7 +1829,7 @@ def render_kpis(leaderboard: pd.DataFrame, runs: pd.DataFrame) -> None:
                 f"</div>"
             )
 
-        header_html = "<div style='display:flex;justify-content:space-between;padding:2px 0 8px;margin-bottom:8px;border-bottom:1px solid rgba(108,92,231,0.1);font-size:0.72rem;text-transform:uppercase;letter-spacing:0.04em;color:var(--accent);font-weight:700;'><span>Artist</span><span>Rank</span></div>"
+        header_html = f"<div style='display:flex;justify-content:space-between;padding:2px 0 8px;margin-bottom:8px;border-bottom:1px solid var(--border);font-size:0.72rem;text-transform:uppercase;letter-spacing:0.04em;color:var(--accent);font-weight:700;'><span>Artist</span><span>Rank</span></div>"
         new_entries_details = (
             "<div style='padding:0.85rem 0 0.35rem;color:var(--text2);font-size:0.78rem;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;'>"
             "New Chart Entries</div>"
@@ -2113,17 +2113,17 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
 
         /* Plotly chart wrapper */
         [data-testid="stPlotlyChart"] {
-            background: var(--lb-bg2);
-            border: 1px solid var(--lb-line);
+            background: var(--surface);
+            border: 1px solid var(--border);
             border-radius: 16px;
             padding: 0.5rem 0.5rem 0.25rem;
             margin-top: 0 !important;
             margin-bottom: 0.85rem !important;
-            box-shadow: 0 14px 30px rgba(0,0,0,.18);
+            box-shadow: 0 14px 30px rgba(0,0,0,.1);
             transition: border-color 0.2s ease, transform 0.2s ease;
         }
         [data-testid="stPlotlyChart"]:hover {
-            border-color: rgba(108, 92, 231, 0.4);
+            border-color: rgba(251, 113, 133, 0.35);
             transform: translateY(-2px);
         }
         /* last chart in right column: drop bottom margin so column matches table card */
@@ -2156,8 +2156,8 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
             top_ranked = top_ranked.sort_values("rank", ascending=True)
             top_ranked["rank_label"] = "#" + top_ranked["rank"].astype(str)
             top_ranked["points_label"] = top_ranked["total_points"].apply(fmt_short)
-            rank_colors = ["#34D399", "#31C3FF", "#6C5CE7", "#8B7CFF", "#FF4FCB",
-                           "#c084fc", "#f59e0b", "#f97316", "#fb7185", "#f87171"]
+            rank_colors = ["#fb7185", "#60a5fa", "#34d399", "#c4b5fd", "#fcd34d",
+                           "#5eead4", "#f9a8d4", "#84cc16", "#f97316", "#a855f7"]
 
             fig_rank = px.bar(
                 top_ranked,
@@ -2168,7 +2168,7 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
                 color="rank",
                 custom_data=["top_country", "rank", "monthly_listeners"],
                 labels={"total_points": "Total Points", "name": ""},
-                color_continuous_scale=["#34D399", "#31C3FF", "#6C5CE7", "#8B7CFF", "#FFB547"],
+                color_continuous_scale=["#fb7185", "#60a5fa", "#34d399"],
             )
             style_figure(fig_rank, 440, dark_mode=is_dark)
             fig_rank.update_traces(
@@ -2215,7 +2215,7 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
                 color="monthly_listeners",
                 custom_data=["top_country", "rank"],
                 labels={"monthly_listeners": "Monthly listeners", "name": ""},
-                color_continuous_scale=["#8B7CFF", "#6C5CE7", "#5B4BDB", "#31C3FF"],
+                color_continuous_scale=["#fda4af", "#fb7185", "#be123c"],
             )
             style_figure(fig_bar, 430, dark_mode=is_dark)
             fig_bar.update_traces(
@@ -2358,7 +2358,7 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
             box-shadow:0 2px 8px rgba(0,0,0,.06);
         }
         .ct-kpi:hover{transform:translateY(-2px);border-color:var(--accent);
-            box-shadow:0 6px 18px rgba(108,92,231,.15)}
+            box-shadow:0 6px 18px rgba(251,113,133,.15)}
         .ct-kpi::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%;
             background:var(--accent,#60a5fa)}
         .ct-kpi-lbl{font-size:10px;color:var(--text2);text-transform:uppercase;
@@ -2752,7 +2752,7 @@ def render_stream_trends(top_spotify: pd.DataFrame, leaderboard: pd.DataFrame, t
                 name="Peak Listeners", 
                 x=top_spotify["name"], 
                 y=top_spotify["peak_listeners"].fillna(0), 
-                marker_color="#6C5CE7",
+                marker_color="#fb7185",
                 hovertemplate="<b>%{x}</b><br>Peak: %{y:,}<extra></extra>"
             )
             fig.update_layout(
@@ -3609,8 +3609,8 @@ def render_chatbot_widget() -> None:
                                 color: #ffffff;
                                 font-size: 30px;
                                 line-height: 1;
-                                background: linear-gradient(135deg, #6C5CE7 0%, #8B7CFF 60%, #31C3FF 100%);
-                                box-shadow: 0 14px 36px rgba(79, 142, 247, 0.35);
+                                background: linear-gradient(135deg, #fb7185 0%, #f43f5e 60%, #be123c 100%);
+                                box-shadow: 0 14px 36px rgba(251, 113, 133, 0.35);
                             }}
                             .a360-chatbot-toggle:hover {{
                                 transform: translateY(-2px);
@@ -3642,7 +3642,7 @@ def render_chatbot_widget() -> None:
                                 display: flex;
                                 align-items: center;
                                 justify-content: space-between;
-                                background: linear-gradient(135deg, #6C5CE7 0%, #8B7CFF 60%, #31C3FF 100%);
+                                background: linear-gradient(135deg, #fb7185 0%, #f43f5e 60%, #be123c 100%);
                                 color: #ffffff;
                                 cursor: grab;
                                 user-select: none;
@@ -3710,9 +3710,9 @@ def render_chatbot_widget() -> None:
                             }}
                             .a360-chatbot-error-btn {{
                                 margin-top: 12px;
-                                border: 1px solid #6C5CE7;
+                                border: 1px solid #fb7185;
                                 color: #e8f0ff;
-                                background: rgba(108,92,231,0.15);
+                                background: rgba(251,113,133,0.15);
                                 border-radius: 8px;
                                 padding: 8px 12px;
                                 cursor: pointer;
@@ -3956,8 +3956,8 @@ _loader_slot.markdown("""
 #a360-loader .a360-ring {
     width: 64px;
     height: 64px;
-    border: 3px solid rgba(108,92,231,0.15);
-    border-top-color: #6C5CE7;
+    border: 3px solid rgba(251,113,133,0.15);
+    border-top-color: #fb7185;
     border-radius: 50%;
     animation: a360-spin 0.9s linear infinite;
 }
@@ -4048,8 +4048,8 @@ def show_compare_page() -> None:
             margin-bottom: 0.9rem;
             padding: 0.75rem 0.9rem;
             border-radius: 12px;
-            border: 1px solid rgba(108,92,231,.35);
-            background: rgba(108,92,231,.12);
+            border: 1px solid rgba(251,113,133,.35);
+            background: rgba(251,113,133,.12);
             color: var(--text);
             font-size: 0.9rem;
             font-weight: 600;
