@@ -272,19 +272,14 @@ def _build_payload(tracks: list[dict[str, Any]], dates: list[date], limit: int =
 
 def render_track_acquisition() -> None:
     st.markdown(
-        "<div style='font-size:0.85rem;color:#97a3c5;margin:-0.5rem 0 0.75rem 0'>"
+        "<div style='font-size:0.85rem;color:#97a3c5;margin:0.2rem 0 0.75rem 0'>"
         "Track-level acquisition intelligence using Spotify Global/US + iTunes WW daily chart data."
         "</div>",
         unsafe_allow_html=True,
     )
 
-    days = st.radio("Time window", ["7 Days", "14 Days", "30 Days"], index=0, horizontal=True, key="track_acq_period")
-    if days == "7 Days":
-        window_days = 7
-    elif days == "14 Days":
-        window_days = 14
-    else:
-        window_days = 30
+    # Load data for the maximum window (30 days) and let JS filter it
+    window_days = 30
 
     sp_global_df = _load_window("spotify_daily", "global", window_days)
     sp_us_df = _load_window("spotify_daily", "us", window_days)
@@ -322,6 +317,7 @@ def render_track_acquisition() -> None:
     payload.setdefault("defaultTrackId", us_tracks[0]["id"] if us_tracks else None)
     payload.setdefault("regionLabel", "Spotify Global")
     payload.setdefault("summary", {})
+    payload["maxWindowDays"] = window_days # Pass max window to JS
 
     payload["usTracks"] = us_tracks
     payload["usSummary"] = us_payload.get("summary", {})
@@ -434,6 +430,12 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
 </head><body>
 
 <div class="filter-bar" style="padding:12px 18px;border-bottom:1px solid var(--border);background:var(--bg2)">
+  <div class="filter-grp">
+    <button class="fp on" onclick="setPeriod('all',this)">All</button>
+    <button class="fp" onclick="setPeriod('rising',this)">Rising</button>
+    <button class="fp" onclick="setPeriod('stable',this)">Stable</button>
+    <button class="fp" onclick="setPeriod('falling',this)">Falling</button>
+  </div>
   <div class="search-wrap">
     <input type="text" id="searchInput" placeholder="Search track or artist..." oninput="applyFilters()">
   </div>
@@ -478,11 +480,11 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
       <option value="PASS">Pass</option>
     </select>
   </div>
-  <div class="filter-grp">
-    <button class="fp on" onclick="setPeriod('all',this)">All</button>
-    <button class="fp" onclick="setPeriod('rising',this)">Rising</button>
-    <button class="fp" onclick="setPeriod('stable',this)">Stable</button>
-    <button class="fp" onclick="setPeriod('falling',this)">Falling</button>
+  <div class="filter-grp" style="margin-left:auto">
+    <button class="fp on" onclick="setTimeWindow('All',this)">All</button>
+    <button class="fp" onclick="setTimeWindow('7 Days',this)">7 Days</button>
+    <button class="fp" onclick="setTimeWindow('14 Days',this)">14 Days</button>
+    <button class="fp" onclick="setTimeWindow('30 Days',this)">30 Days</button>
   </div>
 </div>
 
@@ -553,22 +555,153 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script>
-const PAYLOAD = __PAYLOAD__;
-const DATES = PAYLOAD.dates || [];
+const ORIGINAL_PAYLOAD = __PAYLOAD__;
+const ORIGINAL_DATES = ORIGINAL_PAYLOAD.dates || [];
+const ORIGINAL_GLOBAL_TRACKS = ORIGINAL_PAYLOAD.tracks || [];
+const ORIGINAL_US_TRACKS = ORIGINAL_PAYLOAD.usTracks || [];
+const DATES = ORIGINAL_DATES;
+
+let PAYLOAD = JSON.parse(JSON.stringify(ORIGINAL_PAYLOAD)); // Deep copy for manipulation
 let TRACKS = (PAYLOAD.tracks && PAYLOAD.tracks.length) ? PAYLOAD.tracks : (PAYLOAD.usTracks || []);
 
+let currentRegion = 'global';
 let currentSort='acq';
 let currentPeriod='all';
+let currentTimeWindowLabel = 'All';
+let currentTimeWindowDays = ORIGINAL_PAYLOAD.maxWindowDays; // Default to max loaded days
+
 let selectedId = PAYLOAD.defaultTrackId || (TRACKS.length ? TRACKS[0].id : null);
 let detailChart=null;
 let detailItChart=null;
 
+// Replicate Python's _acq_score
+function _jsAcqScore(latestStreams, bestRank, momentum, bestItRank) {
+    const rankScore = Math.max(0, 40 - (bestRank || 100) * 0.4);
+    const streamScore = Math.min(30, Math.floor(latestStreams / 300000));
+    const momentumScore = Math.max(-10, Math.min(20, Math.floor(momentum)));
+    const itunesBonus = bestItRank && bestItRank <= 25 ? 10 : (bestItRank && bestItRank <= 60 ? 5 : 0);
+    return Math.max(0, Math.min(100, Math.floor(rankScore + streamScore + momentumScore + itunesBonus)));
+}
+
+// Replicate Python's _signal_style
+function _jsSignalStyle(acqScore, momentum, bestRank) {
+    if (acqScore >= 70 && momentum >= 5) {
+        return ["BUY", "sig-buy", "#22c55e"];
+    }
+    if (acqScore >= 55 && momentum >= 0) {
+        return ["WATCH", "sig-watch", "#60a5fa"];
+    }
+    if (acqScore >= 40) {
+        return ["HOLD", "sig-hold", "#fbbf24"];
+    }
+    return ["PASS", "sig-pass", "#fb7185"];
+}
+
+// Replicate Python's signal generation logic (simplified for JS)
+function _jsBuildSignals(track, regionLabel) {
+    const signals = [];
+    const regionTitle = regionLabel.includes("US") ? "US" : "Global";
+
+    if (track.growth >= 25) {
+        signals.push({icon: "🚀", t: `+${track.growth.toFixed(1)}% stream growth`, d: "Strong volume acceleration across the tracked window."});
+    } else if (track.growth >= 0) {
+        signals.push({icon: "📈", t: `${track.growth.toFixed(1)}% stream growth`, d: "Healthy audience momentum over the recent chart window."});
+    } else {
+        signals.push({icon: "📉", t: `${track.growth.toFixed(1)}% stream decline`, d: "Streams are cooling; monitor for stabilization."});
+    }
+
+    if (track.platform === "cross") {
+        signals.push({icon: "🌍", t: "Cross-platform signal", d: `Appearing on both Spotify ${regionTitle} and iTunes WW charts.`});
+    } else if (track.platform === "spotify") {
+        signals.push({icon: "🎧", t: `Spotify-${regionTitle} native momentum`, d: `Strong Spotify ${regionTitle} traction even without iTunes chart entry.`});
+    } else {
+        signals.push({icon: "🍎", t: "iTunes WW curve", d: "iTunes-only chart signal; could still breakout to Spotify."});
+    }
+
+    if (track.label && track.label.toLowerCase().includes("independ")) {
+        signals.push({icon: "💡", t: "Independent / unsigned", d: "Clean acquisition candidate with limited major-label competition."});
+    } else {
+        signals.push({icon: "🏷️", t: `Label: ${track.label}`, d: "Track-level signal from a managed catalogue or label roster."});
+    }
+
+    if (track.bestRank && track.bestRank <= 10) { // Assuming bestRank refers to Spotify rank
+        signals.push({icon: "🏆", t: `Top ${track.bestRank} Spotify ${regionTitle}`, d: `Elite placement on Spotify ${regionTitle} charts.`});
+    } else if (track.bestItRank && track.bestItRank <= 20) {
+        signals.push({icon: "📊", t: `iTunes #${track.bestItRank}`, d: "Strong iTunes WW validation for the track."});
+    } else if (track.hasIt) {
+        signals.push({icon: "🔁", t: "iTunes momentum present", d: "Track is charting on iTunes WW and may cross into Spotify."});
+    }
+
+    return signals.slice(0, 5);
+}
+
+// Function to re-calculate track metrics for a given time window
+function recalculateTrackMetrics(track, windowDays, fullDates, regionLabel) {
+    const startIndex = Math.max(0, fullDates.length - windowDays);
+    const slicedSpStreams = track.originalSpStreams.slice(startIndex);
+    const slicedSpRanks = track.originalSpRanks.slice(startIndex);
+    const slicedItScores = track.originalItScores.slice(startIndex);
+    const slicedItRanks = track.originalItRanks.slice(startIndex);
+
+    const hasSp = slicedSpStreams.some(v => v > 0);
+    const hasIt = slicedItScores.some(v => v > 0);
+
+    const firstSp = slicedSpStreams.find(v => v > 0) || 0;
+    const latestSp = [...slicedSpStreams].reverse().find(v => v > 0) || 0;
+    const firstRank = slicedSpRanks.find(r => r !== null) || null;
+    const latestRank = [...slicedSpRanks].reverse().find(r => r !== null) || null;
+    const bestSpRank = slicedSpRanks.filter(r => r !== null).reduce((min, r) => Math.min(min, r), Infinity) || null;
+    const bestItRank = slicedItRanks.filter(r => r !== null).reduce((min, r) => Math.min(min, r), Infinity) || null;
+
+    const growth = firstSp ? Number(((latestSp - firstSp) / firstSp * 100).toFixed(1)) : 0.0;
+    const rankDelta = (firstRank !== null && latestRank !== null) ? (firstRank - latestRank) : 0;
+    const momentum = Number((rankDelta * 0.24 + growth * 0.35).toFixed(1));
+
+    const acqScore = _jsAcqScore(latestSp, bestSpRank, momentum, bestItRank);
+    const [signal, signalClass, color] = _jsSignalStyle(acqScore, momentum, bestSpRank);
+
+    const recalculatedTrack = { ...track };
+    recalculatedTrack.spStreams = slicedSpStreams; // Update to sliced data
+    recalculatedTrack.spRanks = slicedSpRanks;
+    recalculatedTrack.itScores = slicedItScores;
+    recalculatedTrack.itRanks = slicedItRanks;
+    recalculatedTrack.bestRank = bestSpRank || (bestItRank || 0);
+    recalculatedTrack.latestStreams = latestSp;
+    recalculatedTrack.firstStreams = firstSp;
+    recalculatedTrack.momentum = momentum;
+    recalculatedTrack.growth = growth;
+    recalculatedTrack.acqScore = acqScore;
+    recalculatedTrack.signal = signal;
+    recalculatedTrack.days = windowDays;
+    recalculatedTrack.totalStreams = slicedSpStreams.reduce((sum, v) => sum + v, 0);
+    recalculatedTrack.acqColor = color;
+    recalculatedTrack.signals = _jsBuildSignals(recalculatedTrack, regionLabel);
+    recalculatedTrack.hasSp = hasSp;
+    recalculatedTrack.hasIt = hasIt;
+
+    return recalculatedTrack;
+}
+
 function changeRegion() {
   const r = document.getElementById('regionSel').value;
-  TRACKS = r === 'global' ? PAYLOAD.tracks : PAYLOAD.usTracks;
+  currentRegion = r;
   PAYLOAD.regionLabel = r === 'global' ? 'Spotify Global' : 'Spotify US';
 
-  selectedId = TRACKS[0]?.id;
+  // Reset TRACKS to original data for the selected region before applying time window
+  TRACKS = r === 'global' ? JSON.parse(JSON.stringify(ORIGINAL_GLOBAL_TRACKS)) : JSON.parse(JSON.stringify(ORIGINAL_US_TRACKS));
+
+  // Store original full-window data for each track for later slicing
+  TRACKS.forEach(track => {
+    track.originalSpStreams = [...track.spStreams];
+    track.originalSpRanks = [...track.spRanks];
+    track.originalItScores = [...track.itScores];
+    track.originalItRanks = [...track.itRanks];
+  });
+
+  // Apply current time window filter
+  TRACKS = TRACKS.map(track => recalculateTrackMetrics(track, currentTimeWindowDays, ORIGINAL_DATES, PAYLOAD.regionLabel));
+
+  selectedId = TRACKS[0]?.id; // Select the first track in the new filtered list
   renderTable();
   if (selectedId) {
     selectTrack(selectedId);
@@ -581,15 +714,144 @@ function changeRegion() {
   }
 }
 
+// Handle time window selection
+function setTimeWindow(periodLabel, el) {
+    currentTimeWindowLabel = periodLabel;
+    currentTimeWindowDays = periodLabel === 'All' ? ORIGINAL_PAYLOAD.maxWindowDays : parseInt(periodLabel.split(' ')[0]);
+
+    document.querySelectorAll('.filter-grp button').forEach(btn => {
+        if (btn.onclick.toString().includes('setTimeWindow')) { // Only affect time window buttons
+            btn.classList.remove('on');
+        }
+    });
+    el.classList.add('on');
+
+    // Re-apply all filters, which will now include the new time window
+    applyFilters();
+    if (selectedId) selectTrack(selectedId); // Re-select to update detail panel
+}
+
 function fmtN(n,d=1){if(!n&&n!==0)return'—';const a=Math.abs(n);if(a>=1e6)return(n/1e6).toFixed(d)+'M';if(a>=1e3)return(n/1e3).toFixed(0)+'K';return Math.round(n).toString();}
 function signalClass(s){return{BUY:'sig-buy',WATCH:'sig-watch',HOLD:'sig-hold',PASS:'sig-pass'}[s]||'sig-hold';}
 function signalLabel(s){return{BUY:'STRONG BUY',WATCH:'WATCH',HOLD:'HOLD',PASS:'PASS'}[s]||s;}
 function buildSpark(streams,color){const valid=streams.filter(v=>v&&v>0);if(!valid.length)return'<span style="color:var(--t3);font-size:9px">—</span>';const mx=Math.max(...valid);const mn=Math.min(...valid);return`<div class="spark">${streams.slice(-8).map(s=>{const pct=mx===mn?50:Math.round((s-mn)/(mx-mn)*100);const h=Math.max(2,Math.round(pct/100*18));const c=s>=valid[0]?color:'var(--t3)';return`<div class="spark-bar" style="height:${h}px;background:${c}"></div>`}).join('')}</div>`;}
-function renderTable(){const q=document.getElementById('searchInput').value.toLowerCase();const plat=document.getElementById('platformSel').value;const sig=document.getElementById('signalSel').value;let data=[...TRACKS];if(q) data=data.filter(t=>t.title.toLowerCase().includes(q)||t.artist.toLowerCase().includes(q));if(plat!=='all') data=data.filter(t=>t.platform===plat);if(sig!=='all') data=data.filter(t=>t.signal===sig);if(currentPeriod==='rising') data=data.filter(t=>t.momentum>5);if(currentPeriod==='stable') data=data.filter(t=>Math.abs(t.momentum)<=5);if(currentPeriod==='falling') data=data.filter(t=>t.momentum<-5);const sortMap={acq:'acqScore',momentum:'momentum',rank:'bestRank',streams:'latestStreams',growth:'growth'};const key=sortMap[currentSort]||'acqScore';const asc=key==='bestRank';data.sort((a,b)=>asc?a[key]-b[key]:b[key]-a[key]);document.getElementById('count-badge').textContent=`${data.length} track${data.length!==1?'s':''}`;const displayData=data;const el=document.getElementById('track-table');let htmlStr='';displayData.forEach((t,i)=>{const momColor=t.momentum>5?'g':t.momentum<-5?'r':'';const spark=buildSpark(t.spStreams,t.acqColor);htmlStr+=`<div class="track-row${t.id===selectedId?' selected':''}" style="grid-template-columns:24px 1fr 50px 70px 80px 100px 75px" onclick="selectTrack(${t.id})"><span class="tr-num">${i+1}</span><div class="tr-info"><div class="tr-title">${t.artist} — ${t.title} ${t.platform==='cross'?'<span style="color:var(--teal);font-size:8px">✦ cross</span>':''}</div>${spark}</div><span class="tr-val">${t.bestRank}</span><span class="tr-val">${fmtN(t.latestStreams)}</span><span class="tr-val ${momColor}">${t.momentum>0?'+':''}${t.momentum}%</span><span style="text-align:right;padding-right:12px"><span class="sig ${signalClass(t.signal)}">${signalLabel(t.signal)}</span></span><span class="tr-val a">${t.acqScore}</span></div>`;});el.innerHTML=htmlStr;}
-function selectTrack(id){selectedId=id;const t=TRACKS.find(x=>x.id===id);if(!t)return;renderTable();document.getElementById('empty-state').style.display='none';document.getElementById('detail-title').textContent=t.title;document.getElementById('detail-artist').textContent=t.artist.toUpperCase()+' · '+t.label.toUpperCase();document.getElementById('detail-accent').style.background=`linear-gradient(90deg,${t.acqColor},#2dd4bf)`;const labelRow=document.getElementById('detail-labels');const crossBadge=t.platform==='cross'?'<span class="pill-lbl" style="color:var(--teal);border-color:rgba(45,212,191,.3)">✦ Cross-platform</span>':'';const indBadge=t.label.toLowerCase().includes('independ')?'<span class="pill-lbl" style="color:var(--green);border-color:rgba(34,197,94,.3)">Independent</span>':'';labelRow.innerHTML=`<span class="pill-lbl">${t.label}</span><span class="pill-lbl">${t.platform.toUpperCase()}</span>${crossBadge}${indBadge}<span class="sig ${signalClass(t.signal)}">${signalLabel(t.signal)}</span>`;const statData=[{l:'Best Rank',v:`${t.bestRank}`,s:PAYLOAD.regionLabel||'Spotify Global',vc:''},{l:'Latest Streams',v:fmtN(t.latestStreams,1),s:`${t.growth>0?'+':''}${t.growth}% growth`,vc:t.growth>0?'g':'r'},{l:'Momentum',v:`${t.momentum>0?'+':''}${t.momentum}%`,s:'Window change',vc:t.momentum>0?'g':'r'},{l:'Window Days',v:t.days,s:'days in chart',vc:''}];document.getElementById('detail-stats').innerHTML=statData.map(s=>`<div class="ds"><div class="ds-l">${s.l}</div><div class="ds-v ${s.vc}">${s.v}</div><div class="ds-s">${s.s}</div></div>`).join('');const ring=document.getElementById('score-ring');ring.style.display='flex';document.getElementById('ring-num').textContent=t.acqScore;document.getElementById('ring-num').className=`ring-num ${t.momentum>0?'g':''}`;const sigEl=document.getElementById('ring-sig');sigEl.className=`sig ${signalClass(t.signal)}`;sigEl.textContent=signalLabel(t.signal);const pct=Math.round(t.acqScore);document.getElementById('ring-bar').style.cssText=`width:${pct}%;background:${t.acqColor}`;document.getElementById('ring-sub').textContent=`Ranked #${TRACKS.sort((a,b)=>b.acqScore-a.acqScore).findIndex(x=>x.id===id)+1} of ${TRACKS.length} tracked tracks`;const chartSection=document.getElementById('chart-section');chartSection.style.display='block';const spCtx=document.getElementById('detailChart').getContext('2d');if(detailChart)detailChart.destroy();detailChart=new Chart(spCtx,{type:'line',data:{labels:DATES,datasets:[{label:'Streams',data:t.spStreams,borderColor:t.acqColor,backgroundColor:t.acqColor+'10',borderWidth:2,tension:.4,fill:true,pointBackgroundColor:t.acqColor,pointRadius:3,yAxisID:'y',spanGaps:true},{label:'Rank',data:t.spRanks,borderColor:'rgba(167,139,250,.7)',borderDash:[4,2],borderWidth:1.5,tension:.3,fill:false,pointBackgroundColor:'#a78bfa',pointRadius:2,yAxisID:'y1',spanGaps:true}]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.datasetIndex===0?`${c.raw?.toLocaleString()} streams`:`Rank #${c.raw}`}}},scales:{x:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#444',font:{size:9}}},y:{position:'left',grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:t.acqColor,font:{size:9},callback:v=>fmtN(v,0).replace('+','')}},y1:{position:'right',reverse:true,grid:{display:false},ticks:{color:'#a78bfa',font:{size:9},callback:v=>'#'+v}}}}});const itSection=document.getElementById('it-chart-section');const hasIt=t.itScores&&t.itScores.some(v=>v&&v>0);itSection.style.display=hasIt?'block':'none';if(hasIt){const itCtx=document.getElementById('detailItChart').getContext('2d');if(detailItChart)detailItChart.destroy();detailItChart=new Chart(itCtx,{type:'line',data:{labels:DATES,datasets:[{label:'iTunes Score',data:t.itScores,borderColor:'#a78bfa',backgroundColor:'rgba(167,139,250,.08)',borderWidth:2,tension:.4,fill:true,pointBackgroundColor:'#a78bfa',pointRadius:3,spanGaps:true}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.raw?`Score: ${c.raw.toLocaleString()}`:'Not charting'}}},scales:{x:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#444',font:{size:9}}},y:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#a78bfa',font:{size:9},callback:v=>fmtN(v,0).replace('+','')}}}}});}document.getElementById('signals-section').style.display='block';document.getElementById('signals-list').innerHTML=t.signals.map(s=>`<div class="sig-item"><span class="sig-icon">${s.icon}</span><div class="sig-text"><div class="sig-title">${s.t}</div><div class="sig-desc">${s.d}</div></div></div>`).join('');}
-function setSort(s,el){currentSort=s;document.querySelectorAll('.sort-btn').forEach(b=>b.classList.remove('on'));el.classList.add('on');renderTable();}
-function setPeriod(p,el){currentPeriod=p;document.querySelectorAll('.fp').forEach(b=>b.classList.remove('on'));el.classList.add('on');renderTable();}
-function applyFilters(){renderTable();}
+function renderTable(){
+  const q=document.getElementById('searchInput').value.toLowerCase();
+  const plat=document.getElementById('platformSel').value;
+  const sig=document.getElementById('signalSel').value;
+  let data=[...TRACKS];
+
+  if(q) data=data.filter(t=>t.title.toLowerCase().includes(q)||t.artist.toLowerCase().includes(q));
+  if(plat!=='all') data=data.filter(t=>t.platform===plat);
+  if(sig!=='all') data=data.filter(t=>t.signal===sig);
+  if(currentPeriod==='rising') data=data.filter(t=>t.momentum>5);
+  if(currentPeriod==='stable') data=data.filter(t=>Math.abs(t.momentum)<=5);
+  if(currentPeriod==='falling') data=data.filter(t=>t.momentum<-5);
+
+  const sortMap={acq:'acqScore',momentum:'momentum',rank:'bestRank',streams:'latestStreams',growth:'growth'};
+  const key=sortMap[currentSort]||'acqScore';
+  const asc=key==='bestRank';
+  data.sort((a,b)=>asc?a[key]-b[key]:b[key]-a[key]);
+
+  document.getElementById('count-badge').textContent=`${data.length} track${data.length!==1?'s':''}`;
+  const displayData=data;
+  const el=document.getElementById('track-table');
+  let htmlStr='';
+  displayData.forEach((t,i)=>{
+    const momColor=t.momentum>5?'g':t.momentum<-5?'r':'';
+    const spark=buildSpark(t.spStreams,t.acqColor);
+    htmlStr+=`<div class="track-row${t.id===selectedId?' selected':''}" style="grid-template-columns:24px 1fr 50px 70px 80px 100px 75px" onclick="selectTrack(${t.id})"><span class="tr-num">${i+1}</span><div class="tr-info"><div class="tr-title">${t.artist} — ${t.title} ${t.platform==='cross'?'<span style="color:var(--teal);font-size:8px">✦ cross</span>':''}</div>${spark}</div><span class="tr-val">${t.bestRank}</span><span class="tr-val">${fmtN(t.latestStreams)}</span><span class="tr-val ${momColor}">${t.momentum>0?'+':''}${t.momentum}%</span><span style="text-align:right;padding-right:12px"><span class="sig ${signalClass(t.signal)}">${signalLabel(t.signal)}</span></span><span class="tr-val a">${t.acqScore}</span></div>`;
+  });
+  el.innerHTML=htmlStr;
+}
+
+function selectTrack(id){
+  selectedId=id;
+  const t=TRACKS.find(x=>x.id===id);
+  if(!t)return;
+  renderTable();
+  document.getElementById('empty-state').style.display='none';
+  document.getElementById('detail-title').textContent=t.title;
+  document.getElementById('detail-artist').textContent=t.artist.toUpperCase()+' · '+t.label.toUpperCase();
+  document.getElementById('detail-accent').style.background=`linear-gradient(90deg,${t.acqColor},#2dd4bf)`;
+  const labelRow=document.getElementById('detail-labels');
+  const crossBadge=t.platform==='cross'?'<span class="pill-lbl" style="color:var(--teal);border-color:rgba(45,212,191,.3)">✦ Cross-platform</span>':'';
+  const indBadge=t.label.toLowerCase().includes('independ')?'<span class="pill-lbl" style="color:var(--green);border-color:rgba(34,197,94,.3)">Independent</span>':'';
+  labelRow.innerHTML=`<span class="pill-lbl">${t.label}</span><span class="pill-lbl">${t.platform.toUpperCase()}</span>${crossBadge}${indBadge}<span class="sig ${signalClass(t.signal)}">${signalLabel(t.signal)}</span>`;
+  const statData=[{l:'Best Rank',v:`${t.bestRank}`,s:PAYLOAD.regionLabel||'Spotify Global',vc:''},{l:'Latest Streams',v:fmtN(t.latestStreams,1),s:`${t.growth>0?'+':''}${t.growth}% growth`,vc:t.growth>0?'g':'r'},{l:'Momentum',v:`${t.momentum>0?'+':''}${t.momentum}%`,s:'Window change',vc:t.momentum>0?'g':'r'},{l:'Window Days',v:t.days,s:'days in chart',vc:''}];
+  document.getElementById('detail-stats').innerHTML=statData.map(s=>`<div class="ds"><div class="ds-l">${s.l}</div><div class="ds-v ${s.vc}">${s.v}</div><div class="ds-s">${s.s}</div></div>`).join('');
+  const ring=document.getElementById('score-ring');
+  ring.style.display='flex';
+  document.getElementById('ring-num').textContent=t.acqScore;
+  document.getElementById('ring-num').className=`ring-num ${t.momentum>0?'g':''}`;
+  const sigEl=document.getElementById('ring-sig');
+  sigEl.className=`sig ${signalClass(t.signal)}`;
+  sigEl.textContent=signalLabel(t.signal);
+  const pct=Math.round(t.acqScore);
+  document.getElementById('ring-bar').style.cssText=`width:${pct}%;background:${t.acqColor}`;
+  document.getElementById('ring-sub').textContent=`Ranked #${TRACKS.sort((a,b)=>b.acqScore-a.acqScore).findIndex(x=>x.id===id)+1} of ${TRACKS.length} tracked tracks`;
+  const chartSection=document.getElementById('chart-section');
+  chartSection.style.display='block';
+  const spCtx=document.getElementById('detailChart').getContext('2d');
+  if(detailChart)detailChart.destroy();
+  detailChart=new Chart(spCtx,{type:'line',data:{labels:DATES.slice(Math.max(0, DATES.length - t.days)),datasets:[{label:'Streams',data:t.spStreams,borderColor:t.acqColor,backgroundColor:t.acqColor+'10',borderWidth:2,tension:.4,fill:true,pointBackgroundColor:t.acqColor,pointRadius:3,yAxisID:'y',spanGaps:true},{label:'Rank',data:t.spRanks,borderColor:'rgba(167,139,250,.7)',borderDash:[4,2],borderWidth:1.5,tension:.3,fill:false,pointBackgroundColor:'#a78bfa',pointRadius:2,yAxisID:'y1',spanGaps:true}]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.datasetIndex===0?`${c.raw?.toLocaleString()} streams`:`Rank #${c.raw}`}}},scales:{x:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#444',font:{size:9}}},y:{position:'left',grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:t.acqColor,font:{size:9},callback:v=>fmtN(v,0).replace('+','')}},y1:{position:'right',reverse:true,grid:{display:false},ticks:{color:'#a78bfa',font:{size:9},callback:v=>'#'+v}}}}});
+  const itSection=document.getElementById('it-chart-section');
+  const hasIt=t.itScores&&t.itScores.some(v=>v&&v>0);
+  itSection.style.display=hasIt?'block':'none';
+  if(hasIt){
+    const itCtx=document.getElementById('detailItChart').getContext('2d');
+    if(detailItChart)detailItChart.destroy();
+    detailItChart=new Chart(itCtx,{type:'line',data:{labels:DATES.slice(Math.max(0, DATES.length - t.days)),datasets:[{label:'iTunes Score',data:t.itScores,borderColor:'#a78bfa',backgroundColor:'rgba(167,139,250,.08)',borderWidth:2,tension:.4,fill:true,pointBackgroundColor:'#a78bfa',pointRadius:3,spanGaps:true}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.raw?`Score: ${c.raw.toLocaleString()}`:'Not charting'}}},scales:{x:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#444',font:{size:9}}},y:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#a78bfa',font:{size:9},callback:v=>fmtN(v,0).replace('+','')}}}}});
+  }
+  document.getElementById('signals-section').style.display='block';
+  document.getElementById('signals-list').innerHTML=t.signals.map(s=>`<div class="sig-item"><span class="sig-icon">${s.icon}</span><div class="sig-text"><div class="sig-title">${s.t}</div><div class="sig-desc">${s.d}</div></div></div>`).join('');
+}
+
+function setSort(s,el){currentSort=s;document.querySelectorAll('.sort-btn').forEach(b=>b.classList.remove('on'));el.classList.add('on');applyFilters();}
+function setPeriod(p,el){currentPeriod=p;document.querySelectorAll('.filter-grp button').forEach(b=>{
+    if (b.onclick.toString().includes('setPeriod')) { // Only affect momentum buttons
+        b.classList.remove('on');
+    }
+});el.classList.add('on');applyFilters();}
+
+function applyFilters(){
+  // Start with the original data for the current region
+  let filteredTracks = currentRegion === 'global' ? JSON.parse(JSON.stringify(ORIGINAL_GLOBAL_TRACKS)) : JSON.parse(JSON.stringify(ORIGINAL_US_TRACKS));
+
+  // Store original full-window data for each track for later slicing
+  filteredTracks.forEach(track => {
+    track.originalSpStreams = [...track.spStreams];
+    track.originalSpRanks = [...track.spRanks];
+    track.originalItScores = [...track.itScores];
+    track.originalItRanks = [...track.itRanks];
+  });
+
+  // 1. Apply Time Window filter (re-calculate metrics for the window)
+  filteredTracks = filteredTracks.map(track => recalculateTrackMetrics(track, currentTimeWindowDays, ORIGINAL_DATES, PAYLOAD.regionLabel));
+
+  // 2. Apply other filters
+  const q=document.getElementById('searchInput').value.toLowerCase();
+  const plat=document.getElementById('platformSel').value;
+  const sig=document.getElementById('signalSel').value;
+
+  if(q) filteredTracks=filteredTracks.filter(t=>t.title.toLowerCase().includes(q)||t.artist.toLowerCase().includes(q));
+  if(plat!=='all') filteredTracks=filteredTracks.filter(t=>t.platform===plat);
+  if(sig!=='all') filteredTracks=filteredTracks.filter(t=>t.signal===sig);
+  if(currentPeriod==='rising') filteredTracks=filteredTracks.filter(t=>t.momentum>5);
+  if(currentPeriod==='stable') filteredTracks=filteredTracks.filter(t=>Math.abs(t.momentum)<=5);
+  if(currentPeriod==='falling') filteredTracks=filteredTracks.filter(t=>t.momentum<-5);
+
+  // Update global TRACKS variable
+  TRACKS = filteredTracks;
+
+  // Sort and render
+  const sortMap={acq:'acqScore',momentum:'momentum',rank:'bestRank',streams:'latestStreams',growth:'growth'};
+  const key=sortMap[currentSort]||'acqScore';
+  const asc=key==='bestRank';
+  TRACKS.sort((a,b)=>asc?a[key]-b[key]:b[key]-a[key]);
+
+  renderTable();
+}
 renderTable();if(selectedId){setTimeout(()=>selectTrack(selectedId),80);}
 </script>
 </body></html>
