@@ -358,7 +358,7 @@ def apply_theme(dark_mode: bool = True) -> None:
             padding-right: clamp(0.85rem, 1.8vw, 1.6rem);
             padding-left: clamp(0.85rem, 1.8vw, 1.6rem);
             padding-bottom: 6rem;
-            margin-top: 1.5rem;
+            margin-top: -1.0rem;
         }
         div[data-testid="stHorizontalBlock"] {
             gap: clamp(0.75rem, 1.4vw, 1.1rem);
@@ -541,7 +541,7 @@ def apply_theme(dark_mode: bool = True) -> None:
             transition: all 0.25s ease;
             box-shadow: 0 10px 30px rgba(0,0,0,.15);
             margin-bottom: 1.5rem;
-            margin-top: -2.0rem;
+            margin-top: -5.0rem;
         }
         .dashboard-card a {
             color: inherit;
@@ -4197,7 +4197,7 @@ def show_compare_page() -> None:
             border-bottom: none;
         }
         .cmp-warning {
-            margin-top: 0.8rem;
+            margin-top: -1.8rem;
             border: 1px solid rgba(245,166,35,.45);
             background: rgba(245,166,35,.14);
             color: var(--text);
@@ -4475,6 +4475,14 @@ def show_stream_trends_page() -> None:
 
 
 def show_debut_artist_page() -> None:
+    st.markdown("""
+        <style>
+        /* Forcefully remove the massive empty space above the Artist Spotlight dashboard */
+        .stMainBlockContainer {
+            padding-top: 0rem !important;
+        }
+        </style>
+    """, unsafe_allow_html=True)
     # Use global_filtered to allow changing artists in the dropdown
     render_debut_artist_chart(global_filtered)
 
@@ -4512,6 +4520,17 @@ def show_pulse_report_page() -> None:
 
 def show_label_analysis_page() -> None:
     """Wrapper function for Label Analysis page"""
+    st.markdown("""
+        <style>
+        /* Forcefully remove the massive empty space above the Label Analysis iframe */
+        .stMainBlockContainer {
+            padding-top: 0rem !important;
+        }
+        div[data-testid="stHtml"] {
+            margin-top: -3.5rem !important;
+        }
+        </style>
+    """, unsafe_allow_html=True)
     from src.ai.label_analysis_dashboard import render_label_analysis
     render_label_analysis()
 

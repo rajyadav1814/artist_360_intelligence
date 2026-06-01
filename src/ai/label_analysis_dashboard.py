@@ -1180,6 +1180,14 @@ def render_label_analysis():
         .replace('__THEME__', theme_css)
     
     # Render with Streamlit Components
+    st.markdown("""
+        <style>
+        /* Pull the iframe up to remove the extra Streamlit default top padding */
+        iframe {
+            margin-top: -5.0rem;
+        }
+        </style>
+    """, unsafe_allow_html=True)
     st.components.v1.html(html_code, height=1320, scrolling=True)
 
 
