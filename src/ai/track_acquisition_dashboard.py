@@ -345,13 +345,13 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
 .brand{font-size:11px;color:var(--t3);letter-spacing:1.4px;text-transform:uppercase;display:flex;align-items:center;gap:7px;margin-bottom:6px;font-weight:600}
 .live{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);animation:blink 2s infinite}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.4}}
-.dash-title{font-size:26px;font-weight:700;letter-spacing:-.5px;color:#1A1A1A}
+.dash-title{font-size:26px;font-weight:700;letter-spacing:-.5px;color:var(--t1)}
 .dash-sub{font-size:12px;color:var(--t2);letter-spacing:.3px;margin-top:4px;font-weight:500}
 .filter-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .filter-grp{display:flex;gap:3px;background:var(--bg3);padding:4px;border-radius:8px;border:1px solid var(--border2)}
 .fp{font-size:13px;font-weight:600;padding:6px 14px;border:none;border-radius:6px;cursor:pointer;background:transparent;color:var(--t3);transition:.15s;letter-spacing:.3px}
 .fp:hover{color:var(--t1)}
-.fp.on{background:var(--bg4);color:#1A1A1A}
+.fp.on{background:var(--bg4);color:var(--t1)}
 .sel-wrap{position:relative}
 .sel-wrap select{background:var(--bg3);border:1px solid var(--border2);color:var(--t2);font-size:13px;padding:8px 32px 8px 14px;border-radius:6px;cursor:pointer;appearance:none;font-family:inherit;letter-spacing:.3px;font-weight:600}
 .sel-wrap::after{content:'▾';position:absolute;right:12px;top:50%;transform:translateY(-50%);color:var(--t3);pointer-events:none;font-size:14px}
@@ -393,14 +393,14 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
 .sig-pass{background:var(--rd);color:var(--red);border:1px solid rgba(251,113,133,.35)}
 .detail-hdr{padding:20px 22px 16px;border-bottom:1px solid var(--border);background:var(--bg2);flex-shrink:0}
 .detail-accent{height:3px;background:linear-gradient(90deg,var(--green),var(--teal));margin:-20px -22px 16px;margin-bottom:16px}
-.detail-title{font-size:18px;font-weight:700;letter-spacing:-.3px;margin-bottom:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#1A1A1A}
+.detail-title{font-size:18px;font-weight:700;letter-spacing:-.3px;margin-bottom:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--t1)}
 .detail-artist{font-size:12px;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;font-weight:600}
 .detail-label-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px}
 .pill-lbl{font-size:10px;color:var(--t2);padding:4px 10px;border-radius:12px;border:1px solid var(--border2);background:var(--bg3);font-weight:600}
 .detail-stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px}
 .ds{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px 14px}
 .ds-l{font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px;font-weight:600}
-.ds-v{font-size:18px;font-weight:700;letter-spacing:-.3px;color:#1A1A1A}
+.ds-v{font-size:18px;font-weight:700;letter-spacing:-.3px;color:var(--t1)}
 .ds-s{font-size:10px;color:var(--t2);margin-top:3px;font-weight:500}
 .detail-body{flex:1;overflow-y:auto;padding:16px 22px}
 .detail-body::-webkit-scrollbar{width:5px}
@@ -417,7 +417,7 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
 .sig-title{font-size:13px;font-weight:600;color:var(--t1);margin-bottom:3px}
 .sig-desc{font-size:12px;color:var(--t2);line-height:1.55}
 .score-ring{display:flex;align-items:center;gap:14px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:14px 18px;margin-bottom:16px}
-.ring-num{font-size:32px;font-weight:700;letter-spacing:-.5px;color:#1A1A1A}
+.ring-num{font-size:32px;font-weight:700;letter-spacing:-.5px;color:var(--t1)}
 .ring-info{flex:1}
 .ring-lbl{font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px;font-weight:600}
 .ring-bar-bg{height:6px;background:var(--bg4);border-radius:3px;overflow:hidden}
@@ -791,14 +791,14 @@ function selectTrack(id){
   chartSection.style.display='block';
   const spCtx=document.getElementById('detailChart').getContext('2d');
   if(detailChart)detailChart.destroy();
-  detailChart=new Chart(spCtx,{type:'line',data:{labels:DATES.slice(Math.max(0, DATES.length - t.days)),datasets:[{label:'Streams',data:t.spStreams,borderColor:t.acqColor,backgroundColor:t.acqColor+'10',borderWidth:2,tension:.4,fill:true,pointBackgroundColor:t.acqColor,pointRadius:3,yAxisID:'y',spanGaps:true},{label:'Rank',data:t.spRanks,borderColor:'rgba(167,139,250,.7)',borderDash:[4,2],borderWidth:1.5,tension:.3,fill:false,pointBackgroundColor:'#a78bfa',pointRadius:2,yAxisID:'y1',spanGaps:true}]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.datasetIndex===0?`${c.raw?.toLocaleString()} streams`:`Rank #${c.raw}`}}},scales:{x:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#444',font:{size:9}}},y:{position:'left',grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:t.acqColor,font:{size:9},callback:v=>fmtN(v,0).replace('+','')}},y1:{position:'right',reverse:true,grid:{display:false},ticks:{color:'#a78bfa',font:{size:9},callback:v=>'#'+v}}}}});
+  detailChart=new Chart(spCtx,{type:'line',data:{labels:DATES.slice(Math.max(0, DATES.length - t.days)),datasets:[{label:'Streams',data:t.spStreams,borderColor:t.acqColor,backgroundColor:t.acqColor+'10',borderWidth:2,tension:.4,fill:true,pointBackgroundColor:t.acqColor,pointRadius:3,yAxisID:'y',spanGaps:true},{label:'Rank',data:t.spRanks,borderColor:'rgba(167,139,250,.7)',borderDash:[4,2],borderWidth:1.5,tension:.3,fill:false,pointBackgroundColor:'#a78bfa',pointRadius:2,yAxisID:'y1',spanGaps:true}]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.datasetIndex===0?`${c.raw?.toLocaleString()} streams`:`Rank #${c.raw}`}}},scales:{x:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:getComputedStyle(document.documentElement).getPropertyValue('--t3').trim()||'#8b95ad',font:{size:9}}},y:{position:'left',grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:t.acqColor,font:{size:9},callback:v=>fmtN(v,0).replace('+','')}},y1:{position:'right',reverse:true,grid:{display:false},ticks:{color:'#a78bfa',font:{size:9},callback:v=>'#'+v}}}}});
   const itSection=document.getElementById('it-chart-section');
   const hasIt=t.itScores&&t.itScores.some(v=>v&&v>0);
   itSection.style.display=hasIt?'block':'none';
   if(hasIt){
     const itCtx=document.getElementById('detailItChart').getContext('2d');
     if(detailItChart)detailItChart.destroy();
-    detailItChart=new Chart(itCtx,{type:'line',data:{labels:DATES.slice(Math.max(0, DATES.length - t.days)),datasets:[{label:'iTunes Score',data:t.itScores,borderColor:'#a78bfa',backgroundColor:'rgba(167,139,250,.08)',borderWidth:2,tension:.4,fill:true,pointBackgroundColor:'#a78bfa',pointRadius:3,spanGaps:true}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.raw?`Score: ${c.raw.toLocaleString()}`:'Not charting'}}},scales:{x:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#444',font:{size:9}}},y:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#a78bfa',font:{size:9},callback:v=>fmtN(v,0).replace('+','')}}}}});
+    detailItChart=new Chart(itCtx,{type:'line',data:{labels:DATES.slice(Math.max(0, DATES.length - t.days)),datasets:[{label:'iTunes Score',data:t.itScores,borderColor:'#a78bfa',backgroundColor:'rgba(167,139,250,.08)',borderWidth:2,tension:.4,fill:true,pointBackgroundColor:'#a78bfa',pointRadius:3,spanGaps:true}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.raw?`Score: ${c.raw.toLocaleString()}`:'Not charting'}}},scales:{x:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:getComputedStyle(document.documentElement).getPropertyValue('--t3').trim()||'#8b95ad',font:{size:9}}},y:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#a78bfa',font:{size:9},callback:v=>fmtN(v,0).replace('+','')}}}}});
   }
   document.getElementById('signals-section').style.display='block';
   document.getElementById('signals-list').innerHTML=t.signals.map(s=>`<div class="sig-item"><span class="sig-icon">${s.icon}</span><div class="sig-text"><div class="sig-title">${s.t}</div><div class="sig-desc">${s.d}</div></div></div>`).join('');
