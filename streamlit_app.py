@@ -1385,6 +1385,46 @@ def show_artist_details_dialog(row: pd.Series) -> None:
     """, unsafe_allow_html=True)
 
     # ════════════════════════════════════════════════════════════════
+    # SECTION 2.1: RANK TREND CHART (Last 7 Days)
+    # ════════════════════════════════════════════════════════════════
+    st.markdown(f"<div class='dlg-section-title'>📈 Rank Trend <span class='dlg-section-badge'>Last 7 Days</span></div>", unsafe_allow_html=True)
+
+    try:
+        # Using history from the global scope populated by load_dashboard_data
+        if 'history' in globals() and history is not None and not history.empty:
+            artist_hist = history[history["name"] == artist_name].copy()
+            if not artist_hist.empty:
+                artist_hist["scraped_at"] = pd.to_datetime(artist_hist["scraped_at"])
+                latest_date = artist_hist["scraped_at"].max()
+                if pd.notna(latest_date):
+                    week_ago = latest_date - pd.Timedelta(days=7)
+                    week_hist = artist_hist[artist_hist["scraped_at"] >= week_ago].sort_values("scraped_at")
+                    
+                    if not week_hist.empty:
+                        fig_rh = px.line(
+                            week_hist,
+                            x="scraped_at",
+                            y="rank",
+                            markers=True,
+                            color_discrete_sequence=["#fb7185"]
+                        )
+                        fig_rh.update_yaxes(autorange="reversed", title="Rank Position")
+                        fig_rh.update_xaxes(title="", tickformat="%b %d")
+                        style_figure(fig_rh, 300, dark_mode=is_dark)
+                        render_plotly_html(fig_rh)
+                        st.markdown(f"""
+                            <div style="margin: -8px 0 20px; font-size: 0.82rem; color: {dlg_text2}; line-height: 1.5; font-style: italic;">
+                                <b>Strategic Insight:</b> This chart tracks the artist's daily rank velocity. A consistent or rising trajectory (lower numerical rank) indicates sustained consumer demand and strong algorithmic health across major streaming and retail platforms.
+                            </div>
+                        """, unsafe_allow_html=True)
+                    else:
+                        st.info("Insufficient rank data for the last 7 days.")
+            else:
+                st.info("No historical rank data found for this artist.")
+    except Exception as e:
+        st.warning(f"Rank trend chart unavailable: {e}")
+
+    # ════════════════════════════════════════════════════════════════
     # SECTION 3: TOP TRACKS, ALBUMS & COUNTRIES
     # ════════════════════════════════════════════════════════════════
     st.markdown(f"""
@@ -1392,60 +1432,25 @@ def show_artist_details_dialog(row: pd.Series) -> None:
             <div class="dlg-panel-header">Top Tracks, Albums & Countries</div>
             <div class="dlg-panel-body">
                 <div class="dlg-lists-grid">
-                    <div><div class="dlg-list-title">Top Tracks</div><ol class="dlg-list">{songs_html}</ol></div>
-                    <div><div class="dlg-list-title">Top Albums</div><ol class="dlg-list">{albums_html}</ol></div>
-                    <div><div class="dlg-list-title">Top Countries</div><ol class="dlg-list">{countries_html}</ol></div>
+                    <div>
+                        <div class="dlg-list-title">Top Tracks</div>
+                        <div style="font-size: .78rem; color: {dlg_text2}; margin-bottom: 8px;">High-velocity tracks driving the majority of recent stream volume.</div>
+                        <ol class="dlg-list">{songs_html}</ol>
+                    </div>
+                    <div>
+                        <div class="dlg-list-title">Top Albums</div>
+                        <div style="font-size: .78rem; color: {dlg_text2}; margin-bottom: 8px;">Top-performing projects across global digital storefronts.</div>
+                        <ol class="dlg-list">{albums_html}</ol>
+                    </div>
+                    <div>
+                        <div class="dlg-list-title">Top Countries</div>
+                        <div style="font-size: .78rem; color: {dlg_text2}; margin-bottom: 8px;">Markets with the strongest relative chart presence for the artist.</div>
+                        <ol class="dlg-list">{countries_html}</ol>
+                    </div>
                 </div>
             </div>
         </div>
     """, unsafe_allow_html=True)
-
-    # ════════════════════════════════════════════════════════════════
-    # SECTION 4: PERFORMANCE SUMMARY TABLE
-    # ════════════════════════════════════════════════════════════════
-    st.markdown(f"""
-        <div class="dlg-panel">
-            <div class="dlg-panel-header">Performance Summary</div>
-            <div class="dlg-panel-body">
-                <table class="dlg-summary-table">
-                    <thead><tr><th>Metric</th><th>Value</th></tr></thead>
-                    <tbody>
-                        <tr><td>Rank</td><td>{rank_val}</td></tr>
-                        <tr><td>Monthly Listeners</td><td>{monthly_val}</td></tr>
-                        <tr><td>Peak Listeners</td><td>{peak_val}</td></tr>
-                        <tr><td>Songs</td><td>{songs_val}</td></tr>
-                        <tr><td>Albums</td><td>{albums_val}</td></tr>
-                        <tr><td>LATAM Countries</td><td>{countries_val}</td></tr>
-                        <tr><td>Total Points</td><td>{points_val}</td></tr>
-                        <tr><td>Best Rank Ever</td><td>#{int(row.get('best_rank', 0))}</td></tr>
-                        <tr><td>Days at #1</td><td>{int(row.get('times_at_top', 0))}</td></tr>
-                        <tr><td>Weeks on Chart</td><td>{int(row.get('weeks_on_chart', 0))}</td></tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    """, unsafe_allow_html=True)
-
-    # ════════════════════════════════════════════════════════════════
-    # SECTION 5: RANK TREND CHART
-    # ════════════════════════════════════════════════════════════════
-    if 'history' in globals() or 'history' in locals():
-        artist_history = history[history["name"] == artist_name].copy()
-        if not artist_history.empty:
-            st.markdown("<div class='dlg-section-title'>📈 Rank Movement Trend <span class='dlg-section-badge'>Historical</span></div>", unsafe_allow_html=True)
-            artist_history = artist_history.sort_values("scraped_at")
-            fig_trend = go.Figure()
-            fig_trend.add_trace(go.Scatter(
-                x=artist_history["scraped_at"], y=artist_history["rank"],
-                mode='lines+markers',
-                line=dict(color='#60a5fa', width=3),
-                marker=dict(size=6, color='#ffffff', line=dict(width=2, color='#60a5fa')),
-                hovertemplate="Date: %{x|%b %d}<br>Rank: #%{y}<extra></extra>"
-            ))
-            fig_trend.update_yaxes(autorange="reversed")
-            fig_trend.update_xaxes(showgrid=False)
-            style_figure(fig_trend, 240)
-            st.plotly_chart(fig_trend, use_container_width=True, config={'displayModeBar': False})
 
     # ════════════════════════════════════════════════════════════════
     # SECTION 7: ACQUISITION INTELLIGENCE
@@ -3418,20 +3423,17 @@ def render_debut_artist_chart(leaderboard: pd.DataFrame) -> None:
     st.markdown(
         f"""
         <div class="spotlight-artist-hero">
-            <div>
-                <img src="{escape(display_img)}" class="spotlight-artist-image" alt="{artist_name}">
-            </div>
+            <div><img src="{escape(display_img)}" class="spotlight-artist-image" alt="{artist_name}"></div>
             <div>
                 <h2 class="spotlight-artist-name">{artist_name}</h2>
                 <p class="spotlight-artist-sub">{page_title_val}</p>
                 <div class="spotlight-badges">
-                    <span class="badge badge-new" style="padding: 5px 12px; font-size: .85rem;">{rank_val}</span>
-                    <span class="badge badge-up" style="padding: 5px 12px; font-size: .85rem;">{display_country}</span>
-                    <span class="badge badge-same" style="padding: 5px 12px; font-size: .85rem;">{monthly_val} Monthly</span>
+                    <span class="badge badge-new" style="padding: 5px 12px; font-size: .85rem;">🏆 #{rank_val}</span>
+                    <span class="badge badge-up" style="padding: 5px 12px; font-size: .85rem;">🌎 {display_country}</span>
+                    <span class="badge badge-same" style="padding: 5px 12px; font-size: .85rem;">🎧 {monthly_val} Monthly</span>
                 </div>
             </div>
         </div>
-
         <div class="spotlight-kpi-grid">
             <div class="spotlight-kpi"><div class="spotlight-kpi-label">Current Rank</div><div class="spotlight-kpi-value">{rank_val}</div><div class="spotlight-kpi-note">Latest chart position</div></div>
             <div class="spotlight-kpi"><div class="spotlight-kpi-label">Songs</div><div class="spotlight-kpi-value">{songs_val}</div><div class="spotlight-kpi-note">Catalog tracks</div></div>
@@ -3442,27 +3444,37 @@ def render_debut_artist_chart(leaderboard: pd.DataFrame) -> None:
             <div class="spotlight-kpi"><div class="spotlight-kpi-label">Total Points</div><div class="spotlight-kpi-value">{points_val}</div><div class="spotlight-kpi-note">Cross-platform score</div></div>
             <div class="spotlight-kpi"><div class="spotlight-kpi-label">Trend</div><div class="spotlight-kpi-value">{escape(trend_change)}</div><div class="spotlight-kpi-note">Rank momentum</div></div>
         </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
+    st.markdown(f"""
         <div class="spotlight-panel">
             <div class="spotlight-panel-header">Top Tracks, Albums and Countries</div>
             <div class="spotlight-panel-body">
                 <div class="spotlight-lists-grid">
                     <div>
                         <div class="spotlight-list-title">Top Tracks</div>
+                        <div style="font-size: .8rem; color: var(--text2); margin-bottom: 8px;">High-velocity tracks driving the majority of recent stream volume.</div>
                         <ol class="spotlight-list">{songs_html}</ol>
                     </div>
                     <div>
                         <div class="spotlight-list-title">Top Albums</div>
+                        <div style="font-size: .8rem; color: var(--text2); margin-bottom: 8px;">Top-performing projects across global digital storefronts.</div>
                         <ol class="spotlight-list">{albums_html}</ol>
                     </div>
                     <div>
                         <div class="spotlight-list-title">Top Countries</div>
+                        <div style="font-size: .8rem; color: var(--text2); margin-bottom: 8px;">Markets with the strongest relative chart presence for the artist.</div>
                         <ol class="spotlight-list">{countries_html}</ol>
                     </div>
                 </div>
             </div>
         </div>
+    """, unsafe_allow_html=True)
 
+    st.markdown(
+        f"""
         <div class="spotlight-panel">
             <div class="spotlight-panel-header">Performance Summary</div>
             <div class="spotlight-panel-body">
