@@ -541,7 +541,7 @@ def apply_theme(dark_mode: bool = True) -> None:
             transition: all 0.25s ease;
             box-shadow: 0 10px 30px rgba(0,0,0,.15);
             margin-bottom: 1.5rem;
-            margin-top: -5.0rem;
+            margin-top: -4.0rem;
         }
         .dashboard-card a {
             color: inherit;
