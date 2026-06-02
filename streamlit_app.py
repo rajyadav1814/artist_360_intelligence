@@ -1382,6 +1382,46 @@ def show_artist_details_dialog(row: pd.Series) -> None:
     """, unsafe_allow_html=True)
 
     # ════════════════════════════════════════════════════════════════
+    # SECTION 2.1: RANK TREND CHART (Last 7 Days)
+    # ════════════════════════════════════════════════════════════════
+    st.markdown(f"<div class='dlg-section-title'>📈 Rank Trend <span class='dlg-section-badge'>Last 7 Days</span></div>", unsafe_allow_html=True)
+
+    try:
+        # Using history from the global scope populated by load_dashboard_data
+        if 'history' in globals() and history is not None and not history.empty:
+            artist_hist = history[history["name"] == artist_name].copy()
+            if not artist_hist.empty:
+                artist_hist["scraped_at"] = pd.to_datetime(artist_hist["scraped_at"])
+                latest_date = artist_hist["scraped_at"].max()
+                if pd.notna(latest_date):
+                    week_ago = latest_date - pd.Timedelta(days=7)
+                    week_hist = artist_hist[artist_hist["scraped_at"] >= week_ago].sort_values("scraped_at")
+                    
+                    if not week_hist.empty:
+                        fig_rh = px.line(
+                            week_hist,
+                            x="scraped_at",
+                            y="rank",
+                            markers=True,
+                            color_discrete_sequence=["#fb7185"]
+                        )
+                        fig_rh.update_yaxes(autorange="reversed", title="Rank Position")
+                        fig_rh.update_xaxes(title="", tickformat="%b %d")
+                        style_figure(fig_rh, 300, dark_mode=is_dark)
+                        render_plotly_html(fig_rh)
+                        st.markdown(f"""
+                            <div style="margin: -8px 0 20px; font-size: 0.82rem; color: {dlg_text2}; line-height: 1.5; font-style: italic;">
+                                <b>Strategic Insight:</b> This chart tracks the artist's daily rank velocity. A consistent or rising trajectory (lower numerical rank) indicates sustained consumer demand and strong algorithmic health across major streaming and retail platforms.
+                            </div>
+                        """, unsafe_allow_html=True)
+                    else:
+                        st.info("Insufficient rank data for the last 7 days.")
+            else:
+                st.info("No historical rank data found for this artist.")
+    except Exception as e:
+        st.warning(f"Rank trend chart unavailable: {e}")
+
+    # ════════════════════════════════════════════════════════════════
     # SECTION 3: TOP TRACKS, ALBUMS & COUNTRIES
     # ════════════════════════════════════════════════════════════════
     st.markdown(f"""
