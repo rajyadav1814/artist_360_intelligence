@@ -53,12 +53,13 @@ if "show_advanced" not in st.session_state:
 # 1. Check URL parameters first (e.g. from toggle)
 if "theme" in st.query_params:
     st.session_state.dark_mode = st.query_params["theme"] == "dark"
-# 2. Check cookies to avoid the redirect flicker on refresh
-elif hasattr(st, "context") and hasattr(st.context, "cookies") and "theme" in st.context.cookies:
-    st.session_state.dark_mode = st.context.cookies["theme"] == "dark"
-# 3. Fallback to default
+# 2. Check cookies to avoid the redirect flicker on refresh (only if not already set)
 elif "dark_mode" not in st.session_state:
-    st.session_state.dark_mode = True
+    if hasattr(st, "context") and hasattr(st.context, "cookies") and "theme" in st.context.cookies:
+        st.session_state.dark_mode = st.context.cookies["theme"] == "dark"
+    # 3. Fallback to default
+    else:
+        st.session_state.dark_mode = True
 
 if "active_artist_profile" not in st.session_state:
     st.session_state.active_artist_profile = None
@@ -69,21 +70,23 @@ st_components.html(
     <script>
         const urlParams = new URLSearchParams(window.parent.location.search);
         const urlTheme = urlParams.get('theme');
-        const storedTheme = window.parent.localStorage.getItem('theme');
+        let storedTheme = window.parent.localStorage.getItem('theme');
+        
+        // If URL has a theme (e.g., from toggle), update local storage first
+        if (urlTheme && urlTheme !== storedTheme) {{
+            window.parent.localStorage.setItem('theme', urlTheme);
+            storedTheme = urlTheme;
+        }}
+
         const currentPythonTheme = "{ 'dark' if st.session_state.dark_mode else 'light' }";
         
-        // Ensure localStorage and Cookie stay in sync with Python state
-        if (urlTheme) {{
-            window.parent.localStorage.setItem('theme', urlTheme);
-            window.parent.document.cookie = `theme=${{urlTheme}}; path=/; max-age=31536000`;
-        }} else if (storedTheme && storedTheme !== currentPythonTheme) {{
-            // Only redirect if absolutely necessary (should be rare now due to cookies)
+        // Always check theme in local storage based on that change Python state if needed
+        if (storedTheme && storedTheme !== currentPythonTheme) {{
             urlParams.set('theme', storedTheme);
             window.parent.location.search = urlParams.toString();
-        }} else {{
-            // Keep cookies updated even without URL param
-            window.parent.localStorage.setItem('theme', currentPythonTheme);
-            window.parent.document.cookie = `theme=${{currentPythonTheme}}; path=/; max-age=31536000`;
+        }} else if (storedTheme) {{
+            // Keep cookies synced for Python to read on next load
+            window.parent.document.cookie = `theme=${{storedTheme}}; path=/; max-age=31536000`;
         }}
     </script>
     """,
@@ -559,7 +562,7 @@ def apply_theme(dark_mode: bool = True) -> None:
         .table-wrap { margin-top: 1rem; overflow-x:auto; overflow-y:auto; max-height:620px; }
         .leader-table { width:100%; border-collapse:collapse; font-size:.92rem; }
         .leader-table thead th {
-            text-align:left; padding:.85rem .85rem; color: var(--text); font-size:.72rem;
+            text-align:left; padding:.85rem .85rem; color: var(--text); font-size:.95rem;
             letter-spacing:.06em; text-transform:uppercase; border-bottom:1px solid var(--border);
             font-weight: 700;
         }
@@ -695,7 +698,7 @@ def apply_theme(dark_mode: bool = True) -> None:
             text-align:left;
             padding: .85rem .85rem;
             color: var(--text);
-            font-size: .73rem;
+            font-size: .80rem;
             letter-spacing: .06em;
             text-transform: uppercase;
             border-bottom: 2px solid rgba(251, 113, 133, 0.22);
@@ -2020,10 +2023,10 @@ def render_leaderboard_table_html(leaderboard: pd.DataFrame, max_rows: int) -> N
                         <th>Top song</th>
                         <th>Top Album</th>
                         <th>Top market</th>
-                        <th>Monthly listeners</th>
-                        <th>Peak listeners</th>
-                        <th>Total Streams</th>
-                        <th>Trend</th>
+                        <th>Spotify Monthly listeners</th>
+                        <th>Spotify Peak listeners</th>
+                        <th>Itune Total Streams</th>
+                        <th>Rank Movement</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -2248,12 +2251,11 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
                 ),
             )
             fig_rank.update_layout(
-                title=dict(text="Leaderboard Ranking", font=dict(color=text_color)),
+                title=dict(text="Top by Itunes Streams", font=dict(color=text_color)),
                 coloraxis=dict(showscale=False),
                 xaxis_title="",
                 yaxis_tickformat="~s",
-                yaxis_title="Total Points",
-                xaxis=dict(automargin=True, tickangle=-20),
+                yaxis_title="Itunes Streams",
                 uniformtext_minsize=9,
                 uniformtext_mode="hide",
             )
@@ -2280,7 +2282,7 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
                 labels={"monthly_listeners": "Monthly listeners", "name": ""},
                 color_continuous_scale=["#fda4af", "#fb7185", "#be123c"],
             )
-            style_figure(fig_bar, 430, dark_mode=is_dark)
+            style_figure(fig_bar, 440, dark_mode=is_dark)
             fig_bar.update_traces(
                 textposition="outside",
                 cliponaxis=False,
@@ -2305,12 +2307,11 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
                 annotation_font_color=annotation_color,
             )
             fig_bar.update_layout(
-                title=dict(text="Top by Monthly Listeners", font=dict(color=text_color)),
+                title=dict(text="Top by Spotify Monthly Listeners", font=dict(color=text_color)),
                 coloraxis=dict(showscale=False),
-                xaxis_title="Monthly listeners",
+                xaxis_title="Spotify Monthly listeners",
                 xaxis_tickformat="~s",
                 yaxis_title="",
-                yaxis=dict(automargin=True),
                 uniformtext_minsize=11,
                 uniformtext_mode="hide",
             )
