@@ -80,6 +80,37 @@ def _load_window(table: str, country: str, days: int) -> pd.DataFrame:
     df["date"] = pd.to_datetime(df["date"]).dt.date
     return df
 
+@st.cache_data(ttl=300, show_spinner=False)
+def _load_window_multi(table: str, countries: list[str], days: int) -> pd.DataFrame:
+    metric_col = "points" if table == "spotify_daily" else "points"
+    placeholders = ", ".join(["%s"] * len(countries))
+    query = f"""
+        WITH bounds AS (
+            SELECT country, MAX(date) AS max_d FROM {table} WHERE country IN ({placeholders}) GROUP BY country
+        )
+        SELECT
+            d.country,
+            d.date,
+            d.rank,
+            d.artist_title,
+            d.{metric_col} AS metric,
+            d.label
+        FROM {table} d
+        JOIN bounds b ON d.country = b.country
+        WHERE d.date >  (b.max_d - %s::int)
+          AND d.date <= b.max_d
+    """
+    params = tuple(countries) + (days,)
+    rows = _run_query(query, params)
+    if not rows:
+        return pd.DataFrame()
+    df = pd.DataFrame(rows)
+    df["rank"] = pd.to_numeric(df["rank"], errors="coerce")
+    df["metric"] = pd.to_numeric(df["metric"], errors="coerce")
+    df["date"] = pd.to_datetime(df["date"]).dt.date
+    return df
+
+
 
 def _fmt_n(n: float | int | None) -> str:
     if n is None or n == 0:
@@ -285,251 +316,357 @@ def render_album_acquisition() -> None:
 
     # Load data for the maximum window (30 days) and let JS filter it
     window_days = 30
+    latam_codes = ["ar", "bo", "br", "cl", "co", "cr", "do", "ec", "sv", "gt", "hn", "mx", "ni", "pa", "pe", "py", "uy", "ve"]
+    all_codes = ["ww", "us"] + latam_codes
 
-    sp_global_df = _load_window("itunes_artist_album", "ww", window_days)
-    sp_us_df = pd.DataFrame()
-    it_df = pd.DataFrame()
+    sp_all_df = _load_window_multi("itunes_artist_album", all_codes, window_days)
+    
+    sp_global_df = sp_all_df[sp_all_df["country"] == "ww"] if not sp_all_df.empty else pd.DataFrame()
+    sp_us_df = sp_all_df[sp_all_df["country"] == "us"] if not sp_all_df.empty else pd.DataFrame()
+    latam_dfs = {code: sp_all_df[sp_all_df["country"] == code] if not sp_all_df.empty else pd.DataFrame() for code in latam_codes}
+    
+    it_df = pd.DataFrame() # Secondary dataframe not used for albums
 
-    if sp_global_df.empty and sp_us_df.empty and it_df.empty:
+    if sp_global_df.empty and sp_us_df.empty and all(df.empty for df in latam_dfs.values()):
         st.warning("No daily chart data available to build the album acquisition view.")
         return
 
     date_set = set()
-    if not sp_global_df.empty:
-        date_set.update(sp_global_df["date"].tolist())
-    if not sp_us_df.empty:
-        date_set.update(sp_us_df["date"].tolist())
-    if not it_df.empty:
-        date_set.update(it_df["date"].tolist())
+    for df in [sp_global_df, sp_us_df] + list(latam_dfs.values()):
+        if not df.empty:
+            date_set.update(df["date"].tolist())
+
     if not date_set:
         st.warning("No chart dates found in the selected window.")
         return
 
     dates = sorted(date_set)
-    global_albums = _build_album_rows(sp_global_df, it_df, dates, region="Global")
-    us_albums = _build_album_rows(sp_us_df, it_df, dates, region="US")
+    global_albums = _build_album_rows(sp_global_df, it_df, dates, region="Global")[:100]
+    us_albums = _build_album_rows(sp_us_df, it_df, dates, region="US")[:100]
+    latam_albums = {code: _build_album_rows(df, it_df, dates, region=code.upper())[:100] for code, df in latam_dfs.items()}
 
-    if not global_albums and not us_albums:
+    if not global_albums and not us_albums and not any(latam_albums.values()):
         st.warning("No album acquisition rows could be built from the available chart data.")
         return
 
     payload = _build_payload(global_albums, dates, region_label="iTunes WW")
     us_payload = _build_payload(us_albums, dates, region_label="iTunes US")
 
-    # Ensure required keys always exist even when global_albums is empty
     payload.setdefault("albums", [])
     payload.setdefault("dates", [d.strftime("%b %d") for d in dates])
-    payload.setdefault("defaultAlbumId", us_albums[0]["id"] if us_albums else None)
+    
+    default_id = None
+    if global_albums: default_id = global_albums[0]["id"]
+    elif us_albums: default_id = us_albums[0]["id"]
+    
+    payload.setdefault("defaultAlbumId", default_id)
     payload.setdefault("regionLabel", "iTunes WW")
     payload.setdefault("summary", {})
-    payload["maxWindowDays"] = window_days # Pass max window to JS
 
     payload["usAlbums"] = us_albums
     payload["usSummary"] = us_payload.get("summary", {})
+    payload["latamAlbums"] = latam_albums
+    payload["maxWindowDays"] = window_days
+
+    with st.expander("ℹ️ How is the Acquisition Score calculated?"):
+        st.markdown(
+            "The **Acquisition Score (0-100)** is a composite metric evaluating an album's market potential. It is calculated using:\n"
+            "- **Latest Points (30%)**: Scaled based on daily volume.\n"
+            "- **Best Rank (40%)**: iTunes WW chart peak.\n"
+            "- **Momentum (20%)**: Trajectory of points growth and rank delta.\n"
+            "- **Platform Bonus (10%)**: Cross-platform validation signals.\n\n"
+            "👉 **Interactive Analysis**: Select any album from the leaderboard to instantly load its detailed acquisition profile, including point trajectories and specific market signals."
+        )
+        st.markdown(
+            """
+            <style>
+            [data-testid="stExpander"] {
+                border: 2px solid var(--border) !important;
+                border-radius: 12px !important;
+                background-color: var(--surface) !important;
+                overflow: hidden !important;
+            }
+            [data-testid="stExpander"] summary {
+                background-color: var(--surface2) !important;
+                border-bottom: 1px solid var(--border) !important;
+            }
+            [data-testid="stExpander"] summary p {
+                font-family: 'Inter', system-ui, sans-serif !important;
+                font-weight: 600 !important;
+                font-size: 15px !important;
+                color: var(--text) !important;
+            }
+            [data-testid="stExpander"] .stMarkdown p, 
+            [data-testid="stExpander"] .stMarkdown li {
+                font-family: 'Inter', system-ui, sans-serif !important;
+                font-size: 14px !important;
+                color: var(--text2) !important;
+                line-height: 1.6 !important;
+            }
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
 
     html = _build_html(payload, dark_mode=st.session_state.get("dark_mode", True))
-    st_components.html(html, height=1700, scrolling=True)
+    st_components.html(html, height=750, scrolling=True)
 
 
 def _build_html(payload: dict[str, Any], dark_mode: bool = False) -> str:
     data_json = json.dumps(payload, default=str)
     theme_css = _THEME_DARK if dark_mode else _THEME_LIGHT
+    body_class = "dark" if dark_mode else "light"
     return """
 <!DOCTYPE html><html><head><meta charset='utf-8'>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 __THEME__
-*{box-sizing:border-box;margin:0;padding:0}
-body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t1);font-size:13px;line-height:1.55}
-.hdr{background:linear-gradient(180deg,#1a2235 0%,var(--bg2) 100%);border-bottom:1px solid var(--border);padding:20px 24px 16px}
-.hdr-top{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;margin-bottom:12px}
-.brand{font-size:11px;color:var(--t3);letter-spacing:1.4px;text-transform:uppercase;display:flex;align-items:center;gap:7px;margin-bottom:6px;font-weight:600}
-.live{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);animation:blink 2s infinite}
-@keyframes blink{0%,100%{opacity:1}50%{opacity:.4}}
-.dash-title{font-size:26px;font-weight:700;letter-spacing:-.5px;color:var(--t1)}
-.dash-sub{font-size:12px;color:var(--t2);letter-spacing:.3px;margin-top:4px;font-weight:500}
-.filter-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
-.filter-grp{display:flex;gap:3px;background:var(--bg3);padding:4px;border-radius:8px;border:1px solid var(--border2)}
-.fp{font-size:13px;font-weight:600;padding:6px 14px;border:none;border-radius:6px;cursor:pointer;background:transparent;color:var(--t3);transition:.15s;letter-spacing:.3px}
-.fp:hover{color:var(--t1)}
-.fp.on{background:var(--bg4);color:var(--t1)}
-.sel-wrap{position:relative}
-.sel-wrap select{background:var(--bg3);border:1px solid var(--border2);color:var(--t2);font-size:13px;padding:8px 32px 8px 14px;border-radius:6px;cursor:pointer;appearance:none;font-family:inherit;letter-spacing:.3px;font-weight:600}
-.sel-wrap::after{content:'▾';position:absolute;right:12px;top:50%;transform:translateY(-50%);color:var(--t3);pointer-events:none;font-size:14px}
-.search-wrap{position:relative;flex:1;min-width:180px;max-width:280px}
-.search-wrap input{width:100%;background:var(--bg3);border:1px solid var(--border2);color:var(--t1);font-size:13px;padding:8px 14px 8px 34px;border-radius:6px;font-family:inherit;outline:none}
-.search-wrap input::placeholder{color:var(--t3)}
-.search-wrap::before{content:'⌕';position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--t3);font-size:16px;pointer-events:none}
-.g{color:var(--green)}.r{color:var(--red)}.b{color:var(--blue)}.p{color:var(--purple)}.a{color:var(--amber)}
-.main-grid{display:grid;grid-template-columns:1fr 500px;gap:0;height:calc(100vh - 200px);min-height:580px}
-.left-panel{border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
-.right-panel{display:flex;flex-direction:column;overflow:hidden;background:var(--bg2)}
-.tbl-controls{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:6px;flex-wrap:wrap;background:var(--bg2)}
-.tbl-controls-r{margin-left:auto;display:flex;align-items:center;gap:6px}
-.sort-btn{font-size:10px;color:var(--t3);padding:4px 10px;border:1px solid var(--border2);border-radius:4px;cursor:pointer;background:transparent;white-space:nowrap;transition:.1s;font-weight:600}
-.sort-btn.on{color:var(--t1);border-color:var(--blue);background:rgba(96,165,250,.1)}
-.count-badge{font-size:10px;color:var(--t2);background:var(--bg3);padding:3px 8px;border-radius:4px;border:1px solid var(--border);font-weight:500}
-.tbl-hdr{display:grid;gap:6px;padding:8px 16px;border-bottom:1px solid var(--border2);background:var(--bg2)}
-.tbl-hdr span{font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.6px;cursor:pointer;font-weight:600}
-.tbl-hdr span:hover{color:var(--t2)}
-.tbl-body{flex:1;overflow-y:auto}
-.tbl-body::-webkit-scrollbar{width:5px}
-.tbl-body::-webkit-scrollbar-album{background:transparent}
-.tbl-body::-webkit-scrollbar-thumb{background:var(--border2);border-radius:5px}
-.album-row{display:grid;gap:8px;padding:12px 16px;border-bottom:1px solid var(--border);cursor:pointer;transition:.1s;align-items:center}
-.album-row:hover{background:var(--bg3)}
-.album-row.selected{background:var(--bg3);border-left:3px solid var(--blue);padding-left:13px}
-.tr-num{font-size:13px;color:var(--t3);text-align:right;min-width:20px;font-weight:600}
-.tr-info{overflow:hidden}
-.tr-title{font-size:14px;font-weight:600;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:-.1px}
-.tr-artist{font-size:11px;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px;font-weight:500}
-.tr-val{font-size:13px;color:var(--t1);text-align:right;white-space:nowrap;font-weight:600;font-variant-numeric:tabular-nums}
-.tr-val.g{color:var(--green)}.tr-val.r{color:var(--red)}
-.spark{display:flex;align-items:flex-end;gap:1px;height:20px;margin-top:4px}
-.spark-bar{width:4px;border-radius:2px;min-height:2px}
-.sig{display:inline-flex;align-items:center;font-size:10px;font-weight:700;padding:3px 8px;border-radius:4px;letter-spacing:.4px;white-space:nowrap}
-.sig-buy{background:var(--gd);color:var(--green);border:1px solid rgba(52,211,153,.35)}
-.sig-watch{background:var(--bd);color:var(--blue);border:1px solid rgba(96,165,250,.35)}
-.sig-hold{background:var(--bg3);color:var(--t2);border:1px solid var(--border2)}
-.sig-pass{background:var(--rd);color:var(--red);border:1px solid rgba(251,113,133,.35)}
-.detail-hdr{padding:20px 22px 16px;border-bottom:1px solid var(--border);background:var(--bg2);flex-shrink:0}
-.detail-accent{height:3px;background:linear-gradient(90deg,var(--green),var(--teal));margin:-20px -22px 16px;margin-bottom:16px}
-.detail-title{font-size:18px;font-weight:700;letter-spacing:-.3px;margin-bottom:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--t1)}
-.detail-artist{font-size:12px;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;font-weight:600}
-.detail-label-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px}
-.pill-lbl{font-size:10px;color:var(--t2);padding:4px 10px;border-radius:12px;border:1px solid var(--border2);background:var(--bg3);font-weight:600}
-.detail-stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px}
-.ds{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px 14px}
-.ds-l{font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px;font-weight:600}
-.ds-v{font-size:18px;font-weight:700;letter-spacing:-.3px;color:var(--t1)}
-.ds-s{font-size:10px;color:var(--t2);margin-top:3px;font-weight:500}
-.detail-body{flex:1;overflow-y:auto;padding:16px 22px}
-.detail-body::-webkit-scrollbar{width:5px}
-.detail-body::-webkit-scrollbar-thumb{background:var(--border2);border-radius:5px}
-.section-mini{margin-bottom:20px}
-.section-mini-title{font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--border);font-weight:600}
-.dual-legend{display:flex;gap:14px;margin-bottom:10px}
-.dl-item{display:flex;align-items:center;gap:6px;font-size:10px;color:var(--t2);font-weight:500}
-.dl-dot{width:12px;height:3px;border-radius:1px}
-.sig-item{display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)}
-.sig-item:last-child{border-bottom:none}
-.sig-icon{font-size:16px;flex-shrink:0;margin-top:2px}
-.sig-text{flex:1}
-.sig-title{font-size:13px;font-weight:600;color:var(--t1);margin-bottom:3px}
-.sig-desc{font-size:12px;color:var(--t2);line-height:1.55}
-.score-ring{display:flex;align-items:center;gap:14px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:14px 18px;margin-bottom:16px}
-.ring-num{font-size:32px;font-weight:700;letter-spacing:-.5px;color:var(--t1)}
-.ring-info{flex:1}
-.ring-lbl{font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px;font-weight:600}
-.ring-bar-bg{height:6px;background:var(--bg4);border-radius:3px;overflow:hidden}
-.ring-bar-fg{height:6px;border-radius:3px;transition:.4s}
-.ring-sub{font-size:11px;color:var(--t2);margin-top:6px;font-weight:500}
+:root {
+  --color-background-primary: var(--bg2);
+  --color-background-secondary: var(--bg3);
+  --color-border-secondary: var(--border2);
+  --color-border-tertiary: var(--border);
+  --color-text-primary: var(--t1);
+  --color-text-secondary: var(--t2);
+  --color-text-tertiary: var(--t3);
+  --border-radius-md: 6px;
+  --border-radius-lg: 10px;
+  --font-sans: 'Inter', system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); font-family: var(--font-sans); color: var(--t1); -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+
+.dash-wrapper { display: flex; flex-direction: column; gap: 12px; height: 100vh; padding: 12px 16px; overflow: hidden; }
+.dash { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; flex: 1; min-height: 0; }
+
+.left-col { display: flex; flex-direction: column; gap: 12px; overflow: hidden; }
+
+.filters { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; flex-shrink: 0; width: calc(50% - 8px); }
+.filter-btn { font-size: 12px; padding: 5px 12px; border-radius: 999px; border: 0.5px solid var(--color-border-secondary); background: var(--color-background-primary); color: var(--color-text-secondary); cursor: pointer; transition: all .15s; }
+.filter-btn.active { background: #185FA5; color: #E6F1FB; border-color: #185FA5; }
+.filter-tag { display: flex; align-items: center; font-size: 14px; padding: 8px 16px; border-radius: 999px; background: var(--color-background-secondary); color: var(--color-text-secondary); border: 1px solid var(--color-border-tertiary); cursor: pointer; }
+.filter-tag select { background: transparent; border: none; color: inherit; font-size: inherit; font-family: inherit; outline: none; cursor: pointer; }
+
+.album-table { background: var(--color-background-primary); border: 2px solid var(--color-border-secondary); border-radius: var(--border-radius-lg); overflow: hidden; display: flex; flex-direction: column; flex: 1; min-height: 0; transition: border-color 0.2s; }
+.album-table:hover { border-color: #E24B4A; }
+.album-header { display: grid; grid-template-columns: 28px 1fr 56px 72px 72px 52px; gap: 8px; padding: 9px 14px; border-bottom: 0.5px solid var(--color-border-tertiary); background: var(--color-background-secondary); flex-shrink: 0; }
+.album-header span { font-size: 11px; color: var(--color-text-tertiary); font-weight: 500; text-transform: uppercase; letter-spacing: .04em; cursor: pointer; text-align: left; }
+.album-header .col-r { text-align: right; }
+
+.album-body { overflow-y: auto; flex: 1; }
+.album-body::-webkit-scrollbar { width: 5px; }
+.album-body::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 5px; }
+
+.album-row { display: grid; grid-template-columns: 28px 1fr 56px 72px 72px 52px; gap: 8px; padding: 9px 14px; border-bottom: 0.5px solid var(--color-border-tertiary); align-items: center; cursor: pointer; transition: background .1s; }
+.album-row:last-child { border-bottom: none; }
+.album-row:hover { background: var(--color-background-secondary); }
+.album-row.selected { background: #E6F1FB; }
+.dark .album-row.selected { background: #042C53; }
+
+.sr-num { font-size: 12px; color: var(--color-text-tertiary); text-align: center; }
+.album-info { min-width: 0; text-align: left; }
+.album-name { font-size: 13px; font-weight: 500; color: var(--color-text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.album-artist { font-size: 11px; color: var(--color-text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
+
+.col-r { text-align: right; }
+.points-val { font-size: 12px; color: var(--color-text-primary); font-weight: 500; font-variant-numeric: tabular-nums; }
+.momentum-val { font-size: 12px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.momentum-pos { color: #1D9E75; }
+.momentum-neg { color: #E24B4A; }
+.momentum-flat { color: var(--color-text-secondary); }
+
+.acq-pill { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 20px; border-radius: 999px; font-size: 11px; font-weight: 500; }
+.acq-hi { background: #EAF3DE; color: #3B6D11; }
+.acq-mid { background: #E6F1FB; color: #185FA5; }
+.acq-lo { background: #F1EFE8; color: #5F5E5A; }
+
+.right-col { display: flex; flex-direction: column; gap: 12px; overflow-y: auto; padding-right: 4px; }
+.right-col::-webkit-scrollbar { width: 5px; }
+.right-col::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 5px; }
+
+.detail-card { background: var(--color-background-primary); border: 2px solid var(--color-border-secondary); border-radius: var(--border-radius-lg); padding: 16px; flex-shrink: 0; transition: border-color 0.2s; }
+.detail-card:hover { border-color: #E24B4A; }
+
+.detail-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 12px; }
+.detail-title { font-size: 17px; font-weight: 500; color: var(--color-text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 200px; }
+.detail-artist { font-size: 12px; color: var(--color-text-secondary); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 200px; }
+.detail-badges { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+.badge { font-size: 10px; padding: 3px 8px; border-radius: 4px; border: 0.5px solid var(--color-border-secondary); color: var(--color-text-secondary); background: var(--color-background-secondary); }
+.badge.active-b { background: #E6F1FB; color: #185FA5; border-color: #B5D4F4; }
+
+.acq-score-big { font-size: 40px; font-weight: 500; color: var(--color-text-primary); line-height: 1; }
+.acq-label { font-size: 11px; color: var(--color-text-secondary); margin-top: 3px; }
+.acq-rank { font-size: 11px; color: var(--color-text-tertiary); margin-top: 2px; }
+
+.stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+.stat-box { background: var(--color-background-secondary); border-radius: var(--border-radius-md); padding: 10px 12px; border: 2px solid var(--color-border-secondary); transition: border-color 0.2s; }
+.stat-box:hover { border-color: #E24B4A; }
+.stat-label { font-size: 10px; color: var(--color-text-tertiary); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 4px; }
+.stat-value { font-size: 16px; font-weight: 500; color: var(--color-text-primary); font-variant-numeric: tabular-nums; }
+.stat-sub { font-size: 10px; color: var(--color-text-secondary); margin-top: 2px; }
+.stat-value.pos { color: #1D9E75; }
+.stat-value.neg { color: #E24B4A; }
+
+.chart-section { margin-bottom: 4px; }
+.chart-label { font-size: 11px; color: var(--color-text-secondary); margin-bottom: 6px; font-weight: 500; }
+.chart-wrap { position: relative; width: 100%; height: 130px; }
+
+.signals-section { }
+.signals-label { font-size: 11px; color: var(--color-text-secondary); font-weight: 500; margin-bottom: 8px; text-transform: uppercase; letter-spacing: .04em; }
+.signal-row { display: flex; gap: 10px; align-items: flex-start; padding: 8px 0; border-bottom: 0.5px solid var(--color-border-tertiary); }
+.signal-row:last-child { border-bottom: none; }
+.signal-icon { font-size: 16px; margin-top: 1px; flex-shrink: 0; }
+.signal-text strong { font-size: 12px; font-weight: 500; color: var(--color-text-primary); display: block; }
+.signal-text span { font-size: 11px; color: var(--color-text-secondary); line-height: 1.4; }
+
+#searchInput { background: transparent; border: none; color: inherit; outline: none; width: 180px; font-family: inherit; font-size: inherit; }
+#searchInput::placeholder { color: var(--color-text-tertiary); }
+
+.empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 300px; color: var(--color-text-tertiary); text-align: center; gap: 8px; }
 </style>
-</head><body>
+</head><body class="__BODY_CLASS__">
 
-<div class="filter-bar" style="padding:12px 18px;border-bottom:1px solid var(--border);background:var(--bg2)">
-  <div class="filter-grp">
-    <button class="fp on" onclick="setPeriod('all',this)">All</button>
-    <button class="fp" onclick="setPeriod('rising',this)">Rising</button>
-    <button class="fp" onclick="setPeriod('stable',this)">Stable</button>
-    <button class="fp" onclick="setPeriod('falling',this)">Falling</button>
-  </div>
-  <div class="search-wrap">
-    <input type="text" id="searchInput" placeholder="Search album or artist..." oninput="applyFilters()">
-  </div>
-  <div class="sel-wrap">
-    <select id="regionSel" onchange="changeRegion()">
-      <option value="global">Global Stats</option>
-      <option value="us">United States Stats</option>
-    </select>
-  </div>
-  <div class="sel-wrap">
-    <select id="platformSel" onchange="applyFilters()">
-      <option value="all">All Platforms</option>
-      <option value="spotify">Spotify Only</option>
-      <option value="itunes">iTunes Only</option>
-      <option value="cross">Cross-Platform</option>
-    </select>
-  </div>
-  <div class="sel-wrap">
-    <select id="signalSel" onchange="applyFilters()">
-      <option value="all">All Signals</option>
-      <option value="BUY">Strong Buy</option>
-      <option value="WATCH">Watch</option>
-      <option value="HOLD">Hold</option>
-      <option value="PASS">Pass</option>
-    </select>
-  </div>
-  <div class="filter-grp" style="margin-left:auto">
-    <button class="fp on" onclick="setTimeWindow('All',this)">All</button>
-    <button class="fp" onclick="setTimeWindow('7 Days',this)">7 Days</button>
-    <button class="fp" onclick="setTimeWindow('14 Days',this)">14 Days</button>
-    <button class="fp" onclick="setTimeWindow('30 Days',this)">30 Days</button>
-  </div>
-</div>
+<h2 class="sr-only" style="display:none;">Music acquisition analytics dashboard showing top albums by acquisition score, points, and momentum</h2>
 
-<!-- Main Grid -->
-<div class="main-grid">
-  <div class="left-panel">
-    <div class="tbl-controls">
-      <span class="count-badge" id="count-badge">— albums</span>
-      <div class="tbl-controls-r">
-        <span style="font-size:9px;color:var(--t3)">Sort by:</span>
-        <button class="sort-btn on" onclick="setSort('acq',this)">Acq Score</button>
-        <button class="sort-btn" onclick="setSort('momentum',this)">Momentum</button>
-        <button class="sort-btn" onclick="setSort('rank',this)">Rank</button>
-        <button class="sort-btn" onclick="setSort('points',this)">Points</button>
-        <button class="sort-btn" onclick="setSort('growth',this)">Growth %</button>
+<div class="dash-wrapper">
+  <div class="filters">
+
+      <span style="display:flex; gap:8px; align-items:center;">
+        <span class="filter-tag">
+            <input type="text" id="searchInput" placeholder="Search..." oninput="applyFilters()">
+        </span>
+        <span class="filter-tag">
+          <select id="regionSel" onchange="changeRegion()">
+            <option value="global">All Stats</option>
+            <option value="us">United States Stats</option>
+            <optgroup label="Latin America">
+              <option value="ar">Argentina Stats</option>
+              <option value="bo">Bolivia Stats</option>
+              <option value="br">Brazil Stats</option>
+              <option value="cl">Chile Stats</option>
+              <option value="co">Colombia Stats</option>
+              <option value="cr">Costa Rica Stats</option>
+              <option value="do">Dominican Republic Stats</option>
+              <option value="ec">Ecuador Stats</option>
+              <option value="sv">El Salvador Stats</option>
+              <option value="gt">Guatemala Stats</option>
+              <option value="hn">Honduras Stats</option>
+              <option value="mx">Mexico Stats</option>
+              <option value="ni">Nicaragua Stats</option>
+              <option value="pa">Panama Stats</option>
+              <option value="pe">Peru Stats</option>
+              <option value="py">Paraguay Stats</option>
+              <option value="uy">Uruguay Stats</option>
+              <option value="ve">Venezuela Stats</option>
+            </optgroup>
+          </select>
+        </span>
+        <span class="filter-tag">
+          <select id="windowSel" onchange="setTimeWindow(this.value)">
+            <option value="All">All Time</option>
+            <option value="7">7 Days</option>
+            <option value="14">14 Days</option>
+            <option value="30">30 Days</option>
+          </select>
+        </span>
+        <span class="filter-tag" id="count-badge">0 albums</span>
+      </span>
+  </div>
+
+<div class="dash">
+  <div class="left-col">
+    <div class="album-table">
+      <div class="album-header">
+        <span>#</span>
+        <span onclick="setSort('title')">Artist / Album</span>
+        <span class="col-r" onclick="setSort('rank')">Rank</span>
+        <span class="col-r" onclick="setSort('points')">Points</span>
+        <span class="col-r" onclick="setSort('momentum')">Momentum</span>
+        <span class="col-r" onclick="setSort('acq')">Score</span>
+      </div>
+      <div class="album-body" id="album-table">
+        <!-- Albums rendered here -->
       </div>
     </div>
-    <div class="tbl-hdr" style="grid-template-columns:24px 1fr 50px 70px 80px 100px 75px">
-      <span>Sr. No.</span><span>Artist · Album</span><span style="text-align:right">Rank</span>
-      <span style="text-align:right">Points</span><span style="text-align:right">Momentum</span>
-      <span style="text-align:right;padding-right:12px">Signal</span><span style="text-align:right">Acq Score</span>
-    </div>
-    <div class="tbl-body" id="album-table"></div>
   </div>
-  <div class="right-panel">
-    <div class="detail-hdr" id="detail-hdr">
-      <div class="detail-accent" id="detail-accent"></div>
-      <div class="detail-title" id="detail-title">Select a album</div>
-      <div class="detail-artist" id="detail-artist">Click any row to view acquisition profile</div>
-      <div class="detail-label-row" id="detail-labels"></div>
-      <div class="detail-stats" id="detail-stats"></div>
-    </div>
-    <div class="detail-body">
-      <div class="score-ring" id="score-ring" style="display:none">
+
+  <div class="right-col" id="detail-panel">
+    <div class="detail-card">
+      <div class="detail-header">
         <div>
-          <div class="ring-lbl">Acquisition score</div>
-          <div class="ring-num" id="ring-num">—</div>
-          <div class="sig" id="ring-sig" style="margin-top:4px">—</div>
+          <div class="detail-title" id="d-title">Select Album</div>
+          <div class="detail-artist" id="d-artist">—</div>
+          <div class="detail-badges" id="d-badges">
+          </div>
         </div>
-        <div class="ring-info" style="flex:1;padding-left:10px">
-          <div class="ring-bar-bg"><div class="ring-bar-fg" id="ring-bar" style="width:0%"></div></div>
-          <div class="ring-sub" id="ring-sub"></div>
+        <div style="text-align:right;">
+          <div class="acq-score-big" id="d-score">—</div>
+          <div class="acq-label">Acq. Score</div>
+          <div class="acq-rank" id="d-rank">—</div>
         </div>
       </div>
-      <div class="section-mini" id="chart-section" style="display:none">
-        <div class="section-mini-title">iTunes — points + rank trajectory</div>
-        <div class="dual-legend">
-          <span class="dl-item"><span class="dl-dot" style="background:var(--green)"></span>Points</span>
-          <span class="dl-item"><span class="dl-dot" style="background:var(--purple)"></span>Rank (right axis)</span>
+
+      <div class="stats-grid">
+        <div class="stat-box">
+          <div class="stat-label">Best Rank</div>
+          <div class="stat-value" id="d-rank-val">—</div>
+          <div class="stat-sub" id="d-rank-sub">Global</div>
         </div>
-        <div class="cw" style="height:220px"><canvas id="detailChart" role="img" aria-label="Selected album points and rank trajectory over time."></canvas></div>
+        <div class="stat-box">
+          <div class="stat-label">Latest Points</div>
+          <div class="stat-value" id="d-points">—</div>
+          <div class="stat-sub" id="d-points-sub">—</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">Momentum</div>
+          <div class="stat-value" id="d-momentum">—</div>
+          <div class="stat-sub">Window change</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">Days in Chart</div>
+          <div class="stat-value" id="d-days">—</div>
+          <div class="stat-sub">Window days</div>
+        </div>
       </div>
-      <div class="section-mini" id="it-chart-section" style="display:none">
-        <div class="section-mini-title">iTunes WW — score trajectory</div>
-        <div class="cw" style="height:220px"><canvas id="detailItChart" role="img" aria-label="Selected album iTunes WW score trajectory."></canvas></div>
+
+      <div class="chart-section" id="d-chart-section" style="display:none">
+        <div class="chart-label">Stream + Rank Trajectory</div>
+        <div class="chart-wrap">
+          <canvas id="trajChart" role="img" aria-label="Trajectory chart"></canvas>
+        </div>
+        <div style="display:flex;gap:16px;margin-top:6px;">
+          <span style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--color-text-secondary)"><span style="width:16px;height:2px;background:#378ADD;display:inline-block;border-radius:1px"></span>Points</span>
+          <span style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--color-text-secondary)"><span style="width:16px;height:2px;background:#9FE1CB;display:inline-block;border-radius:1px;border-top:2px dashed #9FE1CB;height:0"></span>Rank</span>
+        </div>
       </div>
-      <div class="section-mini" id="signals-section" style="display:none">
-        <div class="section-mini-title">Acquisition signals</div>
-        <div id="signals-list"></div>
+      
+      <div class="chart-section" id="d-it-chart-section" style="display:none; margin-top: 12px;">
+        <div class="chart-label">iTunes Trajectory</div>
+        <div class="chart-wrap">
+          <canvas id="itTrajChart" role="img" aria-label="iTunes Trajectory chart"></canvas>
+        </div>
+        <div style="display:flex;gap:16px;margin-top:6px;">
+          <span style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--color-text-secondary)"><span style="width:16px;height:2px;background:#a78bfa;display:inline-block;border-radius:1px"></span>Score</span>
+        </div>
       </div>
-      <div id="empty-state" style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:300px;color:var(--t3);text-align:center;gap:8px">
+
+      <div id="d-signals-card" style="display:none; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--color-border-tertiary);">
+        <div class="signals-label">Acquisition Signals</div>
+        <div id="d-signals">
+          <!-- Signals here -->
+        </div>
+      </div>
+    </div>
+    
+    <div id="empty-state" class="empty-state">
         <div style="font-size:28px">↑</div>
         <div style="font-size:12px">Select a album from the list<br>to view its acquisition profile</div>
-      </div>
     </div>
   </div>
+</div>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
@@ -538,22 +675,22 @@ const ORIGINAL_PAYLOAD = __PAYLOAD__;
 const ORIGINAL_DATES = ORIGINAL_PAYLOAD.dates || [];
 const ORIGINAL_GLOBAL_ALBUMS = ORIGINAL_PAYLOAD.albums || [];
 const ORIGINAL_US_ALBUMS = ORIGINAL_PAYLOAD.usAlbums || [];
+const ORIGINAL_LATAM_ALBUMS = ORIGINAL_PAYLOAD.latamAlbums || {};
 const DATES = ORIGINAL_DATES;
 
-let PAYLOAD = JSON.parse(JSON.stringify(ORIGINAL_PAYLOAD)); // Deep copy for manipulation
+let PAYLOAD = JSON.parse(JSON.stringify(ORIGINAL_PAYLOAD));
 let ALBUMS = (PAYLOAD.albums && PAYLOAD.albums.length) ? PAYLOAD.albums : (PAYLOAD.usAlbums || []);
 
 let currentRegion = 'global';
-let currentSort='acq';
-let currentPeriod='all';
-let currentTimeWindowLabel = 'All';
-let currentTimeWindowDays = ORIGINAL_PAYLOAD.maxWindowDays; // Default to max loaded days
+let currentSort = 'acq';
+let currentPeriod = 'all';
+let currentTimeWindowDays = ORIGINAL_PAYLOAD.maxWindowDays;
 
 let selectedId = PAYLOAD.defaultAlbumId || (ALBUMS.length ? ALBUMS[0].id : null);
-let detailChart=null;
-let detailItChart=null;
+let trajChartInst = null;
+let itTrajChartInst = null;
 
-// Replicate Python's _acq_score
+// Acq Score
 function _jsAcqScore(latestPoints, bestRank, momentum, bestItRank) {
     const rankScore = Math.max(0, 40 - (bestRank || 100) * 0.4);
     const streamScore = Math.min(30, Math.floor(latestPoints / 300000));
@@ -562,36 +699,22 @@ function _jsAcqScore(latestPoints, bestRank, momentum, bestItRank) {
     return Math.max(0, Math.min(100, Math.floor(rankScore + streamScore + momentumScore + itunesBonus)));
 }
 
-// Replicate Python's _signal_style
-function _jsSignalStyle(acqScore, momentum, bestRank) {
-    if (acqScore >= 70 && momentum >= 5) {
-        return ["BUY", "sig-buy", "#22c55e"];
-    }
-    if (acqScore >= 55 && momentum >= 0) {
-        return ["WATCH", "sig-watch", "#60a5fa"];
-    }
-    if (acqScore >= 40) {
-        return ["HOLD", "sig-hold", "#fbbf24"];
-    }
-    return ["PASS", "sig-pass", "#fb7185"];
-}
-
-// Replicate Python's signal generation logic (simplified for JS)
+// Signals
 function _jsBuildSignals(album, regionLabel) {
     const signals = [];
     const regionTitle = regionLabel.includes("US") ? "US" : "Global";
 
     if (album.growth >= 25) {
-        signals.push({icon: "🚀", t: `+${album.growth.toFixed(1)}% points growth`, d: "Strong volume acceleration across the tracked window."});
+        signals.push({icon: "🚀", t: `+${album.growth.toFixed(1)}% stream growth`, d: "Strong volume acceleration across the albumed window."});
     } else if (album.growth >= 0) {
-        signals.push({icon: "📈", t: `${album.growth.toFixed(1)}% points growth`, d: "Healthy audience momentum over the recent chart window."});
+        signals.push({icon: "📈", t: `${album.growth.toFixed(1)}% stream growth`, d: "Healthy audience momentum over the recent chart window."});
     } else {
-        signals.push({icon: "📉", t: `${album.growth.toFixed(1)}% points decline`, d: "Points are cooling; monitor for stabilization."});
+        signals.push({icon: "📉", t: `${album.growth.toFixed(1)}% stream decline`, d: "Points are cooling; monitor for stabilization."});
     }
 
     if (album.platform === "cross") {
         signals.push({icon: "🌍", t: "Cross-platform signal", d: `Appearing on both iTunes ${regionTitle} and iTunes WW charts.`});
-    } else if (album.platform === "spotify") { // This is album acquisition, so it should be iTunes-related
+    } else if (album.platform === "itunes") {
         signals.push({icon: "🎧", t: `iTunes-${regionTitle} native momentum`, d: `Strong iTunes ${regionTitle} traction even without iTunes chart entry.`});
     } else {
         signals.push({icon: "🍎", t: "iTunes WW curve", d: "iTunes-only chart signal; could still breakout to iTunes."});
@@ -603,24 +726,23 @@ function _jsBuildSignals(album, regionLabel) {
         signals.push({icon: "🏷️", t: `Label: ${album.label}`, d: "Album-level signal from a managed catalogue or label roster."});
     }
 
-    if (album.bestRank && album.bestRank <= 10) { // Assuming bestRank refers to iTunes rank
+    if (album.bestRank && album.bestRank <= 10) { 
         signals.push({icon: "🏆", t: `Top ${album.bestRank} iTunes ${regionTitle}`, d: `Elite placement on iTunes ${regionTitle} charts.`});
     } else if (album.bestItRank && album.bestItRank <= 20) {
         signals.push({icon: "📊", t: `iTunes #${album.bestItRank}`, d: "Strong iTunes WW validation for the album."});
     } else if (album.hasIt) {
-        signals.push({icon: "🔁", t: "iTunes momentum present", d: "Album is charting on iTunes WW and may cross into iTunes."});
+        signals.push({icon: "🔁", t: "iTunes momentum present", d: "Album is charting on iTunes WW and may cross into Spotify."});
     }
 
     return signals.slice(0, 5);
 }
 
-// Function to re-calculate album metrics for a given time window
 function recalculateAlbumMetrics(album, windowDays, fullDates, regionLabel) {
     const startIndex = Math.max(0, fullDates.length - windowDays);
-    const slicedSpPoints = (album.originalSpPoints || album.spPoints).slice(startIndex);
-    const slicedSpRanks = (album.originalSpRanks || album.spRanks).slice(startIndex);
-    const slicedItScores = (album.originalItScores || album.itScores).slice(startIndex);
-    const slicedItRanks = (album.originalItRanks || album.itRanks).slice(startIndex);
+    const slicedSpPoints = album.originalSpPoints.slice(startIndex);
+    const slicedSpRanks = album.originalSpRanks.slice(startIndex);
+    const slicedItScores = album.originalItScores.slice(startIndex);
+    const slicedItRanks = album.originalItRanks.slice(startIndex);
 
     const hasSp = slicedSpPoints.some(v => v > 0);
     const hasIt = slicedItScores.some(v => v > 0);
@@ -637,10 +759,9 @@ function recalculateAlbumMetrics(album, windowDays, fullDates, regionLabel) {
     const momentum = Number((rankDelta * 0.24 + growth * 0.35).toFixed(1));
 
     const acqScore = _jsAcqScore(latestSp, bestSpRank, momentum, bestItRank);
-    const [signal, signalClass, color] = _jsSignalStyle(acqScore, momentum, bestSpRank);
 
     const recalculatedAlbum = { ...album };
-    recalculatedAlbum.spPoints = slicedSpPoints; // Update to sliced data
+    recalculatedAlbum.spPoints = slicedSpPoints; 
     recalculatedAlbum.spRanks = slicedSpRanks;
     recalculatedAlbum.itScores = slicedItScores;
     recalculatedAlbum.itRanks = slicedItRanks;
@@ -650,10 +771,8 @@ function recalculateAlbumMetrics(album, windowDays, fullDates, regionLabel) {
     recalculatedAlbum.momentum = momentum;
     recalculatedAlbum.growth = growth;
     recalculatedAlbum.acqScore = acqScore;
-    recalculatedAlbum.signal = signal;
     recalculatedAlbum.days = windowDays;
     recalculatedAlbum.totalPoints = slicedSpPoints.reduce((sum, v) => sum + v, 0);
-    recalculatedAlbum.acqColor = color;
     recalculatedAlbum.signals = _jsBuildSignals(recalculatedAlbum, regionLabel);
     recalculatedAlbum.hasSp = hasSp;
     recalculatedAlbum.hasIt = hasIt;
@@ -664,143 +783,229 @@ function recalculateAlbumMetrics(album, windowDays, fullDates, regionLabel) {
 function changeRegion() {
   const r = document.getElementById('regionSel').value;
   currentRegion = r;
-  PAYLOAD.regionLabel = r === 'global' ? 'iTunes WW' : 'iTunes US'; // Update region label for display
-
-  // Reset ALBUMS to original data for the selected region before applying time window
-  ALBUMS = r === 'global' ? JSON.parse(JSON.stringify(ORIGINAL_GLOBAL_ALBUMS)) : JSON.parse(JSON.stringify(ORIGINAL_US_ALBUMS));
-
-  // Store original full-window data for each album for later slicing
-  ALBUMS.forEach(album => {
-    album.originalSpPoints = [...album.spStreams];
-    album.originalSpRanks = [...album.spRanks];
-    album.originalItScores = [...album.itScores];
-    album.originalItRanks = [...album.itRanks];
-  });
-
-  // Apply current time window filter
-  ALBUMS = ALBUMS.map(album => recalculateAlbumMetrics(album, currentTimeWindowDays, ORIGINAL_DATES, PAYLOAD.regionLabel));
-
-  selectedId = ALBUMS[0]?.id; // Select the first album in the new filtered list
-  renderTable();
-  if (selectedId) {
-    selectAlbum(selectedId);
+  
+  if (r === 'global') {
+    PAYLOAD.regionLabel = 'iTunes WW';
+    ALBUMS = JSON.parse(JSON.stringify(ORIGINAL_GLOBAL_ALBUMS));
+  } else if (r === 'us') {
+    PAYLOAD.regionLabel = 'iTunes US';
+    ALBUMS = JSON.parse(JSON.stringify(ORIGINAL_US_ALBUMS));
   } else {
-    document.getElementById('empty-state').style.display = 'flex';
-    document.getElementById('score-ring').style.display = 'none';
-    document.getElementById('chart-section').style.display = 'none';
-    document.getElementById('it-chart-section').style.display = 'none';
-    document.getElementById('signals-section').style.display = 'none';
-  }
-}
-
-// Handle time window selection
-function setTimeWindow(periodLabel, el) {
-    currentTimeWindowLabel = periodLabel;
-    currentTimeWindowDays = periodLabel === 'All' ? ORIGINAL_PAYLOAD.maxWindowDays : parseInt(periodLabel.split(' ')[0]);
-
-    document.querySelectorAll('.filter-grp button').forEach(btn => {
-        if (btn.onclick.toString().includes('setTimeWindow')) {
-            btn.classList.remove('on');
-        }
-    });
-    el.classList.add('on');
-
-    // Re-apply all filters, which will now include the new time window
-    applyFilters();
-    if (selectedId) selectAlbum(selectedId);
-}
-
-function fmtN(n,d=1){if(!n&&n!==0)return'—';const a=Math.abs(n);if(a>=1e6)return(n/1e6).toFixed(d)+'M';if(a>=1e3)return(n/1e3).toFixed(0)+'K';return Math.round(n).toString();}
-
-function signalClass(s){return{BUY:'sig-buy',WATCH:'sig-watch',HOLD:'sig-hold',PASS:'sig-pass'}[s]||'sig-hold';}
-function signalLabel(s){return{BUY:'STRONG BUY',WATCH:'WATCH',HOLD:'HOLD',PASS:'PASS'}[s]||s;}
-function buildSpark(points,color){
-  if(!points || !points.length) return '<span style="color:var(--t3);font-size:9px">—</span>';
-  const valid=points.filter(v=>v&&v>0);
-  if(!valid.length)return'<span style="color:var(--t3);font-size:9px">—</span>';
-  const mx=Math.max(...valid);
-  const mn=Math.min(...valid);
-  return `<div class="spark">${points.slice(-8).map(s=>{
-    const pct=mx===mn?50:Math.round((s-mn)/(mx-mn)*100);
-    const h=Math.max(2,Math.round(pct/100*18));
-    const c=s>=valid[0]?color:'var(--t3)';
-    return `<div class="spark-bar" style="height:${h}px;background:${c}"></div>`;
-  }).join('')}</div>`;
-}
-
-function renderTable(){
-  const el=document.getElementById('album-table');
-  if(!ALBUMS || !ALBUMS.length) {
-    el.innerHTML = '<div style="padding:40px;text-align:center;color:var(--t3)">No albums match the selected filters</div>';
-    document.getElementById('count-badge').textContent = '0 albums';
-    return;
+    PAYLOAD.regionLabel = `iTunes ${r.toUpperCase()}`;
+    ALBUMS = JSON.parse(JSON.stringify(ORIGINAL_LATAM_ALBUMS[r] || []));
   }
 
-  document.getElementById('count-badge').textContent=`${ALBUMS.length} album${ALBUMS.length!==1?'s':''}`;
-  let htmlStr='';
-  ALBUMS.forEach((t,i)=>{
-    const momColor=t.momentum>5?'g':t.momentum<-5?'r':'';
-    const spark=buildSpark(t.spPoints,t.acqColor);
-    htmlStr+=`<div class="album-row${t.id===selectedId?' selected':''}" style="grid-template-columns:24px 1fr 50px 70px 80px 100px 75px" onclick="selectAlbum(${t.id})"><span class="tr-num">${i+1}</span><div class="tr-info"><div class="tr-title">${t.artist} — ${t.title} ${t.platform==='cross'?'<span style="color:var(--teal);font-size:8px">✦ cross</span>':''}</div>${spark}</div><span class="tr-val">${t.bestRank}</span><span class="tr-val">${fmtN(t.latestPoints)}</span><span class="tr-val ${momColor}">${t.momentum>0?'+':''}${t.momentum}%</span><span style="text-align:right;padding-right:12px"><span class="sig ${signalClass(t.signal)}">${signalLabel(t.signal)}</span></span><span class="tr-val a">${t.acqScore}</span></div>`;
-  });
-  el.innerHTML=htmlStr;
-}
-
-function selectAlbum(id){selectedId=id;const t=ALBUMS.find(x=>x.id===id);if(!t)return;renderTable();document.getElementById('empty-state').style.display='none';document.getElementById('detail-title').textContent=t.title;document.getElementById('detail-artist').textContent=t.artist.toUpperCase()+' · '+t.label.toUpperCase();document.getElementById('detail-accent').style.background=`linear-gradient(90deg,${t.acqColor},#2dd4bf)`;const labelRow=document.getElementById('detail-labels');const crossBadge=t.platform==='cross'?'<span class="pill-lbl" style="color:var(--teal);border-color:rgba(45,212,191,.3)">✦ Cross-platform</span>':'';const indBadge=t.label.toLowerCase().includes('independ')?'<span class="pill-lbl" style="color:var(--green);border-color:rgba(34,197,94,.3)">Independent</span>':'';labelRow.innerHTML=`<span class="pill-lbl">${t.label}</span><span class="pill-lbl">${t.platform.toUpperCase()}</span>${crossBadge}${indBadge}<span class="sig ${signalClass(t.signal)}">${signalLabel(t.signal)}</span>`;const statData=[{l:'Best Rank',v:`${t.bestRank}`,s:PAYLOAD.regionLabel||'iTunes WW',vc:''},{l:'Latest Points',v:fmtN(t.latestPoints,1),s:`${t.growth>0?'+':''}${t.growth}% growth`,vc:t.growth>0?'g':'r'},{l:'Momentum',v:`${t.momentum>0?'+':''}${t.momentum}%`,s:'Window change',vc:t.momentum>0?'g':'r'},{l:'Window Days',v:t.days,s:'days in chart',vc:''}];document.getElementById('detail-stats').innerHTML=statData.map(s=>`<div class="ds"><div class="ds-l">${s.l}</div><div class="ds-v ${s.vc}">${s.v}</div><div class="ds-s">${s.s}</div></div>`).join('');const ring=document.getElementById('score-ring');ring.style.display='flex';document.getElementById('ring-num').textContent=t.acqScore;document.getElementById('ring-num').className=`ring-num ${t.momentum>0?'g':''}`;const sigEl=document.getElementById('ring-sig');sigEl.className=`sig ${signalClass(t.signal)}`;sigEl.textContent=signalLabel(t.signal);const pct=Math.round(t.acqScore);document.getElementById('ring-bar').style.cssText=`width:${pct}%;background:${t.acqColor}`;document.getElementById('ring-sub').textContent=`Ranked #${ALBUMS.sort((a,b)=>b.acqScore-a.acqScore).findIndex(x=>x.id===id)+1} of ${ALBUMS.length} tracked albums`;const chartSection=document.getElementById('chart-section');chartSection.style.display='block';const spCtx=document.getElementById('detailChart').getContext('2d');if(detailChart)detailChart.destroy();detailChart=new Chart(spCtx,{type:'line',data:{labels:DATES,datasets:[{label:'Points',data:t.spPoints,borderColor:t.acqColor,backgroundColor:t.acqColor+'10',borderWidth:2,tension:.4,fill:true,pointBackgroundColor:t.acqColor,pointRadius:3,yAxisID:'y',spanGaps:true},{label:'Rank',data:t.spRanks,borderColor:'rgba(167,139,250,.7)',borderDash:[4,2],borderWidth:1.5,tension:.3,fill:false,pointBackgroundColor:'#a78bfa',pointRadius:2,yAxisID:'y1',spanGaps:true}]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.datasetIndex===0?`${c.raw?.toLocaleString()} points`:`Rank ${c.raw}`}}},scales:{x:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:getComputedStyle(document.documentElement).getPropertyValue('--t3').trim()||'#8b95ad',font:{size:9}}},y:{position:'left',grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:t.acqColor,font:{size:9},callback:v=>fmtN(v,0).replace('+','')}},y1:{position:'right',reverse:true,grid:{display:false},ticks:{color:'#a78bfa',font:{size:9},callback:v=>'#'+v}}}}});const itSection=document.getElementById('it-chart-section');const hasIt=t.itScores&&t.itScores.some(v=>v&&v>0);itSection.style.display=hasIt?'block':'none';if(hasIt){const itCtx=document.getElementById('detailItChart').getContext('2d');if(detailItChart)detailItChart.destroy();detailItChart=new Chart(itCtx,{type:'line',data:{labels:DATES,datasets:[{label:'iTunes Score',data:t.itScores,borderColor:'#a78bfa',backgroundColor:'rgba(167,139,250,.08)',borderWidth:2,tension:.4,fill:true,pointBackgroundColor:'#a78bfa',pointRadius:3,spanGaps:true}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.raw?`Score: ${c.raw.toLocaleString()}`:'Not charting'}}},scales:{x:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:getComputedStyle(document.documentElement).getPropertyValue('--t3').trim()||'#8b95ad',font:{size:9}}},y:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#a78bfa',font:{size:9},callback:v=>fmtN(v,0).replace('+','')}}}}});}document.getElementById('signals-section').style.display='block';document.getElementById('signals-list').innerHTML=t.signals.map(s=>`<div class="sig-item"><span class="sig-icon">${s.icon}</span><div class="sig-text"><div class="sig-title">${s.t}</div><div class="sig-desc">${s.d}</div></div></div>`).join('');}
-function setSort(s,el){currentSort=s;document.querySelectorAll('.sort-btn').forEach(b=>b.classList.remove('on'));el.classList.add('on');renderTable();}
-function setPeriod(p,el){
-  currentPeriod=p;
-  document.querySelectorAll('.filter-grp button').forEach(b=>{
-    if (b.onclick.toString().includes('setPeriod')) {
-        b.classList.remove('on');
-    }
-  });
-  el.classList.add('on');
-  applyFilters();
-}
-
-function applyFilters(){
-  // Start with original data for region
-  let data = currentRegion === 'global' ? JSON.parse(JSON.stringify(ORIGINAL_GLOBAL_ALBUMS)) : JSON.parse(JSON.stringify(ORIGINAL_US_ALBUMS));
-
-  // Store original full-window data for each album for later slicing
-  data.forEach(album => {
+  ALBUMS.forEach(album => {
     album.originalSpPoints = [...album.spPoints];
     album.originalSpRanks = [...album.spRanks];
     album.originalItScores = [...album.itScores];
     album.originalItRanks = [...album.itRanks];
   });
 
-  // 1. Recalculate for Time Window
-  data = data.map(album => recalculateAlbumMetrics(album, currentTimeWindowDays, ORIGINAL_DATES, PAYLOAD.regionLabel));
+  ALBUMS = ALBUMS.map(album => recalculateAlbumMetrics(album, currentTimeWindowDays, ORIGINAL_DATES, PAYLOAD.regionLabel));
 
-  // 2. Search & Select Filters
-  const q=document.getElementById('searchInput').value.toLowerCase();
-  const plat=document.getElementById('platformSel').value;
-  const sig=document.getElementById('signalSel').value;
+  selectedId = ALBUMS[0]?.id;
+  applyFilters();
+}
 
-  if(q) data=data.filter(t=>t.title.toLowerCase().includes(q)||t.artist.toLowerCase().includes(q));
-  if(plat!=='all') data=data.filter(t=>t.platform===plat);
-  if(sig!=='all') data=data.filter(t=>t.signal===sig);
+function setTimeWindow(val) {
+    currentTimeWindowDays = val === 'All' ? ORIGINAL_PAYLOAD.maxWindowDays : parseInt(val);
+    applyFilters();
+    if (selectedId) selectAlbum(selectedId); 
+}
+
+function fmtN(n){if(!n&&n!==0)return'—';const a=Math.abs(n);if(a>=1e6)return(n/1e6).toFixed(1)+'M';if(a>=1e3)return(n/1e3).toFixed(0)+'K';return Math.round(n).toString();}
+
+function setSort(s){
+  currentSort = s;
+  applyFilters();
+}
+
+function setPeriod(p, el){
+  currentPeriod = p;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  if (el) el.classList.add('active');
+  applyFilters();
+}
+
+function applyFilters(){
+  let filteredAlbums = [];
+  if (currentRegion === 'global') {
+      filteredAlbums = JSON.parse(JSON.stringify(ORIGINAL_GLOBAL_ALBUMS));
+  } else if (currentRegion === 'us') {
+      filteredAlbums = JSON.parse(JSON.stringify(ORIGINAL_US_ALBUMS));
+  } else {
+      filteredAlbums = JSON.parse(JSON.stringify(ORIGINAL_LATAM_ALBUMS[currentRegion] || []));
+  }
+
+  filteredAlbums.forEach(album => {
+    album.originalSpPoints = [...album.spPoints];
+    album.originalSpRanks = [...album.spRanks];
+    album.originalItScores = [...album.itScores];
+    album.originalItRanks = [...album.itRanks];
+  });
+
+  filteredAlbums = filteredAlbums.map(album => recalculateAlbumMetrics(album, currentTimeWindowDays, ORIGINAL_DATES, PAYLOAD.regionLabel));
+
+  const q = document.getElementById('searchInput').value.toLowerCase();
   
-  // 3. Status/Momentum Buttons
-  if(currentPeriod==='rising') data=data.filter(t=>t.momentum>5);
-  if(currentPeriod==='stable') data=data.filter(t=>Math.abs(t.momentum)<=5);
-  if(currentPeriod==='falling') data=data.filter(t=>t.momentum<-5);
+  if(q) filteredAlbums = filteredAlbums.filter(t=>t.title.toLowerCase().includes(q)||t.artist.toLowerCase().includes(q));
+  if(currentPeriod==='rising') filteredAlbums = filteredAlbums.filter(t=>t.momentum>5);
+  if(currentPeriod==='stable') filteredAlbums = filteredAlbums.filter(t=>Math.abs(t.momentum)<=5);
+  if(currentPeriod==='falling') filteredAlbums = filteredAlbums.filter(t=>t.momentum<-5);
 
-  // Sort
-  const sortMap={acq:'acqScore',momentum:'momentum',rank:'bestRank',points:'latestPoints',growth:'growth'};
+  ALBUMS = filteredAlbums;
+
+  const sortMap={acq:'acqScore',momentum:'momentum',rank:'bestRank',points:'latestPoints',title:'title'};
   const key=sortMap[currentSort]||'acqScore';
-  const asc=key==='bestRank';
-  data.sort((a,b)=>asc?a[key]-b[key]:b[key]-a[key]);
+  const asc=(key==='bestRank' || key==='title');
+  ALBUMS.sort((a,b)=>{
+    if (key === 'title') {
+        return a.title.localeCompare(b.title);
+    }
+    return asc ? a[key]-b[key] : b[key]-a[key];
+  });
 
-  ALBUMS = data;
   renderTable();
 }
 
-// Initialize first load
-applyFilters();
+function renderTable() {
+    document.getElementById('count-badge').textContent = `${ALBUMS.length} albums`;
+    const el = document.getElementById('album-table');
+    let htmlStr = '';
+
+    ALBUMS.forEach((t, i) => {
+        const momColor = t.momentum > 5 ? 'momentum-pos' : t.momentum < -5 ? 'momentum-neg' : 'momentum-flat';
+        let acqClass = 'acq-lo';
+        if (t.acqScore >= 60) acqClass = 'acq-hi';
+        else if (t.acqScore >= 45) acqClass = 'acq-mid';
+
+        htmlStr += `
+        <div class="album-row ${t.id === selectedId ? 'selected' : ''}" onclick="selectAlbum(${t.id})">
+            <div class="sr-num">${i + 1}</div>
+            <div class="album-info">
+                <div class="album-name">${t.title}</div>
+                <div class="album-artist">${t.artist}</div>
+            </div>
+            <div class="col-r points-val">${t.bestRank || '—'}</div>
+            <div class="col-r points-val">${fmtN(t.latestPoints)}</div>
+            <div class="col-r momentum-val ${momColor}">${t.momentum > 0 ? '+' : ''}${t.momentum}%</div>
+            <div class="col-r"><span class="acq-pill ${acqClass}">${t.acqScore}</span></div>
+        </div>`;
+    });
+    el.innerHTML = htmlStr;
+}
+
+function renderChart(traj, ranks, days) {
+  const ctx = document.getElementById('trajChart').getContext('2d');
+  if (trajChartInst) trajChartInst.destroy();
+  const labels = DATES.slice(Math.max(0, DATES.length - days));
+  
+  trajChartInst = new Chart(ctx, {
+    data: {
+      labels,
+      datasets: [
+        { type:'line', label:'Points', data: traj, borderColor:'#378ADD', backgroundColor:'rgba(55,138,221,0.08)', borderWidth:2, pointRadius:3, pointBackgroundColor:'#378ADD', tension:.4, yAxisID:'y', spanGaps: true, fill: true },
+        { type:'line', label:'Rank', data: ranks, borderColor:'#9FE1CB', borderWidth:2, borderDash:[4,3], pointRadius:3, pointBackgroundColor:'#9FE1CB', tension:.4, yAxisID:'y2', spanGaps: true }
+      ]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      interaction:{mode:'index',intersect:false},
+      plugins:{ legend:{ display:false } },
+      scales:{
+        x:{ display:true, ticks:{ font:{size:9}, color:'#888', maxTicksLimit:6 }, grid:{ display:false } },
+        y:{ display:true, ticks:{ font:{size:9}, color:'#888', maxTicksLimit:4, callback:v=>fmtN(v) }, grid:{ color:'rgba(128,128,128,0.1)' } },
+        y2:{ display:true, position:'right', reverse:true, grid:{display:false}, ticks:{ font:{size:9}, color:'#9FE1CB', callback:v=>'#'+v } }
+      }
+    }
+  });
+}
+
+function renderItChart(traj, days) {
+  const ctx = document.getElementById('itTrajChart').getContext('2d');
+  if (itTrajChartInst) itTrajChartInst.destroy();
+  const labels = DATES.slice(Math.max(0, DATES.length - days));
+  
+  itTrajChartInst = new Chart(ctx, {
+    data: {
+      labels,
+      datasets: [
+        { type:'line', label:'iTunes Score', data: traj, borderColor:'#a78bfa', backgroundColor:'rgba(167,139,250,.08)', borderWidth:2, pointRadius:3, pointBackgroundColor:'#a78bfa', tension:.4, yAxisID:'y', spanGaps: true, fill: true },
+      ]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      interaction:{mode:'index',intersect:false},
+      plugins:{ legend:{ display:false } },
+      scales:{
+        x:{ display:true, ticks:{ font:{size:9}, color:'#888', maxTicksLimit:6 }, grid:{ display:false } },
+        y:{ display:true, ticks:{ font:{size:9}, color:'#888', maxTicksLimit:4, callback:v=>fmtN(v) }, grid:{ color:'rgba(128,128,128,0.1)' } }
+      }
+    }
+  });
+}
+
+function selectAlbum(id) {
+  selectedId = id;
+  const t = ALBUMS.find(x => x.id === id);
+  renderTable(); 
+
+  if (!t) {
+    document.getElementById('empty-state').style.display = 'flex';
+    document.getElementById('d-chart-section').style.display = 'none';
+    document.getElementById('d-it-chart-section').style.display = 'none';
+    document.getElementById('d-signals-card').style.display = 'none';
+    return;
+  }
+
+  document.getElementById('empty-state').style.display = 'none';
+  document.getElementById('d-title').textContent = t.title;
+  document.getElementById('d-artist').textContent = t.artist + (t.label ? ' · ' + t.label : '');
+  
+  document.getElementById('d-score').textContent = t.acqScore;
+  const sortedByAcq = [...ALBUMS].sort((a,b) => b.acqScore - a.acqScore);
+  const rank = sortedByAcq.findIndex(x => x.id === id) + 1;
+  document.getElementById('d-rank').textContent = `#${rank} of ${ALBUMS.length}`;
+  
+  document.getElementById('d-rank-val').textContent = t.bestRank || '—';
+  document.getElementById('d-rank-sub').textContent = PAYLOAD.regionLabel;
+  
+  document.getElementById('d-points').textContent = fmtN(t.latestPoints);
+  document.getElementById('d-points-sub').textContent = `${t.growth > 0 ? '+' : ''}${t.growth}% growth`;
+  document.getElementById('d-points-sub').style.color = t.growth > 0 ? '#1D9E75' : t.growth < 0 ? '#E24B4A' : 'var(--color-text-secondary)';
+  
+  const mEl = document.getElementById('d-momentum');
+  mEl.textContent = `${t.momentum > 0 ? '+' : ''}${t.momentum}%`;
+  mEl.className = 'stat-value ' + (t.momentum > 5 ? 'pos' : t.momentum < -5 ? 'neg' : '');
+  
+  document.getElementById('d-days').textContent = t.days;
+
+  const badgesEl = document.getElementById('d-badges');
+  badgesEl.innerHTML = '';
+  if (t.platform) badgesEl.innerHTML += `<span class="badge active-b">${t.platform.toUpperCase()}</span>`;
+  if (t.label && t.label.toLowerCase().includes('independ')) badgesEl.innerHTML += `<span class="badge">Independent</span>`;
+
+  document.getElementById('d-signals-card').style.display = 'block';
+  const sigHtml = t.signals.map(s =>
+    `<div class="signal-row"><div class="signal-icon" aria-hidden="true">${s.icon}</div><div class="signal-text"><strong>${s.t}</strong><span>${s.d}</span></div></div>`
+  ).join('');
+  document.getElementById('d-signals').innerHTML = sigHtml;
+
+  document.getElementById('d-chart-section').style.display = 'block';
+  renderChart(t.spPoints, t.spRanks, t.days);
+  
+  const hasIt = t.itScores && t.itScores.some(v => v > 0);
+  if (hasIt) {
+      document.getElementById('d-it-chart-section').style.display = 'block';
+      renderItChart(t.itScores, t.days);
+  } else {
+      document.getElementById('d-it-chart-section').style.display = 'none';
+  }
+}
+
+changeRegion(); 
 if(selectedId){setTimeout(()=>selectAlbum(selectedId),80);}
 </script>
 </body></html>
-""".replace("__PAYLOAD__", data_json).replace("__THEME__", theme_css)
+""".replace("__PAYLOAD__", data_json).replace("__THEME__", theme_css).replace("__BODY_CLASS__", body_class)
