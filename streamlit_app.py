@@ -1486,7 +1486,7 @@ def show_artist_details_dialog(row: pd.Series) -> None:
     # ════════════════════════════════════════════════════════════════
     # SECTION 2.1: RANK TREND CHART (Last 7 Days)
     # ════════════════════════════════════════════════════════════════
-    st.markdown(f"<div class='dlg-section-title'>📈 Rank Trend <span class='dlg-section-badge'>Last 7 Days</span></div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='dlg-section-title'>📈 Rank Trend <span class='dlg-section-badge'>Last 7 Days</span><span class='dlg-section-badge'>Last 15 Days</span><span class='dlg-section-badge'>Last 30 Days</span></div>", unsafe_allow_html=True)
     st.markdown(f"<p style='color:{dlg_text2}; font-size:.85rem; margin-top:-10px; margin-bottom:15px;'>Visual tracking of daily rank movement and chart stability over the past week.</p>", unsafe_allow_html=True)
 
     try:
