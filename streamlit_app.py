@@ -4162,20 +4162,26 @@ def render_chatbot_widget() -> None:
 apply_theme(dark_mode=st.session_state.get("dark_mode", True))
 
 _loader_slot = st.empty()
-_loader_slot.markdown("""
+is_dark = st.session_state.get("dark_mode", True)
+l_bg = "#0d1117" if is_dark else "#FFFFFF"
+l_title = "#e2e8f0" if is_dark else "#1A1A1A"
+l_sub = "#5a7ab5" if is_dark else "#8A8FA3"
+l_ring = "rgba(251,113,133,0.15)" if is_dark else "rgba(251,113,133,0.1)"
+
+_loader_slot.markdown(f"""
 <style>
-@keyframes a360-spin {
-    0%   { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-}
-@keyframes a360-pulse {
-    0%, 100% { opacity: .4; transform: scale(1); }
-    50%        { opacity: 1;  transform: scale(1.08); }
-}
-#a360-loader {
+@keyframes a360-spin {{
+    0%   {{ transform: rotate(0deg); }}
+    100% {{ transform: rotate(360deg); }}
+}}
+@keyframes a360-pulse {{
+    0%, 100% {{ opacity: .4; transform: scale(1); }}
+    50%        {{ opacity: 1;  transform: scale(1.08); }}
+}}
+#a360-loader {{
     position: fixed;
     inset: 0;
-    background: #0d1117;
+    background: {l_bg};
     z-index: 99999;
     display: flex;
     flex-direction: column;
@@ -4183,28 +4189,28 @@ _loader_slot.markdown("""
     justify-content: center;
     gap: 20px;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-}
-#a360-loader .a360-ring {
+}}
+#a360-loader .a360-ring {{
     width: 64px;
     height: 64px;
-    border: 3px solid rgba(251,113,133,0.15);
+    border: 3px solid {l_ring};
     border-top-color: #fb7185;
     border-radius: 50%;
     animation: a360-spin 0.9s linear infinite;
-}
-#a360-loader .a360-title {
+}}
+#a360-loader .a360-title {{
     font-size: 1.25rem;
     font-weight: 600;
-    color: #e2e8f0;
+    color: {l_title};
     letter-spacing: 0.02em;
     animation: a360-pulse 2s ease-in-out infinite;
-}
-#a360-loader .a360-sub {
+}}
+#a360-loader .a360-sub {{
     font-size: 0.82rem;
-    color: #5a7ab5;
+    color: {l_sub};
     letter-spacing: 0.04em;
     text-transform: uppercase;
-}
+}}
 </style>
 <div id="a360-loader">
   <div class="a360-ring"></div>
