@@ -1259,8 +1259,8 @@ def show_artist_details_dialog(row: pd.Series) -> None:
             background: {dlg_bg} !important;
             border: 1px solid {dlg_border} !important;
             box-shadow: 0 25px 60px {"rgba(0, 0, 0, 0.6)" if is_dark else "rgba(0, 0, 0, 0.12)"} !important;
-            width: 95vw !important;
-            max-width: 1600px !important;
+            width: 85vw !important;
+            max-width: 1400px !important;
             overflow: hidden !important;
         }}
         /* Remove default header padding/border to fit custom close button */
