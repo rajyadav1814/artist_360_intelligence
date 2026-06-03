@@ -1532,6 +1532,9 @@ def show_artist_details_dialog(row: pd.Series) -> None:
         <div class="dlg-panel">
             <div class="dlg-panel-header">Top Tracks, Albums & Countries</div>
             <div class="dlg-panel-body">
+                <div style="font-size: 0.82rem; color: {dlg_text2}; margin: 0 0 14px; line-height: 1.4; font-weight: 500;">
+                    Consolidated catalog distribution tracking lead track velocity, project performance, and regional chart footprint.
+                </div>
                 <div class="dlg-lists-grid">
                     <div>
                         <div class="dlg-list-title">Top Tracks</div>
@@ -1556,7 +1559,12 @@ def show_artist_details_dialog(row: pd.Series) -> None:
     # ════════════════════════════════════════════════════════════════
     # SECTION 7: ACQUISITION INTELLIGENCE
     # ════════════════════════════════════════════════════════════════
-    st.markdown("<div class='dlg-section-title'>🎯 Acquisition Intelligence <span class='dlg-section-badge'>Commercial Signals</span></div>", unsafe_allow_html=True)
+    st.markdown(f"""
+        <div class="dlg-section-title">🎯 Acquisition Intelligence <span class="dlg-section-badge">Intelligence</span></div>
+        <div style="font-size: 0.82rem; color: {dlg_text2}; margin: 8px 4px 12px; line-height: 1.4; font-weight: 500;">
+            Advanced commercial signal analysis tracking cross-platform momentum, stream acceleration, and acquisition viability.
+        </div>
+    """, unsafe_allow_html=True)
     
     acq_loader_slot = st.empty()
     acq_loader_bg = "rgba(17, 26, 46, 0.5)" if is_dark else "rgba(241, 245, 249, 0.5)"
