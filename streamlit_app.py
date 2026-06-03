@@ -1333,6 +1333,10 @@ def show_artist_details_dialog(row: pd.Series) -> None:
         .dlg-kpi-label {{
             color: {dlg_text2}; font-size: .68rem; text-transform: uppercase;
             letter-spacing: .08em; font-weight: 800; margin-bottom: 4px;
+            display: flex; align-items: center; gap: 6px;
+        }}
+        .dlg-kpi-label span {{
+            font-size: 1rem;
         }}
         .dlg-kpi-value {{ color: {dlg_text1}; font-size: 1.3rem; font-weight: 900; line-height: 1.1; }}
         .dlg-kpi-note {{ color: {dlg_text2}; font-size: .78rem; margin-top: 3px; }}
@@ -1431,15 +1435,50 @@ def show_artist_details_dialog(row: pd.Series) -> None:
     st.markdown(f"""
         <div class="dlg-section">
             <div class="dlg-section-title">📊 Artist Spotlight <span class="dlg-section-badge">Overview</span></div>
+            <div style="font-size: 0.82rem; color: {dlg_text2}; margin: 8px 4px 12px; line-height: 1.4; font-weight: 500;">
+                Consolidated artist performance metrics tracking chart momentum, catalog depth, and audience reach in real-time.
+            </div>
             <div class="dlg-kpi-grid">
-                <div class="dlg-kpi"><div class="dlg-kpi-label">Current Rank</div><div class="dlg-kpi-value">{rank_val}</div><div class="dlg-kpi-note">Latest chart position</div></div>
-                <div class="dlg-kpi"><div class="dlg-kpi-label">Songs</div><div class="dlg-kpi-value">{songs_val}</div><div class="dlg-kpi-note">Catalog tracks</div></div>
-                <div class="dlg-kpi"><div class="dlg-kpi-label">Albums</div><div class="dlg-kpi-value">{albums_val}</div><div class="dlg-kpi-note">Catalog albums</div></div>
-                <div class="dlg-kpi"><div class="dlg-kpi-label">LATAM Countries</div><div class="dlg-kpi-value">{countries_val}</div><div class="dlg-kpi-note">Market presence</div></div>
-                <div class="dlg-kpi"><div class="dlg-kpi-label">Monthly Listeners</div><div class="dlg-kpi-value">{monthly_val}</div><div class="dlg-kpi-note">Current audience</div></div>
-                <div class="dlg-kpi"><div class="dlg-kpi-label">Peak Listeners</div><div class="dlg-kpi-value">{peak_val}</div><div class="dlg-kpi-note">Historical high</div></div>
-                <div class="dlg-kpi"><div class="dlg-kpi-label">Total Points</div><div class="dlg-kpi-value">{points_val}</div><div class="dlg-kpi-note">Cross-platform score</div></div>
-                <div class="dlg-kpi"><div class="dlg-kpi-label">Trend</div><div class="dlg-kpi-value">{escape(trend_change)}</div><div class="dlg-kpi-note">Rank momentum</div></div>
+                <div class="dlg-kpi">
+                    <div class="dlg-kpi-label"><span>🏆</span> Current Rank</div>
+                    <div class="dlg-kpi-value">{rank_val}</div>
+                    <div class="dlg-kpi-note">Latest chart position</div>
+                </div>
+                <div class="dlg-kpi">
+                    <div class="dlg-kpi-label"><span>🎵</span> Songs</div>
+                    <div class="dlg-kpi-value">{songs_val}</div>
+                    <div class="dlg-kpi-note">Catalog tracks</div>
+                </div>
+                <div class="dlg-kpi">
+                    <div class="dlg-kpi-label"><span>💽</span> Albums</div>
+                    <div class="dlg-kpi-value">{albums_val}</div>
+                    <div class="dlg-kpi-note">Catalog albums</div>
+                </div>
+                <div class="dlg-kpi">
+                    <div class="dlg-kpi-label"><span>🌎</span> LATAM Countries</div>
+                    <div class="dlg-kpi-value">{countries_val}</div>
+                    <div class="dlg-kpi-note">Market presence</div>
+                </div>
+                <div class="dlg-kpi">
+                    <div class="dlg-kpi-label"><span>🎧</span> Monthly Listeners</div>
+                    <div class="dlg-kpi-value">{monthly_val}</div>
+                    <div class="dlg-kpi-note">Current audience</div>
+                </div>
+                <div class="dlg-kpi">
+                    <div class="dlg-kpi-label"><span>📈</span> Peak Listeners</div>
+                    <div class="dlg-kpi-value">{peak_val}</div>
+                    <div class="dlg-kpi-note">Historical high</div>
+                </div>
+                <div class="dlg-kpi">
+                    <div class="dlg-kpi-label"><span>⭐</span> Total Points</div>
+                    <div class="dlg-kpi-value">{points_val}</div>
+                    <div class="dlg-kpi-note">Cross-platform score</div>
+                </div>
+                <div class="dlg-kpi">
+                    <div class="dlg-kpi-label"><span>📊</span> Trend</div>
+                    <div class="dlg-kpi-value">{escape(trend_change)}</div>
+                    <div class="dlg-kpi-note">Rank momentum</div>
+                </div>
             </div>
         </div>
     """, unsafe_allow_html=True)
@@ -3300,6 +3339,13 @@ def render_debut_artist_chart(leaderboard: pd.DataFrame) -> None:
             letter-spacing: .08em;
             font-weight: 800;
             margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }}
+        .spotlight-kpi-label span {{
+            font-size: 1.1rem;
+            opacity: 0.9;
         }}
         .spotlight-kpi-value {{
             color: var(--text);
@@ -3496,15 +3542,54 @@ def render_debut_artist_chart(leaderboard: pd.DataFrame) -> None:
                 </div>
             </div>
         </div>
+        <div class="spotlight-intro" style="margin-top: 1.5rem; margin-bottom: 0.8rem; padding: 0 4px;">
+            <div style="font-size: 1.1rem; font-weight: 800; color: var(--text); margin-bottom: 4px;">📊 Performance Intelligence Overview</div>
+            <div style="font-size: 0.88rem; color: var(--text2); line-height: 1.5; font-weight: 500;">
+                Consolidated artist performance metrics across Latin American markets and global streaming platforms. 
+                These KPIs track chart momentum, catalog depth, and audience reach in real-time.
+            </div>
+        </div>
         <div class="spotlight-kpi-grid">
-            <div class="spotlight-kpi"><div class="spotlight-kpi-label">Current Rank</div><div class="spotlight-kpi-value">{rank_val}</div><div class="spotlight-kpi-note">Latest chart position</div></div>
-            <div class="spotlight-kpi"><div class="spotlight-kpi-label">Songs</div><div class="spotlight-kpi-value">{songs_val}</div><div class="spotlight-kpi-note">Catalog tracks</div></div>
-            <div class="spotlight-kpi"><div class="spotlight-kpi-label">Albums</div><div class="spotlight-kpi-value">{albums_val}</div><div class="spotlight-kpi-note">Catalog albums</div></div>
-            <div class="spotlight-kpi"><div class="spotlight-kpi-label">LATAM Countries</div><div class="spotlight-kpi-value">{countries_val}</div><div class="spotlight-kpi-note">Market presence</div></div>
-            <div class="spotlight-kpi"><div class="spotlight-kpi-label">Monthly Listeners</div><div class="spotlight-kpi-value">{monthly_val}</div><div class="spotlight-kpi-note">Current audience size</div></div>
-            <div class="spotlight-kpi"><div class="spotlight-kpi-label">Peak Listeners</div><div class="spotlight-kpi-value">{peak_val}</div><div class="spotlight-kpi-note">Historical high</div></div>
-            <div class="spotlight-kpi"><div class="spotlight-kpi-label">Total Points</div><div class="spotlight-kpi-value">{points_val}</div><div class="spotlight-kpi-note">Cross-platform score</div></div>
-            <div class="spotlight-kpi"><div class="spotlight-kpi-label">Trend</div><div class="spotlight-kpi-value">{escape(trend_change)}</div><div class="spotlight-kpi-note">Rank momentum</div></div>
+            <div class="spotlight-kpi">
+                <div class="spotlight-kpi-label"><span>🏆</span> Current Rank</div>
+                <div class="spotlight-kpi-value">{rank_val}</div>
+                <div class="spotlight-kpi-note">Latest chart position</div>
+            </div>
+            <div class="spotlight-kpi">
+                <div class="spotlight-kpi-label"><span>🎵</span> Songs</div>
+                <div class="spotlight-kpi-value">{songs_val}</div>
+                <div class="spotlight-kpi-note">Catalog tracks</div>
+            </div>
+            <div class="spotlight-kpi">
+                <div class="spotlight-kpi-label"><span>💽</span> Albums</div>
+                <div class="spotlight-kpi-value">{albums_val}</div>
+                <div class="spotlight-kpi-note">Catalog albums</div>
+            </div>
+            <div class="spotlight-kpi">
+                <div class="spotlight-kpi-label"><span>🌎</span> LATAM Countries</div>
+                <div class="spotlight-kpi-value">{countries_val}</div>
+                <div class="spotlight-kpi-note">Market presence</div>
+            </div>
+            <div class="spotlight-kpi">
+                <div class="spotlight-kpi-label"><span>🎧</span> Monthly Listeners</div>
+                <div class="spotlight-kpi-value">{monthly_val}</div>
+                <div class="spotlight-kpi-note">Current audience</div>
+            </div>
+            <div class="spotlight-kpi">
+                <div class="spotlight-kpi-label"><span>📈</span> Peak Listeners</div>
+                <div class="spotlight-kpi-value">{peak_val}</div>
+                <div class="spotlight-kpi-note">Historical high</div>
+            </div>
+            <div class="spotlight-kpi">
+                <div class="spotlight-kpi-label"><span>⭐</span> Total Points</div>
+                <div class="spotlight-kpi-value">{points_val}</div>
+                <div class="spotlight-kpi-note">Cross-platform score</div>
+            </div>
+            <div class="spotlight-kpi">
+                <div class="spotlight-kpi-label"><span>📊</span> Trend</div>
+                <div class="spotlight-kpi-value">{escape(trend_change)}</div>
+                <div class="spotlight-kpi-note">Rank momentum</div>
+            </div>
         </div>
         """,
         unsafe_allow_html=True,
