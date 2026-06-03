@@ -1448,6 +1448,7 @@ def show_artist_details_dialog(row: pd.Series) -> None:
     # SECTION 2.1: RANK TREND CHART (Last 7 Days)
     # ════════════════════════════════════════════════════════════════
     st.markdown(f"<div class='dlg-section-title'>📈 Rank Trend <span class='dlg-section-badge'>Last 7 Days</span></div>", unsafe_allow_html=True)
+    st.markdown(f"<p style='color:{dlg_text2}; font-size:.85rem; margin-top:-10px; margin-bottom:15px;'>Visual tracking of daily rank movement and chart stability over the past week.</p>", unsafe_allow_html=True)
 
     try:
         # Using history from the global scope populated by load_dashboard_data
@@ -1475,7 +1476,7 @@ def show_artist_details_dialog(row: pd.Series) -> None:
                         render_plotly_html(fig_rh)
                         st.markdown(f"""
                             <div style="margin: -8px 0 20px; font-size: 0.82rem; color: {dlg_text2}; line-height: 1.5; font-style: italic;">
-                                <b>Strategic Insight:</b> This chart tracks the artist's daily rank velocity. A consistent or rising trajectory (lower numerical rank) indicates sustained consumer demand and strong algorithmic health across major streaming and retail platforms.
+                                This chart tracks the artist's daily rank velocity. A consistent or rising trajectory (lower numerical rank) indicates sustained consumer demand and strong algorithmic health across major streaming and retail platforms.
                             </div>
                         """, unsafe_allow_html=True)
                     else:
