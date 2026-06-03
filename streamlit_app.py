@@ -2758,9 +2758,10 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
                     f"<td>{trend}</td></tr>"
                 )
             table_html = (
-                "<div class='ct-section'>"
-                "<div class='ct-section-ttl'>📊 Detailed Movement Analysis</div>"
-                "<table class='ct-mv-tbl'><thead><tr>"
+                 "<div class='ct-section'>"
+                 "<div class='ct-section-ttl'>📊 Detailed Movement Analysis</div>"
+                 "<div class='ct-section-desc'>This table shows tracks with significant movement in their chart positions, displaying starting position, current position, best position achieved, change in rank, and movement trend (rising/falling/stable).</div>"
+                 "<table class='ct-mv-tbl'><thead><tr>"
                 "<th>Artist</th><th>Start</th><th>Current</th><th>Best</th><th>Change</th><th>Trend</th>"
                 "</tr></thead><tbody>"
                 + "".join(rows_html)
