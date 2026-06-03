@@ -227,13 +227,12 @@ def render_track_movement() -> None:
     with c2:
         period_label = custom_selectbox("Period", list(PERIOD_DAYS.keys()), index=0, key="tm_period")
     with c3:
-        platform = st.radio(
-            "Platform",
-            ["Both", "Spotify", "iTunes"],
-            horizontal=True,
-            index=0,
-            key="tm_platform",
-        )
+         platform = custom_selectbox(
+             "Platform",
+             ["Both", "Spotify", "iTunes"],
+             index=0,
+             key="tm_platform",
+         )
 
     sp_country, it_country = SCOPES[scope_label]
     days = PERIOD_DAYS[period_label]
@@ -311,7 +310,8 @@ def render_track_movement() -> None:
     }
 
     html = _build_html(payload, dark_mode=st.session_state.get("dark_mode", True))
-    st_components.html(html, height=1700, scrolling=True)
+    iframe_height = 1700 if platform == "Both" else 950
+    st_components.html(html, height=iframe_height, scrolling=True)
 
 
 # ─────────────────────────── HTML template ───────────────────────────
@@ -381,10 +381,56 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
 
 <div class='body'>
 
+  <!-- Guide Banner -->
+  <div style='background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:16px 20px;margin-bottom:8px;'>
+    <div style='display:flex;justify-content:space-between;align-items:center;cursor:pointer;' onclick='toggleGuide()'>
+      <div style='display:flex;align-items:center;gap:10px;font-weight:700;color:var(--t1);font-size:14.5px;'>
+        <span style='font-size:16px;'>💡</span> Understanding Movement & Column Details
+      </div>
+      <span id='guide-toggle-icon' style='font-size:12px;color:var(--t3);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;'>[ Show Details ]</span>
+    </div>
+    <div id='guide-content' style='display:none;margin-top:14px;border-top:1px solid var(--border);padding-top:14px;'>
+      <div style='display:grid;grid-template-columns:1.2fr 1fr;gap:24px;'>
+        <div>
+          <div style='font-weight:700;font-size:12px;text-transform:uppercase;color:var(--t2);letter-spacing:0.8px;margin-bottom:8px;'>Composite Score Logic</div>
+          <p style='font-size:12.5px;color:var(--t3);line-height:1.6;margin-bottom:10px;'>
+            The <b>Riser / Faller</b> ranking is based on a composite score combining two factors:
+          </p>
+          <ul style='font-size:12.5px;color:var(--t3);line-height:1.6;padding-left:18px;margin-bottom:10px;'>
+            <li style='margin-bottom:4px;'><b>Rank Momentum (Weight: 1x):</b> The absolute change in chart position (e.g., jumping from #98 to #85 is a +13 rank gain).</li>
+            <li><b>Metric Momentum (Weight: Up to 50pts):</b> The change in volume (daily streams on Spotify or daily score points on iTunes) normalized against the largest volume change in the active dataset.</li>
+          </ul>
+          <p style='font-size:12.5px;color:var(--t3);line-height:1.6;'>
+            This dual factor identifies tracks that are either climbing rapidly in position or experiencing explosive changes in play count (even if already at the top).
+          </p>
+        </div>
+        <div>
+          <div style='font-weight:700;font-size:12px;text-transform:uppercase;color:var(--t2);letter-spacing:0.8px;margin-bottom:8px;'>Column Details & Guide</div>
+          <div style='display:grid;grid-template-columns:auto 1fr;gap:10px 14px;font-size:12.5px;color:var(--t3);line-height:1.5;'>
+            <b style='color:var(--t2);white-space:nowrap;'>Start / Now</b>
+            <span>The track's chart rank at the beginning and end of the selected window.</span>
+            
+            <b style='color:var(--t2);white-space:nowrap;'>Streams / Score</b>
+            <span>The latest daily streams (Spotify) or daily chart points (iTunes).</span>
+            
+            <b style='color:var(--t2);white-space:nowrap;'>Change (+ / Lost)</b>
+            <span>The absolute change in streams or points from the start to the end of the window.</span>
+            
+            <b style='color:var(--t2);white-space:nowrap;'>Δ Rank</b>
+            <span>The net rank shift (represented by <span class='bu' style='padding:2px 6px;min-width:auto;font-size:10px;'>▲13</span> or <span class='bd' style='padding:2px 6px;min-width:auto;font-size:10px;'>▼23</span>).</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div style='display:grid;grid-template-columns:1fr 1fr;gap:16px'>
 
     <div id='risers-section' style='background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:18px 20px'>
       <div class='sh'><span class='sh-l'>📈 Top Risers — rank + metric composite</span></div>
+      <div style='font-size:12px;color:var(--t3);margin-top:-6px;margin-bottom:14px;line-height:1.5;'>
+        Tracks with the strongest positive momentum, calculated using a composite score of <b>Rank Improvement</b> and normalized <b>Metric Gain</b> (daily streams or score) over the selected window.
+      </div>
       <div id='sp-riser-block'>
         <div class='section-label' style='color:var(--green)'>
           <span class='section-dot' style='background:var(--green)'></span>Rank + Streams
@@ -407,6 +453,9 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
 
     <div id='fallers-section' style='background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:18px 20px'>
       <div class='sh'><span class='sh-l'>📉 Top Fallers — rank + metric composite</span></div>
+      <div style='font-size:12px;color:var(--t3);margin-top:-6px;margin-bottom:14px;line-height:1.5;'>
+        Tracks with the steepest downward decline, calculated using a composite score of <b>Rank Drops</b> and normalized <b>Metric Loss</b> (daily streams or score) over the selected window.
+      </div>
       <div id='sp-faller-block'>
         <div class='section-label' style='color:var(--red)'>
           <span class='section-dot' style='background:var(--red)'></span>Rank + Streams lost
@@ -470,6 +519,18 @@ if (!SHOW_IT) {
 }
 
 // Riser/faller table renderer
+function toggleGuide() {
+  const content = document.getElementById('guide-content');
+  const icon = document.getElementById('guide-toggle-icon');
+  if (content.style.display === 'none') {
+    content.style.display = 'block';
+    icon.textContent = '[ Hide Details ]';
+  } else {
+    content.style.display = 'none';
+    icon.textContent = '[ Show Details ]';
+  }
+}
+
 function renderTable(elId, data){
   const el = document.getElementById(elId);
   if (!el) return;

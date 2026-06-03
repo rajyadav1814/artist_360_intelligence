@@ -2708,6 +2708,7 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
         """
         st.markdown(kpi_html, unsafe_allow_html=True)
 
+
     # Cap y-axis using the 90th percentile so a single outlier doesn't compress
     # the rest of the field into an unreadable band at the top.
     if not line_df.empty:
@@ -2866,9 +2867,10 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
                     f"<td>{trend}</td></tr>"
                 )
             table_html = (
-                "<div class='ct-section'>"
-                "<div class='ct-section-ttl'>📊 Detailed Movement Analysis</div>"
-                "<table class='ct-mv-tbl'><thead><tr>"
+                 "<div class='ct-section'>"
+                 "<div class='ct-section-ttl'>📊 Detailed Movement Analysis</div>"
+                 "<div class='ct-section-desc'>This table shows tracks with significant movement in their chart positions, displaying starting position, current position, best position achieved, change in rank, and movement trend (rising/falling/stable).</div>"
+                 "<table class='ct-mv-tbl'><thead><tr>"
                 "<th>Artist</th><th>Start</th><th>Current</th><th>Best</th><th>Change</th><th>Trend</th>"
                 "</tr></thead><tbody>"
                 + "".join(rows_html)
@@ -4773,6 +4775,12 @@ def show_movement_page() -> None:
     with tab2:
         render_album_movement()
     with tab3:
+        st.markdown(
+            "<div style='font-size:0.85rem;color:#97a3c5;margin:-0.5rem 0 0.75rem 0'>"
+            "Rank momentum across iTunes worldwide artist rankings."
+            "</div>",
+            unsafe_allow_html=True,
+        )
         render_chart_tracker(history, global_filtered)
 
 
