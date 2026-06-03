@@ -1090,9 +1090,32 @@ def apply_theme(dark_mode: bool = True) -> None:
         .streamlit-expanderHeader {
             transition: all 0.3s ease;
             border-radius: 8px;
+            color: var(--text) !important;
         }
         .streamlit-expanderHeader:hover {
-            background: rgba(251,113,133,.08);
+            background: rgba(251,113,133,0.08);
+        }
+        .streamlit-expanderHeader p {
+            color: var(--text) !important;
+        }
+        [data-testid="stExpander"] {
+            border: 1px solid var(--border) !important;
+            border-radius: 12px !important;
+            background: transparent !important;
+        }
+        
+        /* Toggle labels and sidebar text visibility */
+        [data-testid="stSidebar"] [data-testid="stWidgetLabel"] p,
+        [data-testid="stSidebar"] .stMarkdown p,
+        [data-testid="stSidebar"] .stToggle label,
+        [data-testid="stSidebar"] .stExpander p {
+            color: var(--text) !important;
+        }
+        
+        /* Ensure sidebar expander icons/arrows are visible */
+        [data-testid="stSidebar"] .streamlit-expanderHeader svg {
+            fill: var(--text) !important;
+            color: var(--text) !important;
         }
         
         /* Download button styling */
@@ -1125,8 +1148,13 @@ def apply_theme(dark_mode: bool = True) -> None:
         }
         
         /* Toggle switch */
+        [data-testid="stCheckbox"] input[type="checkbox"] + div {
+            background: rgba(100, 116, 139, 0.25) !important;
+            border: 1px solid rgba(148, 163, 184, 0.4) !important;
+        }
         [data-testid="stCheckbox"] input[type="checkbox"]:checked + div {
             background: linear-gradient(135deg, #fb7185, #fda4af) !important;
+            border-color: #fb7185 !important;
         }
 
         /* Global footer */
@@ -1174,7 +1202,7 @@ def fmt_short(value: float | int | None) -> str:
 
 
 
-@st.dialog("Artist Intelligence Profile", width="large")
+@st.dialog(" ", width="large")
 def show_artist_details_dialog(row: pd.Series) -> None:
     """Displays a detailed popup for the selected artist with Spotlight + Acquisition data."""
     artist_name = row["name"]
@@ -1203,62 +1231,94 @@ def show_artist_details_dialog(row: pd.Series) -> None:
     # Scoped styles for the dialog
     is_dark = st.session_state.get("dark_mode", True)
     
-    dlg_bg = "linear-gradient(180deg, rgba(15,12,30,0.98) 0%, rgba(10,7,24,1) 100%)" if is_dark else "linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(248,249,251,1) 100%)"
-    dlg_border = "rgba(251, 113, 133, 0.25)" if is_dark else "rgba(251, 113, 133, 0.15)"
-    dlg_text1 = "#e2e8f0" if is_dark else "#1A1A1A"
-    dlg_text2 = "#94a3b8" if is_dark else "#4A5568"
-    dlg_border2 = "rgba(0,0,0,.1)" if not is_dark else "rgba(255,255,255,.1)"
-    dlg_border3 = "rgba(0,0,0,.08)" if not is_dark else "rgba(255,255,255,.08)"
-    dlg_kpi_bg = "linear-gradient(180deg, rgba(255,255,255,1) 0%, rgba(248,249,251,1) 100%)" if not is_dark else "linear-gradient(180deg, rgba(30,41,59,1) 0%, rgba(15,23,42,1) 100%)"
-    dlg_panel_bg = "#FFFFFF" if not is_dark else "#161b27"
-    dlg_badge_bg = "rgba(148,163,184,.1)" if is_dark else "rgba(0,0,0,.05)"
-    dlg_badge_border = "rgba(148,163,184,.2)" if is_dark else "rgba(0,0,0,.1)"
+    if is_dark:
+        dlg_bg = "linear-gradient(180deg, #0f172a 0%, #020617 100%)"
+        dlg_panel_bg = "#1e293b"
+        dlg_kpi_bg = "linear-gradient(180deg, #1e293b 0%, #0f172a 100%)"
+        dlg_text1, dlg_text2 = "#f8fafc", "#94a3b8"
+        dlg_divider = "rgba(255, 255, 255, 0.1)"
+        dlg_close_color = "#f8fafc"
+        dlg_close_bg = "rgba(248, 250, 252, 0.12)"
+        dlg_close_border = "rgba(248, 250, 252, 0.2)"
+    else:
+        dlg_bg = "linear-gradient(180deg, #ffffff 0%, #f1f5f9 100%)"
+        dlg_panel_bg = "#ffffff"
+        dlg_kpi_bg = "linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)"
+        dlg_text1, dlg_text2 = "#0f172a", "#475569"
+        dlg_divider = "rgba(0, 0, 0, 0.08)"
+        dlg_close_color = "#0f172a"
+        dlg_close_bg = "rgba(15, 23, 42, 0.12)"
+        dlg_close_border = "rgba(15, 23, 42, 0.2)"
+
+    dlg_border = "rgba(251, 113, 133, 0.3)" if is_dark else "rgba(251, 113, 133, 0.15)"
+    dlg_badge_bg = "rgba(148, 163, 184, 0.1)" if is_dark else "rgba(0, 0, 0, 0.05)"
 
     st.markdown(f"""
         <style>
         div[role="dialog"] {{
             background: {dlg_bg} !important;
             border: 1px solid {dlg_border} !important;
-            box-shadow: 0 25px 60px rgba(0, 0, 0, 0.6) !important;
-            width: 95vw !important;
-            max-width: 1600px !important;
+            box-shadow: 0 25px 60px {"rgba(0, 0, 0, 0.6)" if is_dark else "rgba(0, 0, 0, 0.12)"} !important;
+            width: 85vw !important;
+            max-width: 1400px !important;
+            overflow: hidden !important;
+        }}
+        /* Remove default header padding/border to fit custom close button */
+        [data-testid="stDialogHeader"] {{
+            padding: 0 !important;
+            margin: 0 !important;
+            border: none !important;
+            height: 0 !important;
         }}
         /* Enhanced close button styling - Perfected for visibility in both modes */
-        button[data-testid="stBaseButton-close"] {{
-            color: {"#000000" if not is_dark else "#FFFFFF"} !important;
-            background-color: {"rgba(0,0,0,0.08)" if not is_dark else "rgba(255,255,255,0.12)"} !important;
-            border: 1px solid {"rgba(0,0,0,0.15)" if not is_dark else "rgba(255,255,255,0.2)"} !important;
+        button[data-testid="stBaseButton-close"],
+        button[aria-label="Close"] {{
+            color: {dlg_close_color} !important;
+            background-color: {dlg_close_bg} !important;
+            border: 1px solid {dlg_close_border} !important;
             border-radius: 50% !important;
-            opacity: 1 !important;
-            width: 32px !important;
-            height: 32px !important;
+            width: 36px !important;
+            height: 36px !important;
             display: flex !important;
             align-items: center !important;
             justify-content: center !important;
             transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+            position: absolute !important;
+            top: 12px !important;
+            right: 12px !important;
+            z-index: 1000 !important;
+            opacity: 1 !important;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1) !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            line-height: 0 !important;
+            cursor: pointer !important;
         }}
-        button[data-testid="stBaseButton-close"]:hover {{
+        button[data-testid="stBaseButton-close"]:hover,
+        button[aria-label="Close"]:hover {{
             background-color: #fb7185 !important;
             color: #ffffff !important;
             border-color: #fb7185 !important;
             transform: scale(1.1) rotate(90deg) !important;
+            box-shadow: 0 4px 12px rgba(251, 113, 133, 0.3) !important;
         }}
-        button[data-testid="stBaseButton-close"] svg {{
+        button[data-testid="stBaseButton-close"] svg,
+        button[aria-label="Close"] svg {{
             fill: currentColor !important;
-            width: 18px !important;
-            height: 18px !important;
+            width: 20px !important;
+            height: 20px !important;
         }}
         .dlg-section {{ margin-bottom: 20px; }}
         .dlg-section-title {{
             font-size: 1.05rem; font-weight: 800; color: {dlg_text1};
             letter-spacing: -.01em; margin-bottom: 14px; padding-bottom: 10px;
-            border-bottom: 1px solid {dlg_border2};
+            border-bottom: 1px solid {dlg_divider};
             display: flex; align-items: center; gap: 10px;
         }}
         .dlg-section-badge {{
             font-size: .68rem; font-weight: 700; letter-spacing: .1em;
-            text-transform: uppercase; color: #8b95ad;
-            background: {dlg_badge_bg}; border: 1px solid {dlg_badge_border};
+            text-transform: uppercase; color: {dlg_text2};
+            background: {dlg_badge_bg}; border: 1px solid {dlg_divider};
             padding: 3px 10px; border-radius: 999px;
         }}
         .dlg-kpi-grid {{
@@ -1271,8 +1331,12 @@ def show_artist_details_dialog(row: pd.Series) -> None:
             padding: 14px; box-shadow: 0 4px 12px rgba(0,0,0,.05);
         }}
         .dlg-kpi-label {{
-            color: #8b95ad; font-size: .68rem; text-transform: uppercase;
+            color: {dlg_text2}; font-size: .68rem; text-transform: uppercase;
             letter-spacing: .08em; font-weight: 800; margin-bottom: 4px;
+            display: flex; align-items: center; gap: 6px;
+        }}
+        .dlg-kpi-label span {{
+            font-size: 1rem;
         }}
         .dlg-kpi-value {{ color: {dlg_text1}; font-size: 1.3rem; font-weight: 900; line-height: 1.1; }}
         .dlg-kpi-note {{ color: {dlg_text2}; font-size: .78rem; margin-top: 3px; }}
@@ -1281,21 +1345,21 @@ def show_artist_details_dialog(row: pd.Series) -> None:
             border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,.05); margin-bottom: 14px;
         }}
         .dlg-panel-header {{
-            padding: 10px 14px; border-bottom: 1px solid {dlg_border3};
+            padding: 10px 14px; border-bottom: 1px solid {dlg_divider};
             color: {dlg_text1}; font-size: .88rem; font-weight: 800;
             letter-spacing: .04em; text-transform: uppercase;
         }}
         .dlg-panel-body {{ padding: 14px; }}
         .dlg-lists-grid {{ display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }}
         .dlg-list-title {{ color: {dlg_text1}; font-size: .82rem; font-weight: 800; margin-bottom: 6px; }}
-        .dlg-list {{ margin: 0; padding-left: 18px; color: {dlg_text2}; line-height: 1.6; font-size: .85rem; }}
+        .dlg-list {{ margin: 0; padding-left: 18px; color: {dlg_text1}; line-height: 1.6; font-size: .85rem; }}
         .dlg-hero {{
             display: grid; grid-template-columns: minmax(100px, 150px) 1fr;
             gap: 16px; align-items: center; margin-bottom: 14px;
         }}
         .dlg-hero img {{
             width: 100%; max-width: 150px; border-radius: 20px;
-            box-shadow: 0 16px 36px rgba(0,0,0,0.1); border: 2px solid {dlg_border3};
+            box-shadow: 0 16px 36px rgba(0,0,0,0.1); border: 2px solid {dlg_divider};
         }}
         .dlg-hero-name {{ margin: 0 0 4px; color: {dlg_text1}; font-size: 1.8rem; font-weight: 900; letter-spacing: -.01em; }}
         .dlg-hero-badges {{ display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }}
@@ -1305,7 +1369,7 @@ def show_artist_details_dialog(row: pd.Series) -> None:
         }}
         .dlg-badge-rank {{ background: rgba(251,113,133,.15); color: #FDA4AF; border: 1px solid rgba(251,113,133,.3); }}
         .dlg-badge-country {{ background: rgba(52,211,153,.15); color: #34d399; border: 1px solid rgba(52,211,153,.3); }}
-        .dlg-badge-ml {{ background: {dlg_badge_bg}; color: {dlg_text2}; border: 1px solid {dlg_border2}; }}
+        .dlg-badge-ml {{ background: {dlg_badge_bg}; color: {dlg_text2}; border: 1px solid {dlg_divider}; }}
         .dlg-acq-signal {{
             display: inline-flex; align-items: center; gap: 6px;
             font-size: .78rem; font-weight: 700; padding: 6px 14px;
@@ -1316,7 +1380,7 @@ def show_artist_details_dialog(row: pd.Series) -> None:
         .dlg-sig-caution {{ background: rgba(251,113,133,.18); color: #fb7185; border: 1px solid rgba(251,113,133,.4); }}
         .dlg-sig-row {{
             display: flex; align-items: flex-start; gap: 12px;
-            padding: 10px 0; border-bottom: 1px solid {dlg_border3};
+            padding: 10px 0; border-bottom: 1px solid {dlg_divider};
         }}
         .dlg-sig-row:last-child {{ border-bottom: none; }}
         .dlg-sig-icon {{ font-size: 18px; flex-shrink: 0; }}
@@ -1324,21 +1388,21 @@ def show_artist_details_dialog(row: pd.Series) -> None:
         .dlg-sig-desc {{ font-size: .78rem; color: {dlg_text2}; line-height: 1.5; }}
         .dlg-trk-row {{
             display: grid; grid-template-columns: 28px 1fr 72px 56px;
-            gap: 6px; padding: 8px 0; border-bottom: 1px solid {dlg_border3};
+            gap: 6px; padding: 8px 0; border-bottom: 1px solid {dlg_divider};
             align-items: center; font-size: .82rem;
         }}
         .dlg-trk-row:last-child {{ border-bottom: none; }}
-        .dlg-trk-rank {{ color: #8b95ad; text-align: center; font-weight: 600; }}
+        .dlg-trk-rank {{ color: {dlg_text2}; text-align: center; font-weight: 600; }}
         .dlg-trk-name {{ color: {dlg_text1}; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }}
         .dlg-trk-val {{ color: {dlg_text2}; text-align: right; font-variant-numeric: tabular-nums; }}
         .dlg-summary-table {{ width: 100%; border-collapse: collapse; font-size: .85rem; }}
         .dlg-summary-table th {{
-            text-align: left; color: #8b95ad; font-size: .68rem;
+            text-align: left; color: {dlg_text2}; font-size: .68rem;
             text-transform: uppercase; letter-spacing: .08em;
-            padding: .55rem .65rem; border-bottom: 1px solid {dlg_border2};
+            padding: .55rem .65rem; border-bottom: 1px solid {dlg_divider};
         }}
         .dlg-summary-table td {{
-            padding: .55rem .65rem; border-bottom: 1px solid {dlg_border3}; color: {dlg_text2};
+            padding: .55rem .65rem; border-bottom: 1px solid {dlg_divider}; color: {dlg_text2};
         }}
         @media (max-width: 980px) {{
             .dlg-kpi-grid {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }}
@@ -1371,15 +1435,50 @@ def show_artist_details_dialog(row: pd.Series) -> None:
     st.markdown(f"""
         <div class="dlg-section">
             <div class="dlg-section-title">📊 Artist Spotlight <span class="dlg-section-badge">Overview</span></div>
+            <div style="font-size: 0.82rem; color: {dlg_text2}; margin: 8px 4px 12px; line-height: 1.4; font-weight: 500;">
+                Consolidated artist performance metrics tracking chart momentum, catalog depth, and audience reach in real-time.
+            </div>
             <div class="dlg-kpi-grid">
-                <div class="dlg-kpi"><div class="dlg-kpi-label">Current Rank</div><div class="dlg-kpi-value">{rank_val}</div><div class="dlg-kpi-note">Latest chart position</div></div>
-                <div class="dlg-kpi"><div class="dlg-kpi-label">Songs</div><div class="dlg-kpi-value">{songs_val}</div><div class="dlg-kpi-note">Catalog tracks</div></div>
-                <div class="dlg-kpi"><div class="dlg-kpi-label">Albums</div><div class="dlg-kpi-value">{albums_val}</div><div class="dlg-kpi-note">Catalog albums</div></div>
-                <div class="dlg-kpi"><div class="dlg-kpi-label">LATAM Countries</div><div class="dlg-kpi-value">{countries_val}</div><div class="dlg-kpi-note">Market presence</div></div>
-                <div class="dlg-kpi"><div class="dlg-kpi-label">Monthly Listeners</div><div class="dlg-kpi-value">{monthly_val}</div><div class="dlg-kpi-note">Current audience</div></div>
-                <div class="dlg-kpi"><div class="dlg-kpi-label">Peak Listeners</div><div class="dlg-kpi-value">{peak_val}</div><div class="dlg-kpi-note">Historical high</div></div>
-                <div class="dlg-kpi"><div class="dlg-kpi-label">Total Points</div><div class="dlg-kpi-value">{points_val}</div><div class="dlg-kpi-note">Cross-platform score</div></div>
-                <div class="dlg-kpi"><div class="dlg-kpi-label">Trend</div><div class="dlg-kpi-value">{escape(trend_change)}</div><div class="dlg-kpi-note">Rank momentum</div></div>
+                <div class="dlg-kpi">
+                    <div class="dlg-kpi-label"><span>🏆</span> Current Rank</div>
+                    <div class="dlg-kpi-value">{rank_val}</div>
+                    <div class="dlg-kpi-note">Latest chart position</div>
+                </div>
+                <div class="dlg-kpi">
+                    <div class="dlg-kpi-label"><span>🎵</span> Songs</div>
+                    <div class="dlg-kpi-value">{songs_val}</div>
+                    <div class="dlg-kpi-note">Catalog tracks</div>
+                </div>
+                <div class="dlg-kpi">
+                    <div class="dlg-kpi-label"><span>💽</span> Albums</div>
+                    <div class="dlg-kpi-value">{albums_val}</div>
+                    <div class="dlg-kpi-note">Catalog albums</div>
+                </div>
+                <div class="dlg-kpi">
+                    <div class="dlg-kpi-label"><span>🌎</span> LATAM Countries</div>
+                    <div class="dlg-kpi-value">{countries_val}</div>
+                    <div class="dlg-kpi-note">Market presence</div>
+                </div>
+                <div class="dlg-kpi">
+                    <div class="dlg-kpi-label"><span>🎧</span> Monthly Listeners</div>
+                    <div class="dlg-kpi-value">{monthly_val}</div>
+                    <div class="dlg-kpi-note">Current audience</div>
+                </div>
+                <div class="dlg-kpi">
+                    <div class="dlg-kpi-label"><span>📈</span> Peak Listeners</div>
+                    <div class="dlg-kpi-value">{peak_val}</div>
+                    <div class="dlg-kpi-note">Historical high</div>
+                </div>
+                <div class="dlg-kpi">
+                    <div class="dlg-kpi-label"><span>⭐</span> Total Points</div>
+                    <div class="dlg-kpi-value">{points_val}</div>
+                    <div class="dlg-kpi-note">Cross-platform score</div>
+                </div>
+                <div class="dlg-kpi">
+                    <div class="dlg-kpi-label"><span>📊</span> Trend</div>
+                    <div class="dlg-kpi-value">{escape(trend_change)}</div>
+                    <div class="dlg-kpi-note">Rank momentum</div>
+                </div>
             </div>
         </div>
     """, unsafe_allow_html=True)
@@ -1387,7 +1486,8 @@ def show_artist_details_dialog(row: pd.Series) -> None:
     # ════════════════════════════════════════════════════════════════
     # SECTION 2.1: RANK TREND CHART (Last 7 Days)
     # ════════════════════════════════════════════════════════════════
-    st.markdown(f"<div class='dlg-section-title'>📈 Rank Trend <span class='dlg-section-badge'>Last 7 Days</span></div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='dlg-section-title'>📈 Rank Trend <span class='dlg-section-badge'>Last 7 Days</span><span class='dlg-section-badge'>Last 15 Days</span><span class='dlg-section-badge'>Last 30 Days</span></div>", unsafe_allow_html=True)
+    st.markdown(f"<p style='color:{dlg_text2}; font-size:.85rem; margin-top:-10px; margin-bottom:15px;'>Visual tracking of daily rank movement and chart stability over the past week.</p>", unsafe_allow_html=True)
 
     try:
         # Using history from the global scope populated by load_dashboard_data
@@ -1406,6 +1506,7 @@ def show_artist_details_dialog(row: pd.Series) -> None:
                             x="scraped_at",
                             y="rank",
                             markers=True,
+                            line_shape="hv",
                             color_discrete_sequence=["#fb7185"]
                         )
                         fig_rh.update_yaxes(autorange="reversed", title="Rank Position")
@@ -1414,7 +1515,7 @@ def show_artist_details_dialog(row: pd.Series) -> None:
                         render_plotly_html(fig_rh)
                         st.markdown(f"""
                             <div style="margin: -8px 0 20px; font-size: 0.82rem; color: {dlg_text2}; line-height: 1.5; font-style: italic;">
-                                <b>Strategic Insight:</b> This chart tracks the artist's daily rank velocity. A consistent or rising trajectory (lower numerical rank) indicates sustained consumer demand and strong algorithmic health across major streaming and retail platforms.
+                                This chart tracks the artist's daily rank velocity. A consistent or rising trajectory (lower numerical rank) indicates sustained consumer demand and strong algorithmic health across major streaming and retail platforms.
                             </div>
                         """, unsafe_allow_html=True)
                     else:
@@ -1429,21 +1530,24 @@ def show_artist_details_dialog(row: pd.Series) -> None:
     # ════════════════════════════════════════════════════════════════
     st.markdown(f"""
         <div class="dlg-panel">
-            <div class="dlg-panel-header">Top Tracks, Albums & Countries</div>
+            <div class="dlg-panel-header">📊 Top Tracks, Albums & Countries</div>
             <div class="dlg-panel-body">
+                <div style="font-size: 0.82rem; color: {dlg_text2}; margin: 0 0 14px; line-height: 1.4; font-weight: 500;">
+                    Consolidated catalog distribution tracking lead track velocity, project performance, and regional chart footprint.
+                </div>
                 <div class="dlg-lists-grid">
                     <div>
-                        <div class="dlg-list-title">Top Tracks</div>
+                        <div class="dlg-list-title">🎵 Top Tracks</div>
                         <div style="font-size: .78rem; color: {dlg_text2}; margin-bottom: 8px;">High-velocity tracks driving the majority of recent stream volume.</div>
                         <ol class="dlg-list">{songs_html}</ol>
                     </div>
                     <div>
-                        <div class="dlg-list-title">Top Albums</div>
+                        <div class="dlg-list-title">💿 Top Albums</div>
                         <div style="font-size: .78rem; color: {dlg_text2}; margin-bottom: 8px;">Top-performing projects across global digital storefronts.</div>
                         <ol class="dlg-list">{albums_html}</ol>
                     </div>
                     <div>
-                        <div class="dlg-list-title">Top Countries</div>
+                        <div class="dlg-list-title">🌍 Top Countries</div>
                         <div style="font-size: .78rem; color: {dlg_text2}; margin-bottom: 8px;">Markets with the strongest relative chart presence for the artist.</div>
                         <ol class="dlg-list">{countries_html}</ol>
                     </div>
@@ -1455,7 +1559,12 @@ def show_artist_details_dialog(row: pd.Series) -> None:
     # ════════════════════════════════════════════════════════════════
     # SECTION 7: ACQUISITION INTELLIGENCE
     # ════════════════════════════════════════════════════════════════
-    st.markdown("<div class='dlg-section-title'>🎯 Acquisition Intelligence <span class='dlg-section-badge'>Commercial Signals</span></div>", unsafe_allow_html=True)
+    st.markdown(f"""
+        <div class="dlg-section-title">🎯 Acquisition Intelligence <span class="dlg-section-badge">Intelligence</span></div>
+        <div style="font-size: 0.82rem; color: {dlg_text2}; margin: 8px 4px 12px; line-height: 1.4; font-weight: 500;">
+            Advanced commercial signal analysis tracking cross-platform momentum, stream acceleration, and acquisition viability.
+        </div>
+    """, unsafe_allow_html=True)
     
     acq_loader_slot = st.empty()
     acq_loader_bg = "rgba(17, 26, 46, 0.5)" if is_dark else "rgba(241, 245, 249, 0.5)"
@@ -1533,10 +1642,10 @@ def show_artist_details_dialog(row: pd.Series) -> None:
                     # Acquisition KPIs
                     st.markdown(f"""
                         <div class="dlg-kpi-grid">
-                            <div class="dlg-kpi"><div class="dlg-kpi-label">Best Spotify Rank</div><div class="dlg-kpi-value">{acq['bestSpRank']}</div><div class="dlg-kpi-note">{escape(str(acq['bestSpSub']))}</div></div>
-                            <div class="dlg-kpi"><div class="dlg-kpi-label">Peak Streams</div><div class="dlg-kpi-value">{acq['peakStreams']}</div><div class="dlg-kpi-note">{escape(str(acq['peakStreamsSub']))}</div></div>
-                            <div class="dlg-kpi"><div class="dlg-kpi-label">Tracks Charting</div><div class="dlg-kpi-value">{acq['trackCount']}</div><div class="dlg-kpi-note">{escape(str(acq['trackCountSub']))}</div></div>
-                            <div class="dlg-kpi"><div class="dlg-kpi-label">Best iTunes WW</div><div class="dlg-kpi-value">{acq['bestItunes']}</div><div class="dlg-kpi-note">{escape(str(acq['itunesSub']))}</div></div>
+                            <div class="dlg-kpi"><div class="dlg-kpi-label"><span>🏆</span> Best Spotify Rank</div><div class="dlg-kpi-value">{acq['bestSpRank']}</div><div class="dlg-kpi-note">{escape(str(acq['bestSpSub']))}</div></div>
+                            <div class="dlg-kpi"><div class="dlg-kpi-label"><span>📈</span> Peak Streams</div><div class="dlg-kpi-value">{acq['peakStreams']}</div><div class="dlg-kpi-note">{escape(str(acq['peakStreamsSub']))}</div></div>
+                            <div class="dlg-kpi"><div class="dlg-kpi-label"><span>🎤</span> Tracks Charting</div><div class="dlg-kpi-value">{acq['trackCount']}</div><div class="dlg-kpi-note">{escape(str(acq['trackCountSub']))}</div></div>
+                            <div class="dlg-kpi"><div class="dlg-kpi-label"><span>🍎</span> Best iTunes WW</div><div class="dlg-kpi-value">{acq['bestItunes']}</div><div class="dlg-kpi-note">{escape(str(acq['itunesSub']))}</div></div>
                         </div>
                     """, unsafe_allow_html=True)
 
@@ -1552,9 +1661,9 @@ def show_artist_details_dialog(row: pd.Series) -> None:
                             </div>"""
                         st.markdown(f"""
                             <div class="dlg-panel">
-                                <div class="dlg-panel-header">Top Tracks · Spotify Global</div>
+                                <div class="dlg-panel-header">🎵 Top Tracks · Spotify Global</div>
                                 <div class="dlg-panel-body">
-                                    <div class="dlg-trk-row" style="border-bottom:1px solid {dlg_border2};font-size:.7rem;color:#8b95ad;text-transform:uppercase;letter-spacing:.06em;font-weight:700;">
+                                    <div class="dlg-trk-row" style="border-bottom:1px solid {dlg_divider};font-size:.7rem;color:{dlg_text2};text-transform:uppercase;letter-spacing:.06em;font-weight:700;">
                                         <span style="text-align:center;">#</span><span>Track</span><span style="text-align:right;">Streams</span><span style="text-align:right;">Best</span>
                                     </div>
                                     {tracks_rows}
@@ -1572,7 +1681,7 @@ def show_artist_details_dialog(row: pd.Series) -> None:
                             </div>"""
                         st.markdown(f"""
                             <div class="dlg-panel">
-                                <div class="dlg-panel-header">Why This Artist · Signals</div>
+                                <div class="dlg-panel-header">💡 Why This Artist · Signals</div>
                                 <div class="dlg-panel-body">{sig_rows}</div>
                             </div>
                         """, unsafe_allow_html=True)
@@ -2018,7 +2127,7 @@ def render_leaderboard_table_html(leaderboard: pd.DataFrame, max_rows: int) -> N
     html = f"""
     <div class='dashboard-card'>
         <div class='section-title'>📊 Leaderboard table</div>
-        <div class='section-sub'>Scroll through the latest rank, listener, and points data in one place.</div>
+        <div class='section-sub'>This is a music artist leaderboard showing the top artists ranked by their Spotify monthly listeners, along with their top song, album, market, peak listeners, iTunes total streams, and rank movement.</div>
         <div class='table-wrap' style='max-height:780px; overflow-x:auto; overflow-y:auto;'>
             <table class='leader-table'>
                 <thead>
@@ -2224,7 +2333,7 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
     with chart_col1:
         top_ranked = leaderboard.dropna(subset=["rank", "total_points"]).nsmallest(10, "rank").copy()
         if not top_ranked.empty:
-            top_ranked = top_ranked.sort_values("rank", ascending=True)
+            top_ranked = top_ranked.sort_values("rank", ascending=False)
             top_ranked["rank_label"] = "#" + top_ranked["rank"].astype(str)
             top_ranked["points_label"] = top_ranked["total_points"].apply(fmt_short)
             rank_colors = ["#fb7185", "#60a5fa", "#34d399", "#c4b5fd", "#fcd34d",
@@ -2232,9 +2341,9 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
 
             fig_rank = px.bar(
                 top_ranked,
-                x="name",
-                y="total_points",
-                orientation="v",
+                y="name",
+                x="total_points",
+                orientation="h",
                 text="points_label",
                 color="rank",
                 custom_data=["top_country", "rank", "monthly_listeners"],
@@ -2248,9 +2357,9 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
                 marker=dict(opacity=0.92, line=dict(width=0.6, color="rgba(255,255,255,.12)") if is_dark else dict(width=0)),
                 textfont=dict(color=text_color, size=11),
                 hovertemplate=(
-                    "<b>%{x}</b><br>"
+                    "<b>%{y}</b><br>"
                     "<b>Rank:</b> #%{customdata[1]}<br>"
-                    "<b>Total Points:</b> %{y:,.0f}<br>"
+                    "<b>Total Points:</b> %{x:,.0f}<br>"
                     "<b>Monthly listeners:</b> %{customdata[2]:,.0f}<br>"
                     "<b>Top market:</b> %{customdata[0]}<extra></extra>"
                 ),
@@ -2258,9 +2367,9 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
             fig_rank.update_layout(
                 title=dict(text="Top by Itunes Streams", font=dict(color=text_color)),
                 coloraxis=dict(showscale=False),
-                xaxis_title="",
-                yaxis_tickformat="~s",
-                yaxis_title="Itunes Streams",
+                yaxis_title="",
+                xaxis_tickformat="~s",
+                xaxis_title="Itunes Streams",
                 uniformtext_minsize=9,
                 uniformtext_mode="hide",
             )
@@ -2630,7 +2739,7 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
                     mode="lines",
                     name=artist,
                     fill="tonexty" if idx > 0 else "tozeroy",
-                    line=dict(color=color, width=2.5, shape="spline"),
+                    line=dict(color=color, width=2.5, shape="hv"),
                     hovertemplate="<b>%{fullData.name}</b><br>%{x|%b %d}: Position %{y}<extra></extra>",
                 )
             )
@@ -2641,7 +2750,7 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
                     y=sub["position"],
                     mode="lines+markers",
                     name=artist,
-                    line=dict(color=color, width=2.5, shape="spline"),
+                    line=dict(color=color, width=2.5, shape="hv"),
                     marker=dict(size=5, color=color, line=dict(width=1, color=bg_color_marker)),
                     hovertemplate="<b>%{fullData.name}</b><br>%{x|%b %d}: Position %{y}<extra></extra>",
                 )
@@ -3238,6 +3347,13 @@ def render_debut_artist_chart(leaderboard: pd.DataFrame) -> None:
             letter-spacing: .08em;
             font-weight: 800;
             margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }}
+        .spotlight-kpi-label span {{
+            font-size: 1.1rem;
+            opacity: 0.9;
         }}
         .spotlight-kpi-value {{
             color: var(--text);
@@ -3434,15 +3550,54 @@ def render_debut_artist_chart(leaderboard: pd.DataFrame) -> None:
                 </div>
             </div>
         </div>
+        <div class="spotlight-intro" style="margin-top: 1.5rem; margin-bottom: 0.8rem; padding: 0 4px;">
+            <div style="font-size: 1.1rem; font-weight: 800; color: var(--text); margin-bottom: 4px;">📊 Performance Intelligence Overview</div>
+            <div style="font-size: 0.88rem; color: var(--text2); line-height: 1.5; font-weight: 500;">
+                Consolidated artist performance metrics across Latin American markets and global streaming platforms. 
+                These KPIs track chart momentum, catalog depth, and audience reach in real-time.
+            </div>
+        </div>
         <div class="spotlight-kpi-grid">
-            <div class="spotlight-kpi"><div class="spotlight-kpi-label">Current Rank</div><div class="spotlight-kpi-value">{rank_val}</div><div class="spotlight-kpi-note">Latest chart position</div></div>
-            <div class="spotlight-kpi"><div class="spotlight-kpi-label">Songs</div><div class="spotlight-kpi-value">{songs_val}</div><div class="spotlight-kpi-note">Catalog tracks</div></div>
-            <div class="spotlight-kpi"><div class="spotlight-kpi-label">Albums</div><div class="spotlight-kpi-value">{albums_val}</div><div class="spotlight-kpi-note">Catalog albums</div></div>
-            <div class="spotlight-kpi"><div class="spotlight-kpi-label">LATAM Countries</div><div class="spotlight-kpi-value">{countries_val}</div><div class="spotlight-kpi-note">Market presence</div></div>
-            <div class="spotlight-kpi"><div class="spotlight-kpi-label">Monthly Listeners</div><div class="spotlight-kpi-value">{monthly_val}</div><div class="spotlight-kpi-note">Current audience size</div></div>
-            <div class="spotlight-kpi"><div class="spotlight-kpi-label">Peak Listeners</div><div class="spotlight-kpi-value">{peak_val}</div><div class="spotlight-kpi-note">Historical high</div></div>
-            <div class="spotlight-kpi"><div class="spotlight-kpi-label">Total Points</div><div class="spotlight-kpi-value">{points_val}</div><div class="spotlight-kpi-note">Cross-platform score</div></div>
-            <div class="spotlight-kpi"><div class="spotlight-kpi-label">Trend</div><div class="spotlight-kpi-value">{escape(trend_change)}</div><div class="spotlight-kpi-note">Rank momentum</div></div>
+            <div class="spotlight-kpi">
+                <div class="spotlight-kpi-label"><span>🏆</span> Current Rank</div>
+                <div class="spotlight-kpi-value">{rank_val}</div>
+                <div class="spotlight-kpi-note">Latest chart position</div>
+            </div>
+            <div class="spotlight-kpi">
+                <div class="spotlight-kpi-label"><span>🎵</span> Songs</div>
+                <div class="spotlight-kpi-value">{songs_val}</div>
+                <div class="spotlight-kpi-note">Catalog tracks</div>
+            </div>
+            <div class="spotlight-kpi">
+                <div class="spotlight-kpi-label"><span>💽</span> Albums</div>
+                <div class="spotlight-kpi-value">{albums_val}</div>
+                <div class="spotlight-kpi-note">Catalog albums</div>
+            </div>
+            <div class="spotlight-kpi">
+                <div class="spotlight-kpi-label"><span>🌎</span> LATAM Countries</div>
+                <div class="spotlight-kpi-value">{countries_val}</div>
+                <div class="spotlight-kpi-note">Market presence</div>
+            </div>
+            <div class="spotlight-kpi">
+                <div class="spotlight-kpi-label"><span>🎧</span> Monthly Listeners</div>
+                <div class="spotlight-kpi-value">{monthly_val}</div>
+                <div class="spotlight-kpi-note">Current audience</div>
+            </div>
+            <div class="spotlight-kpi">
+                <div class="spotlight-kpi-label"><span>📈</span> Peak Listeners</div>
+                <div class="spotlight-kpi-value">{peak_val}</div>
+                <div class="spotlight-kpi-note">Historical high</div>
+            </div>
+            <div class="spotlight-kpi">
+                <div class="spotlight-kpi-label"><span>⭐</span> Total Points</div>
+                <div class="spotlight-kpi-value">{points_val}</div>
+                <div class="spotlight-kpi-note">Cross-platform score</div>
+            </div>
+            <div class="spotlight-kpi">
+                <div class="spotlight-kpi-label"><span>📊</span> Trend</div>
+                <div class="spotlight-kpi-value">{escape(trend_change)}</div>
+                <div class="spotlight-kpi-note">Rank momentum</div>
+            </div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -4007,20 +4162,26 @@ def render_chatbot_widget() -> None:
 apply_theme(dark_mode=st.session_state.get("dark_mode", True))
 
 _loader_slot = st.empty()
-_loader_slot.markdown("""
+is_dark = st.session_state.get("dark_mode", True)
+l_bg = "#0d1117" if is_dark else "#FFFFFF"
+l_title = "#e2e8f0" if is_dark else "#1A1A1A"
+l_sub = "#5a7ab5" if is_dark else "#8A8FA3"
+l_ring = "rgba(251,113,133,0.15)" if is_dark else "rgba(251,113,133,0.1)"
+
+_loader_slot.markdown(f"""
 <style>
-@keyframes a360-spin {
-    0%   { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-}
-@keyframes a360-pulse {
-    0%, 100% { opacity: .4; transform: scale(1); }
-    50%        { opacity: 1;  transform: scale(1.08); }
-}
-#a360-loader {
+@keyframes a360-spin {{
+    0%   {{ transform: rotate(0deg); }}
+    100% {{ transform: rotate(360deg); }}
+}}
+@keyframes a360-pulse {{
+    0%, 100% {{ opacity: .4; transform: scale(1); }}
+    50%        {{ opacity: 1;  transform: scale(1.08); }}
+}}
+#a360-loader {{
     position: fixed;
     inset: 0;
-    background: #0d1117;
+    background: {l_bg};
     z-index: 99999;
     display: flex;
     flex-direction: column;
@@ -4028,28 +4189,28 @@ _loader_slot.markdown("""
     justify-content: center;
     gap: 20px;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-}
-#a360-loader .a360-ring {
+}}
+#a360-loader .a360-ring {{
     width: 64px;
     height: 64px;
-    border: 3px solid rgba(251,113,133,0.15);
+    border: 3px solid {l_ring};
     border-top-color: #fb7185;
     border-radius: 50%;
     animation: a360-spin 0.9s linear infinite;
-}
-#a360-loader .a360-title {
+}}
+#a360-loader .a360-title {{
     font-size: 1.25rem;
     font-weight: 600;
-    color: #e2e8f0;
+    color: {l_title};
     letter-spacing: 0.02em;
     animation: a360-pulse 2s ease-in-out infinite;
-}
-#a360-loader .a360-sub {
+}}
+#a360-loader .a360-sub {{
     font-size: 0.82rem;
-    color: #5a7ab5;
+    color: {l_sub};
     letter-spacing: 0.04em;
     text-transform: uppercase;
-}
+}}
 </style>
 <div id="a360-loader">
   <div class="a360-ring"></div>

@@ -1098,6 +1098,7 @@ def render_pulse_report():
                     y='best_rank',
                     color='artist_title',
                     markers=True,
+                    line_shape="hv",
                     labels={'week_start': 'Week', 'best_rank': 'Best Rank'},
                 )
                 fig.update_yaxes(autorange='reversed', title='Best Rank', dtick=1)
