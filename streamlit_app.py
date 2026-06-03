@@ -2018,7 +2018,7 @@ def render_leaderboard_table_html(leaderboard: pd.DataFrame, max_rows: int) -> N
     html = f"""
     <div class='dashboard-card'>
         <div class='section-title'>📊 Leaderboard table</div>
-        <div class='section-sub'>Scroll through the latest rank, listener, and points data in one place.</div>
+        <div class='section-sub'>This is a music artist leaderboard showing the top artists ranked by their Spotify monthly listeners, along with their top song, album, market, peak listeners, iTunes total streams, and rank movement.</div>
         <div class='table-wrap' style='max-height:780px; overflow-x:auto; overflow-y:auto;'>
             <table class='leader-table'>
                 <thead>
