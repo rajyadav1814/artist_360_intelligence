@@ -923,9 +923,14 @@ def render_label_analysis():
       const ctx=document.getElementById('crossChart').getContext('2d');
       const dims=['Sp Streams','It Score','Track Count','Best Rank','Growth'];
       
-      const maxSp = Math.max(...LABELS_ORDER.map(lg => SP_DATA[lg].streams)) || 1;
-      const maxIt = Math.max(...LABELS_ORDER.map(lg => IT_DATA[lg].score)) || 1;
-      const maxTk = Math.max(...LABELS_ORDER.map(lg => SP_DATA[lg].tracks)) || 1;
+      const maxSp = Math.max(...LABELS_ORDER.map(lg => SP_DATA[lg].streams || 0)) || 1;
+      const maxIt = Math.max(...LABELS_ORDER.map(lg => IT_DATA[lg].score || 0)) || 1;
+      const maxTk = Math.max(...LABELS_ORDER.map(lg => (SP_DATA[lg].tracks || 0) + (IT_DATA[lg].tracks || 0))) || 1;
+      const maxGrowth = Math.max(...LABELS_ORDER.map(lg => {
+        const a = SP_DATA[lg].wkA || 1;
+        const b = SP_DATA[lg].wkB || 0;
+        return Math.max(0, (b - a) / a);
+      })) || 1;
       
       crossChart=new Chart(ctx,{
         type:'radar',
@@ -934,11 +939,11 @@ def render_label_analysis():
           datasets:LABELS_ORDER.map(lg=>({
             label:lg,
             data:[
-              Math.round(SP_DATA[lg].streams/maxSp*100),
-              Math.round(IT_DATA[lg].score/maxIt*100),
-              Math.round(SP_DATA[lg].tracks/maxTk*100),
-              Math.round((200-SP_DATA[lg].bestRank)/200*100),
-              Math.round(Math.max(0,SP_DATA[lg].wkB-SP_DATA[lg].wkA)/(SP_DATA[lg].wkA || 1)*100+50),
+              Math.round((SP_DATA[lg].streams || 0)/maxSp*100),
+              Math.round((IT_DATA[lg].score || 0)/maxIt*100),
+              Math.round(((SP_DATA[lg].tracks || 0) + (IT_DATA[lg].tracks || 0))/maxTk*100),
+              Math.round((200-(SP_DATA[lg].bestRank || 200))/199*100),
+              Math.round(Math.max(0, (SP_DATA[lg].wkB || 0) - (SP_DATA[lg].wkA || 1)) / (SP_DATA[lg].wkA || 1) / maxGrowth * 100),
             ],
             borderColor:LABEL_COLORS[lg],
             backgroundColor:LABEL_COLORS[lg]+'18',
@@ -1011,7 +1016,7 @@ def render_label_analysis():
         };
       });
       
-      el.innerHTML='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11px">'
+      let html = '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11px">'
         +'<tr style="border-bottom:1px solid var(--border2)">'
         +'<th style="text-align:left;padding:6px 8px;color:var(--t3);font-size:9px;text-transform:uppercase;letter-spacing:.4px">Label</th>'
         +'<th style="text-align:right;padding:6px 8px;color:var(--t3);font-size:9px;text-transform:uppercase;letter-spacing:.4px">Sp Share</th>'
@@ -1024,7 +1029,7 @@ def render_label_analysis():
         const col=LABEL_COLORS[d.lg];
         const wowUp=d.wow.startsWith('+');
         const statusColor={'Growing':'var(--green)','Declining':'var(--red)','Stable':'var(--blue)','Mixed':'var(--amber)'}[d.rating];
-        el.innerHTML+=`<tr style="border-bottom:1px solid var(--border)">
+        html += `<tr style="border-bottom:1px solid var(--border)">
           <td style="padding:7px 8px;color:${col};font-weight:600">${d.lg}</td>
           <td style="padding:7px 8px;text-align:right;color:var(--t2)">${d.spSh}</td>
           <td style="padding:7px 8px;text-align:right;color:var(--t2)">${d.itSh}</td>
@@ -1033,7 +1038,8 @@ def render_label_analysis():
           <td style="padding:7px 8px;text-align:right;"><span style="font-size:9px;font-weight:700;color:${statusColor}">${d.rating}</span></td>
         </tr>`;
       });
-      el.innerHTML+='</table></div>';
+      html += '</table></div>';
+      el.innerHTML = html;
     }
 
     // ── Cross track lists ──────────────────────────────────
