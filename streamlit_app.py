@@ -1530,24 +1530,24 @@ def show_artist_details_dialog(row: pd.Series) -> None:
     # ════════════════════════════════════════════════════════════════
     st.markdown(f"""
         <div class="dlg-panel">
-            <div class="dlg-panel-header">Top Tracks, Albums & Countries</div>
+            <div class="dlg-panel-header">📊 Top Tracks, Albums & Countries</div>
             <div class="dlg-panel-body">
                 <div style="font-size: 0.82rem; color: {dlg_text2}; margin: 0 0 14px; line-height: 1.4; font-weight: 500;">
                     Consolidated catalog distribution tracking lead track velocity, project performance, and regional chart footprint.
                 </div>
                 <div class="dlg-lists-grid">
                     <div>
-                        <div class="dlg-list-title">Top Tracks</div>
+                        <div class="dlg-list-title">🎵 Top Tracks</div>
                         <div style="font-size: .78rem; color: {dlg_text2}; margin-bottom: 8px;">High-velocity tracks driving the majority of recent stream volume.</div>
                         <ol class="dlg-list">{songs_html}</ol>
                     </div>
                     <div>
-                        <div class="dlg-list-title">Top Albums</div>
+                        <div class="dlg-list-title">💿 Top Albums</div>
                         <div style="font-size: .78rem; color: {dlg_text2}; margin-bottom: 8px;">Top-performing projects across global digital storefronts.</div>
                         <ol class="dlg-list">{albums_html}</ol>
                     </div>
                     <div>
-                        <div class="dlg-list-title">Top Countries</div>
+                        <div class="dlg-list-title">🌍 Top Countries</div>
                         <div style="font-size: .78rem; color: {dlg_text2}; margin-bottom: 8px;">Markets with the strongest relative chart presence for the artist.</div>
                         <ol class="dlg-list">{countries_html}</ol>
                     </div>
@@ -1642,10 +1642,10 @@ def show_artist_details_dialog(row: pd.Series) -> None:
                     # Acquisition KPIs
                     st.markdown(f"""
                         <div class="dlg-kpi-grid">
-                            <div class="dlg-kpi"><div class="dlg-kpi-label">Best Spotify Rank</div><div class="dlg-kpi-value">{acq['bestSpRank']}</div><div class="dlg-kpi-note">{escape(str(acq['bestSpSub']))}</div></div>
-                            <div class="dlg-kpi"><div class="dlg-kpi-label">Peak Streams</div><div class="dlg-kpi-value">{acq['peakStreams']}</div><div class="dlg-kpi-note">{escape(str(acq['peakStreamsSub']))}</div></div>
-                            <div class="dlg-kpi"><div class="dlg-kpi-label">Tracks Charting</div><div class="dlg-kpi-value">{acq['trackCount']}</div><div class="dlg-kpi-note">{escape(str(acq['trackCountSub']))}</div></div>
-                            <div class="dlg-kpi"><div class="dlg-kpi-label">Best iTunes WW</div><div class="dlg-kpi-value">{acq['bestItunes']}</div><div class="dlg-kpi-note">{escape(str(acq['itunesSub']))}</div></div>
+                            <div class="dlg-kpi"><div class="dlg-kpi-label"><span>🏆</span> Best Spotify Rank</div><div class="dlg-kpi-value">{acq['bestSpRank']}</div><div class="dlg-kpi-note">{escape(str(acq['bestSpSub']))}</div></div>
+                            <div class="dlg-kpi"><div class="dlg-kpi-label"><span>📈</span> Peak Streams</div><div class="dlg-kpi-value">{acq['peakStreams']}</div><div class="dlg-kpi-note">{escape(str(acq['peakStreamsSub']))}</div></div>
+                            <div class="dlg-kpi"><div class="dlg-kpi-label"><span>🎤</span> Tracks Charting</div><div class="dlg-kpi-value">{acq['trackCount']}</div><div class="dlg-kpi-note">{escape(str(acq['trackCountSub']))}</div></div>
+                            <div class="dlg-kpi"><div class="dlg-kpi-label"><span>🍎</span> Best iTunes WW</div><div class="dlg-kpi-value">{acq['bestItunes']}</div><div class="dlg-kpi-note">{escape(str(acq['itunesSub']))}</div></div>
                         </div>
                     """, unsafe_allow_html=True)
 
@@ -1661,7 +1661,7 @@ def show_artist_details_dialog(row: pd.Series) -> None:
                             </div>"""
                         st.markdown(f"""
                             <div class="dlg-panel">
-                                <div class="dlg-panel-header">Top Tracks · Spotify Global</div>
+                                <div class="dlg-panel-header">🎵 Top Tracks · Spotify Global</div>
                                 <div class="dlg-panel-body">
                                     <div class="dlg-trk-row" style="border-bottom:1px solid {dlg_divider};font-size:.7rem;color:{dlg_text2};text-transform:uppercase;letter-spacing:.06em;font-weight:700;">
                                         <span style="text-align:center;">#</span><span>Track</span><span style="text-align:right;">Streams</span><span style="text-align:right;">Best</span>
@@ -1681,7 +1681,7 @@ def show_artist_details_dialog(row: pd.Series) -> None:
                             </div>"""
                         st.markdown(f"""
                             <div class="dlg-panel">
-                                <div class="dlg-panel-header">Why This Artist · Signals</div>
+                                <div class="dlg-panel-header">💡 Why This Artist · Signals</div>
                                 <div class="dlg-panel-body">{sig_rows}</div>
                             </div>
                         """, unsafe_allow_html=True)
