@@ -1406,6 +1406,7 @@ def show_artist_details_dialog(row: pd.Series) -> None:
                             x="scraped_at",
                             y="rank",
                             markers=True,
+                            line_shape="hv",
                             color_discrete_sequence=["#fb7185"]
                         )
                         fig_rh.update_yaxes(autorange="reversed", title="Rank Position")
@@ -2630,7 +2631,7 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
                     mode="lines",
                     name=artist,
                     fill="tonexty" if idx > 0 else "tozeroy",
-                    line=dict(color=color, width=2.5, shape="spline"),
+                    line=dict(color=color, width=2.5, shape="hv"),
                     hovertemplate="<b>%{fullData.name}</b><br>%{x|%b %d}: Position %{y}<extra></extra>",
                 )
             )
@@ -2641,7 +2642,7 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
                     y=sub["position"],
                     mode="lines+markers",
                     name=artist,
-                    line=dict(color=color, width=2.5, shape="spline"),
+                    line=dict(color=color, width=2.5, shape="hv"),
                     marker=dict(size=5, color=color, line=dict(width=1, color=bg_color_marker)),
                     hovertemplate="<b>%{fullData.name}</b><br>%{x|%b %d}: Position %{y}<extra></extra>",
                 )
