@@ -227,13 +227,12 @@ def render_track_movement() -> None:
     with c2:
         period_label = custom_selectbox("Period", list(PERIOD_DAYS.keys()), index=0, key="tm_period")
     with c3:
-        platform = st.radio(
-            "Platform",
-            ["Both", "Spotify", "iTunes"],
-            horizontal=True,
-            index=0,
-            key="tm_platform",
-        )
+         platform = custom_selectbox(
+             "Platform",
+             ["Both", "Spotify", "iTunes"],
+             index=0,
+             key="tm_platform",
+         )
 
     sp_country, it_country = SCOPES[scope_label]
     days = PERIOD_DAYS[period_label]
