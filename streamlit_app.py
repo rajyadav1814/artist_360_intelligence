@@ -2593,6 +2593,7 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
         """
         st.markdown(kpi_html, unsafe_allow_html=True)
 
+
     # Cap y-axis using the 90th percentile so a single outlier doesn't compress
     # the rest of the field into an unreadable band at the top.
     if not line_df.empty:
@@ -4599,6 +4600,12 @@ def show_movement_page() -> None:
     with tab2:
         render_album_movement()
     with tab3:
+        st.markdown(
+            "<div style='font-size:0.85rem;color:#97a3c5;margin:-0.5rem 0 0.75rem 0'>"
+            "Rank momentum across iTunes worldwide artist rankings."
+            "</div>",
+            unsafe_allow_html=True,
+        )
         render_chart_tracker(history, global_filtered)
 
 
