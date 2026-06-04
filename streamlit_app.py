@@ -2590,7 +2590,7 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
 
     col1, col2 = st.columns([1, 1])
     with col1:
-        time_range = custom_selectbox("📅 Time Range", ["7 days", "14 days", "30 days"], index=1, key="ct_range")
+        time_range = custom_selectbox("📅 Time Range", ["7 days", "14 days", "30 days"], index=0, key="ct_range")
     with col2:
         view_mode = custom_selectbox("👁️ View Mode", ["Line Chart", "Area Chart"], index=0, key="ct_view")
 
