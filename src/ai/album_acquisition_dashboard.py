@@ -142,32 +142,30 @@ def _acq_score(latest_points: int, best_rank: int | None, momentum: float, best_
 
 
 def _build_album_rows(sp_df: pd.DataFrame, it_df: pd.DataFrame, dates: list[date], region: str = "Global") -> list[dict[str, Any]]:
-    sp_by_album = {name: group for name, group in sp_df.groupby("artist_title")} if not sp_df.empty else {}
-    it_by_album = {name: group for name, group in it_df.groupby("artist_title")} if not it_df.empty else {}
+    # ── Pivot-based data prep for massive speed gains ──
+    # Spotify (points column in itunes_artist_album table)
+    sp_points_p = sp_df.pivot_table(index='artist_title', columns='date', values='metric', aggfunc='sum').reindex(columns=dates, fill_value=0) if not sp_df.empty else pd.DataFrame(index=[], columns=dates)
+    sp_ranks_p = sp_df.pivot_table(index='artist_title', columns='date', values='rank', aggfunc='min').reindex(columns=dates) if not sp_df.empty else pd.DataFrame(index=[], columns=dates)
+    # Get most frequent label per album
+    labels_map = sp_df.groupby('artist_title')['label'].apply(lambda x: str(x.mode().iat[0]) if not x.dropna().empty else "Independent").to_dict() if (not sp_df.empty and "label" in sp_df.columns) else {}
+    
+    # iTunes (placeholder for compatibility with build_track_rows logic)
+    it_scores_p = it_df.pivot_table(index='artist_title', columns='date', values='metric', aggfunc='sum').reindex(columns=dates, fill_value=0) if not it_df.empty else pd.DataFrame(index=[], columns=dates)
+    it_ranks_p = it_df.pivot_table(index='artist_title', columns='date', values='rank', aggfunc='min').reindex(columns=dates) if not it_df.empty else pd.DataFrame(index=[], columns=dates)
 
     albums: list[dict[str, Any]] = []
-    seen = set()
-    for album in sorted(set(sp_by_album) | set(it_by_album)):
-        if not album or album in seen:
-            continue
-        seen.add(album)
-        sp_group = sp_by_album.get(album, pd.DataFrame(columns=sp_df.columns))
-        it_group = it_by_album.get(album, pd.DataFrame(columns=it_df.columns))
+    all_album_titles = sorted(set(sp_points_p.index) | set(it_scores_p.index))
+    
+    for album in all_album_titles:
+        if not album: continue
+        
         artist, title = _split_at(album)
-        label = "Independent"
-        if not sp_group.empty and "label" in sp_group.columns:
-            label_series = sp_group["label"].dropna()
-            if not label_series.empty:
-                label = str(label_series.mode().iat[0])
-        date_to_stream = {row["date"]: int(row["metric"] or 0) for _, row in sp_group.iterrows()}
-        date_to_sp_rank = {row["date"]: int(row["rank"]) for _, row in sp_group.iterrows()}
-        date_to_it_score = {row["date"]: int(row["metric"] or 0) for _, row in it_group.iterrows()}
-        date_to_it_rank = {row["date"]: int(row["rank"]) for _, row in it_group.iterrows()}
+        label = labels_map.get(album, "Independent")
 
-        sp_points = [date_to_stream.get(d, 0) for d in dates]
-        sp_ranks = [date_to_sp_rank.get(d) if d in date_to_sp_rank else None for d in dates]
-        it_scores = [date_to_it_score.get(d, 0) for d in dates]
-        it_ranks = [date_to_it_rank.get(d) if d in date_to_it_rank else None for d in dates]
+        sp_points = sp_points_p.loc[album].tolist() if album in sp_points_p.index else [0] * len(dates)
+        sp_ranks = [int(v) if pd.notna(v) else None for v in sp_ranks_p.loc[album]] if album in sp_ranks_p.index else [None] * len(dates)
+        it_scores = it_scores_p.loc[album].tolist() if album in it_scores_p.index else [0] * len(dates)
+        it_ranks = [int(v) if pd.notna(v) else None for v in it_ranks_p.loc[album]] if album in it_ranks_p.index else [None] * len(dates)
 
         has_sp = any(v > 0 for v in sp_points)
         has_it = any(v > 0 for v in it_scores)

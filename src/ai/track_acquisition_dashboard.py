@@ -112,6 +112,15 @@ def _load_window_multi(table: str, countries: list[str], days: int) -> pd.DataFr
     return df
 
 
+@st.cache_data(ttl=300, show_spinner=False)
+def get_processed_track_rows(sp_df: pd.DataFrame, it_df: pd.DataFrame, dates: list[date], region: str = "Global") -> list[dict[str, Any]]:
+    """
+    Cached wrapper for building track rows.
+    Processing can take seconds if there are many tracks; caching results makes the dashboard instant on reload.
+    """
+    return _build_track_rows(sp_df, it_df, dates, region=region)
+
+
 def _fmt_n(n: float | int | None) -> str:
     if n is None or n == 0:
         return "—"
@@ -142,32 +151,30 @@ def _acq_score(latest_streams: int, best_rank: int | None, momentum: float, best
 
 
 def _build_track_rows(sp_df: pd.DataFrame, it_df: pd.DataFrame, dates: list[date], region: str = "Global") -> list[dict[str, Any]]:
-    sp_by_track = {name: group for name, group in sp_df.groupby("artist_title")} if not sp_df.empty else {}
-    it_by_track = {name: group for name, group in it_df.groupby("artist_title")} if not it_df.empty else {}
+    # ── Pivot-based data prep for massive speed gains over row-by-row iteration ──
+    # Spotify
+    sp_streams_p = sp_df.pivot_table(index='artist_title', columns='date', values='metric', aggfunc='sum').reindex(columns=dates, fill_value=0) if not sp_df.empty else pd.DataFrame(index=[], columns=dates)
+    sp_ranks_p = sp_df.pivot_table(index='artist_title', columns='date', values='rank', aggfunc='min').reindex(columns=dates) if not sp_df.empty else pd.DataFrame(index=[], columns=dates)
+    # Get most frequent label per track
+    labels_map = sp_df.groupby('artist_title')['label'].apply(lambda x: str(x.mode().iat[0]) if not x.dropna().empty else "Independent").to_dict() if (not sp_df.empty and "label" in sp_df.columns) else {}
+    
+    # iTunes
+    it_scores_p = it_df.pivot_table(index='artist_title', columns='date', values='metric', aggfunc='sum').reindex(columns=dates, fill_value=0) if not it_df.empty else pd.DataFrame(index=[], columns=dates)
+    it_ranks_p = it_df.pivot_table(index='artist_title', columns='date', values='rank', aggfunc='min').reindex(columns=dates) if not it_df.empty else pd.DataFrame(index=[], columns=dates)
 
     tracks: list[dict[str, Any]] = []
-    seen = set()
-    for track in sorted(set(sp_by_track) | set(it_by_track)):
-        if not track or track in seen:
-            continue
-        seen.add(track)
-        sp_group = sp_by_track.get(track, pd.DataFrame(columns=sp_df.columns))
-        it_group = it_by_track.get(track, pd.DataFrame(columns=it_df.columns))
+    all_track_titles = sorted(set(sp_streams_p.index) | set(it_scores_p.index))
+    
+    for track in all_track_titles:
+        if not track: continue
+        
         artist, title = _split_at(track)
-        label = "Independent"
-        if not sp_group.empty and "label" in sp_group.columns:
-            label_series = sp_group["label"].dropna()
-            if not label_series.empty:
-                label = str(label_series.mode().iat[0])
-        date_to_stream = {row["date"]: int(row["metric"] or 0) for _, row in sp_group.iterrows()}
-        date_to_sp_rank = {row["date"]: int(row["rank"]) for _, row in sp_group.iterrows()}
-        date_to_it_score = {row["date"]: int(row["metric"] or 0) for _, row in it_group.iterrows()}
-        date_to_it_rank = {row["date"]: int(row["rank"]) for _, row in it_group.iterrows()}
+        label = labels_map.get(track, "Independent")
 
-        sp_streams = [date_to_stream.get(d, 0) for d in dates]
-        sp_ranks = [date_to_sp_rank.get(d) if d in date_to_sp_rank else None for d in dates]
-        it_scores = [date_to_it_score.get(d, 0) for d in dates]
-        it_ranks = [date_to_it_rank.get(d) if d in date_to_it_rank else None for d in dates]
+        sp_streams = sp_streams_p.loc[track].tolist() if track in sp_streams_p.index else [0] * len(dates)
+        sp_ranks = [int(v) if pd.notna(v) else None for v in sp_ranks_p.loc[track]] if track in sp_ranks_p.index else [None] * len(dates)
+        it_scores = it_scores_p.loc[track].tolist() if track in it_scores_p.index else [0] * len(dates)
+        it_ranks = [int(v) if pd.notna(v) else None for v in it_ranks_p.loc[track]] if track in it_ranks_p.index else [None] * len(dates)
 
         has_sp = any(v > 0 for v in sp_streams)
         has_it = any(v > 0 for v in it_scores)

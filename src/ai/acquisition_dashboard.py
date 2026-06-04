@@ -111,6 +111,22 @@ def _load_daily(table: str, country: str, days: int) -> pd.DataFrame:
 
 
 @st.cache_data(ttl=300, show_spinner=False)
+def get_processed_artist_payloads(
+    universe_df: pd.DataFrame,
+    sp_artist_df: pd.DataFrame,
+    it_artist_df: pd.DataFrame,
+    sp_daily_df: pd.DataFrame,
+    it_daily_df: pd.DataFrame,
+    dates: list[date],
+) -> dict[str, dict]:
+    """
+    Cached wrapper for building artist payloads.
+    Caching the results of processing logic significantly improves dashboard responsiveness.
+    """
+    return _build_artist_payloads(universe_df, sp_artist_df, it_artist_df, sp_daily_df, it_daily_df, dates)
+
+
+@st.cache_data(ttl=300, show_spinner=False)
 def _load_artist_universe() -> pd.DataFrame:
     """Primary universe = artists ranked on iTunes WW on the latest scrape day (~300)."""
     query = """
@@ -226,9 +242,12 @@ def _build_artist_payloads(
     if universe_df.empty:
         return out
 
-    # Pre-group per-artist series (per artist NAME — universe and series share `name`)
-    sp_by_name = {n: g for n, g in sp_artist_df.groupby("name")} if not sp_artist_df.empty else {}
-    it_by_name = {n: g for n, g in it_artist_df.groupby("name")} if not it_artist_df.empty else {}
+    # ── Vectorized data prep ──
+    # Pivot dataframes instead of doing group-by lookups in a loop for massive speed gains
+    ml_pivot = sp_artist_df.pivot_table(index='name', columns='scrape_date', values='monthly_listeners', aggfunc='last').reindex(columns=dates) if not sp_artist_df.empty else pd.DataFrame(index=[], columns=dates)
+    
+    it_pts_pivot = it_artist_df.pivot_table(index='name', columns='scrape_date', values='total_points', aggfunc='last').reindex(columns=dates) if not it_artist_df.empty else pd.DataFrame(index=[], columns=dates)
+    it_rank_pivot = it_artist_df.pivot_table(index='name', columns='scrape_date', values='rank', aggfunc='last').reindex(columns=dates) if not it_artist_df.empty else pd.DataFrame(index=[], columns=dates)
 
     # Spotify chart presence (top tracks, label, best chart rank) is matched by display name.
     if not sp_daily_df.empty:
@@ -242,12 +261,11 @@ def _build_artist_payloads(
             continue
 
         # ── Spotify monthly_listeners trajectory ──
-        ml_g = sp_by_name.get(artist)
-        if ml_g is not None and not ml_g.empty:
-            ml_map = dict(zip(ml_g["scrape_date"], ml_g["monthly_listeners"]))
+        if artist in ml_pivot.index:
+            ml_series_raw = [int(v) if pd.notna(v) else None for v in ml_pivot.loc[artist]]
         else:
-            ml_map = {}
-        ml_series_raw = [int(ml_map[d]) if ml_map.get(d) is not None and pd.notna(ml_map.get(d)) else None for d in dates]
+            ml_series_raw = [None] * len(dates)
+
         # Drop scraper-format outliers: any point < 25% of the series max is likely a metric discontinuity
         peak_ml_raw = max([v for v in ml_series_raw if v is not None] or [0])
         threshold = peak_ml_raw * 0.25 if peak_ml_raw else 0
@@ -260,18 +278,20 @@ def _build_artist_payloads(
         peak_vs_start = ((peak_ml - first_ml) / first_ml * 100) if first_ml else 0.0
 
         # ── iTunes WW per-artist trajectory ──
-        it_g = it_by_name.get(artist)
-        if it_g is not None and not it_g.empty:
-            it_pts_map = dict(zip(it_g["scrape_date"], it_g["total_points"]))
-            it_rank_map = dict(zip(it_g["scrape_date"], it_g["rank"]))
+        if artist in it_pts_pivot.index:
+            it_scores = [int(v) if pd.notna(v) else 0 for v in it_pts_pivot.loc[artist]]
+            it_ranks = [int(v) if pd.notna(v) else None for v in it_rank_pivot.loc[artist]]
+            # For best_it_date logic
+            it_pts_row = it_pts_pivot.loc[artist].dropna()
+            best_it_date = it_pts_row.idxmax() if not it_pts_row.empty else None
         else:
-            it_pts_map, it_rank_map = {}, {}
-        it_scores = [int(it_pts_map[d]) if it_pts_map.get(d) is not None and pd.notna(it_pts_map.get(d)) else 0 for d in dates]
-        it_ranks = [int(it_rank_map[d]) if it_rank_map.get(d) is not None and pd.notna(it_rank_map.get(d)) else None for d in dates]
+            it_scores = [0] * len(dates)
+            it_ranks = [None] * len(dates)
+            best_it_date = None
+
         ranks_clean = [r for r in it_ranks if r is not None]
         best_it_rank = min(ranks_clean) if ranks_clean else None
         best_it_score = max([s for s in it_scores if s > 0], default=0)
-        best_it_date = max(it_pts_map, key=lambda d: it_pts_map[d]) if it_pts_map else None
 
         # ── Spotify chart presence (top tracks / label / best chart rank) ──
         sp_d = sp_daily_by_artist.get(artist)
@@ -469,7 +489,7 @@ def render_acquisition() -> None:
       st.warning("No dates found in window.")
       return
 
-    artist_data = _build_artist_payloads(universe_df, sp_artist_df, it_artist_df, sp_df, it_df, dates)
+    artist_data = get_processed_artist_payloads(universe_df, sp_artist_df, it_artist_df, sp_df, it_df, dates)
     if not artist_data:
       st.warning("No artist signals could be computed.")
       return
@@ -939,21 +959,40 @@ def prefetch_acquisition_data() -> None:
     """Warms up the cache for all three Acquisition dashboards (Artist, Track, and Album) in the background."""
     try:
         # Artist Acquisition Prep
-        _load_daily("spotify_daily", "global", WINDOW_DAYS)
-        _load_daily("itunes_daily", "ww", WINDOW_DAYS)
+        sp_df = _load_daily("spotify_daily", "global", WINDOW_DAYS)
+        it_df = _load_daily("itunes_daily", "ww", WINDOW_DAYS)
         _load_artist_universe()
-        _load_spotify_artist_series(WINDOW_DAYS)
-        _load_itunes_artist_series(WINDOW_DAYS)
+        sp_artist_df = _load_spotify_artist_series(WINDOW_DAYS)
+        it_artist_df = _load_itunes_artist_series(WINDOW_DAYS)
+
+        # Pre-build dates and payloads
+        date_set = set()
+        if not sp_artist_df.empty: date_set.update(sp_artist_df["scrape_date"].unique())
+        if not it_artist_df.empty: date_set.update(it_artist_df["scrape_date"].unique())
+        dates = sorted(date_set)
+        if dates:
+            universe_df = _load_artist_universe()
+            get_processed_artist_payloads(universe_df, sp_artist_df, it_artist_df, sp_df, it_df, dates)
         
         # Track Acquisition Prep
         from src.ai.track_acquisition_dashboard import _load_window_multi as load_track_multi
         from src.ai.track_acquisition_dashboard import _load_window as load_track_window
+        from src.ai.track_acquisition_dashboard import get_processed_track_rows
         latam_codes = ["ar", "bo", "br", "cl", "co", "cr", "do", "ec", "sv", "gt", "hn", "mx", "ni", "pa", "pe", "py", "uy", "ve"]
-        load_track_multi("spotify_daily", ["global", "us"] + latam_codes, 30)
-        load_track_window("itunes_daily", "ww", 30)
+        all_codes = ["global", "us"] + latam_codes
+        sp_all_df = load_track_multi("spotify_daily", all_codes, 30)
+        it_track_df = load_track_window("itunes_daily", "ww", 30)
+        if not sp_all_df.empty:
+            track_dates = sorted(set(sp_all_df["date"]))
+            get_processed_track_rows(sp_all_df[sp_all_df["country"] == "global"], it_track_df, track_dates, region="Global")
+            get_processed_track_rows(sp_all_df[sp_all_df["country"] == "us"], it_track_df, track_dates, region="US")
         
         # Album Acquisition Prep
         from src.ai.album_acquisition_dashboard import _load_window_multi as load_album_multi
-        load_album_multi("itunes_artist_album", ["ww", "us"] + latam_codes, 30)
+        from src.ai.album_acquisition_dashboard import get_processed_album_rows
+        album_all_df = load_album_multi("itunes_artist_album", ["ww", "us"] + latam_codes, 30)
+        if not album_all_df.empty:
+            album_dates = sorted(set(album_all_df["date"]))
+            get_processed_album_rows(album_all_df[album_all_df["country"] == "ww"], pd.DataFrame(), album_dates, region="Global")
     except Exception as e:
         logger.error(f"Error prefetching acquisition data: {e}")
