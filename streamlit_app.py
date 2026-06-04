@@ -1666,6 +1666,9 @@ def show_artist_details_dialog(row: pd.Series) -> None:
                             <div class="dlg-panel">
                                 <div class="dlg-panel-header">🎵 Top Tracks · Spotify Global</div>
                                 <div class="dlg-panel-body">
+                                    <div style="font-size: 0.82rem; color: {dlg_text2}; margin: 0 0 14px; line-height: 1.4; font-weight: 500;">
+                                        Strategic analysis of lead track velocity and total consumption volume across the Spotify Global ecosystem.
+                                    </div>
                                     <div class="dlg-trk-row" style="border-bottom:1px solid {dlg_divider};font-size:.7rem;color:{dlg_text2};text-transform:uppercase;letter-spacing:.06em;font-weight:700;">
                                         <span style="text-align:center;">#</span><span>Track</span><span style="text-align:right;">Streams</span><span style="text-align:right;">Best</span>
                                     </div>
