@@ -437,27 +437,26 @@ def _fmt_n(n: float | int | None) -> str:
 
 def render_acquisition() -> None:
     st.markdown(
-        "<div style='font-size:1.1rem;color:#97a3c5;margin:0.2rem 0 0.75rem 0;line-height:1.5;'>"
-        "Evaluate artist-level acquisition potential by analyzing cross-platform performance metrics. "
-        "This dashboard combines daily streaming data from Spotify Global "
-        "with iTunes Worldwide chart movements to compute an overall Acquisition Score. "
-        "Use the filtering tools and trajectory insights to identify breakout artists with strong growth and momentum."
-        "</div>",
-        unsafe_allow_html=True,
+      "<div style='font-size: 0.92rem; color: var(--t2); margin: 0 0 14px; line-height: 1.5; font-weight: 500;'>"
+      "🎤 Artist-level acquisition recommendations driven by peak Spotify monthly listeners, iTunes Worldwide performance, "
+      "and recent audience momentum."
+      "</div>",
+      unsafe_allow_html=True,
     )
 
     period_days = 30
 
-    sp_df = _load_daily("spotify_daily", "global", period_days)
-    it_df = _load_daily("itunes_daily", "ww", period_days)
+    sp_df = _load_daily("spotify_daily", "global", 30)
+    it_df = _load_daily("itunes_daily", "ww", 30)
     universe_df = _load_artist_universe()
-    sp_artist_df = _load_spotify_artist_series(period_days)
-    it_artist_df = _load_itunes_artist_series(period_days)
+    sp_artist_df = _load_spotify_artist_series(30)
+    it_artist_df = _load_itunes_artist_series(30)
 
     if universe_df.empty:
       st.warning("No iTunes artist rankings available — cannot build acquisition universe.")
       return
 
+    # X-axis dates = union of distinct scrape_dates across the per-artist series
     date_set = set()
     if not sp_artist_df.empty:
       date_set.update(sp_artist_df["scrape_date"].unique())
@@ -475,520 +474,477 @@ def render_acquisition() -> None:
       st.warning("No artist signals could be computed.")
       return
 
-    date_labels = [d.strftime("%b %d") for d in dates]
-    
-    artists_list = []
-    for i, (name, data) in enumerate(artist_data.items()):
-        data["id"] = i + 1
-        data["name"] = name
-        artists_list.append(data)
-        
-    artists_list.sort(key=lambda x: x["acqScore"], reverse=True)
+    # Leaderboard sorted by acquisition score
+    leaderboard = sorted(
+        [
+            {
+                "n": name,
+                "score": d["acqScore"],
+                "momentum": (f"+{d['momentum']}%" if d["momentum"] >= 0 else f"{d['momentum']}%"),
+                "signal": "BUY" if "BUY" in d["signal"] else ("CAUTION" if "CAUT" in d["signal"] else "WATCH"),
+            }
+            for name, d in artist_data.items()
+        ],
+        key=lambda r: r["score"],
+        reverse=True,
+    )
 
-    default_id = artists_list[0]["id"] if artists_list else None
+    # Momentum chart data — top 20 by abs momentum
+    momentum_data = sorted(
+        [{"n": name, "m": d["momentum"]} for name, d in artist_data.items()],
+        key=lambda r: r["m"],
+        reverse=True,
+    )[:20]
+
+
+    date_labels = [d.strftime("%b %d") for d in dates]
+
+    # Default selected = top of leaderboard
+    default_artist = leaderboard[0]["n"] if leaderboard else next(iter(artist_data))
 
     payload = {
         "dates": date_labels,
-        "artists": artists_list,
-        "defaultArtistId": default_id,
-        "maxWindowDays": period_days,
-        "regionLabel": "Spotify Global",
+        "artists": artist_data,
+        "leaderboard": leaderboard,
+        "momentum": momentum_data,
+        "defaultArtist": default_artist,
+        "allArtists": list(artist_data.keys()),
+        "maxWindowDays": 30,
     }
-    
-    with st.expander("ℹ️ How is the Acquisition Score calculated?"):
-        st.markdown(
-            "The **Acquisition Score (0-100)** is a composite metric evaluating an artist's market potential. It is calculated using:\n"
-            "- **Peak Listeners (30%)**: Scaled based on daily volume.\n"
-            "- **Best Rank (40%)**: Spotify Global/iTunes chart peak.\n"
-            "- **Momentum (20%)**: Trajectory of listener growth and rank delta.\n"
-            "- **iTunes Bonus (10%)**: Cross-platform validation from iTunes WW charts.\n\n"
-            "👉 **Interactive Analysis**: Select any artist from the leaderboard to instantly load their detailed acquisition profile, including stream trajectories and specific market signals."
-        )
-        st.markdown(
-            """
-            <style>
-            [data-testid="stExpander"] {
-                border: 2px solid var(--border) !important;
-                border-radius: 12px !important;
-                background-color: var(--surface) !important;
-                overflow: hidden !important;
-            }
-            [data-testid="stExpander"] summary {
-                background-color: var(--surface2) !important;
-                border-bottom: 1px solid var(--border) !important;
-            }
-            [data-testid="stExpander"] summary p {
-                font-family: 'Inter', system-ui, sans-serif !important;
-                font-weight: 600 !important;
-                font-size: 15px !important;
-                color: var(--text) !important;
-            }
-            [data-testid="stExpander"] .stMarkdown p, 
-            [data-testid="stExpander"] .stMarkdown li {
-                font-family: 'Inter', system-ui, sans-serif !important;
-                font-size: 14px !important;
-                color: var(--text2) !important;
-                line-height: 1.6 !important;
-            }
-            </style>
-            """,
-            unsafe_allow_html=True,
-        )
 
-    html = _build_html(payload, dark_mode=st.session_state.get("dark_mode", True))
-    st_components.html(html, height=750, scrolling=True)
+    html = _build_html(payload, dark_mode=st.session_state.get("dark_mode", False))
+    st_components.html(html, height=1700, scrolling=True)
 
+
+# ───────────────────────── HTML ──────────────────────────
 
 def _build_html(payload: dict, dark_mode: bool = False) -> str:
     data_json = json.dumps(payload, default=str)
     theme_css = _THEME_DARK if dark_mode else _THEME_LIGHT
-    body_class = "dark" if dark_mode else "light"
     return """
-<!DOCTYPE html><html><head><meta charset='utf-8'>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <!DOCTYPE html><html><head><meta charset='utf-8'>
 <style>
+*{box-sizing:border-box;margin:0;padding:0}
 __THEME__
-:root {
-  --color-background-primary: var(--bg2);
-  --color-background-secondary: var(--bg3);
-  --color-border-secondary: var(--border2);
-  --color-border-tertiary: var(--border);
-  --color-text-primary: var(--t1);
-  --color-text-secondary: var(--t2);
-  --color-text-tertiary: var(--t3);
-  --border-radius-md: 6px;
-  --border-radius-lg: 10px;
-  --font-sans: 'Inter', system-ui, sans-serif;
-}
+body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t1);font-size:16px;line-height:1.55}
+.hdr{background:linear-gradient(180deg,#1a2235 0%,var(--bg2) 100%);border-bottom:1px solid var(--border);padding:20px 24px 16px;display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:14px}
+.brand{font-size:13px;color:var(--t3);letter-spacing:1.4px;text-transform:uppercase;display:flex;align-items:center;gap:8px;margin-bottom:6px;font-weight:700}
+.live-dot{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);animation:blink 2s infinite;flex-shrink:0}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.4}}
+.dash-title{font-size:28px;font-weight:800;letter-spacing:-.5px;color:var(--t1)}
+.dash-sub{font-size:14px;color:var(--t2);letter-spacing:.3px;margin-top:4px;font-weight:600}
+.fy-pill{font-size:10px;color:var(--t2);background:var(--bg3);border:1px solid var(--border2);padding:5px 12px;border-radius:20px;font-weight:500;letter-spacing:.3px}
 
-* { box-sizing: border-box; margin: 0; padding: 0; }
-body { background: var(--bg); font-family: var(--font-sans); color: var(--t1); -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+.selector-bar{background:var(--bg2);border-bottom:1px solid var(--border);padding:14px 24px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;position:relative;z-index:50}
+.sel-label{font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.8px;font-weight:700;white-space:nowrap}
+.dd-wrap{position:relative;flex:1;max-width:420px}
+.dd-trigger{width:100%;display:flex;align-items:center;gap:10px;padding:9px 14px;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;cursor:pointer;color:var(--t1);font-size:13px;font-weight:500;transition:.15s}
+.dd-trigger:hover{border-color:var(--blue);background:var(--bg4)}
+.dd-trigger.open{border-color:var(--blue);box-shadow:0 0 0 3px rgba(96,165,250,.15)}
+.dd-av{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;flex-shrink:0}
+.dd-current{flex:1;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dd-arrow{font-size:11px;color:var(--t3);transition:transform .15s}
+.dd-trigger.open .dd-arrow{transform:rotate(180deg)}
+.dd-panel{position:absolute;top:calc(100% + 6px);left:0;right:0;background:var(--bg2);border:1px solid var(--border2);border-radius:10px;box-shadow:0 12px 40px rgba(0,0,0,.55);max-height:380px;display:none;flex-direction:column;overflow:hidden;z-index:100}
+.dd-panel.open{display:flex}
+.dd-search-wrap{padding:10px;border-bottom:1px solid var(--border)}
+.dd-search{width:100%;padding:8px 12px;background:var(--bg3);border:1px solid var(--border2);border-radius:6px;color:var(--t1);font-size:13px;outline:none}
+.dd-search:focus{border-color:var(--blue)}
+.dd-list{flex:1;overflow-y:auto;padding:4px 0}
+.dd-opt{display:flex;align-items:center;gap:10px;padding:8px 14px;cursor:pointer;color:var(--t2);font-size:13px;transition:.1s}
+.dd-opt:hover{background:var(--bg3);color:var(--t1)}
+.dd-opt.on{background:rgba(96,165,250,.12);color:var(--t1);font-weight:600}
+.dd-opt-meta{font-size:10px;color:var(--t3);margin-left:auto;font-variant-numeric:tabular-nums}
+.dd-empty{padding:18px;text-align:center;color:var(--t3);font-size:12px}
 
-.dash-wrapper { display: flex; flex-direction: column; gap: 12px; height: 100vh; padding: 12px 16px; overflow: hidden; }
-.dash { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; flex: 1; min-height: 0; }
+.body{padding:20px 22px;display:flex;flex-direction:column;gap:18px}
 
-.left-col { display: flex; flex-direction: column; gap: 12px; overflow: hidden; }
+.acq-card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.25)}
+.acq-card.buy{border-top:3px solid var(--green)}
+.acq-card.watch{border-top:3px solid var(--blue)}
+.acq-card.caution{border-top:3px solid var(--red)}
+.acq-header{padding:20px 22px 16px;border-bottom:1px solid var(--border)}
+.acq-meta{font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.7px;margin-bottom:8px;font-weight:600}
+.acq-row{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:14px}
+.acq-left{flex:1;min-width:240px}
+.acq-id-row{display:flex;align-items:center;gap:14px;margin-bottom:6px}
+.acq-avatar{width:46px;height:46px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;flex-shrink:0}
+.acq-name{font-size:26px;font-weight:800;letter-spacing:-.5px;line-height:1.2;color:var(--t1)}
+.acq-sublabel{font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.7px;margin-top:3px;font-weight:600}
+.acq-quote{font-size:15px;color:var(--t2);line-height:1.65;border-left:2px solid var(--border2);padding-left:14px;margin-top:12px}
+.signal-badge{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;padding:7px 14px;border-radius:6px;letter-spacing:.5px;text-transform:uppercase;white-space:nowrap}
+.sb-buy{background:var(--gd);color:var(--green);border:1px solid rgba(52,211,153,.4)}
+.sb-watch{background:var(--bd);color:var(--blue);border:1px solid rgba(96,165,250,.4)}
+.sb-caution{background:var(--rd);color:var(--red);border:1px solid rgba(251,113,133,.4)}
 
-.filters { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; flex-shrink: 0; width: calc(50% - 8px); }
-.filter-btn { font-size: 12px; padding: 5px 12px; border-radius: 999px; border: 0.5px solid var(--color-border-secondary); background: var(--color-background-primary); color: var(--color-text-secondary); cursor: pointer; transition: all .15s; }
-.filter-btn.active { background: #185FA5; color: #E6F1FB; border-color: #185FA5; }
-.filter-tag { display: flex; align-items: center; font-size: 14px; padding: 8px 16px; border-radius: 999px; background: var(--color-background-secondary); color: var(--color-text-secondary); border: 1px solid var(--color-border-tertiary); cursor: pointer; }
-.filter-tag select { background: transparent; border: none; color: inherit; font-size: inherit; font-family: inherit; outline: none; cursor: pointer; }
+.stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border);border-top:1px solid var(--border)}
+.stat-cell{background:var(--bg2);padding:16px 18px;transition:.15s}
+.stat-cell:hover{background:var(--bg3)}
+.stat-lbl{font-size:12px;color:var(--t3);text-transform:uppercase;letter-spacing:.7px;margin-bottom:7px;font-weight:800}
+.stat-val{font-size:26px;font-weight:800;letter-spacing:-.5px;color:var(--t1);font-variant-numeric:tabular-nums}
+.stat-val.g{color:var(--green)}.stat-val.r{color:var(--red)}.stat-val.b{color:var(--blue)}.stat-val.p{color:var(--purple)}.stat-val.a{color:var(--amber)}
+.stat-sub{font-size:11px;color:var(--t2);margin-top:5px;font-weight:500}
+.stat-sub.g{color:var(--green)}.stat-sub.r{color:var(--red)}
 
-.track-table { background: var(--color-background-primary); border: 2px solid var(--color-border-secondary); border-radius: var(--border-radius-lg); overflow: hidden; display: flex; flex-direction: column; flex: 1; min-height: 0; transition: border-color 0.2s; }
-.track-table:hover { border-color: #E24B4A; }
-.track-header { display: grid; grid-template-columns: 28px 1fr 56px 72px 72px 52px; gap: 8px; padding: 9px 14px; border-bottom: 0.5px solid var(--color-border-tertiary); background: var(--color-background-secondary); flex-shrink: 0; }
-.track-header span { font-size: 11px; color: var(--color-text-tertiary); font-weight: 500; text-transform: uppercase; letter-spacing: .04em; cursor: pointer; text-align: left; }
-.track-header .col-r { text-align: right; }
+.charts-row{display:grid;grid-template-columns:1.8fr 1fr;gap:16px}
+.chart-card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:18px 20px}
+.chart-ttl{font-size:12px;font-weight:600;color:var(--t2);letter-spacing:.4px;margin-bottom:14px;text-transform:uppercase;padding-bottom:10px;border-bottom:1px solid var(--border)}
+.cw{position:relative;width:100%}
 
-.track-body { overflow-y: auto; flex: 1; }
-.track-body::-webkit-scrollbar { width: 5px; }
-.track-body::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 5px; }
+.track-list{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:18px 20px}
+.trk-hdr{display:grid;gap:8px;padding:6px 0;border-bottom:1px solid var(--border2);margin-bottom:4px}
+.trk-hdr span{font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.6px;font-weight:600}
+.trk{display:grid;gap:8px;padding:11px 0;border-bottom:1px solid var(--border);align-items:center}
+.trk:last-child{border-bottom:none}
+.trk-rank{font-size:12px;color:var(--t3);text-align:center;font-weight:600}
+.trk-name{font-size:13px;font-weight:600;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:-.1px}
+.trk-val{font-size:13px;color:var(--t2);text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums;font-weight:500}
 
-.track-row { display: grid; grid-template-columns: 28px 1fr 56px 72px 72px 52px; gap: 8px; padding: 9px 14px; border-bottom: 0.5px solid var(--color-border-tertiary); align-items: center; cursor: pointer; transition: background .1s; }
-.track-row:last-child { border-bottom: none; }
-.track-row:hover { background: var(--color-background-secondary); }
-.track-row.selected { background: #E6F1FB; }
-.dark .track-row.selected { background: #042C53; }
+.signals-card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:18px 20px}
+.sig-row{display:flex;align-items:flex-start;gap:14px;padding:12px 0;border-bottom:1px solid var(--border)}
+.sig-row:last-child{border-bottom:none}
+.sig-icon{font-size:20px;flex-shrink:0;margin-top:1px}
+.sig-title{font-size:13px;font-weight:600;color:var(--t1);margin-bottom:3px;letter-spacing:-.1px}
+.sig-desc{font-size:12px;color:var(--t2);line-height:1.55}
 
-.sr-num { font-size: 12px; color: var(--color-text-tertiary); text-align: center; }
-.track-info { min-width: 0; text-align: left; display: flex; align-items: center; gap: 8px; }
-.track-av { width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;flex-shrink:0; }
-.track-name { font-size: 13px; font-weight: 500; color: var(--color-text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.leader-card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:18px 20px;max-height:560px;overflow-y:auto}
+.leader-row{display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid var(--border);cursor:pointer;transition:.12s;border-radius:6px}
+.leader-row:last-child{border-bottom:none}
+.leader-row:hover{background:var(--bg3);margin:0 -8px;padding:9px 8px}
+.leader-row.on{background:rgba(96,165,250,.1);margin:0 -8px;padding:9px 8px}
+.leader-rank{font-size:12px;color:var(--t3);min-width:22px;text-align:center;font-weight:700}
+.leader-av{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0}
+.leader-name{flex:1;font-size:13px;font-weight:600;color:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.score-bar-bg{height:4px;background:var(--bg4);border-radius:3px;margin-top:4px;overflow:hidden}
+.score-bar-fg{height:4px;border-radius:3px;transition:width .4s}
 
-.col-r { text-align: right; }
-.streams-val { font-size: 12px; color: var(--color-text-primary); font-weight: 500; font-variant-numeric: tabular-nums; }
-.momentum-val { font-size: 12px; font-weight: 500; font-variant-numeric: tabular-nums; }
-.momentum-pos { color: #1D9E75; }
-.momentum-neg { color: #E24B4A; }
-.momentum-flat { color: var(--color-text-secondary); }
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px}
 
-.acq-pill { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 20px; border-radius: 999px; font-size: 11px; font-weight: 500; }
-.acq-hi { background: #EAF3DE; color: #3B6D11; }
-.acq-mid { background: #E6F1FB; color: #185FA5; }
-.acq-lo { background: #F1EFE8; color: #5F5E5A; }
+.sh{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--border)}
+.sh-l{font-size:14px;font-weight:600;color:var(--t1);letter-spacing:-.2px}
+.sh-r{font-size:11px;color:var(--t2);background:var(--bg3);padding:5px 12px;border-radius:5px;border:1px solid var(--border2);font-weight:500}
 
-.right-col { display: flex; flex-direction: column; gap: 12px; overflow-y: auto; padding-right: 4px; }
-.right-col::-webkit-scrollbar { width: 5px; }
-.right-col::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 5px; }
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-track{background:var(--bg2)}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:4px}
+::-webkit-scrollbar-thumb:hover{background:var(--t4)}
+</style></head><body>
 
-.detail-card { background: var(--color-background-primary); border: 2px solid var(--color-border-secondary); border-radius: var(--border-radius-lg); padding: 16px; flex-shrink: 0; transition: border-color 0.2s; }
-.detail-card:hover { border-color: #E24B4A; }
-
-.detail-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 12px; }
-.detail-title-row { display: flex; align-items: center; gap: 10px; }
-.detail-title { font-size: 17px; font-weight: 500; color: var(--color-text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 200px; }
-.detail-badges { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
-.badge { font-size: 10px; padding: 3px 8px; border-radius: 4px; border: 0.5px solid var(--color-border-secondary); color: var(--color-text-secondary); background: var(--color-background-secondary); }
-.badge.active-b { background: #E6F1FB; color: #185FA5; border-color: #B5D4F4; }
-
-.acq-score-big { font-size: 40px; font-weight: 500; color: var(--color-text-primary); line-height: 1; }
-.acq-label { font-size: 11px; color: var(--color-text-secondary); margin-top: 3px; }
-.acq-rank { font-size: 11px; color: var(--color-text-tertiary); margin-top: 2px; }
-
-.stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
-.stat-box { background: var(--color-background-secondary); border-radius: var(--border-radius-md); padding: 10px 12px; border: 2px solid var(--color-border-secondary); transition: border-color 0.2s; }
-.stat-box:hover { border-color: #E24B4A; }
-.stat-label { font-size: 10px; color: var(--color-text-tertiary); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 4px; }
-.stat-value { font-size: 16px; font-weight: 500; color: var(--color-text-primary); font-variant-numeric: tabular-nums; }
-.stat-sub { font-size: 10px; color: var(--color-text-secondary); margin-top: 2px; }
-.stat-value.pos { color: #1D9E75; }
-.stat-value.neg { color: #E24B4A; }
-
-.chart-section { margin-bottom: 4px; }
-.chart-label { font-size: 11px; color: var(--color-text-secondary); margin-bottom: 6px; font-weight: 500; }
-.chart-wrap { position: relative; width: 100%; height: 130px; }
-
-.signals-section { }
-.signals-label { font-size: 11px; color: var(--color-text-secondary); font-weight: 500; margin-bottom: 8px; text-transform: uppercase; letter-spacing: .04em; }
-.signal-row { display: flex; gap: 10px; align-items: flex-start; padding: 8px 0; border-bottom: 0.5px solid var(--color-border-tertiary); }
-.signal-row:last-child { border-bottom: none; }
-.signal-icon { font-size: 16px; margin-top: 1px; flex-shrink: 0; }
-.signal-text strong { font-size: 12px; font-weight: 500; color: var(--color-text-primary); display: block; }
-.signal-text span { font-size: 11px; color: var(--color-text-secondary); line-height: 1.4; }
-
-#searchInput { background: transparent; border: none; color: inherit; outline: none; width: 180px; font-family: inherit; font-size: inherit; }
-#searchInput::placeholder { color: var(--color-text-tertiary); }
-
-.empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 300px; color: var(--color-text-tertiary); text-align: center; gap: 8px; }
-</style>
-</head><body class="__BODY_CLASS__">
-
-<h2 class="sr-only" style="display:none;">Music acquisition analytics dashboard showing top artists by acquisition score, listeners, and momentum</h2>
-
-<div class="dash-wrapper">
-  <div class="filters">
-      <span style="display:flex; gap:8px; align-items:center;">
-        <span class="filter-tag">
-            <input type="text" id="searchInput" placeholder="Search..." oninput="applyFilters()">
-        </span>
-        <span class="filter-tag">
-          <select id="windowSel" onchange="setTimeWindow(this.value)">
-            <option value="All">All Time</option>
-            <option value="7">7 Days</option>
-            <option value="14">14 Days</option>
-            <option value="30" selected>30 Days</option>
-          </select>
-        </span>
-        <span class="filter-tag" id="count-badge">0 artists</span>
-      </span>
-  </div>
-
-<div class="dash">
-  <div class="left-col">
-    <div class="track-table">
-      <div class="track-header">
-        <span>#</span>
-        <span onclick="setSort('name')">Artist</span>
-        <span class="col-r" onclick="setSort('rank')">Best Rank</span>
-        <span class="col-r" onclick="setSort('listeners')">Listeners</span>
-        <span class="col-r" onclick="setSort('momentum')">Momentum</span>
-        <span class="col-r" onclick="setSort('acq')">Score</span>
-      </div>
-      <div class="track-body" id="track-table">
-        <!-- Artists rendered here -->
-      </div>
+<div class="selector-bar">
+  <span class="sel-label">Select artist</span>
+  <div class="dd-wrap" id="dd-wrap">
+    <div class="dd-trigger" id="dd-trigger">
+      <div class="dd-av" id="dd-av">--</div>
+      <div class="dd-current" id="dd-current">—</div>
+      <span class="dd-arrow">▼</span>
+    </div>
+    <div class="dd-panel" id="dd-panel">
+      <div class="dd-search-wrap"><input class="dd-search" id="dd-search" placeholder="Search artists..." autocomplete="off"></div>
+      <div class="dd-list" id="dd-list"></div>
     </div>
   </div>
-
-  <div class="right-col" id="detail-panel">
-    <div class="detail-card">
-      <div class="detail-header">
-        <div>
-          <div class="detail-title-row">
-            <div id="d-av" class="track-av" style="display:none;"></div>
-            <div class="detail-title" id="d-title">Select Artist</div>
-          </div>
-          <div class="detail-badges" id="d-badges">
-          </div>
-        </div>
-        <div style="text-align:right;">
-          <div class="acq-score-big" id="d-score">—</div>
-          <div class="acq-label">Acq. Score</div>
-          <div class="acq-rank" id="d-rank">—</div>
-        </div>
-      </div>
-
-      <div class="stats-grid">
-        <div class="stat-box">
-          <div class="stat-label">Best Rank</div>
-          <div class="stat-value" id="d-rank-val">—</div>
-          <div class="stat-sub" id="d-rank-sub">Global</div>
-        </div>
-        <div class="stat-box">
-          <div class="stat-label">Peak Listeners</div>
-          <div class="stat-value" id="d-listeners">—</div>
-          <div class="stat-sub" id="d-listeners-sub">—</div>
-        </div>
-        <div class="stat-box">
-          <div class="stat-label">Momentum</div>
-          <div class="stat-value" id="d-momentum">—</div>
-          <div class="stat-sub">Window change</div>
-        </div>
-        <div class="stat-box">
-          <div class="stat-label">Days Tracked</div>
-          <div class="stat-value" id="d-days">—</div>
-          <div class="stat-sub">Window days</div>
-        </div>
-      </div>
-
-      <div class="chart-section" id="d-chart-section" style="display:none">
-        <div class="chart-label">Monthly Listeners Trajectory</div>
-        <div class="chart-wrap">
-          <canvas id="trajChart" role="img" aria-label="Trajectory chart"></canvas>
-        </div>
-        <div style="display:flex;gap:16px;margin-top:6px;">
-          <span style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--color-text-secondary)"><span style="width:16px;height:2px;background:#378ADD;display:inline-block;border-radius:1px"></span>Listeners</span>
-        </div>
-      </div>
-      
-      <div class="chart-section" id="d-it-chart-section" style="display:none; margin-top: 12px;">
-        <div class="chart-label">iTunes Trajectory</div>
-        <div class="chart-wrap">
-          <canvas id="itTrajChart" role="img" aria-label="iTunes Trajectory chart"></canvas>
-        </div>
-        <div style="display:flex;gap:16px;margin-top:6px;">
-          <span style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--color-text-secondary)"><span style="width:16px;height:2px;background:#a78bfa;display:inline-block;border-radius:1px"></span>Score</span>
-        </div>
-      </div>
-
-      <div id="d-signals-card" style="display:none; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--color-border-tertiary);">
-        <div class="signals-label">Acquisition Signals</div>
-        <div id="d-signals">
-          <!-- Signals here -->
-        </div>
-      </div>
-    </div>
-    
-    <div id="empty-state" class="empty-state">
-        <div style="font-size:28px">↑</div>
-        <div style="font-size:12px">Select an artist from the list<br>to view their acquisition profile</div>
-    </div>
+  <div class="filter-grp" style="margin-left:12px">
+    <button class="fp" onclick="setTimeWindow('1 Day',this)">1 Day</button>
+    <button class="fp" onclick="setTimeWindow('7 Days',this)">7 Days</button>
+    <button class="fp on" onclick="setTimeWindow('30 Days',this)">30 Days</button>
   </div>
-</div>
+  <span class="sel-label" style="margin-left:auto;color:var(--t2)" id="dd-count"></span>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<div class="body">
+
+  <div class="two-col">
+    <div class="track-list">
+      <div class="sh"><span class="sh-l" id="tracks-title">Top tracks · Spotify Global</span><span class="sh-r">By total streams</span></div>
+      <div class="trk-hdr" style="grid-template-columns:30px 1fr 80px 64px 50px">
+        <span></span><span>Track</span><span style="text-align:right">Streams</span><span style="text-align:right">Best Rank</span><span style="text-align:right">Days</span>
+      </div>
+      <div id="tracks-list"></div>
+    </div>
+
+    <div class="signals-card">
+      <div class="sh"><span class="sh-l">Why this artist · signals</span></div>
+      <div id="five-signals"></div>
+    </div>
+  </div>
+
+    <div class="leader-card">
+    <div class="sh"><span class="sh-l">Acquisition leaderboard · all artists ranked</span><span class="sh-r">Composite score</span></div>
+    <div style="font-size:15px;color:var(--t2);margin-bottom:14px;line-height:1.7">
+      <b>How is this calculated?</b><br>
+      Artists are ranked by a composite acquisition score, combining Spotify monthly listeners, iTunes worldwide chart performance, number of tracks charting, and recent momentum. The score reflects cross-platform commercial signals and is updated daily.
+    </div>
+    <div id="leaderboard"></div>
+  </div>
+
+</div>
+
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
 <script>
-const ORIGINAL_PAYLOAD = __PAYLOAD__;
-const ORIGINAL_DATES = ORIGINAL_PAYLOAD.dates || [];
-let ORIGINAL_ARTISTS = ORIGINAL_PAYLOAD.artists || [];
-const DATES = ORIGINAL_DATES;
+const PAYLOAD = __PAYLOAD__;
+const DATES = PAYLOAD.dates;
+const ARTISTS = PAYLOAD.artists;
+const ALL_ARTISTS = PAYLOAD.allArtists;
+let LEADERBOARD = PAYLOAD.leaderboard;
+const MOMENTUM_DATA = PAYLOAD.momentum;
 
-let PAYLOAD = JSON.parse(JSON.stringify(ORIGINAL_PAYLOAD));
-let ARTISTS = JSON.parse(JSON.stringify(ORIGINAL_ARTISTS));
+let currentTimeWindowDays = 30;
 
-let currentSort = 'acq';
-let currentTimeWindowDays = ORIGINAL_PAYLOAD.maxWindowDays;
-let selectedId = PAYLOAD.defaultArtistId;
-let trajChartInst = null;
-let itTrajChartInst = null;
+document.getElementById('dd-count').textContent = ALL_ARTISTS.length + ' artists tracked';
 
-// Acq Score is calculated in Python in this dashboard
-function recalculateArtistMetrics(artist, windowDays, fullDates) {
-    const startIndex = Math.max(0, fullDates.length - windowDays);
-    const slicedSpStreams = artist.originalSpStreams.slice(startIndex);
-    const slicedItScores = artist.originalItScores.slice(startIndex);
+let currentArtist=null;
+function fmtN(n){if(!n)return'—';const a=Math.abs(n);if(a>=1e6)return(n/1e6).toFixed(1)+'M';if(a>=1e3)return(n/1e3).toFixed(0)+'K';return n.toString();}
+
+function _jsAcqScore(peakMl, bestItRank, trackCount, bestSpRank, momentum) {
+    const mlScore = Math.min(100, Math.floor(peakMl / 1000000));
+    const itunesBonus = bestItRank ? Math.max(0, 60 - bestItRank) : 0;
+    const chartBonus = Math.min(40, trackCount * 4) + (bestSpRank ? Math.max(0, 50 - bestSpRank) : 0);
+    const momentumBonus = Math.max(-40, Math.min(60, Math.floor(momentum)));
+    return Math.max(0, mlScore + itunesBonus + chartBonus + momentumBonus);
+}
+function _jsSignal(score, momentum, bestRank) {
+    if (bestRank && bestRank <= 10 && momentum >= 5) return ["STRONG BUY", "sb-buy"];
+    if (score >= 140 && momentum >= 0) return ["STRONG BUY", "sb-buy"];
+    if (bestRank && bestRank <= 30) return ["WATCH", "sb-watch"];
+    if (momentum <= -25) return ["CAUTION", "sb-caution"];
+    return ["WATCH", "sb-watch"];
+}
+
+function setTimeWindow(label, el) {
+    currentTimeWindowDays = label === '1 Day' ? 1 : label === '7 Days' ? 7 : 30;
+    document.querySelectorAll('.filter-grp button').forEach(btn => btn.classList.remove('on'));
+    el.classList.add('on');
+    recalculateAll();
+}
+
+function recalculateAll() {
+    const startIndex = Math.max(0, DATES.length - currentTimeWindowDays);
     
-    // In actual JS we would just display the python-calculated values 
-    // unless we recalculate. For simplicity, we just filter arrays for charts.
-    const recalculatedArtist = { ...artist };
-    recalculatedArtist.spStreams = slicedSpStreams; 
-    recalculatedArtist.itScores = slicedItScores;
-    recalculatedArtist.days = windowDays;
-
-    return recalculatedArtist;
-}
-
-function setTimeWindow(val) {
-    currentTimeWindowDays = val === 'All' ? ORIGINAL_PAYLOAD.maxWindowDays : parseInt(val);
-    applyFilters();
-    if (selectedId) selectArtist(selectedId); 
-}
-
-function fmtN(n){if(!n&&n!==0)return'—';const a=Math.abs(n);if(a>=1e6)return(n/1e6).toFixed(1)+'M';if(a>=1e3)return(n/1e3).toFixed(0)+'K';return Math.round(n).toString();}
-
-function setSort(s){
-  currentSort = s;
-  applyFilters();
-}
-
-function applyFilters(){
-  let filteredArtists = JSON.parse(JSON.stringify(ORIGINAL_ARTISTS));
-
-  filteredArtists = filteredArtists.map(a => recalculateArtistMetrics(a, currentTimeWindowDays, ORIGINAL_DATES));
-
-  const q = document.getElementById('searchInput').value.toLowerCase();
-  
-  if(q) filteredArtists = filteredArtists.filter(t=>t.name.toLowerCase().includes(q));
-
-  ARTISTS = filteredArtists;
-
-  const sortMap={acq:'acqScore',momentum:'momentum',rank:'bestSpRank',listeners:'peakStreamsVal',name:'name'};
-  const key=sortMap[currentSort]||'acqScore';
-  const asc=(key==='bestSpRank' || key==='name');
-  ARTISTS.sort((a,b)=>{
-    if (key === 'name') {
-        return a.name.localeCompare(b.name);
+    for (const name in ARTISTS) {
+        const a = ARTISTS[name];
+        const ml = (a.originalSpStreams || a.spStreams).slice(startIndex);
+        const itS = (a.originalItScores || a.itScores).slice(startIndex);
+        const itR = (a.originalItRanks || a.itRanks).slice(startIndex);
+        
+        const mlClean = ml.filter(v => v > 0);
+        const peakMl = mlClean.length ? Math.max(...mlClean) : 0;
+        const firstMl = mlClean.length ? mlClean[0] : 0;
+        const lastMl = mlClean.length ? mlClean[mlClean.length - 1] : 0;
+        const mom = firstMl ? ((lastMl - firstMl) / firstMl * 100) : 0.0;
+        
+        const ranksClean = itR.filter(r => r !== null && r > 0);
+        const bestIt = ranksClean.length ? Math.min(...ranksClean) : null;
+        
+        const bestSp = (a.bestSpRank && a.bestSpRank !== '—') ? parseInt(a.bestSpRank) : null;
+        const score = _jsAcqScore(peakMl, bestIt, parseInt(a.trackCount), bestSp, mom);
+        const [sigTxt, sigCls] = _jsSignal(score, mom, bestIt || bestSp);
+        
+        a.acqScore = score;
+        a.momentum = Math.round(mom * 10) / 10;
+        a.signal = sigTxt;
+        a.signalClass = sigCls;
+        a.spStreams = ml;
+        a.itScores = itS;
+        a.itRanks = itR;
+        a.peakStreamsVal = peakMl;
+        a.firstMlVal = firstMl;
     }
-    const valA = a[key] === '—' || a[key] === null ? (asc ? 999999 : -999999) : a[key];
-    const valB = b[key] === '—' || b[key] === null ? (asc ? 999999 : -999999) : b[key];
-    return asc ? valA-valB : valB-valA;
-  });
 
-  renderTable();
+    LEADERBOARD = ALL_ARTISTS.map(name => {
+        const a = ARTISTS[name];
+        return {
+            n: name,
+            score: a.acqScore,
+            momentum: (a.momentum >= 0 ? '+' : '') + a.momentum + '%',
+            signal: a.signal.includes('BUY') ? 'BUY' : (a.signal.includes('CAUT') ? 'CAUTION' : 'WATCH')
+        };
+    }).sort((a, b) => b.score - a.score);
+
+    renderLeaderboard();
+    renderDdList(ddSearch.value);
+    if (currentArtist) selectArtist(currentArtist);
 }
 
-function renderTable() {
-    document.getElementById('count-badge').textContent = `${ARTISTS.length} artists`;
-    const el = document.getElementById('track-table');
-    let htmlStr = '';
+function avInitials(n){return n.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();}
+function avColor(name){return ARTISTS[name]?.color||'#94a3b8';}
 
-    ARTISTS.forEach((t, i) => {
-        const momColor = t.momentum > 5 ? 'momentum-pos' : t.momentum < -5 ? 'momentum-neg' : 'momentum-flat';
-        let acqClass = 'acq-lo';
-        if (t.acqScore >= 60) acqClass = 'acq-hi';
-        else if (t.acqScore >= 45) acqClass = 'acq-mid';
+const PLOTLY_LAYOUT_BASE = {
+  paper_bgcolor:'rgba(0,0,0,0)',
+  plot_bgcolor:'rgba(0,0,0,0)',
+  font:{family:'Inter,system-ui,sans-serif',color:'#cdd6e4',size:11},
+  margin:{l:48,r:18,t:10,b:58},
+  hoverlabel:{bgcolor:getComputedStyle(document.documentElement).getPropertyValue('--bg2').trim()||'#FFFFFF',bordercolor:getComputedStyle(document.documentElement).getPropertyValue('--border2').trim()||'#3a4661',font:{color:getComputedStyle(document.documentElement).getPropertyValue('--t1').trim()||'#1A1A1A',size:12}},
+  showlegend:false,
+  xaxis:{gridcolor:'rgba(255,255,255,0.05)',zerolinecolor:'rgba(255,255,255,0.08)',tickfont:{color:getComputedStyle(document.documentElement).getPropertyValue('--t3').trim()||'#8b95ad'},linecolor:'rgba(255,255,255,0.08)'},
+  yaxis:{gridcolor:'rgba(255,255,255,0.05)',zerolinecolor:'rgba(255,255,255,0.08)',tickfont:{color:getComputedStyle(document.documentElement).getPropertyValue('--t3').trim()||'#8b95ad'},linecolor:'rgba(255,255,255,0.08)'}
+};
+const PLOTLY_CFG = {displaylogo:false,displayModeBar:false,responsive:true};
+function layoutClone(extra){
+  const base = JSON.parse(JSON.stringify(PLOTLY_LAYOUT_BASE));
+  return Object.assign(base, extra||{});
+}
+function buildDateAxis(labels){
+  const count = labels.length;
+  if(!count){
+    return {tickmode:'array', tickvals:[], ticktext:[]};
+  }
 
-        htmlStr += `
-        <div class="track-row ${t.id === selectedId ? 'selected' : ''}" onclick="selectArtist(${t.id})">
-            <div class="sr-num">${i + 1}</div>
-            <div class="track-info">
-                <div class="track-av" style="background:${t.color}22;color:${t.color};border:1px solid ${t.color}40">${t.avatar}</div>
-                <div class="track-name">${t.name}</div>
-            </div>
-            <div class="col-r streams-val">${t.bestSpRank || '—'}</div>
-            <div class="col-r streams-val">${fmtN(t.peakStreamsVal)}</div>
-            <div class="col-r momentum-val ${momColor}">${t.momentum > 0 ? '+' : ''}${t.momentum}%</div>
-            <div class="col-r"><span class="acq-pill ${acqClass}">${t.acqScore}</span></div>
-        </div>`;
-    });
-    el.innerHTML = htmlStr;
+  const targetTicks = count <= 7 ? 7 : count <= 14 ? 8 : 9;
+  const step = Math.max(1, Math.ceil(count / targetTicks));
+  const tickvals = [];
+  const ticktext = [];
+
+  for(let i = 0; i < count; i += step){
+    const label = labels[i];
+    tickvals.push(label);
+    ticktext.push(label.replace(' ', '<br>'));
+  }
+
+  const last = labels[count - 1];
+  if(tickvals[tickvals.length - 1] !== last){
+    tickvals.push(last);
+    ticktext.push(last.replace(' ', '<br>'));
+  }
+
+  return {
+    tickmode:'array',
+    tickvals,
+    ticktext,
+    tickangle:0,
+    tickfont:{color:'#9aa5bd', size:10},
+    automargin:true,
+  };
 }
 
-function renderChart(traj, days) {
-  const ctx = document.getElementById('trajChart').getContext('2d');
-  if (trajChartInst) trajChartInst.destroy();
-  const labels = DATES.slice(Math.max(0, DATES.length - days));
-  
-  trajChartInst = new Chart(ctx, {
-    data: {
-      labels,
-      datasets: [
-        { type:'line', label:'Listeners', data: traj, borderColor:'#378ADD', backgroundColor:'rgba(55,138,221,0.08)', borderWidth:2, pointRadius:3, pointBackgroundColor:'#378ADD', tension:.4, yAxisID:'y', spanGaps: true, fill: true },
-      ]
-    },
-    options: {
-      responsive:true, maintainAspectRatio:false,
-      interaction:{mode:'index',intersect:false},
-      plugins:{ legend:{ display:false } },
-      scales:{
-        x:{ display:true, ticks:{ font:{size:9}, color:'#888', maxTicksLimit:6 }, grid:{ display:false } },
-        y:{ display:true, ticks:{ font:{size:9}, color:'#888', maxTicksLimit:4, callback:v=>fmtN(v) }, grid:{ color:'rgba(128,128,128,0.1)' } }
-      }
-    }
-  });
-}
+// ─── Dropdown ────────────────────────────────────────
+const ddTrigger = document.getElementById('dd-trigger');
+const ddPanel = document.getElementById('dd-panel');
+const ddSearch = document.getElementById('dd-search');
+const ddList = document.getElementById('dd-list');
+const ddAv = document.getElementById('dd-av');
+const ddCurrent = document.getElementById('dd-current');
 
-function renderItChart(traj, days) {
-  const ctx = document.getElementById('itTrajChart').getContext('2d');
-  if (itTrajChartInst) itTrajChartInst.destroy();
-  const labels = DATES.slice(Math.max(0, DATES.length - days));
-  
-  itTrajChartInst = new Chart(ctx, {
-    data: {
-      labels,
-      datasets: [
-        { type:'line', label:'iTunes Score', data: traj, borderColor:'#a78bfa', backgroundColor:'rgba(167,139,250,.08)', borderWidth:2, pointRadius:3, pointBackgroundColor:'#a78bfa', tension:.4, yAxisID:'y', spanGaps: true, fill: true },
-      ]
-    },
-    options: {
-      responsive:true, maintainAspectRatio:false,
-      interaction:{mode:'index',intersect:false},
-      plugins:{ legend:{ display:false } },
-      scales:{
-        x:{ display:true, ticks:{ font:{size:9}, color:'#888', maxTicksLimit:6 }, grid:{ display:false } },
-        y:{ display:true, ticks:{ font:{size:9}, color:'#888', maxTicksLimit:4, callback:v=>fmtN(v) }, grid:{ color:'rgba(128,128,128,0.1)' } }
-      }
-    }
-  });
-}
-
-function selectArtist(id) {
-  selectedId = id;
-  const t = ARTISTS.find(x => x.id === id);
-  renderTable(); 
-
-  if (!t) {
-    document.getElementById('empty-state').style.display = 'flex';
-    document.getElementById('d-chart-section').style.display = 'none';
-    document.getElementById('d-it-chart-section').style.display = 'none';
-    document.getElementById('d-signals-card').style.display = 'none';
-    document.getElementById('d-av').style.display = 'none';
+function renderDdList(filter){
+  const f = (filter||'').toLowerCase().trim();
+  // Sort by acquisition score desc using leaderboard order
+  const orderMap = new Map(LEADERBOARD.map((d,i)=>[d.n,i]));
+  const sorted = [...ALL_ARTISTS].sort((a,b)=>(orderMap.get(a)??999)-(orderMap.get(b)??999));
+  const matches = sorted.filter(a=>!f||a.toLowerCase().includes(f));
+  ddList.innerHTML = '';
+  if(!matches.length){
+    ddList.innerHTML = '<div class="dd-empty">No artists match.</div>';
     return;
   }
+  matches.forEach(name=>{
+    const data = ARTISTS[name];
+    const lb = LEADERBOARD.find(x=>x.n===name);
+    const score = lb?lb.score:'';
+    const opt = document.createElement('div');
+    opt.className = 'dd-opt'+(name===currentArtist?' on':'');
+    const col = avColor(name);
+    opt.innerHTML = `
+      <div class="dd-av" style="background:${col}22;color:${col};border:1px solid ${col}40">${avInitials(name)}</div>
+      <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${name}</span>
+      <span class="dd-opt-meta">${score}</span>`;
+    opt.onclick = ()=>{ selectArtist(name); closeDd(); };
+    ddList.appendChild(opt);
+  });
+}
+function openDd(){ ddPanel.classList.add('open'); ddTrigger.classList.add('open'); ddSearch.value=''; renderDdList(''); setTimeout(()=>ddSearch.focus(),0); }
+function closeDd(){ ddPanel.classList.remove('open'); ddTrigger.classList.remove('open'); }
+ddTrigger.onclick = (e)=>{ e.stopPropagation(); ddPanel.classList.contains('open')?closeDd():openDd(); };
+ddSearch.oninput = ()=>renderDdList(ddSearch.value);
+document.addEventListener('click',(e)=>{ if(!document.getElementById('dd-wrap').contains(e.target)) closeDd(); });
 
-  document.getElementById('empty-state').style.display = 'none';
-  document.getElementById('d-title').textContent = t.name;
-  
-  const av = document.getElementById('d-av');
-  av.style.display = 'flex';
-  av.style.background = t.color+'22';
-  av.style.color = t.color;
-  av.style.border = '1px solid '+t.color+'40';
-  av.textContent = t.avatar;
-  
-  document.getElementById('d-score').textContent = t.acqScore;
-  const sortedByAcq = [...ARTISTS].sort((a,b) => b.acqScore - a.acqScore);
-  const rank = sortedByAcq.findIndex(x => x.id === id) + 1;
-  document.getElementById('d-rank').textContent = `#${rank} of ${ARTISTS.length}`;
-  
-  document.getElementById('d-rank-val').textContent = t.bestSpRank || '—';
-  document.getElementById('d-rank-sub').textContent = PAYLOAD.regionLabel;
-  
-  document.getElementById('d-listeners').textContent = fmtN(t.peakStreamsVal);
-  document.getElementById('d-listeners-sub').textContent = "Peak Listeners";
-  
-  const mEl = document.getElementById('d-momentum');
-  mEl.textContent = `${t.momentum > 0 ? '+' : ''}${t.momentum}%`;
-  mEl.className = 'stat-value ' + (t.momentum > 5 ? 'pos' : t.momentum < -5 ? 'neg' : '');
-  
-  document.getElementById('d-days').textContent = t.days || currentTimeWindowDays;
+// ─── Selection ───────────────────────────────────────
+function selectArtist(name){
+  const d=ARTISTS[name];
+  if(!d)return;
+  currentArtist = name;
 
-  const badgesEl = document.getElementById('d-badges');
-  badgesEl.innerHTML = '';
-  if (t.label) badgesEl.innerHTML += `<span class="badge ${t.label === 'INDEPENDENT' ? '' : 'active-b'}">${t.label}</span>`;
+  // Dropdown trigger
+  ddCurrent.textContent = name;
+  ddAv.textContent = d.avatar;
+  ddAv.style.background = d.color+'22';
+  ddAv.style.color = d.color;
+  ddAv.style.border = `1px solid ${d.color}40`;
 
-  document.getElementById('d-signals-card').style.display = 'block';
-  const sigHtml = (t.signals||[]).map(s =>
-    `<div class="signal-row"><div class="signal-icon" aria-hidden="true">${s.icon}</div><div class="signal-text"><strong>${s.title}</strong><span>${s.desc}</span></div></div>`
-  ).join('');
-  document.getElementById('d-signals').innerHTML = sigHtml;
+  // Tracks
+  const tl=document.getElementById('tracks-list');
+  tl.innerHTML='';
+  document.getElementById('tracks-title').textContent=`Top tracks · ${name} · Spotify Global`;
+  const maxStreams = (d.tracks||[]).length ? d.tracks[0].streams : 1;
+  (d.tracks||[]).forEach((t,i)=>{
+    const pct=Math.max(4,Math.round((t.streams/maxStreams)*100));
+    const row=document.createElement('div');
+    row.className='trk';
+    row.style.gridTemplateColumns='30px 1fr 80px 64px 50px';
+    row.innerHTML=`
+      <span class="trk-rank">${i+1}</span>
+      <div style="min-width:0">
+        <div class="trk-name">${t.name}</div>
+        <div style="height:4px;background:var(--bg4);border-radius:3px;margin-top:5px">
+          <div style="width:${pct}%;height:4px;background:${d.color};border-radius:3px"></div>
+        </div>
+      </div>
+      <span class="trk-val">${fmtN(t.streams)}</span>
+      <span class="trk-val">${t.rank?+t.rank:'—'}</span>
+      <span class="trk-val">${t.days}d</span>`;
+    tl.appendChild(row);
+  });
 
-  const hasSp = t.spStreams && t.spStreams.some(v => v > 0);
-  if (hasSp) {
-    document.getElementById('d-chart-section').style.display = 'block';
-    renderChart(t.spStreams, t.days || currentTimeWindowDays);
-  } else {
-    document.getElementById('d-chart-section').style.display = 'none';
-  }
-  
-  const hasIt = t.itScores && t.itScores.some(v => v > 0);
-  if (hasIt) {
-      document.getElementById('d-it-chart-section').style.display = 'block';
-      renderItChart(t.itScores, t.days || currentTimeWindowDays);
-  } else {
-      document.getElementById('d-it-chart-section').style.display = 'none';
-  }
+  // Signals
+  const sl=document.getElementById('five-signals');
+  sl.innerHTML='';
+  (d.signals||[]).forEach(s=>{
+    const row=document.createElement('div');
+    row.className='sig-row';
+    row.innerHTML=`<span class="sig-icon">${s.icon}</span><div><div class="sig-title">${s.title}</div><div class="sig-desc">${s.desc}</div></div>`;
+    sl.appendChild(row);
+  });
+
+  // Highlight leaderboard row
+  document.querySelectorAll('.leader-row').forEach(r=>{
+    r.classList.toggle('on', r.dataset.artist===name);
+  });
 }
 
-applyFilters(); 
-if(selectedId){setTimeout(()=>selectArtist(selectedId),80);}
+// ─── Leaderboard ─────────────────────────────────────
+function renderLeaderboard() {
+const maxScore=(LEADERBOARD[0]?.score)||1;
+const lb=document.getElementById('leaderboard');
+lb.innerHTML = '';
+LEADERBOARD.forEach((d,i)=>{
+  const pct=Math.round(d.score/maxScore*100);
+  const col=d.signal==='BUY'?'var(--green)':(d.signal==='CAUTION'?'var(--red)':'var(--blue)');
+  const av=avInitials(d.n);
+  const avCol=avColor(d.n);
+  const momNum = parseFloat(d.momentum);
+  const row=document.createElement('div');
+  row.className='leader-row';
+  row.dataset.artist = d.n;
+  row.onclick=()=>selectArtist(d.n);
+  row.innerHTML=`
+    <span class="leader-rank">${i+1}</span>
+    <div class="leader-av" style="background:${avCol}22;color:${avCol};border:1px solid ${avCol}40">${av}</div>
+    <div style="flex:1;min-width:0">
+      <div class="leader-name">${d.n}</div>
+      <div class="score-bar-bg"><div class="score-bar-fg" style="width:${pct}%;background:${col}"></div></div>
+    </div>
+    <div style="text-align:right">
+      <div style="font-size:13px;font-weight:700;color:${col};font-variant-numeric:tabular-nums">${d.score}</div>
+      <div style="font-size:10px;color:${momNum>=0?'var(--green)':'var(--red)'};font-weight:600">${d.momentum}</div>
+    </div>`;
+  lb.appendChild(row);
+});
+}
+renderLeaderboard();
+
+selectArtist(PAYLOAD.defaultArtist);
+window.addEventListener('load',()=>{ try{ selectArtist(PAYLOAD.defaultArtist); }catch(e){console.error(e);} });
 </script>
 </body></html>
-""".replace("__PAYLOAD__", data_json).replace("__THEME__", theme_css).replace("__BODY_CLASS__", body_class)
+""".replace("__PAYLOAD__", data_json).replace("__THEME__", theme_css)
 
 
 def prefetch_acquisition_data() -> None:

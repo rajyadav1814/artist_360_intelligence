@@ -3621,10 +3621,10 @@ def render_debut_artist_chart(leaderboard: pd.DataFrame) -> None:
 
     st.markdown(f"""
         <div class="spotlight-panel">
-            <div class="spotlight-panel-header">Top Tracks, Albums and Countries</div>
+            <div class="spotlight-panel-header">📊 Top Tracks, Albums and Countries</div>
             <div class="spotlight-panel-body">
                 <div style="font-size: 0.88rem; color: var(--text2); margin: 0 0 14px; line-height: 1.5; font-weight: 500;">
-                    Consolidated catalog distribution tracking lead track velocity, project performance, and regional chart footprint.
+                    🗺️ Consolidated catalog distribution tracking lead track velocity, project performance, and regional chart footprint.
                 </div>
                 <div class="spotlight-lists-grid">
                     <div>
@@ -3650,10 +3650,10 @@ def render_debut_artist_chart(leaderboard: pd.DataFrame) -> None:
     st.markdown(
         f"""
         <div class="spotlight-panel">
-            <div class="spotlight-panel-header">Performance Summary</div>
+            <div class="spotlight-panel-header">📋 Performance Summary</div>
             <div class="spotlight-panel-body">
                 <div style="font-size: 0.88rem; color: var(--text2); margin: 0 0 14px; line-height: 1.5; font-weight: 500;">
-                    Key performance aggregates providing a definitive baseline of artist market share and audience reach.
+                    📈 Key performance aggregates providing a definitive baseline of artist market share and audience reach.
                 </div>
                 <table class="spotlight-summary-table">
                     <thead>

@@ -308,8 +308,9 @@ def _build_payload(albums: list[dict[str, Any]], dates: list[date], limit: int =
 
 def render_album_acquisition() -> None:
     st.markdown(
-        "<div style='font-size:1.1rem;color:#97a3c5;margin:0.2rem 0 0.75rem 0;line-height:1.5;'>"
-        "Album-level acquisition intelligence using iTunes WW/US + iTunes WW daily chart data."
+        "<div style='font-size: 0.92rem; color: var(--t2); margin: 0 0 14px; line-height: 1.5; font-weight: 500;'>"
+        "💿 Album-level acquisition intelligence tracking project velocity across iTunes Worldwide and regional markets. "
+        "Monitors commercial footprint and point accumulation trajectories."
         "</div>",
         unsafe_allow_html=True,
     )

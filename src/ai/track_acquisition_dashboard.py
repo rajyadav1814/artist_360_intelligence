@@ -309,7 +309,7 @@ def _build_payload(tracks: list[dict[str, Any]], dates: list[date], limit: int =
 def render_track_acquisition() -> None:
     st.markdown(
         "<div style='font-size:1.1rem;color:#97a3c5;margin:0.2rem 0 0.75rem 0;line-height:1.5;'>"
-        "Evaluate track-level acquisition potential by analyzing cross-platform performance metrics. "
+        "🎵 Evaluate track-level acquisition potential by analyzing cross-platform performance metrics. "
         "This dashboard combines daily streaming data from Spotify (Global, US, and LATAM markets) "
         "with iTunes Worldwide chart movements to compute an overall Acquisition Score. "
         "Use the filtering tools and trajectory insights to identify breakout tracks with strong growth and momentum."
