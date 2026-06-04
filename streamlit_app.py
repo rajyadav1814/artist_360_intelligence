@@ -1502,8 +1502,24 @@ def show_artist_details_dialog(row: pd.Series) -> None:
     # ════════════════════════════════════════════════════════════════
     # SECTION 2.1: RANK TREND CHART (Last 7 Days)
     # ════════════════════════════════════════════════════════════════
-    st.markdown(f"<div class='dlg-section-title'>📈 Rank Trend <span class='dlg-section-badge'>Last 7 Days</span><span class='dlg-section-badge'>Last 15 Days</span><span class='dlg-section-badge'>Last 30 Days</span></div>", unsafe_allow_html=True)
-    st.markdown(f"<p style='color:{dlg_text2}; font-size:.85rem; margin-top:-10px; margin-bottom:15px;'>Visual tracking of daily rank movement and chart stability over the past week.</p>", unsafe_allow_html=True)
+    if "artist_trend_days" not in st.session_state:
+        st.session_state.artist_trend_days = 7
+
+    tr_title_col, tr_c1, tr_c2, tr_c3, _ = st.columns([2.5, 0.9, 0.9, 0.9, 1.8], vertical_alignment="center")
+    with tr_title_col:
+        st.markdown(f"<div class='dlg-section-title' style='margin-bottom:0; border-bottom:none; padding-bottom:0;'>📈 Rank Trend</div>", unsafe_allow_html=True)
+    with tr_c1:
+        if st.button("7 Days", key=f"tr_7_{artist_name}", use_container_width=True, type="primary" if st.session_state.artist_trend_days == 7 else "secondary"):
+            st.session_state.artist_trend_days = 7
+    with tr_c2:
+        if st.button("15 Days", key=f"tr_15_{artist_name}", use_container_width=True, type="primary" if st.session_state.artist_trend_days == 15 else "secondary"):
+            st.session_state.artist_trend_days = 15
+    with tr_c3:
+        if st.button("30 Days", key=f"tr_30_{artist_name}", use_container_width=True, type="primary" if st.session_state.artist_trend_days == 30 else "secondary"):
+            st.session_state.artist_trend_days = 30
+
+    st.markdown(f"<div style='border-bottom: 1px solid {dlg_divider}; margin-bottom: 14px; margin-top: -10px;'></div>", unsafe_allow_html=True)
+    st.markdown(f"<p style='color:{dlg_text2}; font-size:.85rem; margin-top:5px; margin-bottom:15px;'>Visual tracking of daily rank movement and chart stability over the past {st.session_state.artist_trend_days} days.</p>", unsafe_allow_html=True)
 
     try:
         # Using history from the global scope populated by load_dashboard_data
@@ -1513,8 +1529,8 @@ def show_artist_details_dialog(row: pd.Series) -> None:
                 artist_hist["scraped_at"] = pd.to_datetime(artist_hist["scraped_at"])
                 latest_date = artist_hist["scraped_at"].max()
                 if pd.notna(latest_date):
-                    week_ago = latest_date - pd.Timedelta(days=7)
-                    week_hist = artist_hist[artist_hist["scraped_at"] >= week_ago].sort_values("scraped_at")
+                    start_date = latest_date - pd.Timedelta(days=st.session_state.artist_trend_days)
+                    week_hist = artist_hist[artist_hist["scraped_at"] >= start_date].sort_values("scraped_at")
                     
                     if not week_hist.empty:
                         fig_rh = px.line(
