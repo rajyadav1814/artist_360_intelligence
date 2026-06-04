@@ -3494,6 +3494,14 @@ def render_debut_artist_chart(leaderboard: pd.DataFrame) -> None:
     except (ValueError, IndexError):
         default_idx = 0
 
+    st.markdown(
+        "<div style='font-size: 0.95rem; color: var(--text2); margin: 0 0 16px; line-height: 1.5; font-weight: 500;'>"
+        "Primary entry point for deep-dive analysis. Select an artist to initialize a comprehensive profile "
+        "mapping global performance, audience density, and commercial momentum."
+        "</div>",
+        unsafe_allow_html=True
+    )
+
     selected_label = custom_selectbox(
         "🎤 Select an Artist",
         artist_options,
@@ -3612,6 +3620,9 @@ def render_debut_artist_chart(leaderboard: pd.DataFrame) -> None:
         <div class="spotlight-panel">
             <div class="spotlight-panel-header">Top Tracks, Albums and Countries</div>
             <div class="spotlight-panel-body">
+                <div style="font-size: 0.88rem; color: var(--text2); margin: 0 0 14px; line-height: 1.5; font-weight: 500;">
+                    Consolidated catalog distribution tracking lead track velocity, project performance, and regional chart footprint.
+                </div>
                 <div class="spotlight-lists-grid">
                     <div>
                         <div class="spotlight-list-title">Top Tracks</div>
@@ -3638,6 +3649,9 @@ def render_debut_artist_chart(leaderboard: pd.DataFrame) -> None:
         <div class="spotlight-panel">
             <div class="spotlight-panel-header">Performance Summary</div>
             <div class="spotlight-panel-body">
+                <div style="font-size: 0.88rem; color: var(--text2); margin: 0 0 14px; line-height: 1.5; font-weight: 500;">
+                    Key performance aggregates providing a definitive baseline of artist market share and audience reach.
+                </div>
                 <table class="spotlight-summary-table">
                     <thead>
                         <tr><th>Metric</th><th>Value</th></tr>
@@ -4284,6 +4298,13 @@ def show_leaderboard_page() -> None:
 
 def show_compare_page() -> None:
     st.markdown(
+        "<div style='font-size: 0.95rem; color: var(--text2); margin: 0 0 16px; line-height: 1.5; font-weight: 500;'>"
+        "Side-by-side performance benchmarking for head-to-head artist analysis. Compare multiple acts across "
+        "primary metrics including audience scale, catalog depth, and global market penetration."
+        "</div>",
+        unsafe_allow_html=True
+    )
+    st.markdown(
         """
         <style>
         .cmp-note {
@@ -4699,14 +4720,18 @@ def show_pulse_report_page() -> None:
 
 def show_label_analysis_page() -> None:
     """Wrapper function for Label Analysis page"""
+    st.markdown(
+        "<div style='font-size: 0.95rem; color: var(--text2); margin: 0 0 16px; line-height: 1.5; font-weight: 500;'>"
+        "Comprehensive market share analysis across major and independent label groups. Monitor competitive "
+        "distribution, track concentration, and weekly volume shifts across Spotify Global and iTunes Worldwide platforms."
+        "</div>",
+        unsafe_allow_html=True
+    )
     st.markdown("""
         <style>
         /* Forcefully remove the massive empty space above the Label Analysis iframe */
         .stMainBlockContainer {
             padding-top: 0rem !important;
-        }
-        div[data-testid="stHtml"] {
-            margin-top: -3.5rem !important;
         }
         </style>
     """, unsafe_allow_html=True)
