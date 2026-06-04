@@ -1206,6 +1206,18 @@ def apply_theme(dark_mode: bool = True) -> None:
             color: var(--primary-dark);
             text-decoration: underline;
         }
+        .time-chip {
+            background: var(--surface2);
+            color: var(--text2);
+            font-size: 0.72rem;
+            padding: 4px 10px;
+            border-radius: 999px;
+            font-weight: 700;
+            border: 1px solid var(--border);
+            text-transform: none;
+            letter-spacing: 0;
+            white-space: nowrap;
+        }
         """ + theme_extra + "</style>",
         unsafe_allow_html=True,
     )
@@ -2132,7 +2144,7 @@ def prepare_leaderboard_table(leaderboard: pd.DataFrame, max_rows: int) -> pd.Da
     return table_df
 
 
-def render_leaderboard_table_html(leaderboard: pd.DataFrame, max_rows: int) -> None:
+def render_leaderboard_table_html(leaderboard: pd.DataFrame, max_rows: int, date_label: str = "n/a") -> None:
     table_df = leaderboard.head(max_rows).copy()
     rows_html = []
     current_theme = "dark" if st.session_state.get("dark_mode", True) else "light"
@@ -2170,7 +2182,10 @@ def render_leaderboard_table_html(leaderboard: pd.DataFrame, max_rows: int) -> N
 
     html = f"""
     <div class='dashboard-card'>
-        <div class='section-title'>📊 Leaderboard table</div>
+        <div class='section-title' style='display: flex; justify-content: space-between; align-items: center;'>
+            <span>📊 Leaderboard table</span>
+            <span class='time-chip'>{escape(date_label)}</span>
+        </div>
         <div class='section-sub'>This is a music artist leaderboard showing the top artists ranked by their Spotify monthly listeners, along with their top song, album, market, peak listeners, iTunes total streams, and rank movement.</div>
         <div class='table-wrap' style='max-height:780px; overflow-x:auto; overflow-y:auto;'>
             <table class='leader-table'>
@@ -2197,7 +2212,7 @@ def render_leaderboard_table_html(leaderboard: pd.DataFrame, max_rows: int) -> N
     st.markdown(html, unsafe_allow_html=True)
 
 
-def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: int) -> None:
+def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: int, date_label: str = "n/a") -> None:
     if leaderboard.empty:
         st.warning("No leaderboard data available yet. Run the scraper first.")
         return
@@ -2369,7 +2384,7 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
     # ── KPI tiles ─────────────────────────────────────────
     # (removed per request)
 
-    render_leaderboard_table_html(leaderboard, max_rows)
+    render_leaderboard_table_html(leaderboard, max_rows, date_label=date_label)
 
     chart_col1, chart_col2 = st.columns(2, gap="medium")
     text_color = "#e0e7ff" if is_dark else "#1A1A1A"
@@ -4334,7 +4349,10 @@ def show_leaderboard_page() -> None:
                 st.query_params.clear()
 
     # Use filtered to reflect both country and artist filters in leaderboard and charts
-    render_leaderboard(filtered, runs, max_rows=max_rows)
+    # Create update label showing only the scraper execution time
+    last_update_label = f"Last Update: {last_run_label}"
+
+    render_leaderboard(filtered, runs, max_rows=max_rows, date_label=last_update_label)
 
 
 def show_compare_page() -> None:
