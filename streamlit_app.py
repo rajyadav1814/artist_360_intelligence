@@ -2804,9 +2804,9 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
         legend=dict(
             orientation="h",
             yanchor="top",
-            y=-0.15,
-            x=0,
-            xanchor="left",
+            y=-0.18,
+            xanchor="center",
+            x=0.5,
             bgcolor="rgba(0,0,0,0)",
             font=dict(size=11, color=tick_color),
         ),
