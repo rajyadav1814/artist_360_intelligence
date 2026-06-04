@@ -351,9 +351,9 @@ def render_track_acquisition() -> None:
         return
 
     dates = sorted(date_set)
-    global_tracks = _build_track_rows(sp_global_df, it_df, dates, region="Global")[:100]
-    us_tracks = _build_track_rows(sp_us_df, it_df, dates, region="US")[:100]
-    latam_tracks = {code: _build_track_rows(df, it_df, dates, region=code.upper())[:100] for code, df in latam_dfs.items()}
+    global_tracks = get_processed_track_rows(sp_global_df, it_df, dates, region="Global")[:100]
+    us_tracks = get_processed_track_rows(sp_us_df, it_df, dates, region="US")[:100]
+    latam_tracks = {code: get_processed_track_rows(df, it_df, dates, region=code.upper())[:100] for code, df in latam_dfs.items()}
 
     if not global_tracks and not us_tracks and not any(latam_tracks.values()):
         st.warning("No track acquisition rows could be built from the available chart data.")

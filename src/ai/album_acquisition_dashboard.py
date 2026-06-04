@@ -254,6 +254,15 @@ def _build_album_rows(sp_df: pd.DataFrame, it_df: pd.DataFrame, dates: list[date
     return albums
 
 
+@st.cache_data(ttl=300, show_spinner=False)
+def get_processed_album_rows(sp_df: pd.DataFrame, it_df: pd.DataFrame, dates: list[date], region: str = "Global") -> list[dict[str, Any]]:
+    """
+    Cached wrapper for building album rows.
+    Processing can take seconds if there are many albums; caching results makes the dashboard instant on reload.
+    """
+    return _build_album_rows(sp_df, it_df, dates, region=region)
+
+
 def _build_payload(albums: list[dict[str, Any]], dates: list[date], limit: int = 100, region_label: str = "iTunes WW") -> dict[str, Any]:
     if not albums:
         return {}
@@ -340,9 +349,9 @@ def render_album_acquisition() -> None:
         return
 
     dates = sorted(date_set)
-    global_albums = _build_album_rows(sp_global_df, it_df, dates, region="Global")[:100]
-    us_albums = _build_album_rows(sp_us_df, it_df, dates, region="US")[:100]
-    latam_albums = {code: _build_album_rows(df, it_df, dates, region=code.upper())[:100] for code, df in latam_dfs.items()}
+    global_albums = get_processed_album_rows(sp_global_df, it_df, dates, region="Global")[:100]
+    us_albums = get_processed_album_rows(sp_us_df, it_df, dates, region="US")[:100]
+    latam_albums = {code: get_processed_album_rows(df, it_df, dates, region=code.upper())[:100] for code, df in latam_dfs.items()}
 
     if not global_albums and not us_albums and not any(latam_albums.values()):
         st.warning("No album acquisition rows could be built from the available chart data.")
