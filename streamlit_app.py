@@ -324,6 +324,19 @@ def apply_theme(dark_mode: bool = True) -> None:
         }
         /* Selectbox and dropdown styling for light mode */
         /* Removed - using custom HTML dropdowns instead */
+
+        /* Fix toggle visibility in light mode */
+        div[data-baseweb="checkbox"] > div:first-of-type,
+        label[data-baseweb="checkbox"] > div:first-of-type {
+            background-color: #cbd5e1 !important;
+            border: 1px solid #94a3b8 !important;
+        }
+
+        div[data-baseweb="checkbox"] input:checked + div,
+        label[data-baseweb="checkbox"] input:checked + div {
+            background-color: var(--primary) !important;
+            border: 1px solid var(--primary) !important;
+        }
         """
 
     st.markdown(
