@@ -193,6 +193,15 @@ def render_plotly_html(fig: go.Figure, *, height: int | None = None, dark_mode: 
             .plotly-html-chart .plot-container,
             .plotly-html-chart .svg-container {{ width: 100% !important; }}
         </style>
+        <script>
+            // Force a resize event shortly after load to fix Plotly legend squishing bugs
+            setTimeout(() => {{
+                window.dispatchEvent(new Event('resize'));
+            }}, 300);
+            setTimeout(() => {{
+                window.dispatchEvent(new Event('resize'));
+            }}, 1000);
+        </script>
         """,
         height=chart_height + 32,
         scrolling=False,
