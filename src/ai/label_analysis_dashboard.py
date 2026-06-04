@@ -1,1207 +1,974 @@
+"""
+Label Analysis dashboard — rich HTML/JS dashboard rendering label-level
+dominance, normalization stats, and cross-platform reach for iTunes and
+Spotify chart data. Mirrors the structure of album_movement.py.
+"""
+from __future__ import annotations
+
 import json
-from datetime import datetime
+from typing import Any
+
 import pandas as pd
 import streamlit as st
+import streamlit.components.v1 as st_components
+
 from src.database.connection import get_connection
 from src.utils.logger import get_logger
+from src.utils.ui import custom_selectbox
 
 logger = get_logger(__name__)
 
 # ─────────────────────── theme CSS ──────────────────────────────
 _THEME_LIGHT = ":root{--bg:#F5F6FA;--bg2:#FFFFFF;--bg3:#F8F9FB;--bg4:#EEF1F7;--border:rgba(148,163,184,.2);--border2:rgba(148,163,184,.35);--t1:#1A1A1A;--t2:#4A5568;--t3:#8A8FA3;--t4:#A0AEC0;--green:#34d399;--gd:rgba(52,211,153,.18);--red:#fb7185;--rd:rgba(251,113,133,.18);--blue:#60a5fa;--bd:rgba(96,165,250,.18);--purple:#c4b5fd;--pd:rgba(196,181,253,.18);--amber:#fcd34d;--teal:#5eead4;--pink:#f9a8d4;}"
-_THEME_DARK  = ":root{--bg:#0d1117;--bg2:#161b27;--bg3:#1a2035;--bg4:#1e2740;--border:rgba(41,52,85,.7);--border2:rgba(58,70,97,.8);--t1:#e2e8f0;--t2:#94a3b8;--t3:#8b95ad;--t4:#6b7a99;--green:#34d399;--gd:rgba(52,211,153,.18);--red:#fb7185;--rd:rgba(251,113,133,.18);--blue:#60a5fa;--bd:rgba(96,165,250,.18);--purple:#c4b5fd;--pd:rgba(196,181,253,.18);--amber:#fcd34d;--teal:#5eead4;--pink:#f9a8d4;}"
+_THEME_DARK  = ":root{--bg:#0d1117;--bg2:#161b26;--bg3:#1f2633;--bg4:#283041;--border:rgba(148,163,184,.15);--border2:rgba(148,163,184,.28);--t1:#ffffff;--t2:#cdd6e4;--t3:#8b95ad;--t4:#6b7a99;--green:#34d399;--gd:rgba(52,211,153,.18);--red:#fb7185;--rd:rgba(251,113,133,.18);--blue:#60a5fa;--bd:rgba(96,165,250,.18);--purple:#c4b5fd;--pd:rgba(196,181,253,.18);--amber:#fcd34d;--teal:#5eead4;--pink:#f9a8d4;}"
+
+# ─────────────────────── constants ──────────────────────────────
+
+# Region scope → (itunes_country, spotify_country)
+SCOPES: dict[str, tuple[str, str]] = {
+    "Global / WW": ("ww", "global"),
+    "United States": ("us", "us"),
+    "Mexico":        ("mx", "mx"),
+    "Argentina":     ("ar", "ar"),
+    "Colombia":      ("co", "co"),
+    "Brazil":        ("br", "br"),
+}
+
+COUNTRY_FLAGS: dict[str, str] = {
+    "global": "🌐 Global", "ww": "🌐 Global", "us": "🇺🇸 United States",
+    "gb": "🇬🇧 United Kingdom", "uk": "🇬🇧 United Kingdom", "ar": "🇦🇷 Argentina",
+    "au": "🇦🇺 Australia", "at": "🇦🇹 Austria", "be": "🇧🇪 Belgium",
+    "bo": "🇧🇴 Bolivia", "br": "🇧🇷 Brazil", "bg": "🇧🇬 Bulgaria",
+    "ca": "🇨🇦 Canada", "cl": "🇨🇱 Chile", "co": "🇨🇴 Colombia",
+    "cr": "🇨🇷 Costa Rica", "cz": "🇨🇿 Czech Republic", "dk": "🇩🇰 Denmark",
+    "do": "🇩🇴 Dominican Republic", "ec": "🇪🇨 Ecuador", "eg": "🇪🇬 Egypt",
+    "sv": "🇸🇻 El Salvador", "ee": "🇪🇪 Estonia", "fi": "🇫🇮 Finland",
+    "fr": "🇫🇷 France", "de": "🇩🇪 Germany", "gr": "🇬🇷 Greece",
+    "gt": "🇬🇹 Guatemala", "hn": "🇭🇳 Honduras", "hk": "🇭🇰 Hong Kong",
+    "hu": "🇭🇺 Hungary", "is": "🇮🇸 Iceland", "in": "🇮🇳 India",
+    "id": "🇮🇩 Indonesia", "ie": "🇮🇪 Ireland", "il": "🇮🇱 Israel",
+    "it": "🇮🇹 Italy", "jp": "🇯🇵 Japan", "lv": "🇱🇻 Latvia",
+    "lt": "🇱🇹 Lithuania", "lu": "🇱🇺 Luxembourg", "my": "🇲🇾 Malaysia",
+    "mx": "🇲🇽 Mexico", "ma": "🇲🇦 Morocco", "nl": "🇳🇱 Netherlands",
+    "nz": "🇳🇿 New Zealand", "ni": "🇳🇮 Nicaragua", "ng": "🇳🇬 Nigeria",
+    "no": "🇳🇴 Norway", "pa": "🇵🇦 Panama", "py": "🇵🇾 Paraguay",
+    "pe": "🇵🇪 Peru", "ph": "🇵🇭 Philippines", "pl": "🇵🇱 Poland",
+    "pt": "🇵🇹 Portugal", "ro": "🇷🇴 Romania", "sa": "🇸🇦 Saudi Arabia",
+    "sg": "🇸🇬 Singapore", "sk": "🇸🇰 Slovakia", "za": "🇿🇦 South Africa",
+    "kr": "🇰🇷 South Korea", "es": "🇪🇸 Spain", "se": "🇸🇪 Sweden",
+    "ch": "🇨🇭 Switzerland", "tw": "🇹🇼 Taiwan", "th": "🇹🇭 Thailand",
+    "tr": "🇹🇷 Turkey", "ae": "🇦🇪 UAE", "ua": "🇺🇦 Ukraine",
+    "uy": "🇺🇾 Uruguay", "vn": "🇻🇳 Vietnam", "ve": "🇻🇪 Venezuela"
+}
+
+# Label normalization map: variant → canonical
+LABEL_NORM: dict[str, str] = {
+    # BIGHIT
+    "Big Hit Entertainment":  "BIGHIT MUSIC",
+    "Big Hit Music":          "BIGHIT MUSIC",
+    "BigHit Music":           "BIGHIT MUSIC",
+    "BIGHIT Music":           "BIGHIT MUSIC",
+    "Big Hit":                "BIGHIT MUSIC",
+    "BH Entertainment":       "BIGHIT MUSIC",
+    # Epic
+    "Epic":                   "Epic Records",
+    # Warner
+    "Warner":                 "Warner Records",
+    "Warner Bros.":           "Warner Records",
+    "Warner Bros. Records":   "Warner Records",
+    "Warner Music":           "Warner Records",
+    "WMG":                    "Warner Records",
+    "WEA Records":            "Warner Records",
+    # Columbia
+    "Columbia":               "Columbia Records",
+    "Columbia Music Entertainment": "Columbia Records",
+    "Columbia/Sony Music":    "Columbia Records",
+    # Atlantic
+    "Atlantic":               "Atlantic Records",
+    "Atlantic/Home Grown":    "Atlantic Records",
+    # Republic
+    "Republic":               "Republic Records",
+    # Island
+    "Island":                 "Island Records",
+    "Island Def Jam":         "Island Records",
+    "Island/Def Jam":         "Island Records",
+    # Sony Music Latin
+    "Premium Latin Music":         "Sony Music Latin",
+    "Premium Latin":               "Sony Music Latin",
+    "Premium Latin Music/Sony Music Latin": "Sony Music Latin",
+    # Rancho Humilde
+    "Rancho Humilde/Sony Music Latin":         "Rancho Humilde",
+    "Rancho Humilde / Sony Music Latin":       "Rancho Humilde",
+    "Rancho Humilde/Street Mob Records":       "Rancho Humilde",
+    "Rancho Humilde / Street Mob Records":     "Rancho Humilde",
+    # White Star Music
+    "White Star":             "White Star Music",
+    "White Star Records":     "White Star Music",
+    "White Star Origins":     "White Star Music",
+    "White Star Origin":      "White Star Music",
+    "White Star Entertainment": "White Star Music",
+    "White Star Inc":         "White Star Music",
+    "White Star Lane Records": "White Star Music",
+    "White Star Line":        "White Star Music",
+    "White Star/Warner":      "White Star Music",
+    "White Star/Warner Latina": "White Star Music",
+    "White Star/Warner Music Latina": "White Star Music",
+    # Interscope
+    "Interscope":             "Interscope Records",
+    # Def Jam
+    "Def Jam":                "Def Jam Recordings",
+    # Geffen
+    "Geffen":                 "Geffen Records",
+    "DGC":                    "Geffen Records",
+    "DGC Records":            "Geffen Records",
+    "DGC/Geffen":             "Geffen Records",
+    "DGC/Geffen Records":     "Geffen Records",
+    # Rimas
+    "Rimas":                  "Rimas Entertainment",
+}
+
+TOP_N_LABELS = 12
 
 
-def classify_label(label_str):
-    """Categorize raw label names into one of the 5 major groups."""
-    if not label_str:
-        return 'Other/Indie'
-    
-    label_lower = label_str.lower().strip()
-    
-    # 1. Sony Music
-    if any(x in label_lower for x in ['sony', 'columbia', 'epic', 'rca', 'arista', 'bad boy', 'legacy', 'som livre', 'ultra', 'provident', 'clodio music']):
-        return 'Sony Music'
-        
-    # 2. Universal Music
-    if any(x in label_lower for x in ['universal', 'umg', 'republic', 'interscope', 'def jam', 'island', 'capitol', 'geffen', 'motown', 'virgin', 'emi', 'bighit', 'hybe', 'mca', 'polydor', 'mercury', 'astralwerks']):
-        return 'Universal Music'
-        
-    # 3. Warner Music
-    if any(x in label_lower for x in ['warner', 'wmg', 'atlantic', 'parlophone', 'elektra', 'reprise', 'nonesuch', 'roadrunner', 'asylum', 'spinnin', 'shady']):
-        return 'Warner Music'
-        
-    # 4. Independent
-    if any(x in label_lower for x in ['independent', 'indie', 'self-released', 'distrokid', 'tunecore', 'cd baby', 'unitedmasters', 'ditto', 'routenote', 'believe', 'ada', 'ingrooves', 'awal']):
-        return 'Independent'
-        
-    # Default to Other/Indie
-    return 'Other/Indie'
+# ─────────────────────── data helpers ──────────────────────────
 
-def fmt_kpi(val):
-    """Format large numbers for display in KPI cards."""
-    if val >= 1e9: 
-        return f"{val/1e9:.2f}B"
-    if val >= 1e6: 
-        return f"{val/1e6:.2f}M"
-    if val >= 1e3: 
-        return f"{val/1e3:.0f}K"
-    return str(val)
+def _normalize_label(label: str | None) -> str:
+    """Apply LABEL_NORM map; return canonical or original if not found."""
+    if not label:
+        return "—"
+    return LABEL_NORM.get(label.strip(), label.strip())
+
 
 @st.cache_data(ttl=300, show_spinner=False)
-def load_data():
-    """Load latest 14 days of data from database."""
-    conn = get_connection()
+def _get_data_date() -> str:
+    """Fetch the min and max date from spotify_daily to show in the UI."""
+    query = "SELECT MIN(date) as min_d, MAX(date) as max_d FROM spotify_daily WHERE label != 'Independent'"
     try:
+        conn = get_connection()
         with conn.cursor() as cur:
-            # Load Spotify global data
-            spotify_query = """
-                SELECT date, rank, artist_title, streams, label 
-                FROM spotify_daily
-                WHERE country = 'global'
-                  AND date >= (SELECT MAX(date) FROM spotify_daily WHERE country = 'global') - INTERVAL '13 days'
-            """
-            cur.execute(spotify_query)
-            rows_sp = cur.fetchall()
-            df_spotify = pd.DataFrame([dict(r) for r in rows_sp]) if rows_sp else pd.DataFrame(columns=['date', 'rank', 'artist_title', 'streams', 'label'])
-            
-            # Load iTunes worldwide data
-            itunes_query = """
-                SELECT date, rank, artist_title, points, label 
-                FROM itunes_daily
-                WHERE country = 'ww'
-                  AND date >= (SELECT MAX(date) FROM itunes_daily WHERE country = 'ww') - INTERVAL '13 days'
-            """
-            cur.execute(itunes_query)
-            rows_it = cur.fetchall()
-            df_itunes = pd.DataFrame([dict(r) for r in rows_it]) if rows_it else pd.DataFrame(columns=['date', 'rank', 'artist_title', 'points', 'label'])
-            
-            return df_spotify, df_itunes
-    except Exception as e:
-        logger.error(f"Error loading label analysis data: {e}")
-        return pd.DataFrame(), pd.DataFrame()
-    finally:
-        conn.close()
+            cur.execute(query)
+            res = cur.fetchone()
+            if res and res.get("min_d") and res.get("max_d"):
+                min_d = res["min_d"].strftime("%b %d, %Y")
+                max_d = res["max_d"].strftime("%b %d, %Y")
+                if min_d == max_d:
+                    return max_d
+                return f"{min_d} - {max_d}"
+    except Exception:
+        pass
+    return "All-Time"
 
 
-def render_label_analysis():
-    """Render the Label Analysis dashboard with dynamic data."""
-    dark_mode = st.session_state.get("dark_mode", False)
-    theme_css = _THEME_DARK if dark_mode else _THEME_LIGHT
-    df_spotify, df_itunes = load_data()
-    
-    if df_spotify.empty and df_itunes.empty:
-        st.info("ℹ️ No daily data found in spotify_daily and itunes_daily tables. Please run the scrapers to populate these tables.")
-        return
-
-    # Map labels
-    if not df_spotify.empty:
-        df_spotify['label_group'] = df_spotify['label'].apply(classify_label)
-        df_spotify['date'] = pd.to_datetime(df_spotify['date']).dt.date
-    else:
-        df_spotify = pd.DataFrame(columns=['date', 'rank', 'artist_title', 'streams', 'label', 'label_group'])
-
-    if not df_itunes.empty:
-        df_itunes['label_group'] = df_itunes['label'].apply(classify_label)
-        df_itunes['date'] = pd.to_datetime(df_itunes['date']).dt.date
-    else:
-        df_itunes = pd.DataFrame(columns=['date', 'rank', 'artist_title', 'points', 'label', 'label_group'])
-
-    # Determine unique dates
-    unique_dates_sorted = sorted(list(set(df_spotify['date'].unique()).union(set(df_itunes['date'].unique()))))
-    if not unique_dates_sorted:
-        st.info("ℹ️ No daily data found. Please run the scrapers to populate the tables.")
-        return
-        
-    dates_js = [d.strftime('%b %d') for d in unique_dates_sorted]
-    
-    # Split dates into Wk A and Wk B
-    mid = len(unique_dates_sorted) // 2
-    wkA_dates = unique_dates_sorted[:mid]
-    wkB_dates = unique_dates_sorted[mid:]
-    
-    # Standard label order and colors
-    LABELS_ORDER = ['Other/Indie', 'Independent', 'Universal Music', 'Sony Music', 'Warner Music']
-    LABEL_COLORS = {
-      'Sony Music': '#fb7185',
-      'Universal Music': '#c4b5fd',
-      'Warner Music': '#fcd34d',
-      'Independent': '#34d399',
-        'Other/Indie': '#60a5fa'
-    }
-    
-    # ── SP_DATA & IT_DATA ─────────────────────────────
-    sp_data = {}
-    total_sp_streams = int(df_spotify['streams'].sum()) if not df_spotify.empty else 0
-    for lg in LABELS_ORDER:
-        lg_df = df_spotify[df_spotify['label_group'] == lg] if not df_spotify.empty else pd.DataFrame()
-        if not lg_df.empty:
-            streams = int(lg_df['streams'].sum())
-            tracks = int(lg_df['artist_title'].nunique())
-            best_rank = int(lg_df['rank'].min())
-            wkA = int(lg_df[lg_df['date'].isin(wkA_dates)]['streams'].sum())
-            wkB = int(lg_df[lg_df['date'].isin(wkB_dates)]['streams'].sum())
-            share = round((streams / total_sp_streams) * 100, 1) if total_sp_streams > 0 else 0.0
-        else:
-            streams, tracks, best_rank, wkA, wkB, share = 0, 0, 100, 0, 0, 0.0
-            
-        sp_data[lg] = {
-            "streams": streams,
-            "tracks": tracks,
-            "bestRank": best_rank,
-            "wkA": wkA,
-            "wkB": wkB,
-            "share": share
-        }
-        
-    it_data = {}
-    total_it_score = int(df_itunes['points'].sum()) if not df_itunes.empty else 0
-    for lg in LABELS_ORDER:
-        lg_df = df_itunes[df_itunes['label_group'] == lg] if not df_itunes.empty else pd.DataFrame()
-        if not lg_df.empty:
-            score = int(lg_df['points'].sum())
-            tracks = int(lg_df['artist_title'].nunique())
-            best_rank = int(lg_df['rank'].min())
-            share = round((score / total_it_score) * 100, 1) if total_it_score > 0 else 0.0
-        else:
-            score, tracks, best_rank, share = 0, 0, 100, 0.0
-            
-        it_data[lg] = {
-            "score": score,
-            "tracks": tracks,
-            "bestRank": best_rank,
-            "share": share
-        }
-
-    # ── DAILY Streams ───────────────────────────────
-    daily = {}
-    for lg in LABELS_ORDER:
-        daily[lg] = []
-        lg_df = df_spotify[df_spotify['label_group'] == lg] if not df_spotify.empty else pd.DataFrame()
-        daily_group = lg_df.groupby('date')['streams'].sum() if not lg_df.empty else {}
-        for d in unique_dates_sorted:
-            val = daily_group.get(d, 0)
-            daily[lg].append(int(val))
-            
-    # ── SP_TRACKS ───────────────────────────────────
-    sp_tracks = {}
-    for lg in LABELS_ORDER:
-        lg_df = df_spotify[df_spotify['label_group'] == lg] if not df_spotify.empty else pd.DataFrame()
-        if lg_df.empty:
-            sp_tracks[lg] = []
-            continue
-            
-        track_stats = lg_df.groupby('artist_title').agg(
-            total_streams=('streams', 'sum'),
-            best_rank=('rank', 'min'),
-            days_charted=('date', 'nunique')
-        ).reset_index()
-        
-        top_tracks = track_stats.sort_values('total_streams', ascending=False).head(15)
-        
-        tracks_list = []
-        for _, row in top_tracks.iterrows():
-            t_title = row['artist_title']
-            parts = t_title.split(' - ', 1)
-            artist = parts[0].strip()
-            title = parts[1].strip() if len(parts) > 1 else t_title
-            
-            # Remove parenthetical info if title gets too long (aesthetic cleanup)
-            if len(title) > 28 and '(' in title:
-                title = title.split('(')[0].strip()
-            
-            track_df = lg_df[lg_df['artist_title'] == t_title]
-            latest_date = track_df['date'].max()
-            latest_streams = int(track_df[track_df['date'] == latest_date]['streams'].sum())
-            
-            wkA_str = track_df[track_df['date'].isin(wkA_dates)]['streams'].sum()
-            wkB_str = track_df[track_df['date'].isin(wkB_dates)]['streams'].sum()
-            
-            len_wkA = len(wkA_dates)
-            len_wkB = len(wkB_dates)
-            avg_wkA = wkA_str / len_wkA if len_wkA > 0 else 0
-            avg_wkB = wkB_str / len_wkB if len_wkB > 0 else 0
-            
-            if avg_wkA > 0:
-                growth = round(((avg_wkB - avg_wkA) / avg_wkA) * 100, 1)
-            else:
-                growth = 100.0 if avg_wkB > 0 else 0.0
-                
-            tracks_list.append({
-                "t": title,
-                "a": artist,
-                "s": int(row['total_streams']),
-                "r": int(row['best_rank']),
-                "l": latest_streams,
-                "g": growth,
-                "d": int(row['days_charted'])
-            })
-        sp_tracks[lg] = tracks_list
-        
-    # ── IT_TRACKS ───────────────────────────────────
-    it_tracks = {}
-    for lg in LABELS_ORDER:
-        lg_df = df_itunes[df_itunes['label_group'] == lg] if not df_itunes.empty else pd.DataFrame()
-        if lg_df.empty:
-            it_tracks[lg] = []
-            continue
-            
-        track_stats = lg_df.groupby('artist_title').agg(
-            total_score=('points', 'sum'),
-            best_rank=('rank', 'min')
-        ).reset_index()
-        
-        top_tracks = track_stats.sort_values('total_score', ascending=False).head(10)
-        
-        tracks_list = []
-        for _, row in top_tracks.iterrows():
-            t_title = row['artist_title']
-            parts = t_title.split(' - ', 1)
-            artist = parts[0].strip()
-            title = parts[1].strip() if len(parts) > 1 else t_title
-            
-            if len(title) > 28 and '(' in title:
-                title = title.split('(')[0].strip()
-                
-            track_df = lg_df[lg_df['artist_title'] == t_title]
-            latest_date = track_df['date'].max()
-            latest_score = int(track_df[track_df['date'] == latest_date]['points'].sum())
-            
-            tracks_list.append({
-                "t": title,
-                "a": artist,
-                "s": int(row['total_score']),
-                "r": int(row['best_rank']),
-                "l": latest_score
-            })
-        it_tracks[lg] = tracks_list
-
-    # ── KPI DATA Calculations ───────────────────────
-    # 1. Total streams
-    total_streams_str = fmt_kpi(total_sp_streams)
-    total_streams_sub = f"All label groups · {len(unique_dates_sorted)} days"
-    
-    # 2. Top label (streams)
-    sp_totals = {lg: sp_data[lg]["streams"] for lg in LABELS_ORDER}
-    top_lg = max(sp_totals, key=sp_totals.get)
-    top_lg_streams = sp_totals[top_lg]
-    top_lg_share = sp_data[top_lg]["share"]
-    top_label_str = top_lg
-    top_label_color = LABEL_COLORS[top_lg]
-    top_label_sub = f"{fmt_kpi(top_lg_streams)} · {top_lg_share}% share"
-    
-    # 3. Best rank (Spotify)
-    if not df_spotify.empty:
-        best_sp_row = df_spotify.loc[df_spotify['rank'].idxmin()]
-        best_sp_label = best_sp_row['label_group']
-        parts = best_sp_row['artist_title'].split(' - ', 1)
-        best_sp_artist = parts[0].strip()
-        best_rank_label = best_sp_label
-        best_rank_sub = f"#{best_sp_row['rank']} · {best_sp_artist}"
-    else:
-        best_rank_label = "—"
-        best_rank_sub = "No rank data"
-        
-    # 4. iTunes #1 label
-    if not df_itunes.empty:
-        it_track_sums = df_itunes.groupby(['artist_title', 'label_group'])['points'].sum().reset_index()
-        top_it_row = it_track_sums.loc[it_track_sums['points'].idxmax()]
-        itunes_no1_label = top_it_row['label_group']
-        parts = top_it_row['artist_title'].split(' - ', 1)
-        itunes_artist = parts[0].strip()
-        itunes_title = parts[1].strip() if len(parts) > 1 else top_it_row['artist_title']
-        itunes_no1_sub = f"{itunes_artist} {itunes_title[:14]}... · {fmt_kpi(top_it_row['points'])} score"
-    else:
-        itunes_no1_label = "—"
-        itunes_no1_sub = "No iTunes data"
-        
-    # 5. Fastest growing label
-    growths = {}
-    for lg in LABELS_ORDER:
-        lg_df = df_spotify[df_spotify['label_group'] == lg] if not df_spotify.empty else pd.DataFrame()
-        wkA = lg_df[lg_df['date'].isin(wkA_dates)]['streams'].sum() if not lg_df.empty else 0
-        wkB = lg_df[lg_df['date'].isin(wkB_dates)]['streams'].sum() if not lg_df.empty else 0
-        avg_wkA = wkA / len(wkA_dates) if len(wkA_dates) > 0 else 0
-        avg_wkB = wkB / len(wkB_dates) if len(wkB_dates) > 0 else 0
-        growths[lg] = ((avg_wkB - avg_wkA) / avg_wkA) * 100 if avg_wkA > 0 else -999.0
-        
-    fastest_lg = max(growths, key=growths.get)
-    fastest_growth = growths[fastest_lg]
-    if fastest_growth > -999.0:
-        fastest_growing_label = fastest_lg
-        fastest_growing_color = LABEL_COLORS[fastest_lg]
-        fastest_growing_sub = f"{'+' if fastest_growth >= 0 else ''}{fastest_growth:.1f}% Wk A→B streams"
-    else:
-        fastest_growing_label = "—"
-        fastest_growing_color = "#ffffff"
-        fastest_growing_sub = "No growth data"
-        
-    kpi_data = {
-        "totalStreams": total_streams_str,
-        "totalStreamsSub": total_streams_sub,
-        "topLabel": top_label_str,
-        "topLabelColor": top_label_color,
-        "topLabelSub": top_label_sub,
-        "bestRankLabel": best_rank_label,
-        "bestRankSub": best_rank_sub,
-        "itunesNo1Label": itunes_no1_label,
-        "itunesNo1Sub": itunes_no1_sub,
-        "fastestGrowingLabel": fastest_growing_label,
-        "fastestGrowingColor": fastest_growing_color,
-        "fastestGrowingSub": fastest_growing_sub
-    }
-    
-    # Date Range text details
-    min_date_str = min(unique_dates_sorted).strftime("%b %d")
-    max_date_str = max(unique_dates_sorted).strftime("%b %d, %Y")
-    date_range_label = f"Chromadata · Label Intelligence"
-    
-    # Week buttons text
-    if wkA_dates:
-      wkA_range_label = f"Wk A · {min(wkA_dates).strftime('%b %d')}–{max(wkA_dates).strftime('%b %d')}"
-    else:
-      wkA_range_label = "Wk A · No data"
-
-    if wkB_dates:
-      wkB_range_label = f"Wk B · {min(wkB_dates).strftime('%b %d')}–{max(wkB_dates).strftime('%b %d')}"
-    else:
-      wkB_range_label = "Wk B · No data"
-    
-    # ── HTML TEMPLATE ─────────────────────────────────
-    html_template = """
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Label Market Dashboard</title>
-        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap">
-        <style>
-        *{box-sizing:border-box;margin:0;padding:0}
-        __THEME__
-        :root {
-          --sony:#fb7185;--umg:#c4b5fd;--wmg:#fcd34d;--indie:#34d399;--other:#60a5fa;
-        }
-        body{
-          background: var(--bg);
-          font-family:'Inter',system-ui,sans-serif;
-          color:var(--t1);
-          font-size:15px;
-          overflow-x:hidden;
-          padding-bottom:30px;
-          animation: fadeIn 0.5s ease-out;
-          margin-top: -1.0rem;
-        }
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(8px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-          .hdr {
-            margin: 14px 18px 0;
-            padding: 0;
-          }
-        .hdr-row{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;position:relative;z-index:2;}
-        .brand{
-          font-size:12px;
-          font-weight:800;
-          color:var(--t3);
-          letter-spacing:2px;
-          text-transform:uppercase;
-          display:flex;
-          align-items:center;
-          gap:6px;
-          margin-bottom:8px;
-        }
-        .live{
-          width:8px;
-          height:8px;
-          border-radius:50%;
-          background:var(--green);
-          box-shadow: 0 0 0 3px rgba(34,211,160,.15), 0 0 10px rgba(34,211,160,.5);
-          animation: blink 2s infinite;
-        }
-        @keyframes blink{
-          0%,100%{opacity:1; box-shadow: 0 0 0 3px rgba(34,211,160,.15), 0 0 10px rgba(34,211,160,.5);}
-          50%{opacity:.3; box-shadow: 0 0 0 6px rgba(34,211,160,.05), 0 0 16px rgba(34,211,160,.7);}
-        }
-        .title{font-size:26px;font-weight:950;letter-spacing:-.03em;color:var(--t1);line-height:1.15;}
-        .sub{font-size:11px;color:var(--t2);font-weight:500;margin-top:5px;letter-spacing:.02em;}
-        
-        .controls{display:flex;gap:6px;align-items:center;flex-wrap:wrap;position:relative;z-index:2;}
-        .pill-grp{
-          display:flex;
-          gap:4px;
-          background:var(--bg3);
-          padding:4px;
-          border-radius:12px;
-          border:1px solid var(--border);
-          backdrop-filter:blur(10px);
-        }
-        .fp{
-          font-size:10px;
-          font-weight:700;
-          padding:7px 14px;
-          border:1px solid transparent;
-          border-radius:8px;
-          cursor:pointer;
-          background:transparent;
-          color:var(--t2);
-          transition:all .2s ease;
-          letter-spacing:.3px;
-        }
-        .fp:hover{color:var(--t1);background:rgba(255,255,255,0.05);}
-        .fp.on{
-          color:var(--t1);
-          background:linear-gradient(135deg, rgba(96,165,250,.22), rgba(196,181,253,.22));
-          border-color:rgba(96,165,250,.55);
-          box-shadow:0 10px 20px rgba(0,0,0,.22);
-        }
-        
-        .plat-bar{
-          display:flex;
-          gap:10px;
-          margin-top:0;
-          padding:8px 0 12px;
-          border-bottom:1px solid rgba(148,163,184,.1);
-          position:relative;
-          z-index:2;
-        }
-        .pt{
-          flex:1;
-          min-width:0;
-          display:flex;
-          align-items:center;
-          justify-content:center;
-          gap:8px;
-          font-size:12px;
-          font-weight:800;
-          letter-spacing:.9px;
-          text-transform:uppercase;
-          padding:11px 16px;
-          border:1px solid var(--border2);
-          border-radius:12px;
-          background:var(--bg3);
-          color:var(--t2);
-          cursor:pointer;
-          transition:all .22s ease;
-          box-shadow:none;
-        }
-        .pt-ic{
-          width:16px;
-          text-align:center;
-          color:var(--t3);
-          font-size:12px;
-          line-height:1;
-        }
-        .pt:hover{
-          color:var(--t1);
-          border-color:var(--blue);
-          background:var(--bg2);
-          box-shadow:0 8px 22px rgba(0,0,0,.05);
-        }
-        .pt.on{
-          color:var(--t1);
-          border-color:var(--blue);
-          background:rgba(96,165,250,.12);
-          box-shadow:inset 0 0 0 1px var(--blue);
-        }
-
-        .kpi-bar{
-          display:grid;
-          grid-template-columns:repeat(5,1fr);
-          gap:12px;
-          margin: 14px 18px 0;
-        }
-        .kpi{
-          position:relative;
-          background:var(--bg2);
-          border:1px solid var(--border);
-          border-radius:16px;
-          padding:18px 18px 16px 22px;
-          box-shadow:0 12px 24px rgba(0,0,0,.18);
-          overflow:hidden;
-          transition:all .2s ease;
-        }
-        .kpi:hover{transform:translateY(-2px);border-color:rgba(148,163,184,.3);box-shadow:0 16px 32px rgba(0,0,0,.22);}
-        .kpi::before{
-          content:"";position:absolute;left:0;top:14%;bottom:14%;width:4px;
-          border-radius:0 4px 4px 0;
-          background:var(--blue);
-        }
-        .kpi.k-blue::before{background:var(--blue);}
-        .kpi.k-green::before{background:var(--green);}
-        .kpi.k-purple::before{background:var(--purple);}
-        .kpi.k-amber::before{background:var(--amber);}
-        .kpi.k-pink::before{background:var(--pink);}
-        
-        .kpi-lbl{font-size:13px;color:var(--t3);text-transform:uppercase;letter-spacing:.12em;font-weight:900;margin-bottom:10px;}
-        .kpi-val{font-size:28px;font-weight:950;letter-spacing:-.02em;line-height:1.1;color:var(--t1);}
-        .kpi.k-blue .kpi-val{color:var(--blue);}
-        .kpi.k-green .kpi-val{color:var(--green);}
-        .kpi.k-purple .kpi-val{color:var(--purple);}
-        .kpi.k-amber .kpi-val{color:var(--amber);}
-        .kpi.k-pink .kpi-val{color:var(--pink);}
-        
-        .kpi-sub{font-size:14px;color:var(--t2);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600;}
-
-        .body{padding:14px 18px;display:flex;flex-direction:column;gap:14px}
-        .r2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-        .r3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
-        .r24{display:grid;grid-template-columns:1.6fr 1fr;gap:12px}
-        .r42{display:grid;grid-template-columns:1fr 1.6fr;gap:12px}
-
-        .card{
-          background:linear-gradient(180deg, var(--bg2) 0%, var(--bg3) 100%);
-          border:1px solid var(--border);
-          border-radius:18px;
-          padding:16px 18px;
-          box-shadow:0 14px 30px rgba(0,0,0,.22);
-          transition:all .25s ease;
-        }
-        .card:hover{
-          border-color:rgba(96,165,250,.4);
-          box-shadow:0 22px 40px rgba(0,0,0,.32);
-          transform:translateY(-2px);
-        }
-        .card-ttl{
-          font-size:10px;
-          color:var(--t3);
-          text-transform:uppercase;
-          letter-spacing:1px;
-          font-weight:800;
-          margin-bottom:12px;
-          padding-bottom:8px;
-          border-bottom:1px solid var(--border);
-        }
-
-        .sh{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;padding:0 2px;}
-        .sh-l{font-size:13px;font-weight:700;color:var(--t1);letter-spacing:-.01em;}
-        .sh-r{font-size:9.5px;font-weight:700;color:var(--t2);background:var(--bg3);padding:3px 10px;border-radius:999px;border:1px solid var(--border);}
-
-        .cw{position:relative;width:100%}
-
-        /* Label selector cards */
-        .label-cards{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:16px;}
-        .lc{
-          background:var(--bg2);
-          border:1px solid var(--border);
-          border-radius:16px;
-          padding:14px 16px;
-          cursor:pointer;
-          transition:all .25s cubic-bezier(0.4, 0, 0.2, 1);
-          position:relative;
-          overflow:hidden;
-          box-shadow:0 12px 24px rgba(0,0,0,.18);
-        }
-        .lc:hover{
-          border-color:var(--accent-color) !important;
-          background:linear-gradient(180deg, var(--bg2) 0%, var(--bg3) 100%);
-          transform:translateY(-3px);
-          box-shadow:0 18px 36px rgba(0,0,0,.28);
-        }
-        .lc.on{
-          background:var(--bg4);
-          border-color:var(--accent-color) !important;
-          box-shadow: 0 14px 32px rgba(0, 0, 0, 0.15);
-        }
-        .lc::before{
-          content:'';position:absolute;top:0;left:0;right:0;height:3px;
-          background:var(--accent-color);
-        }
-        .lc-name{font-size:11px;font-weight:800;color:var(--accent-color);letter-spacing:.5px;margin-bottom:4px;}
-        .lc-streams{font-size:18px;font-weight:900;letter-spacing:-.02em;margin-bottom:3px;color:var(--t1);}
-        .lc-sub{font-size:10px;color:var(--t2);margin-bottom:6px;}
-        .lc-share{font-size:11.5px;font-weight:800;margin-top:6px;display:flex;align-items:center;gap:4px;}
-
-        /* Track list */
-        .trk-hdr{display:grid;gap:6px;padding:4px 6px;border-bottom:1px solid var(--border);margin-bottom:4px}
-        .trk-hdr span{font-size:8.5px;color:var(--t3);text-transform:uppercase;letter-spacing:.8px;font-weight:700;}
-        .trk{display:grid;gap:6px;padding:8px 10px;border-bottom:1px solid rgba(148,163,184,.04);align-items:center;cursor:pointer;transition:all 0.15s ease;border-radius:8px;}
-        .trk:hover{background:rgba(96,165,250,.08);transform:scale(1.005);}
-        .trk:last-child{border-bottom:none}
-        .rn{font-size:11px;color:var(--t3);text-align:center;font-weight:700;}
-        .tn{font-size:12px;font-weight:600;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-        .ta{font-size:10px;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
-        .tv{font-size:11.5px;color:var(--t2);text-align:right;white-space:nowrap;font-weight:600;}
-        .g{color:var(--green)}.r{color:var(--red)}.a{color:var(--amber)}.b{color:var(--blue)}.p{color:var(--purple)}
-
-        /* Growth badge */
-        .gb{display:inline-flex;align-items:center;justify-content:center;font-size:8.5px;font-weight:800;padding:3px 6px;border-radius:4px;min-width:44px;letter-spacing:0.2px;}
-        .gb-up{background:var(--gd);color:var(--green);border:1px solid rgba(52,211,153,.22);}
-        .gb-dn{background:var(--rd);color:var(--red);border:1px solid rgba(251,113,133,.22);}
-
-        /* vel bar */
-        .vb{height:3.5px;background:rgba(255,255,255,0.03);border-radius:2px;margin-top:4px;overflow:hidden;}
-        .vbf{height:100%;border-radius:2px}
-        /* Scrollable track list */
-        #sp-track-list::-webkit-scrollbar,#it-track-list::-webkit-scrollbar{width:4px}
-        #sp-track-list::-webkit-scrollbar-track,#it-track-list::-webkit-scrollbar-track{background:var(--bg3);border-radius:2px}
-        #sp-track-list::-webkit-scrollbar-thumb,#it-track-list::-webkit-scrollbar-thumb{background:rgba(148,163,184,.2);border-radius:2px}
-        #sp-track-list::-webkit-scrollbar-thumb:hover,#it-track-list::-webkit-scrollbar-thumb:hover{background:rgba(148,163,184,.4)}
-
-        /* Label market share bar */
-        .mkt-row{display:flex;align-items:center;gap:12px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.01);}
-        .mkt-row:last-child{border-bottom:none;}
-        .mkt-label{font-size:11px;color:var(--t1);min-width:95px;font-weight:600;}
-        .mkt-bar-bg{flex:1;height:6px;background:var(--bg4);border-radius:3px;overflow:hidden}
-        .mkt-bar-fg{height:100%;border-radius:3px}
-        .mkt-pct{font-size:11.5px;font-weight:700;min-width:38px;text-align:right}
-        .mkt-tracks{font-size:9.5px;color:var(--t3);min-width:54px;text-align:right;font-weight:600;}
-
-        /* WoW change row */
-        .wk-row{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid rgba(148,163,184,.06);}
-        .wk-row:last-child{border-bottom:none}
-
-        /* Platform pane */
-        .pane{display:none}
-        .pane.on{display:flex;flex-direction:column;gap:14px}
-
-        /* Week over week arrows */
-        .arr-up{color:var(--green);font-size:10px}
-        .arr-dn{color:var(--red);font-size:10px}
-        </style>
-    </head>
-    <body>
-
-    <div class="plat-bar" style="margin:14px 18px 0">
-      <button class="pt on" onclick="setPlatform('spotify',this)"><span class="pt-ic">&#9835;</span><span>SPOTIFY GLOBAL</span></button>
-      <button class="pt" onclick="setPlatform('itunes',this)"><span class="pt-ic">&#9679;</span><span>ITUNES WW</span></button>
-      <button class="pt" onclick="setPlatform('compare',this)"><span class="pt-ic">&#9673;</span><span>CROSS-PLATFORM</span></button>
-    </div>
-
-    <!-- KPI bar -->
-    <div class="kpi-bar" id="kpi-bar">
-      <div class="kpi k-blue"><div class="kpi-lbl">Total streams tracked</div><div class="kpi-val" id="kpi-val-1">...</div><div class="kpi-sub" id="kpi-sub-1">...</div></div>
-      <div class="kpi k-pink"><div class="kpi-lbl">Top label (streams)</div><div class="kpi-val" id="kpi-val-2">...</div><div class="kpi-sub" id="kpi-sub-2">...</div></div>
-      <div class="kpi k-green"><div class="kpi-lbl">Best rank (Spotify)</div><div class="kpi-val" id="kpi-val-3" style="font-size:13px;margin-top:3px">...</div><div class="kpi-sub" id="kpi-sub-3">...</div></div>
-      <div class="kpi k-purple"><div class="kpi-lbl">iTunes #1 label</div><div class="kpi-val" id="kpi-val-4" style="font-size:13px;margin-top:3px">...</div><div class="kpi-sub" id="kpi-sub-4">...</div></div>
-      <div class="kpi k-amber"><div class="kpi-lbl">Fastest growing label</div><div class="kpi-val" id="kpi-val-5">...</div><div class="kpi-sub" id="kpi-sub-5">...</div></div>
-    </div>
-
-    <div class="body">
-
-      <!-- Label selector -->
-      <div class="label-cards" id="label-cards"></div>
-
-      <!-- SPOTIFY pane -->
-      <div id="pane-spotify" class="pane on">
-        <div class="r24">
-          <div class="card">
-            <div class="card-ttl">Spotify global — daily streams by label group <span style="float:right;font-size:9px;font-weight:700;color:var(--t2);background:var(--bg3);padding:2px 8px;border-radius:999px;border:1px solid var(--border)">Live Window</span></div>
-            <div class="cw" style="height:240px"><canvas id="spTrendChart"></canvas></div>
-          </div>
-          <div class="card">
-            <div class="card-ttl">Market share — streams <span style="float:right;font-size:9px;font-weight:700;color:var(--t2);background:var(--bg3);padding:2px 8px;border-radius:999px;border:1px solid var(--border)">Total window</span></div>
-            <div style="margin-bottom:10px" id="mkt-share-sp"></div>
-            <div style="border-top:1px solid var(--border);padding-top:12px;margin-top:4px">
-              <div class="card-ttl" style="margin-bottom:8px">Week-over-week shift</div>
-              <div id="wow-sp"></div>
-            </div>
-          </div>
-        </div>
-
-        <div class="r2">
-          <div class="card">
-            <div class="card-ttl" id="sp-roster-title">Selected label — Spotify top tracks</div>
-            <div class="trk-hdr" style="grid-template-columns:18px 1fr 64px 56px 56px 46px">
-              <span></span><span>Track</span><span style="text-align:right">Streams</span><span style="text-align:right">Best Rank</span><span style="text-align:right">Growth</span><span style="text-align:right">Days</span>
-            </div>
-            <div id="sp-track-list" style="max-height:480px;overflow-y:auto;padding-right:4px;"></div>
-          </div>
-          <div class="card">
-            <div class="card-ttl">Label stream comparison — Latest Snapshot <span style="float:right;font-size:9px;font-weight:700;color:var(--t2);background:var(--bg3);padding:2px 8px;border-radius:999px;border:1px solid var(--border)">Daily snapshot</span></div>
-            <div class="cw" style="height:280px"><canvas id="spBarChart"></canvas></div>
-            <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:12px">
-              <div class="card-ttl" style="margin-bottom:8px">Track count by label</div>
-              <div class="cw" style="height:200px"><canvas id="trackCountChart"></canvas></div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- ITUNES pane -->
-      <div id="pane-itunes" class="pane">
-        <div class="r24">
-          <div class="card">
-            <div class="card-ttl">iTunes WW — cumulative score by label group <span style="float:right;font-size:9px;font-weight:700;color:var(--t2);background:var(--bg3);padding:2px 8px;border-radius:999px;border:1px solid var(--border)">Total window</span></div>
-            <div class="cw" style="height:240px"><canvas id="itTrendChart"></canvas></div>
-          </div>
-          <div class="card">
-            <div class="card-ttl">iTunes market share — score <span style="float:right;font-size:9px;font-weight:700;color:var(--t2);background:var(--bg3);padding:2px 8px;border-radius:999px;border:1px solid var(--border)">Live Window</span></div>
-            <div id="mkt-share-it"></div>
-          </div>
-        </div>
-
-        <div class="r2">
-          <div class="card">
-            <div class="card-ttl" id="it-roster-title">Selected label — iTunes WW top tracks</div>
-            <div class="trk-hdr" style="grid-template-columns:18px 1fr 70px 56px 56px">
-              <span></span><span>Track</span><span style="text-align:right">Total Score</span><span style="text-align:right">Best Rank</span><span style="text-align:right">Latest Score</span>
-            </div>
-            <div id="it-track-list" style="max-height:480px;overflow-y:auto;padding-right:4px;"></div>
-          </div>
-          <div class="card">
-            <div class="card-ttl">iTunes label scorecard — tracks × avg score</div>
-            <div class="cw" style="height:260px"><canvas id="itBubbleChart"></canvas></div>
-          </div>
-        </div>
-      </div>
-
-      <!-- COMPARE pane -->
-      <div id="pane-compare" class="pane">
-        <div class="r2">
-          <div class="card">
-            <div class="card-ttl">Cross-platform index — Spotify streams vs iTunes score (normalised)</div>
-            <div class="cw" style="height:260px"><canvas id="crossChart"></canvas></div>
-          </div>
-          <div class="card">
-            <div class="card-ttl">Label health matrix <span style="float:right;font-size:9px;font-weight:700;color:var(--t2);background:var(--bg3);padding:2px 8px;border-radius:999px;border:1px solid var(--border)">Both platforms</span></div>
-            <div id="health-matrix"></div>
-          </div>
-        </div>
-        <div class="r3">
-          <div class="card"><div class="card-ttl">Sony Music — top 5 cross-platform</div><div id="cross-sony"></div></div>
-          <div class="card"><div class="card-ttl">Universal Music — top 5 cross-platform</div><div id="cross-umg"></div></div>
-          <div class="card"><div class="card-ttl">Warner Music — top 5 cross-platform</div><div id="cross-wmg"></div></div>
-        </div>
-      </div>
-
-    </div>
-
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-    <script>
-    // ── Real data ─────────────────────────────────────────
-    const LABEL_COLORS={
-      'Sony Music':'#fb7185','Universal Music':'#c4b5fd',
-      'Warner Music':'#fcd34d','Independent':'#34d399','Other/Indie':'#60a5fa'
-    };
-    const LABELS_ORDER=['Other/Indie','Independent','Universal Music','Sony Music','Warner Music'];
-
-    const SP_DATA = __SP_DATA__;
-    const IT_DATA = __IT_DATA__;
-    const DATES = __DATES__;
-    const DAILY = __DAILY__;
-    const SP_TRACKS = __SP_TRACKS__;
-    const IT_TRACKS = __IT_TRACKS__;
-    const KPI_DATA = __KPI_DATA__;
-
-    // ── State ────────────────────────────────────────────
-    let activePlatform='spotify';
-    let activePeriod='all';
-    let activeLabel=null;
-    let spTrendChart=null,itTrendChart=null,spBarChart=null,trackCountChart=null,crossChart=null,itBubbleChart=null;
-
-    function fmtN(n,d=1){if(!n&&n!==0)return'—';const a=Math.abs(n);if(a>=1e9)return(n/1e9).toFixed(d)+'B';if(a>=1e6)return(n/1e6).toFixed(d)+'M';if(a>=1e3)return(n/1e3).toFixed(0)+'K';return Math.round(n).toLocaleString();}
-    function gbadge(g){const cls=g>=0?'gb-up':'gb-dn';return`<span class="gb ${cls}">${g>=0?'+':''}${g}%</span>`;}
-
-    const CDARK={responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:'rgba(255, 255, 255, 0.04)'},ticks:{color:'#8b95ad',font:{size:9}}},y:{grid:{color:'rgba(255, 255, 255, 0.04)'},ticks:{color:'#8b95ad',font:{size:9}}}}};
-
-    // ── Label selector cards ──────────────────────────────
-    function buildLabelCards(){
-      const el=document.getElementById('label-cards');
-      el.innerHTML='';
-      const isIt=activePlatform==='itunes';
-      LABELS_ORDER.forEach(lg=>{
-        const d=isIt?IT_DATA[lg]:SP_DATA[lg];
-        const col=LABEL_COLORS[lg];
-        const wowPct=!isIt&&SP_DATA[lg].wkA?((SP_DATA[lg].wkB-SP_DATA[lg].wkA)/SP_DATA[lg].wkA*100).toFixed(1):null;
-        const on=activeLabel===lg?'on':'';
-        el.innerHTML+=`<div class="lc ${on}" style="border-color:${on?col:'var(--border)'}; --accent-color:${col};"
-          onclick="selectLabel('${lg}')">
-          <div class="lc-name">${lg}</div>
-          <div class="lc-streams">${isIt?fmtN(d.score):fmtN(d.streams)}</div>
-          <div class="lc-sub">${isIt?d.tracks+' tracks · Best #'+d.bestRank:d.tracks+' tracks · Best #'+d.bestRank}</div>
-          ${!isIt&&wowPct?`<div class="lc-share" style="color:${parseFloat(wowPct)>=0?'var(--green)':'var(--red)'}">${parseFloat(wowPct)>=0?'▲':'▼'}${Math.abs(wowPct)}% WkA→WkB</div>`:''}
-          <div class="lc-share" style="color:${col};font-weight:600;margin-top:3px">${d.share}% share</div>
-        </div>`;
-      });
-    }
-
-    function selectLabel(lg){
-      activeLabel=lg;
-      buildLabelCards();
-      renderSpTracks(lg);
-      renderItTracks(lg);
-    }
-
-    // ── Market share bars ─────────────────────────────────
-    function buildMktShare(elId,data,key){
-      const el=document.getElementById(elId);
-      const total=Object.values(data).reduce((s,d)=>s+(d[key]||0),0);
-      el.innerHTML='';
-      LABELS_ORDER.forEach(lg=>{
-        const d=data[lg]||{};
-        const v=d[key]||0;
-        const pct=total > 0 ? (v/total*100).toFixed(1) : "0.0";
-        const col=LABEL_COLORS[lg];
-        el.innerHTML+=`<div class="mkt-row">
-          <span class="mkt-label" style="color:${col};font-size:10px;font-weight:600">${lg}</span>
-          <div class="mkt-bar-bg"><div class="mkt-bar-fg" style="width:${pct}%;background:${col}"></div></div>
-          <span class="mkt-pct" style="color:${col}">${pct}%</span>
-          <span class="mkt-tracks">${d.tracks||0} tracks</span>
-        </div>`;
-      });
-    }
-
-    // ── WoW ──────────────────────────────────────────────
-    function buildWoW(){
-      const el=document.getElementById('wow-sp');
-      el.innerHTML='';
-      LABELS_ORDER.forEach(lg=>{
-        const d=SP_DATA[lg];
-        const pct=d.wkA?((d.wkB-d.wkA)/d.wkA*100).toFixed(1):null;
-        if(!pct)return;
-        const up=parseFloat(pct)>=0;
-        el.innerHTML+=`<div class="wk-row">
-          <span style="font-size:11px;color:${LABEL_COLORS[lg]};font-weight:600;min-width:110px">${lg}</span>
-          <span style="font-size:10px;color:var(--t3);flex:1">WkA: ${fmtN(d.wkA)} → WkB: ${fmtN(d.wkB)}</span>
-          <span style="font-size:11px;font-weight:700;color:${up?'var(--green)':'var(--red)'}">${up?'▲':'▼'}${Math.abs(pct)}%</span>
-        </div>`;
-      });
-    }
-
-    // ── Spotify trend chart ───────────────────────────────
-    function buildSpTrend(){
-      if(spTrendChart)spTrendChart.destroy();
-      const ctx=document.getElementById('spTrendChart').getContext('2d');
-      spTrendChart=new Chart(ctx,{type:'line',data:{labels:DATES,datasets:LABELS_ORDER.map(lg=>({
-        label:lg,data:DAILY[lg],borderColor:LABEL_COLORS[lg],
-        backgroundColor:LABEL_COLORS[lg]+'18',
-        borderWidth:1.5,tension:.4,fill:false,pointRadius:0,
-        pointHoverRadius:4,spanGaps:true,
-      }))},options:{...CDARK,interaction:{mode:'index',intersect:false},
-        plugins:{legend:{display:true,position:'top',labels:{color:'#8b95ad',font:{size:9},boxWidth:10,padding:8}}},
-        scales:{x:{...CDARK.scales.x},y:{...CDARK.scales.y,ticks:{...CDARK.scales.y.ticks,callback:v=>fmtN(v,0).replace('+','')}}}}});
-    }
-
-    // ── Spotify bar chart ─────────────────────────────────
-    function buildSpBar(){
-      if(spBarChart)spBarChart.destroy();
-      const ctx=document.getElementById('spBarChart').getContext('2d');
-      const latestStreams={};
-      LABELS_ORDER.forEach(lg => {
-        const vals = DAILY[lg];
-        latestStreams[lg] = vals && vals.length > 0 ? vals[vals.length - 1] : 0;
-      });
-      
-      spBarChart=new Chart(ctx,{type:'bar',data:{labels:LABELS_ORDER,datasets:[{data:LABELS_ORDER.map(l=>latestStreams[l]),backgroundColor:LABELS_ORDER.map(l=>LABEL_COLORS[l]),borderRadius:4}]},options:{...CDARK,indexAxis:'y',plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>fmtN(c.raw)+' streams'}}},scales:{x:{...CDARK.scales.x,ticks:{...CDARK.scales.x.ticks,callback:v=>fmtN(v,0).replace('+','')}},y:{...CDARK.scales.y}}}});
-    }
-
-    // ── Track count chart ─────────────────────────────────
-    function buildTrackCount(){
-      if(trackCountChart)trackCountChart.destroy();
-      const ctx=document.getElementById('trackCountChart').getContext('2d');
-      trackCountChart=new Chart(ctx,{type:'bar',data:{labels:LABELS_ORDER,datasets:[
-        {label:'Spotify',data:LABELS_ORDER.map(l=>SP_DATA[l]?.tracks||0),backgroundColor:LABELS_ORDER.map(l=>LABEL_COLORS[l]+'99'),borderRadius:3},
-        {label:'iTunes',data:LABELS_ORDER.map(l=>IT_DATA[l]?.tracks||0),backgroundColor:LABELS_ORDER.map(l=>LABEL_COLORS[l]+'44'),borderRadius:3},
-      ]},options:{...CDARK,plugins:{legend:{display:true,position:'top',labels:{color:'#8b95ad',font:{size:9},boxWidth:8,padding:6}}},scales:{x:{...CDARK.scales.x,ticks:{...CDARK.scales.x.ticks,maxRotation:0}},y:{...CDARK.scales.y}}}});
-    }
-
-    // ── iTunes trend chart ────────────────────────────────
-    function buildItTrend(){
-      if(itTrendChart)itTrendChart.destroy();
-      const ctx=document.getElementById('itTrendChart').getContext('2d');
-      itTrendChart=new Chart(ctx,{type:'bar',data:{labels:LABELS_ORDER,datasets:[{data:LABELS_ORDER.map(l=>IT_DATA[l]?.score||0),backgroundColor:LABELS_ORDER.map(l=>LABEL_COLORS[l]),borderRadius:4}]},options:{...CDARK,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>'Score: '+c.raw.toLocaleString()}}},scales:{x:{...CDARK.scales.x},y:{...CDARK.scales.y,ticks:{...CDARK.scales.y.ticks,callback:v=>fmtN(v,0).replace('+','')}}}}});
-    }
-
-    // ── iTunes bubble chart ───────────────────────────────
-    function buildItBubble(){
-      if(itBubbleChart)itBubbleChart.destroy();
-      const ctx=document.getElementById('itBubbleChart').getContext('2d');
-      const pts=LABELS_ORDER.map(lg=>{
-        const d=IT_DATA[lg];
-        const avg = d.tracks > 0 ? Math.round(d.score/d.tracks) : 0;
-        return{x:d.tracks,y:avg,r:Math.max(6,Math.min(20,d.score/60000)),label:lg,color:LABEL_COLORS[lg]};
-      });
-      itBubbleChart=new Chart(ctx,{type:'bubble',data:{datasets:pts.map(p=>({label:p.label,data:[{x:p.x,y:p.y,r:p.r}],backgroundColor:p.color+'80',borderColor:p.color}))},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${c.raw.y.toLocaleString()} avg score · ${c.raw.x} tracks`}}},scales:{x:{grid:{color:'rgba(255, 255, 255, 0.04)'},ticks:{color:'#8b95ad',font:{size:9}},title:{display:true,text:'Track count',color:'#8b95ad',font:{size:9}}},y:{grid:{color:'rgba(255, 255, 255, 0.04)'},ticks:{color:'#8b95ad',font:{size:9}},title:{display:true,text:'Avg score per track',color:'#8b95ad',font:{size:9}}}}}});
-    }
-
-    // ── Cross-platform radar ──────────────────────────────
-    function buildCross(){
-      if(crossChart)crossChart.destroy();
-      const ctx=document.getElementById('crossChart').getContext('2d');
-      const dims=['Sp Streams','It Score','Track Count','Best Rank','Growth'];
-      
-      const maxSp = Math.max(...LABELS_ORDER.map(lg => SP_DATA[lg].streams || 0)) || 1;
-      const maxIt = Math.max(...LABELS_ORDER.map(lg => IT_DATA[lg].score || 0)) || 1;
-      const maxTk = Math.max(...LABELS_ORDER.map(lg => (SP_DATA[lg].tracks || 0) + (IT_DATA[lg].tracks || 0))) || 1;
-      const maxGrowth = Math.max(...LABELS_ORDER.map(lg => {
-        const a = SP_DATA[lg].wkA || 1;
-        const b = SP_DATA[lg].wkB || 0;
-        return Math.max(0, (b - a) / a);
-      })) || 1;
-      
-      crossChart=new Chart(ctx,{
-        type:'radar',
-        data:{
-          labels:dims,
-          datasets:LABELS_ORDER.map(lg=>({
-            label:lg,
-            data:[
-              Math.round((SP_DATA[lg].streams || 0)/maxSp*100),
-              Math.round((IT_DATA[lg].score || 0)/maxIt*100),
-              Math.round(((SP_DATA[lg].tracks || 0) + (IT_DATA[lg].tracks || 0))/maxTk*100),
-              Math.round((200-(SP_DATA[lg].bestRank || 200))/199*100),
-              Math.round(Math.max(0, (SP_DATA[lg].wkB || 0) - (SP_DATA[lg].wkA || 1)) / (SP_DATA[lg].wkA || 1) / maxGrowth * 100),
-            ],
-            borderColor:LABEL_COLORS[lg],
-            backgroundColor:LABEL_COLORS[lg]+'18',
-            borderWidth:1.5,
-            pointBackgroundColor:LABEL_COLORS[lg],
-            pointRadius:3,
-          }))
-        },
-        options:{
-          responsive:true,
-          maintainAspectRatio:false,
-          plugins:{
-            legend:{
-              display:true,
-              position:'bottom',
-              labels:{
-                color:'#8b95ad',
-                font:{size:9},
-                boxWidth:10
-              }
-            }
-          },
-          scales:{
-            r:{
-              grid:{color:'rgba(255, 255, 255, 0.08)'},
-              ticks:{display:false},
-              pointLabels:{
-                color:'#8b95ad',
-                font:{size:9}
-              },
-              min:0,
-              max:100
-            }
-          }
-        }
-      });
-
-    }
-
-    // ── Health matrix ─────────────────────────────────────
-    function buildHealthMatrix(){
-      const el=document.getElementById('health-matrix');
-      
-      const data=LABELS_ORDER.map(lg => {
-        const spSh = SP_DATA[lg].share;
-        const itSh = IT_DATA[lg].share;
-        const wkA = SP_DATA[lg].wkA;
-        const wkB = SP_DATA[lg].wkB;
-        
-        let wow = "0.0%";
-        let wowVal = 0.0;
-        if (wkA > 0) {
-          wowVal = ((wkB - wkA) / wkA * 100);
-          wow = (wowVal >= 0 ? "+" : "") + wowVal.toFixed(1) + "%";
-        }
-        
-        let rating = "Stable";
-        if (wowVal > 5.0) rating = "Growing";
-        else if (wowVal < -5.0) rating = "Declining";
-        if (spSh > 25.0 && wowVal < -10.0) rating = "Mixed";
-        if (spSh < 5.0 && wowVal < -10.0) rating = "Declining";
-        
-        return {
-          lg: lg,
-          spSh: spSh.toFixed(1) + "%",
-          itSh: itSh.toFixed(1) + "%",
-          wow: wow,
-          tracks: SP_DATA[lg].tracks + "/" + IT_DATA[lg].tracks,
-          rating: rating
-        };
-      });
-      
-      let html = '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11px">'
-        +'<tr style="border-bottom:1px solid var(--border2)">'
-        +'<th style="text-align:left;padding:6px 8px;color:var(--t3);font-size:9px;text-transform:uppercase;letter-spacing:.4px">Label</th>'
-        +'<th style="text-align:right;padding:6px 8px;color:var(--t3);font-size:9px;text-transform:uppercase;letter-spacing:.4px">Sp Share</th>'
-        +'<th style="text-align:right;padding:6px 8px;color:var(--t3);font-size:9px;text-transform:uppercase;letter-spacing:.4px">It Share</th>'
-        +'<th style="text-align:right;padding:6px 8px;color:var(--t3);font-size:9px;text-transform:uppercase;letter-spacing:.4px">WkA→B</th>'
-        +'<th style="text-align:right;padding:6px 8px;color:var(--t3);font-size:9px;text-transform:uppercase;letter-spacing:.4px">Tracks</th>'
-        +'<th style="text-align:right;padding:6px 8px;color:var(--t3);font-size:9px;text-transform:uppercase;letter-spacing:.4px">Status</th>'
-        +'</tr>';
-      data.forEach(d=>{
-        const col=LABEL_COLORS[d.lg];
-        const wowUp=d.wow.startsWith('+');
-        const statusColor={'Growing':'var(--green)','Declining':'var(--red)','Stable':'var(--blue)','Mixed':'var(--amber)'}[d.rating];
-        html += `<tr style="border-bottom:1px solid var(--border)">
-          <td style="padding:7px 8px;color:${col};font-weight:600">${d.lg}</td>
-          <td style="padding:7px 8px;text-align:right;color:var(--t2)">${d.spSh}</td>
-          <td style="padding:7px 8px;text-align:right;color:var(--t2)">${d.itSh}</td>
-          <td style="padding:7px 8px;text-align:right;color:${wowUp?'var(--green)':'var(--red)'};">${d.wow}</td>
-          <td style="padding:7px 8px;text-align:right;color:var(--t3)">${d.tracks}</td>
-          <td style="padding:7px 8px;text-align:right;"><span style="font-size:9px;font-weight:700;color:${statusColor}">${d.rating}</span></td>
-        </tr>`;
-      });
-      html += '</table></div>';
-      el.innerHTML = html;
-    }
-
-    // ── Cross track lists ──────────────────────────────────
-    function buildCrossTrackList(elId,label,key){
-      const el=document.getElementById(elId);
-      const tracks=SP_TRACKS[key]||[];
-      el.innerHTML='';
-      if(tracks.length === 0){
-        el.innerHTML = '<div style="padding:10px;text-align:center;color:var(--t3)">No tracks available</div>';
-        return;
-      }
-      tracks.slice(0,5).forEach((t,i)=>{
-        const col=LABEL_COLORS[key];
-        el.innerHTML+=`<div class="trk" style="grid-template-columns:16px 1fr 56px 40px">
-          <span class="rn">${i+1}</span>
-          <div><div class="tn">${t.t}</div><div class="ta">${t.a}</div></div>
-          <span class="tv">${fmtN(t.s)}</span>
-          <span class="tv ${t.g>=0?'g':'r'}">${t.g>=0?'+':''}${t.g}%</span>
-        </div>`;
-      });
-    }
-
-    // ── Render track lists ────────────────────────────────
-    function renderSpTracks(lg){
-      const el=document.getElementById('sp-track-list');
-      const ttl=document.getElementById('sp-roster-title');
-      const tracks=(lg?SP_TRACKS[lg]:SP_TRACKS['Sony Music'])||[];
-      ttl.textContent=`${lg||'Sony Music'} — Spotify top tracks`;
-      el.innerHTML='';
-      if(tracks.length === 0){
-        el.innerHTML = '<div style="padding:20px;text-align:center;color:var(--t3)">No tracks charting on Spotify for this period</div>';
-        return;
-      }
-      const maxS=tracks.reduce((m,t)=>Math.max(m,t.s),0);
-      tracks.forEach((t,i)=>{
-        const pct=maxS > 0 ? Math.round(t.s/maxS*100) : 0;
-        const col=lg?LABEL_COLORS[lg]:'#fb7185';
-        el.innerHTML+=`<div class="trk" style="grid-template-columns:18px 1fr 64px 56px 56px 46px">
-          <span class="rn">${i+1}</span>
-          <div>
-            <div class="tn">${t.t}</div>
-            <div class="ta">${t.a}</div>
-            <div class="vb"><div class="vbf" style="width:${pct}%;background:${col}"></div></div>
-          </div>
-          <span class="tv">${fmtN(t.s)}</span>
-          <span class="tv">${t.r}</span>
-          <span>${gbadge(t.g)}</span>
-          <span class="tv">${t.d}d</span>
-        </div>`;
-      });
-    }
-
-    function renderItTracks(lg){
-      const el=document.getElementById('it-track-list');
-      const ttl=document.getElementById('it-roster-title');
-      const tracks=(lg?IT_TRACKS[lg]:IT_TRACKS['Universal Music'])||[];
-      ttl.textContent=`${lg||'Universal Music'} — iTunes WW top tracks`;
-      el.innerHTML='';
-      if(tracks.length === 0){
-        el.innerHTML = '<div style="padding:20px;text-align:center;color:var(--t3)">No tracks charting on iTunes for this period</div>';
-        return;
-      }
-      tracks.forEach((t,i)=>{
-        const col=lg?LABEL_COLORS[lg]:'#c4b5fd';
-        el.innerHTML+=`<div class="trk" style="grid-template-columns:18px 1fr 70px 56px 56px">
-          <span class="rn">${i+1}</span>
-          <div><div class="tn">${t.t}</div><div class="ta">${t.a}</div></div>
-          <span class="tv">${fmtN(t.s,0)}</span>
-          <span class="tv">#${t.r}</span>
-          <span class="tv">${fmtN(t.l,0)}</span>
-        </div>`;
-      });
-    }
-
-    // ── Platform switch ───────────────────────────────────
-    function setPlatform(p,el){
-      activePlatform=p;
-      document.querySelectorAll('.pt').forEach(b=>b.classList.remove('on'));
-      el.classList.add('on');
-      ['spotify','itunes','compare'].forEach(id=>{
-        document.getElementById('pane-'+id).classList.toggle('on',id===p);
-      });
-      buildLabelCards();
-      if(p==='itunes'){buildMktShare('mkt-share-it',IT_DATA,'score');buildItTrend();buildItBubble();}
-      if(p==='compare'){buildCross();buildHealthMatrix();buildCrossTrackList('cross-sony','Sony Music','Sony Music');buildCrossTrackList('cross-umg','Universal Music','Universal Music');buildCrossTrackList('cross-wmg','Warner Music','Warner Music');}
-    }
-
-    function setP(p,el){
-      activePeriod=p;
-      document.querySelectorAll('.fp').forEach(b=>b.classList.remove('on'));
-      el.classList.add('on');
-    }
-
-    // ── Init ─────────────────────────────────────────────
-    buildLabelCards();
-    buildSpTrend();
-    buildSpBar();
-    buildTrackCount();
-    buildMktShare('mkt-share-sp',SP_DATA,'streams');
-    buildWoW();
-    
-    // Inject KPI dynamic data
-    document.getElementById('kpi-val-1').textContent = KPI_DATA.totalStreams;
-    document.getElementById('kpi-sub-1').textContent = KPI_DATA.totalStreamsSub;
-
-    document.getElementById('kpi-val-2').textContent = KPI_DATA.topLabel;
-    document.getElementById('kpi-val-2').style.color = KPI_DATA.topLabelColor;
-    document.getElementById('kpi-sub-2').textContent = KPI_DATA.topLabelSub;
-
-    document.getElementById('kpi-val-3').textContent = KPI_DATA.bestRankLabel;
-    document.getElementById('kpi-sub-3').textContent = KPI_DATA.bestRankSub;
-
-    document.getElementById('kpi-val-4').textContent = KPI_DATA.itunesNo1Label;
-    document.getElementById('kpi-sub-4').textContent = KPI_DATA.itunesNo1Sub;
-
-    document.getElementById('kpi-val-5').textContent = KPI_DATA.fastestGrowingLabel;
-    document.getElementById('kpi-val-5').style.color = KPI_DATA.fastestGrowingColor;
-    document.getElementById('kpi-sub-5').textContent = KPI_DATA.fastestGrowingSub;
-    
-    // Select first active label
-    const initialLabel = 'Sony Music';
-    activeLabel=initialLabel;
-    buildLabelCards();
-    renderSpTracks(initialLabel);
-    renderItTracks(initialLabel);
-    </script>
-    </body>
-    </html>
+@st.cache_data(ttl=300, show_spinner=False)
+def _load_itunes_labels(country: str) -> pd.DataFrame:
     """
-    
-    # Perform standard placeholder replacement
-    html_code = html_template \
-        .replace('__DATE_RANGE_LABEL__', date_range_label) \
-        .replace('__LEN_UNIQUE_DATES__', str(len(unique_dates_sorted))) \
-        .replace('__WKA_RANGE_LABEL__', wkA_range_label) \
-        .replace('__WKB_RANGE_LABEL__', wkB_range_label) \
-        .replace('__SP_DATA__', json.dumps(sp_data)) \
-        .replace('__IT_DATA__', json.dumps(it_data)) \
-        .replace('__DATES__', json.dumps(dates_js)) \
-        .replace('__DAILY__', json.dumps(daily)) \
-        .replace('__SP_TRACKS__', json.dumps(sp_tracks)) \
-        .replace('__IT_TRACKS__', json.dumps(it_tracks)) \
-        .replace('__KPI_DATA__', json.dumps(kpi_data))\
-        .replace('__THEME__', theme_css)
-    
-    # Render with Streamlit Components
-    st.markdown("""
-        <style>
-        /* Pull the iframe up to remove the extra Streamlit default top padding */
-        iframe {
-            margin-top: -5.0rem;
-        }
-        </style>
-    """, unsafe_allow_html=True)
-    st.components.v1.html(html_code, height=1320, scrolling=True)
+    Load latest-date iTunes data grouped by label.
+    Returns columns: label, entries, avg_rank, points
+    """
+    query = """
+        SELECT
+            d.label,
+            COUNT(*)                       AS entries,
+            AVG(d.rank)                    AS avg_rank,
+            SUM(d.points)                  AS points
+        FROM itunes_daily d
+        WHERE d.label IS NOT NULL
+          AND d.label != 'Independent'
+        GROUP BY d.label
+    """
+    try:
+        conn = get_connection()
+        with conn.cursor() as cur:
+            cur.execute(query)
+            rows = cur.fetchall()
+    except Exception as e:  # noqa: BLE001
+        logger.error("label_analysis load_itunes_labels failed (%s): %s", country, e)
+        return pd.DataFrame(columns=["label", "entries", "avg_rank", "points"])
+    finally:
+        try:
+            conn.close()
+        except Exception:  # noqa: BLE001
+            pass
+
+    if not rows:
+        return pd.DataFrame(columns=["label", "entries", "avg_rank", "points"])
+    df = pd.DataFrame(rows, columns=["label", "entries", "avg_rank", "points"])
+    df["entries"]     = pd.to_numeric(df["entries"], errors="coerce").fillna(0).astype(int)
+    df["avg_rank"]    = pd.to_numeric(df["avg_rank"], errors="coerce").round(1)
+    df["points"] = pd.to_numeric(df["points"], errors="coerce").fillna(0).astype(int)
+    df["label"] = df["label"].apply(_normalize_label)
+    df = df.groupby("label", as_index=False).agg(
+        entries=("entries", "sum"),
+        avg_rank=("avg_rank", "mean"),
+        points=("points", "sum"),
+    )
+    df["avg_rank"] = df["avg_rank"].round(1)
+    return df.sort_values("points", ascending=False).reset_index(drop=True)
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def _load_spotify_labels(country: str) -> pd.DataFrame:
+    """
+    Load latest-date Spotify data grouped by label.
+    Returns columns: label, entries, avg_rank, total_streams
+    """
+    query = """
+        SELECT
+            d.label,
+            COUNT(*)                       AS entries,
+            AVG(d.rank)                    AS avg_rank,
+            SUM(d.streams)                 AS total_streams
+        FROM spotify_daily d
+        WHERE d.label IS NOT NULL
+          AND d.label != 'Independent'
+        GROUP BY d.label
+        ORDER BY total_streams DESC
+    """
+    try:
+        conn = get_connection()
+        with conn.cursor() as cur:
+            cur.execute(query)
+            rows = cur.fetchall()
+    except Exception as e:  # noqa: BLE001
+        logger.error("label_analysis load_spotify_labels failed (%s): %s", country, e)
+        return pd.DataFrame(columns=["label", "entries", "avg_rank", "total_streams"])
+    finally:
+        try:
+            conn.close()
+        except Exception:  # noqa: BLE001
+            pass
+
+    if not rows:
+        return pd.DataFrame(columns=["label", "entries", "avg_rank", "total_streams"])
+    df = pd.DataFrame(rows, columns=["label", "entries", "avg_rank", "total_streams"])
+    df["entries"]       = pd.to_numeric(df["entries"], errors="coerce").fillna(0).astype(int)
+    df["avg_rank"]      = pd.to_numeric(df["avg_rank"], errors="coerce").round(1)
+    df["total_streams"] = pd.to_numeric(df["total_streams"], errors="coerce").fillna(0).astype(int)
+    df["label"] = df["label"].apply(_normalize_label)
+    df = df.groupby("label", as_index=False).agg(
+        entries=("entries", "sum"),
+        avg_rank=("avg_rank", "mean"),
+        total_streams=("total_streams", "sum"),
+    )
+    df["avg_rank"] = df["avg_rank"].round(1)
+    return df.sort_values("total_streams", ascending=False).reset_index(drop=True)
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def _load_all_top_tracks_by_label() -> dict[str, list[dict[str, Any]]]:
+    """Fetch top 10 tracks for all labels based on total streams from Spotify."""
+    query = """
+        SELECT label, artist_title, MIN(rank) AS rank, SUM(streams) AS total_streams
+        FROM spotify_daily
+        WHERE label IS NOT NULL
+          AND label != 'Independent'
+        GROUP BY label, artist_title
+    """
+    try:
+        conn = get_connection()
+        with conn.cursor() as cur:
+            cur.execute(query)
+            rows = cur.fetchall()
+            
+        df = pd.DataFrame([dict(r) for r in rows])
+        if df.empty:
+            return {}
+        df["total_streams"] = pd.to_numeric(df["total_streams"], errors="coerce").fillna(0).astype(int)
+        df["label"] = df["label"].apply(_normalize_label)
+        
+        df = df.groupby(["label", "artist_title"], as_index=False).agg(
+            rank=("rank", "min"),
+            total_streams=("total_streams", "max")
+        )
+        df = df.sort_values(["label", "total_streams"], ascending=[True, False])
+        top_10 = df.groupby("label").head(10)
+        
+        result = {}
+        for label, group in top_10.groupby("label"):
+            result[label] = group[["artist_title", "rank", "total_streams"]].to_dict(orient="records")
+        return result
+    except Exception as e:
+        logger.error("Failed to load top tracks by label: %s", e)
+        return {}
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def _load_itunes_top_tracks() -> list[dict[str, Any]]:
+    """Fetch top 10 iTunes tracks overall based on points."""
+    query = """
+        SELECT artist_title, label, MIN(rank) AS rank, SUM(points) AS points
+        FROM itunes_daily
+        WHERE label IS NOT NULL
+          AND label != 'Independent'
+        GROUP BY artist_title, label
+    """
+    try:
+        conn = get_connection()
+        with conn.cursor() as cur:
+            cur.execute(query)
+            rows = cur.fetchall()
+            
+        df = pd.DataFrame([dict(r) for r in rows])
+        if df.empty:
+            return []
+        df["points"] = pd.to_numeric(df["points"], errors="coerce").fillna(0).astype(int)
+        df["label"] = df["label"].apply(_normalize_label)
+        
+        df = df.groupby(["label", "artist_title"], as_index=False).agg(
+            rank=("rank", "min"),
+            points=("points", "max")
+        )
+        df = df.sort_values("points", ascending=False).head(10)
+        return df.to_dict(orient="records")
+    except Exception as e:
+        logger.error("Failed to load top iTunes tracks: %s", e)
+        return []
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def _load_spotify_top_tracks() -> list[dict[str, Any]]:
+    """Fetch top 10 Spotify tracks overall based on total streams."""
+    query = """
+        SELECT artist_title, label, MIN(rank) AS rank, SUM(streams) AS total_streams
+        FROM spotify_daily
+        WHERE label IS NOT NULL
+          AND label != 'Independent'
+        GROUP BY artist_title, label
+    """
+    try:
+        conn = get_connection()
+        with conn.cursor() as cur:
+            cur.execute(query)
+            rows = cur.fetchall()
+            
+        df = pd.DataFrame([dict(r) for r in rows])
+        if df.empty:
+            return []
+        df["total_streams"] = pd.to_numeric(df["total_streams"], errors="coerce").fillna(0).astype(int)
+        df["label"] = df["label"].apply(_normalize_label)
+        
+        df = df.groupby(["label", "artist_title"], as_index=False).agg(
+            rank=("rank", "min"),
+            total_streams=("total_streams", "max")
+        )
+        df = df.sort_values("total_streams", ascending=False).head(10)
+        return df.to_dict(orient="records")
+    except Exception as e:
+        logger.error("Failed to load top Spotify tracks: %s", e)
+        return []
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def _load_country_dominance() -> list[dict[str, Any]]:
+    """
+    For each country return the dominant label (most chart entries on Spotify).
+    Queries spotify_artist_track across all countries.
+    """
+    query = """
+        WITH ranked AS (
+            SELECT
+                d.country,
+                d.label,
+                COUNT(*) AS entries,
+                AVG(d.rank) AS avg_rank,
+                SUM(d.streams) AS total_streams,
+                ROW_NUMBER() OVER (PARTITION BY d.country ORDER BY SUM(d.streams) DESC) AS rn
+            FROM spotify_daily d
+            WHERE d.label IS NOT NULL
+              AND d.label != 'Independent'
+            GROUP BY d.country, d.label
+        )
+        SELECT country, label, entries, avg_rank, total_streams
+        FROM ranked
+        WHERE rn = 1
+        ORDER BY total_streams DESC
+    """
+    try:
+        conn = get_connection()
+        with conn.cursor() as cur:
+            cur.execute(query)
+            rows = cur.fetchall()
+    except Exception as e:  # noqa: BLE001
+        logger.error("label_analysis load_country_dominance failed: %s", e)
+        return []
+    finally:
+        try:
+            conn.close()
+        except Exception:  # noqa: BLE001
+            pass
+
+    out: list[dict[str, Any]] = []
+    # Clear cache by adding a comment here
+    for row in rows:
+        c_code = row.get("country")
+        if c_code:
+            c_name = COUNTRY_FLAGS.get(c_code.strip().lower(), c_code.strip().upper())
+        else:
+            c_name = "—"
+        out.append({
+            "country":       c_name,
+            "label":         _normalize_label(row.get("label")),
+            "entries":       int(row["entries"]) if row.get("entries") else 0,
+            "avg_rank":      round(float(row["avg_rank"]), 1) if row.get("avg_rank") else 0.0,
+            "total_streams": int(row["total_streams"]) if row.get("total_streams") else 0,
+        })
+    return out
 
 
 def prefetch_label_data() -> None:
-    """Warms up the cache for the label analysis dashboard."""
-    try:
-        load_data()
-    except Exception as e:
-        logger.error(f"Error prefetching label analysis data: {e}")
+    """Prefetch default region label data to warm up the cache."""
+    _load_itunes_labels("ww")
+    _load_spotify_labels("global")
+    _load_country_dominance()
 
-__all__ = ["render_label_analysis", "prefetch_label_data"]
+
+def _build_normalization_stats(
+    it_raw_df: pd.DataFrame,
+    sp_raw_df: pd.DataFrame,
+) -> dict[str, Any]:
+    """
+    Computes before/after unique label counts and top merged groups.
+    it_raw_df / sp_raw_df should contain raw (un-normalized) label column.
+    """
+    it_before = int(it_raw_df["label"].nunique()) if not it_raw_df.empty else 0
+    sp_before = int(sp_raw_df["label"].nunique()) if not sp_raw_df.empty else 0
+
+    it_after = int(it_raw_df["label"].apply(_normalize_label).nunique()) if not it_raw_df.empty else 0
+    sp_after = int(sp_raw_df["label"].apply(_normalize_label).nunique()) if not sp_raw_df.empty else 0
+
+    return {
+        "it_before": it_before,
+        "it_after":  it_after,
+        "it_saved":  it_before - it_after,
+        "sp_before": sp_before,
+        "sp_after":  sp_after,
+        "sp_saved":  sp_before - sp_after,
+    }
+
+
+def _compute_power_scores(
+    it_df: pd.DataFrame,
+    sp_df: pd.DataFrame,
+) -> list[dict[str, Any]]:
+    """
+    Power score = 20% iTunes entries + 20% Spotify entries + 30% Spotify streams + 30% iTunes streams.
+    Returns top-10 labels sorted by power score descending.
+    """
+    if it_df.empty and sp_df.empty:
+        return []
+
+    merged = pd.merge(
+        it_df[["label", "entries", "points"]].rename(
+            columns={"entries": "it_entries", "points": "it_streams"}
+        ),
+        sp_df[["label", "entries", "total_streams"]].rename(
+            columns={"entries": "sp_entries", "total_streams": "sp_streams"}
+        ),
+        on="label",
+        how="outer",
+    ).fillna(0)
+
+    max_it_ent = merged["it_entries"].max() or 1
+    max_sp_ent = merged["sp_entries"].max() or 1
+    max_it_str = merged["it_streams"].max() or 1
+    max_sp_str = merged["sp_streams"].max() or 1
+
+    merged["power"] = (
+        0.20 * (merged["it_entries"] / max_it_ent) * 100
+        + 0.20 * (merged["sp_entries"] / max_sp_ent) * 100
+        + 0.30 * (merged["sp_streams"] / max_sp_str) * 100
+        + 0.30 * (merged["it_streams"] / max_it_str) * 100
+    ).round(1)
+
+    top = merged.nlargest(10, "power").reset_index(drop=True)
+    return top.to_dict(orient="records")
+
+
+def _top_n_labels(df: pd.DataFrame, n: int = TOP_N_LABELS) -> list[dict[str, Any]]:
+    """Return top-N labels from a normalised label DataFrame."""
+    if df.empty:
+        return []
+    return df.head(n).to_dict(orient="records")
+
+
+# ─────────────────────────── render ───────────────────────────────
+
+def render_label_analysis() -> None:
+    st.markdown(
+        "<div style='font-size:0.85rem;color:#97a3c5;margin:-0.5rem 0 0.75rem 0'>"
+        "Label dominance, normalization stats, and cross-platform reach across iTunes &amp; Spotify."
+        "</div>",
+        unsafe_allow_html=True,
+    )
+
+    scope_label = "Global / WW"
+    it_country, sp_country = "ww", "global"
+
+    # ── Load data ─────────────────────────────────────────────────
+    with st.spinner("Loading label data…"):
+        it_df = _load_itunes_labels(it_country)
+        sp_df = _load_spotify_labels(sp_country)
+        country_dom = _load_country_dominance()
+        label_top_tracks = _load_all_top_tracks_by_label()
+        it_top_tracks = _load_itunes_top_tracks()
+        sp_top_tracks = _load_spotify_top_tracks()
+        data_date = _get_data_date()
+
+    if it_df.empty and sp_df.empty:
+        st.warning("No label data available for the selected region.")
+        return
+
+    # ── Derived metrics ───────────────────────────────────────────
+    norm_stats  = _build_normalization_stats(it_df, sp_df)
+    power_scores = _compute_power_scores(it_df, sp_df)
+
+    top_label_overall = (
+        power_scores[0]["label"] if power_scores else "—"
+    )
+    top_label_entries = int(
+        (power_scores[0].get("it_entries", 0) or 0)
+        + (power_scores[0].get("sp_entries", 0) or 0)
+    ) if power_scores else 0
+
+    it_top = _top_n_labels(it_df)
+    sp_top = _top_n_labels(sp_df)
+
+    # Build normalization fix groups for the Fixes log tab
+    fix_groups: list[dict[str, Any]] = []
+    inv: dict[str, list[str]] = {}
+    for variant, canonical in LABEL_NORM.items():
+        inv.setdefault(canonical, []).append(variant)
+    # Merge entry counts from both platforms
+    it_counts = (
+        it_df.set_index("label")["entries"].to_dict() if not it_df.empty else {}
+    )
+    sp_counts = (
+        sp_df.set_index("label")["entries"].to_dict() if not sp_df.empty else {}
+    )
+    for canonical, variants in inv.items():
+        total = (it_counts.get(canonical, 0) or 0) + (sp_counts.get(canonical, 0) or 0)
+        fix_groups.append({"canonical": canonical, "variants": variants, "count": total})
+    fix_groups.sort(key=lambda x: x["count"], reverse=True)
+
+    payload = {
+        "scope":         scope_label,
+        "norm_stats":    norm_stats,
+        "power_scores":  power_scores,
+        "it_top":        it_top,
+        "sp_top":           sp_top,
+        "country_dom":      country_dom,
+        "label_top_tracks": label_top_tracks,
+        "it_top_tracks":    it_top_tracks,
+        "sp_top_tracks":    sp_top_tracks,
+        "data_date":        data_date,
+        "fix_groups":    fix_groups,
+        "kpis": {
+            "top_label":         top_label_overall,
+            "top_label_entries": top_label_entries,
+            "it_unique_before":  norm_stats["it_before"],
+            "it_unique_after":   norm_stats["it_after"],
+            "sp_unique_before":  norm_stats["sp_before"],
+            "sp_unique_after":   norm_stats["sp_after"],
+        },
+    }
+
+    html = _build_html(payload, dark_mode=st.session_state.get("dark_mode", True))
+    st_components.html(html, height=1100, scrolling=True)
+
+
+# ─────────────────────────── HTML template ───────────────────────────
+
+def _build_html(payload: dict, dark_mode: bool = False) -> str:  # noqa: FBT001, FBT002
+    data_json  = json.dumps(payload, default=str)
+    theme_css  = _THEME_DARK if dark_mode else _THEME_LIGHT
+    return """
+<!DOCTYPE html><html><head><meta charset='utf-8'>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+__THEME__
+body{background:var(--bg);font-family:'Outfit',system-ui,sans-serif;color:var(--t1);font-size:16px;line-height:1.55}
+.body{padding:20px 22px;display:flex;flex-direction:column;gap:20px}
+/* KPI bar */
+.kpi-bar{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:4px}
+.kpi{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px 16px;transition:.15s}
+.kpi:hover{background:var(--bg3)}
+.kpi-lbl{font-size:12px;color:var(--t3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px;font-weight:600}
+.kpi-val{font-size:32px;font-weight:700;letter-spacing:-.5px;line-height:1.15;color:var(--t1)}
+.kpi-sub{font-size:13px;color:var(--t2);margin-top:5px;font-weight:500}
+/* tabs */
+.tab-row{display:flex;gap:0;border-bottom:1.5px solid var(--border2);margin-bottom:18px}
+.tab{font-size:14px;font-weight:600;padding:7px 14px;color:var(--t2);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1.5px;letter-spacing:.2px;transition:.1s}
+.tab.active{color:var(--t1);border-bottom:2px solid var(--blue)}
+/* cards */
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:18px 20px}
+.card-ttl{font-size:14px;color:var(--t2);text-transform:uppercase;letter-spacing:.7px;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--border);font-weight:600}
+.card-ttl-flex{display:flex;justify-content:space-between;align-items:center}
+.time-chip{background:var(--bg3);color:var(--t2);font-size:11px;padding:3px 8px;border-radius:12px;font-weight:500;text-transform:none;letter-spacing:0;border:1px solid var(--border)}
+.r2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+/* table */
+.ctable{width:100%;border-collapse:collapse;font-size:14px}
+.ctable th{font-size:13px;font-weight:600;color:var(--t3);text-align:left;padding:8px 10px;border-bottom:1px solid var(--border);text-transform:uppercase;letter-spacing:.5px}
+.ctable td{padding:8px 10px;border-bottom:1px solid var(--border);color:var(--t1);font-size:14px}
+.ctable tr:last-child td{border-bottom:none}
+.ctable tr:hover td{background:var(--bg3)}
+/* badge */
+.badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600}
+/* bar */
+.bar-wrap{margin:4px 0}
+.bar-lbl{font-size:13px;color:var(--t2);display:flex;justify-content:space-between;margin-bottom:3px}
+.bar-outer{background:var(--bg4);border-radius:3px;height:9px;overflow:hidden}
+.bar-fill{height:9px;border-radius:3px}
+/* fix groups */
+.fix-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.fix-group{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:12px 14px}
+.fix-canonical{font-size:14px;font-weight:600;color:var(--t1);margin-bottom:6px;display:flex;align-items:center;gap:8px}
+.fix-variant{font-size:13px;color:var(--t3);padding:2px 0 2px 12px;display:flex;align-items:center;gap:4px}
+.fix-count{font-size:12px;color:var(--t3);background:var(--bg3);padding:1px 6px;border-radius:10px;margin-left:auto;white-space:nowrap}
+
+</style></head><body>
+
+<div class='body'>
+
+  <!-- KPI bar -->
+  <div class='kpi-bar' id='kpiBar'></div>
+
+
+  <!-- Tabs -->
+  <div class='tab-row'>
+    <div class='tab active' onclick="showTab('overview',this)">Overview</div>
+    <div class='tab' onclick="showTab('itunes',this)">iTunes</div>
+    <div class='tab' onclick="showTab('spotify',this)">Spotify</div>
+    <div class='tab' onclick="showTab('country',this)">Country-wise</div>
+  </div>
+
+  <!-- Overview tab -->
+  <div id='tab-overview'>
+    <div class='r2' style='margin-bottom:16px'>
+      <div class='card'>
+        <div class='card-ttl card-ttl-flex'><span id='topTracksTtl'>Top 5 tracks of Epic (Spotify)</span><span class='time-chip'>__DATA_DATE__</span></div>
+        <div style='font-size:11px;color:var(--t3);margin-top:-8px;margin-bottom:10px'>Historical data based on total streams</div>
+        <table class='ctable'>
+          <thead>
+            <tr>
+              <th>Track</th>
+              <th style='text-align:right;width:80px'>Rank</th>
+              <th style='text-align:right;width:120px'>Streams</th>
+            </tr>
+          </thead>
+          <tbody id='epicTbody'></tbody>
+        </table>
+      </div>
+      <div class='card'>
+        <div class='card-ttl card-ttl-flex'><span>Power score — overall dominance</span><span class='time-chip'>__DATA_DATE__</span></div>
+        <div style='font-size:11px;color:var(--t3);margin-top:-8px;margin-bottom:12px'>20% iTunes entries + 20% Spotify entries + 30% Spotify streams + 30% iTunes streams</div>
+        <div id='pwrBars'></div>
+      </div>
+    </div>
+    <div class='card'>
+      <div class='card-ttl card-ttl-flex'><span>Platform reach — separate volume split</span><span class='time-chip'>__DATA_DATE__</span></div>
+      <div style='display:grid;grid-template-columns:1fr 1fr;gap:20px'>
+        <div>
+          <div style='font-size:12px;font-weight:600;margin-bottom:8px;text-align:center;color:var(--t2)'>iTunes Streams</div>
+          <div style='position:relative;height:200px'><canvas id='stackBarItunes'></canvas></div>
+        </div>
+        <div>
+          <div style='font-size:12px;font-weight:600;margin-bottom:8px;text-align:center;color:var(--t2)'>Spotify Streams</div>
+          <div style='position:relative;height:200px'><canvas id='stackBarSpotify'></canvas></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- iTunes tab -->
+  <div id='tab-itunes' style='display:none'>
+    <div class='r2'>
+      <div class='card'>
+        <div class='card-ttl card-ttl-flex'><span>iTunes — points by label (top 12)</span><span class='time-chip'>__DATA_DATE__</span></div>
+        <div style='position:relative;height:300px'><canvas id='itBar'></canvas></div>
+      </div>
+      <div class='card'>
+        <div class='card-ttl card-ttl-flex'><span>iTunes — average chart rank (lower = better)</span><span class='time-chip'>__DATA_DATE__</span></div>
+        <div style='position:relative;height:300px'><canvas id='itRank'></canvas></div>
+      </div>
+    </div>
+    <div class='card' style='margin-top:16px'>
+      <div class='card-ttl card-ttl-flex'><span>Top 10 iTunes Tracks by Points</span><span class='time-chip'>__DATA_DATE__</span></div>
+      <table class='ctable'>
+        <thead>
+          <tr>
+            <th>Track</th>
+            <th>Label</th>
+            <th style='text-align:right;width:80px'>Rank</th>
+            <th style='text-align:right;width:120px'>Points</th>
+          </tr>
+        </thead>
+        <tbody id='itTopTbody'></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Spotify tab -->
+  <div id='tab-spotify' style='display:none'>
+    <div class='r2'>
+      <div class='card'>
+        <div class='card-ttl card-ttl-flex'><span>Spotify — streams by label (top 12)</span><span class='time-chip'>__DATA_DATE__</span></div>
+        <div style='position:relative;height:300px'><canvas id='spBar'></canvas></div>
+      </div>
+      <div class='card'>
+        <div class='card-ttl card-ttl-flex'><span>Spotify — average chart rank (lower = better)</span><span class='time-chip'>__DATA_DATE__</span></div>
+        <div style='position:relative;height:300px'><canvas id='spRank'></canvas></div>
+      </div>
+    </div>
+    <div class='card' style='margin-top:16px'>
+      <div class='card-ttl card-ttl-flex'><span>Top 10 Spotify Tracks by Streams</span><span class='time-chip'>__DATA_DATE__</span></div>
+      <table class='ctable'>
+        <thead>
+          <tr>
+            <th>Track</th>
+            <th>Label</th>
+            <th style='text-align:right;width:80px'>Rank</th>
+            <th style='text-align:right;width:120px'>Streams</th>
+          </tr>
+        </thead>
+        <tbody id='spTopTbody'></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Country-wise tab -->
+  <div id='tab-country' style='display:none'>
+    <div class='r2' style='margin-bottom:16px'>
+      <div class='card'>
+        <div class='card-ttl card-ttl-flex'><span>Dominant label by country</span><span class='time-chip'>__DATA_DATE__</span></div>
+        <table class='ctable'>
+          <thead><tr>
+            <th>Country</th><th>Top Label</th><th style='text-align:right'>Entries</th>
+            <th style='text-align:right'>Avg Rank</th><th style='text-align:right'>Streams</th>
+          </tr></thead>
+          <tbody id='ctryTbody'></tbody>
+        </table>
+      </div>
+      <div class='card' style='display:flex;flex-direction:column;height:100%'>
+        <div class='card-ttl card-ttl-flex'><span>Streams by country (Spotify)</span><span class='time-chip'>__DATA_DATE__</span></div>
+        <div style='position:relative;flex-grow:1;min-height:400px'><canvas id='ctryStream'></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Fixes log tab -->
+  <div id='tab-fixes' style='display:none'>
+    <div class='card' style='margin-bottom:16px'>
+      <div class='card-ttl card-ttl-flex'><span>Sub Labels Mapping</span><span class='time-chip'>__DATA_DATE__</span></div>
+      <div class='fix-grid' id='fixGrid'></div>
+    </div>
+
+  </div>
+
+</div>
+
+<script src='https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js'></script>
+<script>
+Chart.defaults.font.family = "'Outfit', system-ui, sans-serif";
+const PAYLOAD = __DATA__;
+const K = PAYLOAD.kpis;
+const isDark = document.documentElement.style.getPropertyValue('--bg') !== '';
+const tc = getComputedStyle(document.documentElement).getPropertyValue('--t3').trim() || '#8b95ad';
+const gc = getComputedStyle(document.documentElement).getPropertyValue('--border').trim() || 'rgba(148,163,184,.15)';
+
+// ── helpers ──────────────────────────────────────────────────
+function fmtN(n){if(n===null||n===undefined)return'—';n=+n;const a=Math.abs(n);if(a>=1e9)return(a/1e9).toFixed(1)+'B';if(a>=1e6)return(a/1e6).toFixed(1)+'M';if(a>=1e3)return(a/1e3).toFixed(0)+'K';return a.toFixed(0);}
+function showTab(id,el){
+  ['overview','itunes','spotify','country','fixes'].forEach(t=>{
+    document.getElementById('tab-'+t).style.display='none';
+  });
+  document.getElementById('tab-'+id).style.display='block';
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+}
+
+// ── KPI bar ──────────────────────────────────────────────────
+const kpiData = [
+  {lbl:'Top label overall',   val:K.top_label, sub:'Based on latest daily chart'},
+  {lbl:'iTunes labels', val:K.it_unique_before, sub:'Based on latest daily chart'},
+  {lbl:'Spotify labels',val:K.sp_unique_before, sub:'Based on latest daily chart'},
+];
+const kpiBar = document.getElementById('kpiBar');
+kpiData.forEach(k=>{
+  kpiBar.innerHTML += `<div class='kpi'>
+    <div class='kpi-lbl'>${k.lbl}</div>
+    <div class='kpi-val'>${k.val}</div>
+    ${k.sub ? `<div class='kpi-sub'>${k.sub}</div>` : ''}
+  </div>`;
+});
+
+
+// ── Power score bars ─────────────────────────────────────────
+const pwrBars = document.getElementById('pwrBars');
+(PAYLOAD.power_scores||[]).forEach(p=>{
+  const pct = Math.min(100, Math.max(0, p.power));
+  pwrBars.innerHTML += `<div class='bar-wrap' style='cursor:pointer;padding:4px;border-radius:4px;transition:background 0.2s' onmouseover="this.style.background='var(--bg4)'" onmouseout="this.style.background='transparent'" onclick="showLabelTracks('${p.label.replace(/'/g,"\\'")}')">
+    <div class='bar-lbl'><span>${p.label}</span><span style='color:var(--blue);font-weight:600'>${p.power.toFixed(1)}</span></div>
+    <div class='bar-outer'><div class='bar-fill' style='width:${pct}%;background:linear-gradient(90deg,var(--blue),var(--purple))'></div></div>
+  </div>`;
+});
+
+// ── Overview charts ───────────────────────────────────────────
+const itTop  = PAYLOAD.it_top  || [];
+const spTop  = PAYLOAD.sp_top  || [];
+
+
+const epicTbody = document.getElementById('epicTbody');
+const topTracksTtl = document.getElementById('topTracksTtl');
+
+function showLabelTracks(label) {
+  topTracksTtl.innerText = 'Top 10 tracks of ' + label + ' (Spotify)';
+  const tracks = PAYLOAD.label_top_tracks[label] || [];
+  epicTbody.innerHTML = '';
+  if(tracks.length === 0) {
+    epicTbody.innerHTML = `<tr><td colspan='3' style='text-align:center;color:var(--t3)'>No data available</td></tr>`;
+    return;
+  }
+  tracks.forEach(d=>{
+    epicTbody.innerHTML += `<tr>
+      <td style='font-weight:600'>${d.artist_title}</td>
+      <td style='text-align:right'>${d.rank}</td>
+      <td style='text-align:right'>${fmtN(d.total_streams)}</td>
+    </tr>`;
+  });
+}
+
+// Initial render
+const defaultLabel = PAYLOAD.power_scores && PAYLOAD.power_scores.length > 0 ? PAYLOAD.power_scores[0].label : 'Epic';
+showLabelTracks(defaultLabel);
+
+new Chart(document.getElementById('stackBarItunes'),{
+  type:'bar',
+  data:{labels:itTop.map(d=>d.label),datasets:[
+    {label:'iTunes',  data:itTop.map(d=>d.points), backgroundColor:'#60a5fa',borderRadius:0}
+  ]},
+  options:{responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{display:false}},
+    scales:{x:{ticks:{color:tc,font:{size:12},maxRotation:45},grid:{color:gc}},
+            y:{ticks:{color:tc,font:{size:12}},grid:{color:gc}}}}
+});
+new Chart(document.getElementById('stackBarSpotify'),{
+  type:'bar',
+  data:{labels:spTop.map(d=>d.label),datasets:[
+    {label:'Spotify', data:spTop.map(d=>d.total_streams), backgroundColor:'#34d399',borderRadius:0}
+  ]},
+  options:{responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{display:false}},
+    scales:{x:{ticks:{color:tc,font:{size:12},maxRotation:45},grid:{color:gc}},
+            y:{ticks:{color:tc,font:{size:12},callback:v=>fmtN(v)},grid:{color:gc}}}}
+});
+
+// ── iTunes tab charts ─────────────────────────────────────────
+new Chart(document.getElementById('itBar'),{
+  type:'bar',
+  data:{labels:itTop.map(d=>d.label),
+    datasets:[{label:'Points',data:itTop.map(d=>d.points),backgroundColor:'#60a5fa',borderRadius:3}]},
+  options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{display:false}},
+    scales:{y:{ticks:{color:tc,font:{size:12}},grid:{color:gc}},
+            x:{ticks:{color:tc,font:{size:12}},grid:{color:gc}}}}
+});
+
+new Chart(document.getElementById('itRank'),{
+  type:'bar',
+  data:{labels:itTop.map(d=>d.label),
+    datasets:[{label:'Avg Rank',data:itTop.map(d=>d.avg_rank),backgroundColor:'#c4b5fd',borderRadius:3}]},
+  options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`Avg rank: ${c.parsed.x}`}}},
+    scales:{y:{ticks:{color:tc,font:{size:12}},grid:{color:gc}},
+            x:{reverse:false,ticks:{color:tc,font:{size:12}},grid:{color:gc}}}}
+});
+
+const itTopTbody = document.getElementById('itTopTbody');
+if (itTopTbody) {
+  (PAYLOAD.it_top_tracks || []).forEach(d => {
+    itTopTbody.innerHTML += `<tr>
+      <td style='font-weight:600'>${d.artist_title}</td>
+      <td><span class='badge' style='background:var(--bg3);border:1px solid var(--border)'>${d.label}</span></td>
+      <td style='text-align:right'>${d.rank}</td>
+      <td style='text-align:right'>${fmtN(d.points)}</td>
+    </tr>`;
+  });
+}
+
+// ── Spotify tab charts ────────────────────────────────────────
+new Chart(document.getElementById('spBar'),{
+  type:'bar',
+  data:{labels:spTop.map(d=>d.label),
+    datasets:[{label:'Streams',data:spTop.map(d=>d.total_streams),backgroundColor:'#34d399',borderRadius:3}]},
+  options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{display:false}},
+    scales:{y:{ticks:{color:tc,font:{size:12}},grid:{color:gc}},
+            x:{ticks:{color:tc,font:{size:12}},grid:{color:gc}}}}
+});
+
+new Chart(document.getElementById('spRank'),{
+  type:'bar',
+  data:{labels:spTop.map(d=>d.label),
+    datasets:[{label:'Avg Rank',data:spTop.map(d=>d.avg_rank),backgroundColor:'#f9a8d4',borderRadius:3}]},
+  options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`Avg rank: ${c.parsed.x}`}}},
+    scales:{y:{ticks:{color:tc,font:{size:12}},grid:{color:gc}},
+            x:{ticks:{color:tc,font:{size:12}},grid:{color:gc}}}}
+});
+
+const spTopTbody = document.getElementById('spTopTbody');
+if (spTopTbody) {
+  (PAYLOAD.sp_top_tracks || []).forEach(d => {
+    spTopTbody.innerHTML += `<tr>
+      <td style='font-weight:600'>${d.artist_title}</td>
+      <td><span class='badge' style='background:var(--bg3);border:1px solid var(--border)'>${d.label}</span></td>
+      <td style='text-align:right'>${d.rank}</td>
+      <td style='text-align:right'>${fmtN(d.total_streams)}</td>
+    </tr>`;
+  });
+}
+
+
+
+// ── Country-wise tab ─────────────────────────────────────────
+const ctryData = PAYLOAD.country_dom || [];
+const ctb = document.getElementById('ctryTbody');
+ctryData.forEach(d=>{
+  ctb.innerHTML += `<tr>
+    <td style='font-weight:600'>${d.country}</td>
+    <td><span class='badge' style='background:var(--bd);color:var(--blue)'>${d.label}</span></td>
+    <td style='text-align:right'>${d.total_streams.toLocaleString()} streams</td>
+    <td style='text-align:right'>${d.avg_rank}</td>
+    <td style='text-align:right'>${fmtN(d.total_streams)}</td>
+  </tr>`;
+});
+
+const streamTop = [...ctryData].sort((a,b)=>b.total_streams-a.total_streams);
+
+new Chart(document.getElementById('ctryStream'),{
+  type:'bar',
+  data:{labels:streamTop.map(d=>d.country),
+    datasets:[{label:'Streams',data:streamTop.map(d=>d.total_streams),backgroundColor:'#34d399',borderRadius:3}]},
+  options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>fmtN(c.parsed.x)+' streams'}}},
+    scales:{y:{ticks:{color:tc,font:{size:12}},grid:{color:gc}},
+            x:{ticks:{color:tc,font:{size:12},callback:v=>fmtN(v)},grid:{color:gc}}}}
+});
+
+// ── Fixes log tab ─────────────────────────────────────────────
+const fg = document.getElementById('fixGrid');
+(PAYLOAD.fix_groups||[]).forEach(g=>{
+  fg.innerHTML += `<div class='fix-group'>
+    <div class='fix-canonical'>
+      <span class='badge' style='background:var(--bd);color:var(--blue)'>${g.canonical}</span>
+      <span class='fix-count'>${(g.count||0).toLocaleString()} total entries</span>
+    </div>
+    ${(g.variants||[]).map(v=>`<div class='fix-variant'><span style='color:var(--t4);font-size:10px'>↩</span><span>${v}</span></div>`).join('')}
+  </div>`;
+});
+
+
+</script>
+</body></html>
+""".replace("__DATA__", data_json).replace("__THEME__", theme_css).replace("__DATA_DATE__", payload.get("data_date", "All-Time"))
