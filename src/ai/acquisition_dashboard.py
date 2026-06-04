@@ -437,7 +437,7 @@ def _fmt_n(n: float | int | None) -> str:
 
 def render_acquisition() -> None:
     st.markdown(
-        "<div style='font-size:0.95rem;color:#97a3c5;margin:0.2rem 0 0.75rem 0;line-height:1.5;'>"
+        "<div style='font-size:1.1rem;color:#97a3c5;margin:0.2rem 0 0.75rem 0;line-height:1.5;'>"
         "Evaluate artist-level acquisition potential by analyzing cross-platform performance metrics. "
         "This dashboard combines daily streaming data from Spotify Global "
         "with iTunes Worldwide chart movements to compute an overall Acquisition Score. "
