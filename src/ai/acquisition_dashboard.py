@@ -643,11 +643,6 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
       <div class="dd-list" id="dd-list"></div>
     </div>
   </div>
-  <div class="filter-grp" style="margin-left:12px">
-    <button class="fp" onclick="setTimeWindow('1 Day',this)">1 Day</button>
-    <button class="fp" onclick="setTimeWindow('7 Days',this)">7 Days</button>
-    <button class="fp on" onclick="setTimeWindow('30 Days',this)">30 Days</button>
-  </div>
   <span class="sel-label" style="margin-left:auto;color:var(--t2)" id="dd-count"></span>
 </div>
 
@@ -708,13 +703,6 @@ function _jsSignal(score, momentum, bestRank) {
     if (bestRank && bestRank <= 30) return ["WATCH", "sb-watch"];
     if (momentum <= -25) return ["CAUTION", "sb-caution"];
     return ["WATCH", "sb-watch"];
-}
-
-function setTimeWindow(label, el) {
-    currentTimeWindowDays = label === '1 Day' ? 1 : label === '7 Days' ? 7 : 30;
-    document.querySelectorAll('.filter-grp button').forEach(btn => btn.classList.remove('on'));
-    el.classList.add('on');
-    recalculateAll();
 }
 
 function recalculateAll() {
