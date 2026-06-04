@@ -4797,7 +4797,7 @@ def show_debut_report_page() -> None:
 
 def show_movement_page() -> None:
     """Wrapper function for Movement page"""
-    tab1, tab2, tab3 = st.tabs(["📈 Track Movement", "💿 Album Movement", "🎤 Artist Movement"])
+    tab1, tab2, tab3 = st.tabs([" Track Movement", " Album Movement", " Artist Movement"])
     with tab1:
         render_track_movement()
     with tab2:
