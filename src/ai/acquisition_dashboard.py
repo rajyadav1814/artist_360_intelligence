@@ -526,13 +526,13 @@ def _build_html(payload: dict, dark_mode: bool = False) -> str:
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 __THEME__
-body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t1);font-size:14px;line-height:1.55}
+body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t1);font-size:16px;line-height:1.55}
 .hdr{background:linear-gradient(180deg,#1a2235 0%,var(--bg2) 100%);border-bottom:1px solid var(--border);padding:20px 24px 16px;display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:14px}
-.brand{font-size:11px;color:var(--t3);letter-spacing:1.4px;text-transform:uppercase;display:flex;align-items:center;gap:8px;margin-bottom:6px;font-weight:600}
+.brand{font-size:13px;color:var(--t3);letter-spacing:1.4px;text-transform:uppercase;display:flex;align-items:center;gap:8px;margin-bottom:6px;font-weight:700}
 .live-dot{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);animation:blink 2s infinite;flex-shrink:0}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.4}}
-.dash-title{font-size:26px;font-weight:700;letter-spacing:-.5px;color:var(--t1)}
-.dash-sub{font-size:12px;color:var(--t2);letter-spacing:.3px;margin-top:4px;font-weight:500}
+.dash-title{font-size:28px;font-weight:800;letter-spacing:-.5px;color:var(--t1)}
+.dash-sub{font-size:14px;color:var(--t2);letter-spacing:.3px;margin-top:4px;font-weight:600}
 .fy-pill{font-size:10px;color:var(--t2);background:var(--bg3);border:1px solid var(--border2);padding:5px 12px;border-radius:20px;font-weight:500;letter-spacing:.3px}
 
 .selector-bar{background:var(--bg2);border-bottom:1px solid var(--border);padding:14px 24px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;position:relative;z-index:50}
@@ -569,9 +569,9 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
 .acq-left{flex:1;min-width:240px}
 .acq-id-row{display:flex;align-items:center;gap:14px;margin-bottom:6px}
 .acq-avatar{width:46px;height:46px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;flex-shrink:0}
-.acq-name{font-size:24px;font-weight:700;letter-spacing:-.5px;line-height:1.2;color:var(--t1)}
+.acq-name{font-size:26px;font-weight:800;letter-spacing:-.5px;line-height:1.2;color:var(--t1)}
 .acq-sublabel{font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.7px;margin-top:3px;font-weight:600}
-.acq-quote{font-size:13px;color:var(--t2);line-height:1.65;border-left:2px solid var(--border2);padding-left:14px;margin-top:12px}
+.acq-quote{font-size:15px;color:var(--t2);line-height:1.65;border-left:2px solid var(--border2);padding-left:14px;margin-top:12px}
 .signal-badge{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;padding:7px 14px;border-radius:6px;letter-spacing:.5px;text-transform:uppercase;white-space:nowrap}
 .sb-buy{background:var(--gd);color:var(--green);border:1px solid rgba(52,211,153,.4)}
 .sb-watch{background:var(--bd);color:var(--blue);border:1px solid rgba(96,165,250,.4)}
@@ -580,8 +580,8 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
 .stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border);border-top:1px solid var(--border)}
 .stat-cell{background:var(--bg2);padding:16px 18px;transition:.15s}
 .stat-cell:hover{background:var(--bg3)}
-.stat-lbl{font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.7px;margin-bottom:7px;font-weight:600}
-.stat-val{font-size:24px;font-weight:700;letter-spacing:-.5px;color:var(--t1);font-variant-numeric:tabular-nums}
+.stat-lbl{font-size:12px;color:var(--t3);text-transform:uppercase;letter-spacing:.7px;margin-bottom:7px;font-weight:800}
+.stat-val{font-size:26px;font-weight:800;letter-spacing:-.5px;color:var(--t1);font-variant-numeric:tabular-nums}
 .stat-val.g{color:var(--green)}.stat-val.r{color:var(--red)}.stat-val.b{color:var(--blue)}.stat-val.p{color:var(--purple)}.stat-val.a{color:var(--amber)}
 .stat-sub{font-size:11px;color:var(--t2);margin-top:5px;font-weight:500}
 .stat-sub.g{color:var(--green)}.stat-sub.r{color:var(--red)}

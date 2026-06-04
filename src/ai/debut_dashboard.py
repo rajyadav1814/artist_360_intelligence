@@ -84,6 +84,7 @@ hr { margin: 1.25rem 0 !important; border: none !important; border-top: 1px soli
     color: var(--db-t1) !important;
     background: linear-gradient(135deg, rgba(96,165,250,.22), rgba(196,181,253,.22)) !important;
     border-color: rgba(96,165,250,.55) !important;
+    font-weight: 800 !important;
 }
 
 /* ── hero header ── */
@@ -107,7 +108,7 @@ hr { margin: 1.25rem 0 !important; border: none !important; border-top: 1px soli
 }
 .db-hero-eyebrow {
     display: inline-flex; align-items: center; gap: 10px;
-    font-size: 12px; font-weight: 800; letter-spacing: .18em;
+    font-size: 14px; font-weight: 900; letter-spacing: .18em;
     text-transform: uppercase; color: var(--db-t3);
     margin-bottom: 14px;
 }
@@ -122,11 +123,11 @@ hr { margin: 1.25rem 0 !important; border: none !important; border-top: 1px soli
     50%     { box-shadow: 0 0 0 8px rgba(52,211,153,.05), 0 0 22px rgba(52,211,153,.85); }
 }
 .db-hero-title {
-    font-size: 2.4rem; font-weight: 900; letter-spacing: -.02em;
+    font-size: 2.6rem; font-weight: 950; letter-spacing: -.02em;
     color: var(--db-t1); margin-bottom: 8px; line-height: 1.1;
 }
 .db-hero-sub {
-    font-size: 0.95rem; color: var(--db-t2); font-weight: 500;
+    font-size: 1.1rem; color: var(--db-t2); font-weight: 500;
     letter-spacing: .02em;
 }
 .db-hero-sub b { color: var(--db-t1); font-weight: 700; }
@@ -161,12 +162,12 @@ hr { margin: 1.25rem 0 !important; border: none !important; border-top: 1px soli
 .db-kpi.k-amber::before  { background: var(--db-amber); }
 .db-kpi.k-pink::before   { background: var(--db-pink); }
 .db-kpi-lbl {
-    font-size: 11px; font-weight: 800; letter-spacing: .12em;
+    font-size: 13px; font-weight: 900; letter-spacing: .12em;
     text-transform: uppercase; color: var(--db-t3);
     margin-bottom: 10px;
 }
 .db-kpi-val {
-    font-size: 26px; font-weight: 900; color: var(--db-t1);
+    font-size: 28px; font-weight: 950; color: var(--db-t1);
     line-height: 1.1; margin-bottom: 6px; letter-spacing: -.01em;
 }
 .db-kpi.k-blue   .db-kpi-val { color: var(--db-blue); }
@@ -175,7 +176,7 @@ hr { margin: 1.25rem 0 !important; border: none !important; border-top: 1px soli
 .db-kpi.k-amber  .db-kpi-val { color: var(--db-amber); }
 .db-kpi.k-pink   .db-kpi-val { color: var(--db-pink); }
 .db-kpi-sub {
-    font-size: 12px; color: var(--db-t2); font-weight: 500;
+    font-size: 14px; color: var(--db-t2); font-weight: 600;
     line-height: 1.35;
 }
 
@@ -221,23 +222,23 @@ hr { margin: 1.25rem 0 !important; border: none !important; border-top: 1px soli
     border: 1px solid rgba(96,165,250,.26);
 }
 .insight-title {
-    font-size: 11px;
+    font-size: 13px;
     color: #9eabc4;
-    font-weight: 800;
+    font-weight: 900;
     letter-spacing: .12em;
     text-transform: uppercase;
     margin-bottom: 0.48rem;
 }
 .insight-val {
-    font-size: clamp(1.12rem, 1.05vw + .78rem, 1.9rem);
-    font-weight: 800;
+    font-size: clamp(1.3rem, 1.1vw + .9rem, 2.1rem);
+    font-weight: 900;
     color: var(--db-t1);
     margin-bottom: 0.55rem;
     line-height: 1.28;
     letter-spacing: -.01em;
 }
 .insight-desc {
-    font-size: 0.91rem;
+    font-size: 1.05rem;
     color: #c7d1e4;
     line-height: 1.58;
 }
@@ -248,14 +249,14 @@ hr { margin: 1.25rem 0 !important; border: none !important; border-top: 1px soli
     margin: 0 0 14px 2px;
 }
 .sec-title {
-    font-size: 1.1rem; font-weight: 800;
+    font-size: 1.25rem; font-weight: 900;
     color: var(--db-t1); letter-spacing: -.005em;
 }
 .sec-badge {
-    font-size: 11px; font-weight: 700; letter-spacing: .1em;
+    font-size: 12px; font-weight: 800; letter-spacing: .1em;
     text-transform: uppercase; color: var(--db-t2);
     background: var(--db-bg3); border: 1px solid var(--db-line);
-    padding: 5px 12px; border-radius: 999px;
+    padding: 6px 14px; border-radius: 999px;
 }
 
 /* ── table container ── */
@@ -284,7 +285,7 @@ hr { margin: 1.25rem 0 !important; border: none !important; border-top: 1px soli
     display: inline-flex; align-items: center; justify-content: center;
     min-width: 44px; padding: 6px 10px;
     background: var(--db-bg4); color: var(--db-t1);
-    font-size: 14px; font-weight: 800;
+    font-size: 16px; font-weight: 900;
     border-radius: 10px; letter-spacing: -.01em;
 }
 .rank-pill.top { background: linear-gradient(135deg, #34d399, #10b981); color: #0d1117; }
@@ -293,7 +294,7 @@ hr { margin: 1.25rem 0 !important; border: none !important; border-top: 1px soli
 .sbar-fg { height: 100%; border-radius: 4px; }
 
 /* ── spotlight enhancement ── */
-.sp-name { font-size: 1.6rem; font-weight: 900; line-height: 1.2; margin-bottom: 0.5rem; color: var(--db-t1); }
+.sp-name { font-size: 1.8rem; font-weight: 950; line-height: 1.2; margin-bottom: 0.5rem; color: var(--db-t1); }
 .sp-artist { font-size: 0.95rem; color: var(--db-t2); margin-bottom: 1rem; }
 .sp-stat { padding: 0.65rem 0.9rem; border-radius: 12px; background: var(--db-bg3); border: 1px solid var(--db-line); }
 .sp-lbl { font-size: 11px; color: var(--db-t3); font-weight: 700; letter-spacing: .1em; text-transform: uppercase; margin-bottom: 4px; }
@@ -908,14 +909,14 @@ def _debut_table_html(df: pd.DataFrame, score_col: str = "total_streams", max_ro
              style="grid-template-columns:80px 1.8fr 1.2fr 1fr 100px 110px;">
           <span class="rank-pill {pill_class}" style="justify-self:center">{rank}</span>
           <div>
-            <div style="font-size:15px;font-weight:700;color:var(--db-t1);
-                        white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:6px;text-align:center">{title}</div>
+            <div style="font-size:17px;font-weight:800;color:var(--db-t1);
+                        white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:7px;text-align:center">{title}</div>
             <div class="sbar-bg" style="margin: 0 auto; max-width: 90%;">
               <div class="sbar-fg" style="width:{pct}%;background:{bar_color}"></div>
             </div>
           </div>
-          <div style="font-size:13px;color:var(--db-t2);white-space:nowrap;
-                      overflow:hidden;text-overflow:ellipsis;text-align:center">{artist}</div>
+          <div style="font-size:14px;color:var(--db-t2);white-space:nowrap;
+                      overflow:hidden;text-overflow:ellipsis;text-align:center;font-weight:600;">{artist}</div>
           <div style="font-size:12px;color:var(--db-purple);font-weight:600;white-space:nowrap;
                       overflow:hidden;text-overflow:ellipsis;text-align:center">{label_display}</div>
           <span style="font-size:15px;font-weight:800;color:var(--db-t1);text-align:center">{fmt(score)}</span>
