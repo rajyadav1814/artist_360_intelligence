@@ -4504,12 +4504,12 @@ def show_compare_page() -> None:
         st.markdown(
             f"""
             <div style='margin:0.5rem 0 1.25rem;'>
-                <div style='font-size:1.05rem;font-weight:800;color:#fff;
+                <div style='font-size:1.05rem;font-weight:800;color:var(--text);
                     letter-spacing:-.01em;margin-bottom:0.75rem;display:flex;
                     align-items:center;gap:0.5rem;'>
                     ⚡ Head-to-Head Breakdown
                     <span style='font-size:.72rem;font-weight:700;letter-spacing:.1em;
-                        text-transform:uppercase;color:#8b95ad;background:rgba(148,163,184,.1);
+                        text-transform:uppercase;color:var(--text2);background:rgba(148,163,184,.1);
                         border:1px solid rgba(148,163,184,.2);padding:3px 10px;border-radius:999px;'>
                         All metrics
                     </span>
@@ -4524,7 +4524,7 @@ def show_compare_page() -> None:
 
         # ── 3 Plotly charts: Listeners · Countries · Points ─────────────
         st.markdown(
-            "<div style='font-size:1.05rem;font-weight:800;color:#fff;margin:0.25rem 0 0.85rem;"
+            "<div style='font-size:1.05rem;font-weight:800;color:var(--text);margin:0.25rem 0 0.85rem;"
             "letter-spacing:-.01em;'>📊 Visual Comparison</div>",
             unsafe_allow_html=True,
         )
@@ -4807,7 +4807,7 @@ def show_movement_page() -> None:
         render_album_movement()
     with tab3:
         st.markdown(
-            "<div style='font-size:0.85rem;color:#97a3c5;margin:-0.5rem 0 0.75rem 0'>"
+            "<div style='font-size:0.85rem;color:var(--text2);margin:-0.5rem 0 0.75rem 0'>"
             "Rank momentum across iTunes worldwide artist rankings."
             "</div>",
             unsafe_allow_html=True,

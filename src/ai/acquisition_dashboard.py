@@ -437,7 +437,7 @@ def _fmt_n(n: float | int | None) -> str:
 
 def render_acquisition() -> None:
     st.markdown(
-      "<div style='font-size: 0.92rem; color: var(--t2); margin: 0 0 14px; line-height: 1.5; font-weight: 500;'>"
+      "<div style='font-size: 0.92rem; color: var(--text2); margin: 0 0 14px; line-height: 1.5; font-weight: 500;'>"
       "🎤 Artist-level acquisition recommendations driven by peak Spotify monthly listeners, iTunes Worldwide performance, "
       "and recent audience momentum."
       "</div>",
@@ -938,18 +938,22 @@ window.addEventListener('load',()=>{ try{ selectArtist(PAYLOAD.defaultArtist); }
 def prefetch_acquisition_data() -> None:
     """Warms up the cache for all three Acquisition dashboards (Artist, Track, and Album) in the background."""
     try:
-        _load_daily("spotify_daily", "global", 30)
-        _load_daily("itunes_daily", "ww", 30)
+        # Artist Acquisition Prep
+        _load_daily("spotify_daily", "global", WINDOW_DAYS)
+        _load_daily("itunes_daily", "ww", WINDOW_DAYS)
         _load_artist_universe()
-        _load_spotify_artist_series(30)
-        _load_itunes_artist_series(30)
+        _load_spotify_artist_series(WINDOW_DAYS)
+        _load_itunes_artist_series(WINDOW_DAYS)
         
+        # Track Acquisition Prep
+        from src.ai.track_acquisition_dashboard import _load_window_multi as load_track_multi
         from src.ai.track_acquisition_dashboard import _load_window as load_track_window
-        load_track_window("spotify_daily", "global", 7)
-        load_track_window("spotify_daily", "us", 7)
-        load_track_window("itunes_daily", "ww", 7)
+        latam_codes = ["ar", "bo", "br", "cl", "co", "cr", "do", "ec", "sv", "gt", "hn", "mx", "ni", "pa", "pe", "py", "uy", "ve"]
+        load_track_multi("spotify_daily", ["global", "us"] + latam_codes, 30)
+        load_track_window("itunes_daily", "ww", 30)
         
-        from src.ai.album_acquisition_dashboard import _load_window as load_album_window
-        load_album_window("itunes_artist_album", "ww", 7)
+        # Album Acquisition Prep
+        from src.ai.album_acquisition_dashboard import _load_window_multi as load_album_multi
+        load_album_multi("itunes_artist_album", ["ww", "us"] + latam_codes, 30)
     except Exception as e:
         logger.error(f"Error prefetching acquisition data: {e}")
