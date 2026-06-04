@@ -386,7 +386,7 @@ def render_label_analysis():
           background: var(--bg);
           font-family:'Inter',system-ui,sans-serif;
           color:var(--t1);
-          font-size:13px;
+          font-size:15px;
           overflow-x:hidden;
           padding-bottom:30px;
           animation: fadeIn 0.5s ease-out;
@@ -403,7 +403,7 @@ def render_label_analysis():
           }
         .hdr-row{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;position:relative;z-index:2;}
         .brand{
-          font-size:10px;
+          font-size:12px;
           font-weight:800;
           color:var(--t3);
           letter-spacing:2px;
@@ -425,7 +425,7 @@ def render_label_analysis():
           0%,100%{opacity:1; box-shadow: 0 0 0 3px rgba(34,211,160,.15), 0 0 10px rgba(34,211,160,.5);}
           50%{opacity:.3; box-shadow: 0 0 0 6px rgba(34,211,160,.05), 0 0 16px rgba(34,211,160,.7);}
         }
-        .title{font-size:24px;font-weight:900;letter-spacing:-.03em;color:var(--t1);line-height:1.15;}
+        .title{font-size:26px;font-weight:950;letter-spacing:-.03em;color:var(--t1);line-height:1.15;}
         .sub{font-size:11px;color:var(--t2);font-weight:500;margin-top:5px;letter-spacing:.02em;}
         
         .controls{display:flex;gap:6px;align-items:center;flex-wrap:wrap;position:relative;z-index:2;}
@@ -535,15 +535,15 @@ def render_label_analysis():
         .kpi.k-amber::before{background:var(--amber);}
         .kpi.k-pink::before{background:var(--pink);}
         
-        .kpi-lbl{font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.12em;font-weight:800;margin-bottom:10px;}
-        .kpi-val{font-size:26px;font-weight:900;letter-spacing:-.02em;line-height:1.1;color:var(--t1);}
+        .kpi-lbl{font-size:13px;color:var(--t3);text-transform:uppercase;letter-spacing:.12em;font-weight:900;margin-bottom:10px;}
+        .kpi-val{font-size:28px;font-weight:950;letter-spacing:-.02em;line-height:1.1;color:var(--t1);}
         .kpi.k-blue .kpi-val{color:var(--blue);}
         .kpi.k-green .kpi-val{color:var(--green);}
         .kpi.k-purple .kpi-val{color:var(--purple);}
         .kpi.k-amber .kpi-val{color:var(--amber);}
         .kpi.k-pink .kpi-val{color:var(--pink);}
         
-        .kpi-sub{font-size:12px;color:var(--t2);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+        .kpi-sub{font-size:14px;color:var(--t2);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600;}
 
         .body{padding:14px 18px;display:flex;flex-direction:column;gap:14px}
         .r2{display:grid;grid-template-columns:1fr 1fr;gap:12px}

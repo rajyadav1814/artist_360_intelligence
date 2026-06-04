@@ -352,6 +352,8 @@ def apply_theme(dark_mode: bool = True) -> None:
             color:var(--text);
             animation: fadeIn 0.6s ease-out;
         }
+        body { font-size: 17px; }
+        p, div, span, label { font-size: 1.05rem; }
         [data-testid="stHeader"], [data-testid="stToolbar"], #MainMenu, header { background:transparent !important; }
         [data-testid="stDecoration"] { display:none; }
         .block-container {
@@ -468,13 +470,13 @@ def apply_theme(dark_mode: bool = True) -> None:
             transform: rotate(5deg) scale(1.1);
             box-shadow:0 15px 35px rgba(251,113,133,.45);
         }
-        .sidebar-logo { font-size:1.2rem; font-weight:800; letter-spacing:.2px; line-height:1.15; }
-        .sidebar-sub { color:var(--text2); font-size:.8rem; margin-top:.18rem; }
+        .sidebar-logo { font-size:1.4rem; font-weight:900; letter-spacing:.2px; line-height:1.15; }
+        .sidebar-sub { color:var(--text2); font-size:0.95rem; margin-top:.18rem; }
         .sidebar-badge {
             display:inline-block; margin-top:.45rem; padding:3px 8px; border-radius:999px;
             background:rgba(251,113,133,.22); color:#FDA4AF; font-size:.75rem; font-weight:700;
         }
-        div[data-testid="stRadio"] > label { font-size:.82rem; font-weight:700; color:var(--text2) !important; }
+        div[data-testid="stRadio"] > label { font-size:1.0rem; font-weight:800; color:var(--text2) !important; }
         div[data-testid="stRadio"] [role="radiogroup"] label {
             background:transparent; border:1px solid transparent; border-radius:10px;
             padding:.35rem .45rem; margin:.1rem 0; transition:all .3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -493,8 +495,8 @@ def apply_theme(dark_mode: bool = True) -> None:
         div[data-testid="stRadio"] [role="radiogroup"] label p {
             margin-left:0 !important; font-weight:600;
         }
-        .page-title { font-size:2rem; font-weight:800; letter-spacing:-.03em; margin-bottom:.25rem; }
-        .page-meta { color:var(--text2); font-size:.95rem; margin-bottom:1rem; }
+        .page-title { font-size:2.25rem; font-weight:900; letter-spacing:-.03em; margin-bottom:.25rem; }
+        .page-meta { color:var(--text2); font-size:1.1rem; margin-bottom:1rem; }
         .page-header-box {
             display: flex;
             justify-content: space-between;
@@ -531,11 +533,11 @@ def apply_theme(dark_mode: bool = True) -> None:
             box-shadow:0 18px 42px rgba(0,0,0,.35);
             border-color: rgba(251,113,133,.3);
         }
-        .section-title { 
-            font-size:1rem; font-weight:700; margin-bottom:.2rem;
+        .section-title {
+            font-size:1.15rem; font-weight:800; margin-bottom:.2rem;
             display: flex; align-items: center; gap: 0.5rem;
         }
-        .section-sub { color:var(--text2); font-size:.82rem; margin-bottom:1rem; font-weight:500; }
+        .section-sub { color:var(--text2); font-size:0.95rem; margin-bottom:1rem; font-weight:500; }
         .dashboard-card {
             background: linear-gradient(180deg, var(--surface), var(--surface2));
             border: 1px solid var(--border);
@@ -560,9 +562,9 @@ def apply_theme(dark_mode: bool = True) -> None:
             text-decoration: underline;
         }
         .table-wrap { margin-top: 1rem; overflow-x:auto; overflow-y:auto; max-height:620px; }
-        .leader-table { width:100%; border-collapse:collapse; font-size:.92rem; }
+        .leader-table { width:100%; border-collapse:collapse; font-size:1.05rem; }
         .leader-table thead th {
-            text-align:left; padding:.85rem .85rem; color: var(--text); font-size:.95rem;
+            text-align:left; padding:.85rem .85rem; color: var(--text); font-size:1.1rem;
             letter-spacing:.06em; text-transform:uppercase; border-bottom:1px solid var(--border);
             font-weight: 700;
         }
@@ -660,18 +662,18 @@ def apply_theme(dark_mode: bool = True) -> None:
         .kpi-green::before { background: linear-gradient(90deg, #34d399, #10b981); }
         .kpi-amber::before { background: linear-gradient(90deg, #fcd34d, #f59e0b); }
         .kpi-red::before { background: linear-gradient(90deg, #fb7185, #e11d48); }
-        .kpi-label { 
-            color:var(--text2); font-size:.76rem; text-transform:uppercase; 
+        .kpi-label {
+            color:var(--text2); font-size:0.9rem; text-transform:uppercase;
             letter-spacing:.08em; margin-bottom: 0.5rem;
         }
-        .kpi-value { 
-            font-size:2rem; font-weight:800; margin-top:.35rem;
+        .kpi-value {
+            font-size:2.2rem; font-weight:900; margin-top:.35rem;
             background: linear-gradient(135deg, #1A1A1A 0%, #4A4A4A 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
         }
-        .kpi-delta { color:var(--text2); font-size:.78rem; margin-top:.2rem; }
+        .kpi-delta { color:var(--text2); font-size:0.9rem; margin-top:.2rem; }
         
         /* Progress bars */
         .progress-bar {
@@ -686,7 +688,7 @@ def apply_theme(dark_mode: bool = True) -> None:
         table.leader-table {
             width:100%;
             border-collapse: collapse;
-            font-size: .92rem;
+            font-size: 1.05rem;
             border: 2px solid rgba(251, 113, 133, 0.25);
             border-radius: 12px;
             overflow: hidden;
@@ -698,7 +700,7 @@ def apply_theme(dark_mode: bool = True) -> None:
             text-align:left;
             padding: .85rem .85rem;
             color: var(--text);
-            font-size: .80rem;
+            font-size: 0.95rem;
             letter-spacing: .06em;
             text-transform: uppercase;
             border-bottom: 2px solid rgba(251, 113, 133, 0.22);
@@ -727,8 +729,8 @@ def apply_theme(dark_mode: bool = True) -> None:
         .pos-cell {
             color: var(--primary);
             font-weight: 800;
-            width: 44px;
-            font-size: 1.1rem;
+            width: 48px;
+            font-size: 1.25rem;
         }
         .artist-cell {
             font-weight: 700;
@@ -790,7 +792,7 @@ def apply_theme(dark_mode: bool = True) -> None:
             transition: opacity 0.3s ease, transform 0.3s ease;
             border: 1px solid rgba(251, 113, 133, 0.4);
             box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-            font-size: 0.86rem;
+            font-size: 0.98rem;
             line-height: 1.6;
             pointer-events: auto;
             max-height: 320px;
@@ -845,7 +847,7 @@ def apply_theme(dark_mode: bool = True) -> None:
         .run-log { display:flex; flex-direction:column; gap:.55rem; }
         .run-item {
             display:grid; grid-template-columns: 1.35fr 1fr .5fr .55fr; gap:.6rem;
-            align-items:center; padding:.7rem .85rem; background:rgba(17,24,39,.55);
+            align-items:center; padding:.8rem 1rem; background:rgba(17,24,39,.55);
             border:1px solid rgba(41,52,85,.7); border-radius:10px; font-size:.84rem;
         }
         .run-date { color:var(--text); font-weight:600; }
@@ -940,12 +942,13 @@ def apply_theme(dark_mode: bool = True) -> None:
             text-overflow: ellipsis;
             transition: all 0.3s ease;
             border-bottom: 1px solid var(--border) !important;
+            font-weight: 700;
         }
         .stTabs [data-baseweb="tab"] p {
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
-            font-size: .86rem;
+            font-size: 0.98rem;
         }
         .stTabs [data-baseweb="tab-panel"] {
             width: 100%;
@@ -1170,7 +1173,7 @@ def apply_theme(dark_mode: bool = True) -> None:
             border-top: 1px solid rgba(0,0,0,.08);
             text-align: center;
             color: var(--text2);
-            font-size: 0.82rem;
+            font-size: 0.95rem;
             line-height: 1.6;
         }
         .app-footer a {

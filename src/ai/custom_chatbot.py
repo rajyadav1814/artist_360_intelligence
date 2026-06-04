@@ -1432,7 +1432,7 @@ def _render_empty_state() -> None:
             div.cat-btn-wrapper > div[data-testid="stButton"] > button {
                 border-radius: 20px !important;
                 padding: 0.4rem 1rem !important;
-                font-size: 0.85rem !important;
+            font-size: 1.0rem !important;
                 border: 1px solid rgba(130, 146, 219, .2) !important;
                 background: rgba(30, 38, 68, 0.4) !important;
                 color: #e5ebff !important;
@@ -1453,7 +1453,7 @@ def _render_empty_state() -> None:
                 border-radius: 30px !important;
                 white-space: nowrap !important;
                 padding: 0.5rem 1.2rem !important;
-                font-size: 0.8rem !important;
+                font-size: 0.95rem !important;
                 background: rgba(18, 24, 43, 0.9) !important;
                 border: 1px solid rgba(130, 146, 219, 0.15) !important;
                 color: #cbd5f5 !important;
@@ -1537,16 +1537,16 @@ def render_custom_chatbot() -> None:
         <style>
         .ai-empty-stage{display:flex;flex-direction:column;justify-content:flex-start;gap:.65rem;padding:clamp(.35rem,2vh,1.1rem) 0 .5rem}
         .ai-thread-head{display:flex;flex-direction:column;gap:.2rem;padding:.15rem 0 .75rem}
-        .ai-thread-kicker{font-size:.76rem;letter-spacing:.08em;text-transform:uppercase;color:#7e8cb4}
-        .ai-thread-title{font-size:1.15rem;font-weight:600;color:#eef2ff;letter-spacing:-.02em}
+        .ai-thread-kicker{font-size:.9rem;letter-spacing:.08em;text-transform:uppercase;color:#7e8cb4;font-weight:700;}
+        .ai-thread-title{font-size:1.3rem;font-weight:700;color:#eef2ff;letter-spacing:-.02em}
         .ai-hero-shell{display:flex;flex-direction:column;justify-content:flex-start;align-items:center;
             text-align:center;gap:.55rem;padding:.2rem 0 .35rem}
-        .ai-hero-shell h2{margin:0;font-size:clamp(1.5rem,2.8vw,2.5rem);line-height:1.05;font-weight:700;
+        .ai-hero-shell h2{margin:0;font-size:clamp(1.7rem,3.2vw,2.8rem);line-height:1.05;font-weight:900;
             letter-spacing:-.03em;color:#f6f8ff}
-        .ai-hero-shell p{max-width:42rem;margin:0;font-size:.93rem;line-height:1.45;color:#98a4c8}
+        .ai-hero-shell p{max-width:42rem;margin:0;font-size:1.05rem;line-height:1.45;color:#98a4c8}
         .ai-hero-badge{display:inline-flex;align-items:center;padding:.45rem .9rem;border-radius:999px;
             border:1px solid rgba(123,145,255,.28);background:rgba(25,34,73,.6);
-            color:#c9d4ff;font-size:.85rem;letter-spacing:.04em;text-transform:uppercase}
+            color:#c9d4ff;font-size:1.0rem;letter-spacing:.04em;text-transform:uppercase;font-weight:700;}
         .ai-starter-grid{margin-top:.45rem}
         .ai-empty-stage div[data-testid="stForm"]{max-width:860px;margin-left:auto;margin-right:auto}
         div[data-testid="stForm"]{background:linear-gradient(180deg,rgba(22,27,47,.96),rgba(16,20,38,.96));
@@ -1554,13 +1554,13 @@ def render_custom_chatbot() -> None:
             box-shadow:0 22px 48px rgba(0,0,0,.28)}
         div[data-testid="stForm"] div[data-testid="stTextInput"] input{background:transparent;border:0;font-size:1rem;color:#f4f7ff}
         div[data-testid="stForm"] div[data-testid="stFormSubmitButton"] button{border-radius:999px;
-            padding:.6rem 1.2rem;font-weight:600;background:linear-gradient(135deg,#5f79ff,#8ca2ff);border:0;color:#081022}
+            padding:.6rem 1.2rem;font-weight:700;background:linear-gradient(135deg,#5f79ff,#8ca2ff);border:0;color:#081022}
         div[data-testid^="stChatMessageAvatar"]{display:none!important}
         div[data-testid="stChatMessage"]{max-width:min(920px,94vw);margin-left:auto;margin-right:auto;
             width:100%;display:flex;align-items:flex-start;justify-content:flex-start;gap:.5rem;padding:.35rem .3rem}
         div[data-testid="stChatMessage"] [data-testid="stChatMessageContent"]{max-width:min(760px,84vw);
-            border-radius:14px;padding:.8rem 1rem;width:fit-content;min-width:0;line-height:1.55;
-            font-size:.97rem;color:#e9eefc}
+            border-radius:14px;padding:1rem 1.2rem;width:fit-content;min-width:0;line-height:1.55;
+            font-size:1.1rem;color:#e9eefc}
         div[data-testid="stChatMessage"]:has([aria-label="assistant"]) [data-testid="stChatMessageContent"]{
             background:rgba(17,24,44,.58);border:1px solid rgba(126,142,207,.22);max-width:min(760px,84vw);
             border-radius:14px;box-shadow:0 12px 28px rgba(4,10,24,.18)}
@@ -1586,7 +1586,7 @@ def render_custom_chatbot() -> None:
         div[data-testid="stChatInput"] textarea, div[data-testid="stChatInput"] input {
             background: transparent !important;
             border: none !important;
-            color: #1A1A1A !important;
+            color: var(--text) !important;
             box-shadow: none !important;
             padding: 0.6rem 0.9rem !important;
         }
