@@ -2914,13 +2914,13 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
                 grid: {{ color: gridColor, drawBorder: false }},
                 ticks: {{
                   color: tickColor,
-                  callback: function(val) {{ return val === 0 ? '' : '#' + val; }},
+                  callback: function(val) {{ return val === 0 ? '' : '' + val; }},
                   stepSize: 1,
                   font: {{ size: 11.5 }}
                 }},
                 title: {{
                   display: true,
-                  text: 'Chart position (lower = better)',
+                  text: 'Movement Chart for the Artist',
                   color: tickColor,
                   font: {{ size: 12.5, weight: '500' }},
                   padding: {{ bottom: 10 }}
