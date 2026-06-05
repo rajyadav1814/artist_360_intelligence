@@ -35,7 +35,7 @@ SCOPES: dict[str, tuple[str, str]] = {
 }
 
 COUNTRY_FLAGS: dict[str, str] = {
-    "global": "🌐 Global", "ww": "🌐 Global", "us": "🇺🇸 United States",
+    "us": "🇺🇸 United States",
     "gb": "🇬🇧 United Kingdom", "uk": "🇬🇧 United Kingdom", "ar": "🇦🇷 Argentina",
     "au": "🇦🇺 Australia", "at": "🇦🇹 Austria", "be": "🇧🇪 Belgium",
     "bo": "🇧🇴 Bolivia", "br": "🇧🇷 Brazil", "bg": "🇧🇬 Bulgaria",
@@ -401,10 +401,9 @@ def _load_country_dominance() -> list[dict[str, Any]]:
     # Clear cache by adding a comment here
     for row in rows:
         c_code = row.get("country")
-        if c_code:
-            c_name = COUNTRY_FLAGS.get(c_code.strip().lower(), c_code.strip().upper())
-        else:
-            c_name = "—"
+        if not c_code or c_code.strip().lower() in ("global", "ww"):
+            continue
+        c_name = COUNTRY_FLAGS.get(c_code.strip().lower(), c_code.strip().upper())
         out.append({
             "country":       c_name,
             "label":         _normalize_label(row.get("label")),

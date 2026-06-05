@@ -548,27 +548,27 @@ body { background: var(--bg); font-family: var(--font-sans); color: var(--t1); -
         </span>
         <span class="filter-tag">
           <select id="regionSel" onchange="changeRegion()">
-            <option value="global">All Stats</option>
-            <option value="us">United States Stats</option>
+            <option value="global">All Country</option>
+            <option value="us">United States Country</option>
             <optgroup label="Latin America">
-              <option value="ar">Argentina Stats</option>
-              <option value="bo">Bolivia Stats</option>
-              <option value="br">Brazil Stats</option>
-              <option value="cl">Chile Stats</option>
-              <option value="co">Colombia Stats</option>
-              <option value="cr">Costa Rica Stats</option>
-              <option value="do">Dominican Republic Stats</option>
-              <option value="ec">Ecuador Stats</option>
-              <option value="sv">El Salvador Stats</option>
-              <option value="gt">Guatemala Stats</option>
-              <option value="hn">Honduras Stats</option>
-              <option value="mx">Mexico Stats</option>
-              <option value="ni">Nicaragua Stats</option>
-              <option value="pa">Panama Stats</option>
-              <option value="pe">Peru Stats</option>
-              <option value="py">Paraguay Stats</option>
-              <option value="uy">Uruguay Stats</option>
-              <option value="ve">Venezuela Stats</option>
+              <option value="ar">Argentina Country</option>
+              <option value="bo">Bolivia Country</option>
+              <option value="br">Brazil Country</option>
+              <option value="cl">Chile Country</option>
+              <option value="co">Colombia Country</option>
+              <option value="cr">Costa Rica Country</option>
+              <option value="do">Dominican Republic Country</option>
+              <option value="ec">Ecuador Country</option>
+              <option value="sv">El Salvador Country</option>
+              <option value="gt">Guatemala Country</option>
+              <option value="hn">Honduras Country</option>
+              <option value="mx">Mexico Country</option>
+              <option value="ni">Nicaragua Country</option>
+              <option value="pa">Panama Country</option>
+              <option value="pe">Peru Country</option>
+              <option value="py">Paraguay Country</option>
+              <option value="uy">Uruguay Country</option>
+              <option value="ve">Venezuela Country</option>
             </optgroup>
           </select>
         </span>
