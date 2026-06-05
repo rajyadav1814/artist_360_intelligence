@@ -4896,13 +4896,6 @@ def show_pulse_report_page() -> None:
 
 def show_label_analysis_page() -> None:
     """Wrapper function for Label Analysis page"""
-    st.markdown(
-        "<div style='font-size: 0.95rem; color: var(--text2); margin: 0 0 16px; line-height: 1.5; font-weight: 500;'>"
-        "Comprehensive market share analysis across major and independent label groups. Monitor competitive "
-        "distribution, track concentration, and weekly volume shifts across Spotify Global and iTunes Worldwide platforms."
-        "</div>",
-        unsafe_allow_html=True
-    )
     st.markdown("""
         <style>
         /* Forcefully remove the massive empty space above the Label Analysis iframe */

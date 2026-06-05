@@ -582,11 +582,11 @@ def _build_html(payload: dict, dark_mode: bool = False) -> str:  # noqa: FBT001,
     theme_css  = _THEME_DARK if dark_mode else _THEME_LIGHT
     return """
 <!DOCTYPE html><html><head><meta charset='utf-8'>
-<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 __THEME__
-body{background:var(--bg);font-family:'Outfit',system-ui,sans-serif;color:var(--t1);font-size:16px;line-height:1.55}
+body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t1);font-size:16px;line-height:1.55}
 .body{padding:20px 22px;display:flex;flex-direction:column;gap:20px}
 /* KPI bar */
 .kpi-bar{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:4px}
@@ -596,9 +596,10 @@ body{background:var(--bg);font-family:'Outfit',system-ui,sans-serif;color:var(--
 .kpi-val{font-size:32px;font-weight:700;letter-spacing:-.5px;line-height:1.15;color:var(--t1)}
 .kpi-sub{font-size:13px;color:var(--t2);margin-top:5px;font-weight:500}
 /* tabs */
-.tab-row{display:flex;gap:0;border-bottom:1.5px solid var(--border2);margin-bottom:18px}
-.tab{font-size:14px;font-weight:600;padding:7px 14px;color:var(--t2);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1.5px;letter-spacing:.2px;transition:.1s}
-.tab.active{color:var(--t1);border-bottom:2px solid var(--blue)}
+.tab-row{display:flex;gap:8px;margin-bottom:18px;align-items:center;flex-wrap:wrap}
+.tab{display:inline-flex;align-items:center;justify-content:center;font-size:14px;padding:8px 16px;border-radius:999px;background:var(--bg3);color:var(--t2);cursor:pointer;border:1px solid var(--border);min-width:42px;transition:.15s;font-weight:500}
+.tab:hover{background:var(--bg4);border-color:var(--border2);color:var(--t1)}
+.tab.active{background:#185FA5;color:#E6F1FB;border-color:#185FA5;font-weight:600}
 /* cards */
 .card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:18px 20px}
 .card-ttl{font-size:14px;color:var(--t2);text-transform:uppercase;letter-spacing:.7px;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--border);font-weight:600}
@@ -612,7 +613,7 @@ body{background:var(--bg);font-family:'Outfit',system-ui,sans-serif;color:var(--
 .ctable tr:last-child td{border-bottom:none}
 .ctable tr:hover td{background:var(--bg3)}
 /* badge */
-.badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600}
+.badge{display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;padding:4px 9px;border-radius:999px;min-width:42px;background:var(--bg3);color:var(--t2);border:1px solid var(--border2)}
 /* bar */
 .bar-wrap{margin:4px 0}
 .bar-lbl{font-size:13px;color:var(--t2);display:flex;justify-content:space-between;margin-bottom:3px}
@@ -638,7 +639,7 @@ body{background:var(--bg);font-family:'Outfit',system-ui,sans-serif;color:var(--
     <div class='tab active' onclick="showTab('overview',this)">Overview</div>
     <div class='tab' onclick="showTab('itunes',this)">iTunes</div>
     <div class='tab' onclick="showTab('spotify',this)">Spotify</div>
-    <div class='tab' onclick="showTab('country',this)">Country-wise</div>
+    <div class='tab' onclick="showTab('country',this)">Country</div>
   </div>
 
   <!-- Overview tab -->
@@ -768,7 +769,7 @@ body{background:var(--bg);font-family:'Outfit',system-ui,sans-serif;color:var(--
 
 <script src='https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js'></script>
 <script>
-Chart.defaults.font.family = "'Outfit', system-ui, sans-serif";
+Chart.defaults.font.family = "'Inter', system-ui, sans-serif";
 const PAYLOAD = __DATA__;
 const K = PAYLOAD.kpis;
 const isDark = document.documentElement.style.getPropertyValue('--bg') !== '';
