@@ -2705,7 +2705,6 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
                 .min()
                 .rename(columns={"name": "artist", "rank": "best_position"})
                 .sort_values("best_position")
-                .head(TRACKER_TOP_ARTISTS)
             )
 
     if using_demo and "rank" in leaderboard.columns and leaderboard["rank"].notna().any():
@@ -3008,7 +3007,7 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
             bargap=0.35,
         )
         fig_best.update_xaxes(dtick=1, showgrid=False, range=[0, max_best_position + 1.3],
-                              tickfont=dict(color=tick_color))
+                              showticklabels=False, title="")
         fig_best.update_yaxes(
             autorange="reversed",
             categoryorder="array",
