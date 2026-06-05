@@ -2862,6 +2862,7 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
         <div class="hdr">
           <div>
             <div class="title" id="d-title"></div>
+            <div class="subtitle" id="d-subtitle"></div>
           </div>
         </div>
         <div class="legend-container" id="legend"></div>
@@ -2872,6 +2873,7 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
       <script>
         const payload = {chart_payload_json};
         document.getElementById('d-title').innerText = payload.title;
+        document.getElementById('d-subtitle').innerText = "Visual tracking of daily rank movement and chart stability for the top-performing artists in the selected window.";
         
         const isDark = payload.theme === 'dark';
         const gridColor = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
