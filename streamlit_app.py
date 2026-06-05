@@ -2768,94 +2768,210 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
         st.markdown(kpi_html, unsafe_allow_html=True)
 
 
-    # Cap y-axis using the 90th percentile so a single outlier doesn't compress
-    # the rest of the field into an unreadable band at the top.
-    if not line_df.empty:
-        positions_series = pd.to_numeric(line_df["position"], errors="coerce").dropna()
-        p90 = float(positions_series.quantile(0.90)) if not positions_series.empty else TRACKER_TOP_ARTISTS
-        observed_max = int(positions_series.max()) if not positions_series.empty else TRACKER_TOP_ARTISTS
-        max_position = int(max(TRACKER_TOP_ARTISTS + 2, min(observed_max, p90 + 5)))
-    else:
-        max_position = TRACKER_TOP_ARTISTS + 2
-    tick_step = 1 if max_position <= 15 else 2 if max_position <= 30 else 5
-
-    # Brighter palette for charts
-    BRIGHT_PALETTE = ["#60a5fa", "#34d399", "#c4b5fd", "#fcd34d", "#fb7185",
-                      "#6EE7B7", "#FF61D2", "#34D399", "#FFB547", "#31C3FF"]
+    # Brighter palette for charts matching screenshot style more closely
+    BRIGHT_PALETTE = ["#3b82f6", "#8b5cf6", "#ef4444", "#ec4899", "#10b981",
+                      "#d97706", "#65a30d", "#737373", "#e11d48", "#0f766e"]
 
     is_dark = st.session_state.get("dark_mode", True)
-    bg_color_marker = "#0d1117" if is_dark else "#F5F6FA"
-
-    fig_line = go.Figure()
+    
+    import json
+    unique_dates = line_df["date"].dt.strftime("%b %d").unique().tolist()
+    start_date_str = unique_dates[0] if unique_dates else ""
+    end_date_str = unique_dates[-1] if unique_dates else ""
+    datasets = []
+    
     for idx, artist in enumerate(artists_tracked):
         sub = line_df[line_df["artist"] == artist]
+        date_pos = dict(zip(sub["date"].dt.strftime("%b %d"), sub["position"]))
+        data_points = [date_pos.get(d, None) for d in unique_dates]
         color = BRIGHT_PALETTE[idx % len(BRIGHT_PALETTE)]
+        datasets.append({
+            "label": artist,
+            "data": data_points,
+            "borderColor": color,
+            "backgroundColor": color,
+            "pointBackgroundColor": color,
+            "pointBorderColor": "#1c1c1c" if is_dark else "#ffffff",
+            "pointRadius": 4,
+            "pointHoverRadius": 6,
+            "borderWidth": 2.5,
+            "tension": 0.4 if view_mode != "Area Chart" else 0.0,
+            "fill": "origin" if view_mode == "Area Chart" else False,
+            "spanGaps": True
+        })
 
-        if view_mode == "Area Chart":
-            fig_line.add_trace(
-                go.Scatter(
-                    x=sub["date"],
-                    y=sub["position"],
-                    mode="lines",
-                    name=artist,
-                    fill="tonexty" if idx > 0 else "tozeroy",
-                    line=dict(color=color, width=2.5, shape="hv"),
-                    hovertemplate="<b>%{fullData.name}</b><br>%{x|%b %d}: Position %{y}<extra></extra>",
-                )
-            )
-        else:
-            fig_line.add_trace(
-                go.Scatter(
-                    x=sub["date"],
-                    y=sub["position"],
-                    mode="lines+markers",
-                    name=artist,
-                    line=dict(color=color, width=2.5, shape="hv"),
-                    marker=dict(size=5, color=color, line=dict(width=1, color=bg_color_marker)),
-                    hovertemplate="<b>%{fullData.name}</b><br>%{x|%b %d}: Position %{y}<extra></extra>",
-                )
-            )
+    chart_payload = {
+        "labels": unique_dates,
+        "datasets": datasets,
+        "title": f"📈 Top {TRACKER_TOP_ARTISTS} artist position trend",
+        "theme": "dark" if is_dark else "light",
+    }
+    
+    chart_payload_json = json.dumps(chart_payload)
+    
+    html_template = f"""
+    <!DOCTYPE html><html><head><meta charset='utf-8'>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+    <style>
+      body {{ margin: 0; font-family: 'Inter', system-ui, sans-serif; background: transparent; }}
+      .chart-card {{
+        background: {'#1c1c1c' if is_dark else '#ffffff'};
+        border: 1px solid {'rgba(255,255,255,0.08)' if is_dark else 'rgba(0,0,0,0.1)'};
+        border-radius: 12px;
+        padding: 24px 28px;
+        color: {'#ffffff' if is_dark else '#1f2328'};
+        box-shadow: 0 8px 30px rgba(0,0,0,0.15);
+      }}
+      .hdr {{ display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; flex-wrap: wrap; gap: 12px; }}
+      .title {{ font-size: 19px; font-weight: 600; margin-bottom: 6px; letter-spacing: -0.2px; }}
+      .subtitle {{ font-size: 13.5px; color: {'#9B9EAA' if is_dark else '#656d76'}; font-weight: 400; }}
+      .btn {{
+        background: transparent;
+        border: 1px solid {'rgba(255,255,255,0.2)' if is_dark else 'rgba(0,0,0,0.2)'};
+        color: {'#e2e8f0' if is_dark else '#24292f'};
+        padding: 7px 16px;
+        border-radius: 8px;
+        font-size: 13px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: 0.2s;
+      }}
+      .btn:hover {{ background: {'rgba(255,255,255,0.08)' if is_dark else 'rgba(0,0,0,0.05)'}; }}
+      .legend-container {{ display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 28px; }}
+      .leg-btn {{
+        background: transparent;
+        border: 1px solid {'rgba(255,255,255,0.2)' if is_dark else 'rgba(0,0,0,0.2)'};
+        color: {'#e2e8f0' if is_dark else '#24292f'};
+        border-radius: 999px;
+        padding: 5px 14px;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 12.5px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: 0.2s;
+      }}
+      .leg-btn:hover {{ border-color: {'rgba(255,255,255,0.4)' if is_dark else 'rgba(0,0,0,0.4)'}; background: {'rgba(255,255,255,0.04)' if is_dark else 'rgba(0,0,0,0.02)'}; }}
+      .leg-btn.hidden {{ opacity: 0.4; border-color: transparent; }}
+      .dot {{ width: 9px; height: 9px; border-radius: 50%; display: inline-block; }}
+      .chart-wrap {{ position: relative; height: 420px; width: 100%; }}
+    </style>
+    </head><body>
+      <div class="chart-card">
+        <div class="hdr">
+          <div>
+            <div class="title" id="d-title"></div>
+          </div>
+        </div>
+        <div class="legend-container" id="legend"></div>
+        <div class="chart-wrap">
+          <canvas id="myChart"></canvas>
+        </div>
+      </div>
+      <script>
+        const payload = {chart_payload_json};
+        document.getElementById('d-title').innerText = payload.title;
+        
+        const isDark = payload.theme === 'dark';
+        const gridColor = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
+        const tickColor = isDark ? '#8b949e' : '#656d76';
+        
+        const ctx = document.getElementById('myChart').getContext('2d');
+        const myChart = new Chart(ctx, {{
+          type: 'line',
+          data: {{
+            labels: payload.labels,
+            datasets: payload.datasets
+          }},
+          options: {{
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {{ mode: 'index', intersect: false }},
+            plugins: {{
+              legend: {{ display: false }},
+              tooltip: {{
+                backgroundColor: isDark ? 'rgba(28,28,30,0.95)' : 'rgba(255,255,255,0.95)',
+                titleColor: isDark ? '#fff' : '#24292f',
+                bodyColor: isDark ? '#e2e8f0' : '#475569',
+                borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
+                borderWidth: 1,
+                padding: 12,
+                titleFont: {{ size: 13, weight: 'bold' }},
+                bodyFont: {{ size: 13 }},
+                boxPadding: 6,
+                callbacks: {{
+                  label: function(context) {{
+                    return context.dataset.label + ': #' + context.parsed.y;
+                  }}
+                }}
+              }}
+            }},
+            scales: {{
+              y: {{
+                reverse: true,
+                grid: {{ color: gridColor, drawBorder: false }},
+                ticks: {{
+                  color: tickColor,
+                  callback: function(val) {{ return val === 0 ? '' : '#' + val; }},
+                  stepSize: 1,
+                  font: {{ size: 11.5 }}
+                }},
+                title: {{
+                  display: true,
+                  text: 'Chart position (lower = better)',
+                  color: tickColor,
+                  font: {{ size: 12.5, weight: '500' }},
+                  padding: {{ bottom: 10 }}
+                }},
+                min: 0
+              }},
+              x: {{
+                grid: {{ color: gridColor, drawBorder: false }},
+                ticks: {{ color: tickColor, font: {{ size: 11.5 }} }}
+              }}
+            }}
+          }}
+        }});
+
+        function renderLegend() {{
+          const leg = document.getElementById('legend');
+          leg.innerHTML = '';
+          myChart.data.datasets.forEach((ds, i) => {{
+            const meta = myChart.getDatasetMeta(i);
+            const isHidden = meta.hidden === true;
+            const btn = document.createElement('button');
+            btn.className = 'leg-btn' + (isHidden ? ' hidden' : '');
+            btn.onclick = () => {{
+              meta.hidden = meta.hidden === null ? !myChart.data.datasets[i].hidden : null;
+              myChart.update();
+              renderLegend();
+            }};
+            btn.innerHTML = `<span class="dot" style="background: ${{ds.borderColor}}"></span> ${{ds.label}}`;
+            leg.appendChild(btn);
+          }});
+        }}
+        
+        let allHidden = false;
+        function toggleAll() {{
+          allHidden = !allHidden;
+          myChart.data.datasets.forEach((ds, i) => {{
+            const meta = myChart.getDatasetMeta(i);
+            meta.hidden = allHidden;
+          }});
+          myChart.update();
+          renderLegend();
+        }}
+
+        renderLegend();
+      </script>
+    </body></html>
+    """
+    st_components.html(html_template, height=650)
+    st.markdown("</div>", unsafe_allow_html=True)
 
     text_color = "#fff" if is_dark else "#1A1A1A"
     tick_color = "#cdd6e4" if is_dark else "#4A5568"
-    grid_color = "rgba(255,255,255,0.06)" if is_dark else "rgba(0,0,0,0.06)"
-
-    title_text = f"🎯 Top {TRACKER_TOP_ARTISTS} Artist Position Trend ({time_range})"
-    fig_line.update_layout(
-        title=dict(text=title_text, x=0, xanchor="left", font=dict(size=18, color=text_color), y=0.98, yanchor="top"),
-        xaxis_title="",
-        yaxis_title="Chart position",
-        legend=dict(
-            orientation="h",
-            yanchor="top",
-            y=-0.18,
-            xanchor="center",
-            x=0.5,
-            bgcolor="rgba(0,0,0,0)",
-            font=dict(size=11, color=tick_color),
-        ),
-        hovermode="x unified",
-        margin=dict(l=50, r=20, t=80, b=90),
-    )
-    fig_line.update_yaxes(
-        autorange=False,
-        range=[max_position + 0.5, 0.5],
-        tickmode="array",
-        tickvals=list(range(1, max_position + 1, tick_step)),
-        tickfont=dict(color=tick_color, size=11),
-        gridcolor=grid_color,
-        zerolinecolor=grid_color,
-    )
-    fig_line.update_xaxes(
-        showgrid=False, tickformat="%b %d",
-        dtick=86400000 * max(1, time_window_days // 10),
-        tickfont=dict(color=tick_color, size=11),
-        gridcolor=grid_color,
-        zerolinecolor=grid_color,
-    )
-    style_figure(fig_line, 520, dark_mode=is_dark)
-    render_plotly_html(fig_line)
-    st.markdown("</div>", unsafe_allow_html=True)
 
     if not best_df.empty:
         best_df_plot = best_df.copy()
