@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS itunes_artist_album (
     total_points INTEGER,
     scraped_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     label VARCHAR(255),
+    rank_change VARCHAR(50),
     UNIQUE (date, country, rank, artist_title)
 );
 
