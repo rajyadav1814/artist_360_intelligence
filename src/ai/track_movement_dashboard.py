@@ -62,6 +62,17 @@ NEW_ON_CHART_DAYS = 14
 # Rank thresholds we treat as meaningful business milestones.
 RANK_TIERS = (10, 50)
 
+# Business weighting for movement lists. Rank gain is the clean chart-position
+# signal; metric growth, acceleration, strategic tiers and Spotify revenue make
+# the list more useful for action planning.
+RANK_SCORE_WEIGHT = 2.0
+METRIC_SCORE_WEIGHT = 40.0
+ACCEL_SCORE_WEIGHT = 22.0
+REVENUE_SCORE_WEIGHT = 12.0
+NEW_ENTRY_BONUS = 10.0
+TOP_50_BONUS = 14.0
+TOP_10_BONUS = 24.0
+
 # Substrings that identify a major-label (or major-distributed) release. The
 # scraper tags many rows literally as "Independent"; anything not matching here
 # is bucketed as Independent / Unattributed.
@@ -151,7 +162,7 @@ def _load_window(table: str, country: str, days: int) -> pd.DataFrame:
 def _accel(changes: list[Any]) -> float:
     """Acceleration = (avg daily change in second half) − (first half).
     Positive ⇒ momentum is speeding up. Needs a few data points to be useful."""
-    vals = [float(c) for c in changes if c is not None]
+    vals = [float(c) for c in changes if c is not None and pd.notna(c)]
     if len(vals) < 4:
         return 0.0
     half = len(vals) // 2
@@ -204,6 +215,8 @@ def _build_track_records(
         rg = first_rank - last_rank          # positive = improved
         sg = (last_metric or 0) - (first_metric or 0)
         accel = _accel(changes)
+        observed_days = sum(1 for r in ranks if r is not None)
+        velocity = rg / max(observed_days - 1, 1)
 
         # New-entry: appeared mid-window OR low days-on-chart at latest date
         days_last = None
@@ -231,12 +244,16 @@ def _build_track_records(
             "rg": int(rg),
             "sg": int(sg),
             "accel": int(round(accel)),
+            "velocity": round(velocity, 1),
             "lbl": label or "—",
             "tier": tier,
             "new": bool(is_new),
             "crossed": int(crossed),
             "appeared": bool(appeared_mid),
             "days": days_last,
+            "start_rank": int(first_rank),
+            "latest_rank": int(last_rank),
+            "observed_days": observed_days,
             "_metric_last": int(last_metric or 0),
         }
         # Commercial value — Spotify streams only (iTunes "points" ≠ revenue)
@@ -247,15 +264,65 @@ def _build_track_records(
     return records
 
 
+def _norm(value: float, max_abs: float) -> float:
+    if not max_abs:
+        return 0.0
+    return value / max_abs
+
+
+def _business_score(r: dict, max_sg: float, max_accel: float, max_rev_delta: float) -> float:
+    tier_bonus = 0.0
+    if r.get("crossed") == 10:
+        tier_bonus = TOP_10_BONUS
+    elif r.get("crossed") == 50:
+        tier_bonus = TOP_50_BONUS
+    new_bonus = NEW_ENTRY_BONUS if r.get("new") and r.get("sg", 0) > 0 else 0.0
+    revenue_score = _norm(r.get("rev_delta", 0), max_rev_delta) * REVENUE_SCORE_WEIGHT
+    return (
+        r.get("rg", 0) * RANK_SCORE_WEIGHT
+        + _norm(r.get("sg", 0), max_sg) * METRIC_SCORE_WEIGHT
+        + _norm(r.get("accel", 0), max_accel) * ACCEL_SCORE_WEIGHT
+        + revenue_score
+        + tier_bonus
+        + new_bonus
+    )
+
+
+def _tag_action(r: dict) -> str:
+    if r.get("crossed") == 10 or (r.get("latest_rank", 999) <= 10 and r.get("accel", 0) > 0):
+        return "Priority push"
+    if r.get("rev_delta", 0) > 1000 and r.get("rg", 0) > 0:
+        return "Revenue scale"
+    if r.get("new") and r.get("sg", 0) > 0:
+        return "Test spend"
+    if r.get("rg", 0) > 0 and r.get("accel", 0) > 0:
+        return "Scale watch"
+    if r.get("rg", 0) < -10 and r.get("sg", 0) < 0:
+        return "Retention risk"
+    if r.get("sg", 0) < 0:
+        return "Cooldown"
+    return "Monitor"
+
+
+def _enrich_records(records: list[dict]) -> list[dict]:
+    if not records:
+        return []
+    max_sg = max((abs(r.get("sg", 0)) for r in records), default=1) or 1
+    max_accel = max((abs(r.get("accel", 0)) for r in records), default=1) or 1
+    max_rev_delta = max((abs(r.get("rev_delta", 0)) for r in records), default=1) or 1
+    for r in records:
+        r["_score"] = round(_business_score(r, max_sg, max_accel, max_rev_delta), 2)
+        r["score"] = int(round(r["_score"]))
+        r["action"] = _tag_action(r)
+    return records
+
+
 def _top_n(records: list[dict], n: int, *, risers: bool) -> list[dict]:
     if not records:
         return []
-    # Composite score: rank gain weight + normalized metric gain
-    max_sg = max((abs(r["sg"]) for r in records), default=1) or 1
-    for r in records:
-        r["_score"] = r["rg"] + (r["sg"] / max_sg) * 50
+    _enrich_records(records)
     if risers:
-        filtered = [r for r in records if r["rg"] > 0 or r["sg"] > 0]
+        filtered = [r for r in records if r["rg"] > 0 or r["sg"] > 0 or r.get("accel", 0) > 0]
         filtered.sort(key=lambda r: r["_score"], reverse=True)
     else:
         filtered = [r for r in records if r["rg"] < 0 or r["sg"] < 0]
@@ -269,17 +336,40 @@ def _clean(r: dict) -> dict:
 
 def _heating(records: list[dict], n: int) -> list[dict]:
     """Tracks whose daily growth is accelerating — earliest breakout signal."""
+    _enrich_records(records)
     pool = [r for r in records if r.get("accel", 0) > 0]
-    pool.sort(key=lambda r: r["accel"], reverse=True)
+    pool.sort(key=lambda r: (r["accel"], r["_score"], r["rg"]), reverse=True)
     return [_clean(r) for r in pool[:n]]
 
 
 def _new_and_notable(records: list[dict], n: int) -> list[dict]:
     """New chart entrants + rank-threshold crossings, ranked by momentum."""
+    _enrich_records(records)
     pool = [r for r in records if r.get("new") or r.get("crossed")]
-    # Sort: threshold crossings first (lower tier = bigger deal), then rank gain
-    pool.sort(key=lambda r: (-(1 if r.get("crossed") else 0), r.get("crossed") or 999, -r["rg"]))
+    pool.sort(key=lambda r: (r["_score"], r.get("crossed") == 10, r.get("sg", 0)), reverse=True)
     return [_clean(r) for r in pool[:n]]
+
+
+def _label_summary(records: list[dict], n: int = 6) -> list[dict[str, Any]]:
+    labels: dict[str, dict[str, Any]] = {}
+    for r in records:
+        label = r.get("lbl") or "—"
+        bucket = labels.setdefault(
+            label,
+            {"label": label, "tier": r.get("tier", "Independent"), "metric": 0, "gain": 0, "count": 0},
+        )
+        bucket["metric"] += r.get("_metric_last", 0)
+        bucket["gain"] += r.get("sg", 0)
+        bucket["count"] += 1
+    out = list(labels.values())
+    out.sort(key=lambda x: (x["gain"], x["metric"]), reverse=True)
+    return out[:n]
+
+
+def _share(records: list[dict], tier: str = "Independent") -> int:
+    total = sum(r.get("_metric_last", 0) for r in records) or 1
+    tier_total = sum(r.get("_metric_last", 0) for r in records if r.get("tier") == tier)
+    return round(tier_total / total * 100)
 
 
 def _top20_today(df: pd.DataFrame, latest: date) -> list[dict[str, Any]]:
@@ -345,6 +435,8 @@ def render_track_movement() -> None:
 
     sp_records = _build_track_records(sp_df, all_dates, "streams", is_spotify=True) if not sp_df.empty else []
     it_records = _build_track_records(it_df, all_dates, "scores", is_spotify=False) if not it_df.empty else []
+    _enrich_records(sp_records)
+    _enrich_records(it_records)
 
     sp_risers = _top_n(sp_records, 15, risers=True)
     sp_fallers = _top_n(sp_records, 15, risers=False)
@@ -364,25 +456,66 @@ def render_track_movement() -> None:
     rev_delta = sum(r.get("rev_delta", 0) for r in sp_records)
 
     combined = sp_records + it_records
-    total_metric = sum(r.get("_metric_last", 0) for r in combined) or 1
-    indie_metric = sum(r.get("_metric_last", 0) for r in combined if r.get("tier") == "Independent")
-    indie_share = round(indie_metric / total_metric * 100)
+    if platform == "Spotify":
+        signal_records = sp_records
+        value_records = sp_records
+        active_metric_label = "streams"
+    elif platform == "iTunes":
+        signal_records = it_records
+        value_records = it_records
+        active_metric_label = "points"
+    else:
+        signal_records = combined
+        value_records = sp_records if sp_records else it_records
+        active_metric_label = "Spotify streams" if sp_records else "iTunes points"
 
-    new_count = sum(1 for r in combined if r.get("new"))
-    breakout_top10 = sum(1 for r in combined if r.get("crossed") == 10)
+    indie_share = _share(value_records)
+    it_indie_share = _share(it_records)
+    sp_indie_share = _share(sp_records)
 
-    hottest = max(combined, key=lambda r: r.get("accel", 0), default=None)
+    new_count = sum(1 for r in signal_records if r.get("new"))
+    breakout_top10 = sum(1 for r in signal_records if r.get("crossed") == 10)
+    rising_count = sum(1 for r in signal_records if r.get("rg", 0) > 0)
+    falling_count = sum(1 for r in signal_records if r.get("rg", 0) < 0)
+    accelerating_count = sum(1 for r in signal_records if r.get("accel", 0) > 0)
+    risk_count = sum(1 for r in signal_records if r.get("action") in {"Retention risk", "Cooldown"})
+    net_metric_gain = sum(r.get("sg", 0) for r in value_records)
+    avg_velocity = round(
+        sum(r.get("velocity", 0) for r in signal_records if r.get("rg", 0) > 0) / rising_count,
+        1,
+    ) if rising_count else 0
+
+    hottest = max(signal_records, key=lambda r: r.get("accel", 0), default=None)
+    top_riser_pool = [r for r in signal_records if r.get("rg", 0) > 0 or r.get("sg", 0) > 0 or r.get("accel", 0) > 0]
+    top_riser = max(top_riser_pool, key=lambda r: r.get("_score", 0), default=None)
+    top_faller = min(
+        [r for r in signal_records if r.get("rg", 0) < 0 or r.get("sg", 0) < 0],
+        key=lambda r: r.get("_score", 0),
+        default=None,
+    )
     biggest_rev_swing = max(sp_records, key=lambda r: abs(r.get("rev_delta", 0)), default=None)
+    label_summary = _label_summary(value_records)
 
     kpis = {
         "est_daily_rev": est_daily_rev,
         "rev_delta": rev_delta,
         "indie_share": indie_share,
+        "sp_indie_share": sp_indie_share,
+        "it_indie_share": it_indie_share,
         "new_count": new_count,
         "breakout_top10": breakout_top10,
+        "rising_count": rising_count,
+        "falling_count": falling_count,
+        "accelerating_count": accelerating_count,
+        "risk_count": risk_count,
+        "net_metric_gain": net_metric_gain,
+        "avg_velocity": avg_velocity,
         "hottest": _clean(hottest) if hottest else None,
+        "top_riser": _clean(top_riser) if top_riser else None,
+        "top_faller": _clean(top_faller) if top_faller else None,
         "rev_swing": _clean(biggest_rev_swing) if biggest_rev_swing else None,
-        "tracked": len(combined),
+        "tracked": len(signal_records),
+        "active_metric_label": active_metric_label,
     }
 
     date_strs = [d.strftime("%b %d") for d in all_dates]
@@ -404,6 +537,7 @@ def render_track_movement() -> None:
         "sp_top20": sp_top20,
         "it_top20": it_top20,
         "kpis": kpis,
+        "label_summary": label_summary,
     }
 
     html = _build_html(payload, dark_mode=st.session_state.get("dark_mode", True))
@@ -437,6 +571,19 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
 .sh-r{font-size:11px;color:var(--t2);background:var(--bg3);padding:4px 11px;border-radius:5px;border:1px solid var(--border2);font-weight:500}
 .card-ttl{font-size:12px;color:var(--t2);text-transform:uppercase;letter-spacing:.7px;margin-bottom:12px;padding-bottom:9px;border-bottom:1px solid var(--border);font-weight:600}
 .card-note{font-size:12px;color:var(--t3);margin:-2px 0 12px;line-height:1.5}
+.summary-grid{display:grid;grid-template-columns:1.25fr .75fr;gap:16px;margin-bottom:2px}
+.insight{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:14px}
+.insight-box{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px 13px;min-width:0}
+.insight-lbl{font-size:10px;color:var(--t4);text-transform:uppercase;letter-spacing:.7px;font-weight:800;margin-bottom:6px}
+.insight-val{font-size:13px;color:var(--t1);font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.insight-sub{font-size:11px;color:var(--t3);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mix-row{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)}
+.mix-row:last-child{border-bottom:none}
+.mix-label{font-size:12px;color:var(--t1);font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mix-meta{font-size:10px;color:var(--t3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mix-gain{font-size:12px;font-weight:800;font-variant-numeric:tabular-nums;text-align:right}
+.share-track{height:8px;background:var(--bg4);border-radius:99px;overflow:hidden;margin-top:12px}
+.share-fill{height:8px;background:linear-gradient(90deg,var(--green),var(--blue));border-radius:99px}
 .trk{display:grid;gap:8px;padding:10px 0;border-bottom:1px solid var(--border);align-items:center;transition:.1s}
 .trk:hover{background:var(--bg3);margin:0 -8px;padding:10px 8px;border-radius:6px}
 .trk:last-child{border-bottom:none}
@@ -455,6 +602,7 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
 .chip-indie{background:var(--bd);color:var(--blue);border:1px solid rgba(96,165,250,.4)}
 .chip-new{background:rgba(252,211,77,.16);color:var(--amber);border:1px solid rgba(252,211,77,.45)}
 .chip-cross{background:var(--gd);color:var(--green);border:1px solid rgba(52,211,153,.4)}
+.chip-action{background:var(--bg3);color:var(--t2);border:1px solid var(--border2)}
 .accel{font-size:10px;font-weight:700;color:var(--amber)}
 .bar-row{display:grid;grid-template-columns:1fr 56px 64px;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)}
 .bar-row:last-child{border-bottom:none}
@@ -470,12 +618,34 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
 .section-dot{width:10px;height:10px;border-radius:50%;display:inline-block;box-shadow:0 0 6px currentColor}
 .hide{display:none !important}
 .empty{color:var(--t3);font-size:11px;padding:14px 0}
+@media(max-width:900px){
+  .kpi-bar{grid-template-columns:repeat(2,1fr)}
+  .r2,.summary-grid{grid-template-columns:1fr}
+  .insight{grid-template-columns:1fr}
+  .card{padding:15px 14px}
+  .body{padding:14px 12px}
+}
 </style></head><body>
 
 <div class='body'>
 
   <!-- Business KPI bar -->
   <div class='kpi-bar' id='kpi-bar'></div>
+
+  <!-- Executive summary -->
+  <div class='summary-grid'>
+    <div class='card'>
+      <div class='sh'><span class='sh-l'>Executive Momentum Read</span><span class='sh-r' id='window-label'></span></div>
+      <div class='card-note' id='exec-copy'></div>
+      <div class='share-track'><div class='share-fill' id='indie-share-fill'></div></div>
+      <div class='insight' id='insight-strip'></div>
+    </div>
+    <div class='card'>
+      <div class='sh'><span class='sh-l'>Label Momentum</span><span class='sh-r' id='label-metric'>metric gain</span></div>
+      <div class='card-note'>Labels ranked by net growth in the selected platform view.</div>
+      <div id='label-mix'></div>
+    </div>
+  </div>
 
   <!-- Guide Banner -->
   <div class='card' style='padding:16px 20px'>
@@ -596,6 +766,7 @@ const SHOW_IT = PLATFORM !== 'Spotify';
 const RATE = PAYLOAD.per_stream;
 
 function fmtN(n,dec=1){if(n===null||n===undefined||isNaN(n))return'—';n=parseFloat(n);const a=Math.abs(n),sign=n<0?'−':n>0?'+':'';if(a>=1e6)return sign+(a/1e6).toFixed(dec)+'M';if(a>=1e3)return sign+(a/1e3).toFixed(0)+'K';return sign+a.toFixed(0);}
+function fmtAbs(n,dec=1){if(n===null||n===undefined||isNaN(n))return'—';n=Math.abs(parseFloat(n));if(n>=1e6)return (n/1e6).toFixed(dec)+'M';if(n>=1e3)return (n/1e3).toFixed(0)+'K';return n.toFixed(0);}
 function fmtM(n,dec=2){if(n===null||n===undefined||isNaN(n))return'—';n=parseFloat(n);const a=Math.abs(n);const sign=n<0?'−':'';return sign+(a/1e6).toFixed(dec)+'M';}
 function fmtUSD(n){if(n===null||n===undefined||isNaN(n))return'—';n=parseFloat(n);const a=Math.abs(n),sign=n<0?'−':'';if(a>=1e6)return sign+'$'+(a/1e6).toFixed(2)+'M';if(a>=1e3)return sign+'$'+(a/1e3).toFixed(1)+'K';return sign+'$'+a.toFixed(0);}
 function fmtUSDsigned(n){if(n===null||n===undefined||isNaN(n))return'—';const s=n>0?'+':n<0?'−':'';n=Math.abs(parseFloat(n));if(n>=1e6)return s+'$'+(n/1e6).toFixed(2)+'M';if(n>=1e3)return s+'$'+(n/1e3).toFixed(1)+'K';return s+'$'+n.toFixed(0);}
@@ -605,24 +776,63 @@ function toggleGuide(){const c=document.getElementById('guide-content');const i=
 // ── KPI bar ──
 function renderKPIs(){
   const k = PAYLOAD.kpis || {};
-  const hot = k.hottest, sw = k.rev_swing;
+  const hot = k.hottest, sw = k.rev_swing, riser = k.top_riser;
   const tiles = [
     {l:'Est. daily revenue', v:fmtUSD(k.est_daily_rev), c:'g', s:'Spotify · tracked tracks'},
     {l:'Revenue swing', v:fmtUSDsigned(k.rev_delta), c:(k.rev_delta>=0?'g':'r'), s:'Δ over '+PAYLOAD.period},
-    {l:'Independent share', v:(k.indie_share!=null?k.indie_share+'%':'—'), c:'b', s:'of tracked streaming'},
+    {l:'Independent share', v:(k.indie_share!=null?k.indie_share+'%':'—'), c:'b', s:PLATFORM==='iTunes'?'of tracked iTunes points':'of tracked Spotify streams'},
     {l:'New entries', v:(k.new_count!=null?k.new_count:'—'), c:'a', s:k.breakout_top10+' broke into Top 10'},
-    {l:'Hottest track', v:(hot?'🚀':'—'), c:'t', s:hot?(hot.n+' — '+hot.t):'no acceleration'},
-    {l:'Biggest $ swing', v:(sw?fmtUSDsigned(sw.rev_delta):'—'), c:(sw&&sw.rev_delta>=0?'g':'r'), s:sw?(sw.n+' — '+sw.t):'—'},
+    {l:'Avg climb speed', v:(k.avg_velocity?'+'+k.avg_velocity+'/day':'—'), c:'t', s:(k.rising_count||0)+' rising tracks'},
+    {l:'Top opportunity', v:(riser?'▲'+riser.rg:'—'), c:'g', s:riser?(riser.n+' — '+riser.t):(hot?(hot.n+' — '+hot.t):'no acceleration')},
   ];
   document.getElementById('kpi-bar').innerHTML = tiles.map(t=>
     `<div class='kpi'><div class='kpi-lbl'>${t.l}</div><div class='kpi-val ${t.c}'>${t.v}</div><div class='kpi-sub'>${t.s}</div></div>`
   ).join('');
 }
 
+function renderExecutive(){
+  const k = PAYLOAD.kpis || {};
+  const riser = k.top_riser, faller = k.top_faller, sw = k.rev_swing;
+  const metric = k.active_metric_label || 'metric';
+  document.getElementById('window-label').textContent = `${PAYLOAD.scope} · ${PAYLOAD.platform} · ${PAYLOAD.period}`;
+  document.getElementById('label-metric').textContent = metric + ' gain';
+  const net = k.net_metric_gain || 0;
+  const market = net >= 0 ? 'expanding' : 'contracting';
+  const lead = riser ? `${riser.t} by ${riser.n}` : 'selected tracks';
+  const money = sw ? ` Biggest Spotify revenue swing is ${fmtUSDsigned(sw.rev_delta)} from ${sw.t}.` : '';
+  document.getElementById('exec-copy').textContent =
+    `${k.rising_count || 0} tracks are rising while ${k.falling_count || 0} are cooling. The selected view is ${market} by ${fmtN(net)} ${metric}, led by ${lead}.${money}`;
+  document.getElementById('indie-share-fill').style.width = `${Math.max(0, Math.min(100, k.indie_share || 0))}%`;
+  const strip = [
+    {l:'Opportunity', v:riser ? `${riser.action}: ${riser.t}` : 'Monitor', s:riser ? `Business score ${riser.score}` : 'No riser signal'},
+    {l:'Risk Watch', v:faller ? `${faller.action}: ${faller.t}` : 'No risk', s:faller ? `Rank ${faller.start_rank} → ${faller.latest_rank}` : 'Stable window'},
+    {l:'Market Shape', v:`${k.indie_share || 0}% independent`, s:`${k.accelerating_count || 0} accelerating · ${k.risk_count || 0} at risk`}
+  ];
+  document.getElementById('insight-strip').innerHTML = strip.map(x =>
+    `<div class='insight-box'><div class='insight-lbl'>${x.l}</div><div class='insight-val'>${x.v}</div><div class='insight-sub'>${x.s}</div></div>`
+  ).join('');
+}
+
+function renderLabels(){
+  const labels = PAYLOAD.label_summary || [];
+  const el = document.getElementById('label-mix');
+  if(!labels.length){el.innerHTML = "<div class='empty'>No label signal in selected window.</div>"; return;}
+  el.innerHTML = labels.map(l => {
+    const gain = l.gain || 0;
+    const c = gain >= 0 ? 'var(--green)' : 'var(--red)';
+    const sign = gain > 0 ? '+' : gain < 0 ? '−' : '';
+    return `<div class='mix-row'>
+      <div style='min-width:0'><div class='mix-label'>${l.label}</div><div class='mix-meta'>${l.tier} · ${l.count} tracks · ${fmtAbs(l.metric,0)} current</div></div>
+      <div class='mix-gain' style='color:${c}'>${sign}${fmtAbs(gain,0)}</div>
+    </div>`;
+  }).join('');
+}
+
 // ── chips ──
 function tierChip(t){return t==='Major'?`<span class='chip chip-major'>Major</span>`:'';}
 function metaChips(d){
   let c = tierChip(d.tier);
+  if(d.action && d.action !== 'Monitor'){c+=`<span class='chip chip-action'>${d.action}</span>`;}
   if(d.crossed){c+=`<span class='chip chip-cross'>↑Top ${d.crossed}</span>`;}
   else if(d.new){c+=`<span class='chip chip-new'>New</span>`;}
   return c;
@@ -696,6 +906,8 @@ if(!SHOW_IT){['it-riser-block','it-faller-block','it-heat-block','it-new-block']
 
 // ── render ──
 renderKPIs();
+renderExecutive();
+renderLabels();
 if(SHOW_SP){
   renderTable('sp-risers', PAYLOAD.sp_risers, true);
   renderTable('sp-fallers', PAYLOAD.sp_fallers, true);

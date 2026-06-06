@@ -2774,15 +2774,17 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
     is_dark = st.session_state.get("dark_mode", True)
     
     import json
-    unique_dates = line_df["date"].dt.strftime("%b %d").unique().tolist()
-    start_date_str = unique_dates[0] if unique_dates else ""
-    end_date_str = unique_dates[-1] if unique_dates else ""
+    date_values = [pd.Timestamp(d) for d in sorted(line_df["date"].dropna().dt.normalize().unique().tolist())]
+    unique_dates = [d.strftime("%b %d") for d in date_values]
     datasets = []
+    all_positions: list[int] = []
     
     for idx, artist in enumerate(artists_tracked):
         sub = line_df[line_df["artist"] == artist]
-        date_pos = dict(zip(sub["date"].dt.strftime("%b %d"), sub["position"]))
-        data_points = [date_pos.get(d, None) for d in unique_dates]
+        date_pos = dict(zip(sub["date"].dt.normalize(), sub["position"]))
+        data_points = [date_pos.get(d, None) for d in date_values]
+        numeric_points = [int(p) for p in data_points if p is not None and pd.notna(p)]
+        all_positions.extend(numeric_points)
         color = BRIGHT_PALETTE[idx % len(BRIGHT_PALETTE)]
         datasets.append({
             "label": artist,
@@ -2799,11 +2801,19 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
             "spanGaps": True
         })
 
+    rank_min = 1
+    rank_max = max(all_positions, default=TRACKER_TOP_ARTISTS)
+    rank_max = max(rank_max, TRACKER_TOP_ARTISTS)
+    rank_axis_max = min(300, max(rank_max + 1, TRACKER_TOP_ARTISTS + 2))
+
     chart_payload = {
         "labels": unique_dates,
         "datasets": datasets,
-        "title": f"📈 Top {TRACKER_TOP_ARTISTS} artist position trend",
+        "title": f"Top {len(artists_tracked)} Artist Position Trend",
         "theme": "dark" if is_dark else "light",
+        "rankMin": rank_min,
+        "rankMax": rank_axis_max,
+        "rangeLabel": f"{unique_dates[0]} - {unique_dates[-1]}" if unique_dates else time_range,
     }
     
     chart_payload_json = json.dumps(chart_payload)
@@ -2817,13 +2827,21 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
         background: {'#1c1c1c' if is_dark else '#ffffff'};
         border: 1px solid {'rgba(255,255,255,0.08)' if is_dark else 'rgba(0,0,0,0.1)'};
         border-radius: 12px;
-        padding: 24px 28px;
+        padding: 22px 26px 20px;
         color: {'#ffffff' if is_dark else '#1f2328'};
         box-shadow: 0 8px 30px rgba(0,0,0,0.15);
       }}
-      .hdr {{ display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; flex-wrap: wrap; gap: 12px; }}
+      .hdr {{ display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 18px; flex-wrap: wrap; gap: 12px; }}
       .title {{ font-size: 19px; font-weight: 600; margin-bottom: 6px; letter-spacing: -0.2px; }}
       .subtitle {{ font-size: 13.5px; color: {'#9B9EAA' if is_dark else '#656d76'}; font-weight: 400; }}
+      .meta {{
+        font-size: 12px;
+        color: {'#cbd5e1' if is_dark else '#475569'};
+        border: 1px solid {'rgba(255,255,255,0.12)' if is_dark else 'rgba(15,23,42,0.12)'};
+        border-radius: 999px;
+        padding: 5px 11px;
+        white-space: nowrap;
+      }}
       .btn {{
         background: transparent;
         border: 1px solid {'rgba(255,255,255,0.2)' if is_dark else 'rgba(0,0,0,0.2)'};
@@ -2836,7 +2854,7 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
         transition: 0.2s;
       }}
       .btn:hover {{ background: {'rgba(255,255,255,0.08)' if is_dark else 'rgba(0,0,0,0.05)'}; }}
-      .legend-container {{ display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 28px; }}
+      .legend-container {{ display: flex; gap: 9px; flex-wrap: wrap; margin-bottom: 22px; }}
       .leg-btn {{
         background: transparent;
         border: 1px solid {'rgba(255,255,255,0.2)' if is_dark else 'rgba(0,0,0,0.2)'};
@@ -2854,7 +2872,7 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
       .leg-btn:hover {{ border-color: {'rgba(255,255,255,0.4)' if is_dark else 'rgba(0,0,0,0.4)'}; background: {'rgba(255,255,255,0.04)' if is_dark else 'rgba(0,0,0,0.02)'}; }}
       .leg-btn.hidden {{ opacity: 0.4; border-color: transparent; }}
       .dot {{ width: 9px; height: 9px; border-radius: 50%; display: inline-block; }}
-      .chart-wrap {{ position: relative; height: 420px; width: 100%; }}
+      .chart-wrap {{ position: relative; height: 430px; width: 100%; }}
     </style>
     </head><body>
       <div class="chart-card">
@@ -2863,6 +2881,7 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
             <div class="title" id="d-title"></div>
             <div class="subtitle" id="d-subtitle"></div>
           </div>
+          <div class="meta" id="d-meta"></div>
         </div>
         <div class="legend-container" id="legend"></div>
         <div class="chart-wrap">
@@ -2872,11 +2891,13 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
       <script>
         const payload = {chart_payload_json};
         document.getElementById('d-title').innerText = payload.title;
-        document.getElementById('d-subtitle').innerText = "Visual tracking of daily rank movement and chart stability for the top-performing artists in the selected window.";
+        document.getElementById('d-subtitle').innerText = "Daily rank movement for the top artists in the selected window. Lower rank numbers are better, so the #1 position stays at the top.";
+        document.getElementById('d-meta').innerText = payload.rangeLabel;
         
         const isDark = payload.theme === 'dark';
-        const gridColor = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
-        const tickColor = isDark ? '#8b949e' : '#656d76';
+        const gridColor = isDark ? 'rgba(148,163,184,0.12)' : 'rgba(15,23,42,0.08)';
+        const tickColor = isDark ? '#94a3b8' : '#64748b';
+        const labelColor = isDark ? '#cbd5e1' : '#334155';
         
         const ctx = document.getElementById('myChart').getContext('2d');
         const myChart = new Chart(ctx, {{
@@ -2892,7 +2913,7 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
             plugins: {{
               legend: {{ display: false }},
               tooltip: {{
-                backgroundColor: isDark ? 'rgba(28,28,30,0.95)' : 'rgba(255,255,255,0.95)',
+                backgroundColor: isDark ? 'rgba(24,24,27,0.96)' : 'rgba(255,255,255,0.96)',
                 titleColor: isDark ? '#fff' : '#24292f',
                 bodyColor: isDark ? '#e2e8f0' : '#475569',
                 borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
@@ -2901,9 +2922,11 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
                 titleFont: {{ size: 13, weight: 'bold' }},
                 bodyFont: {{ size: 13 }},
                 boxPadding: 6,
+                itemSort: function(a, b) {{ return a.parsed.y - b.parsed.y; }},
                 callbacks: {{
+                  title: function(items) {{ return items && items.length ? items[0].label : ''; }},
                   label: function(context) {{
-                    return context.dataset.label + ': #' + context.parsed.y;
+                    return context.dataset.label + ': #' + Math.round(context.parsed.y);
                   }}
                 }}
               }}
@@ -2914,22 +2937,23 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
                 grid: {{ color: gridColor, drawBorder: false }},
                 ticks: {{
                   color: tickColor,
-                  callback: function(val) {{ return val === 0 ? '' : '' + val; }},
+                  callback: function(val) {{ return Number.isInteger(val) ? '#' + val : ''; }},
                   stepSize: 1,
                   font: {{ size: 11.5 }}
                 }},
                 title: {{
                   display: true,
-                  text: 'Movement Chart for the Artist',
-                  color: tickColor,
+                  text: 'Artist chart position',
+                  color: labelColor,
                   font: {{ size: 12.5, weight: '500' }},
                   padding: {{ bottom: 10 }}
                 }},
-                min: 0
+                min: payload.rankMin,
+                max: payload.rankMax
               }},
               x: {{
                 grid: {{ color: gridColor, drawBorder: false }},
-                ticks: {{ color: tickColor, font: {{ size: 11.5 }} }}
+                ticks: {{ color: tickColor, maxRotation: 0, autoSkipPadding: 18, font: {{ size: 11.5 }} }}
               }}
             }}
           }}
