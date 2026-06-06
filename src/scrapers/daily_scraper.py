@@ -47,6 +47,19 @@ def _get_column(row: pd.Series, possible_names: List[str]) -> Optional[str]:
     return None
 
 
+def _normalize_rank_change(value) -> Optional[str]:
+    """Preserve Kworb rank-change markers exactly as strings: +, -, =, NEW."""
+    if pd.isna(value):
+        return None
+    text = str(value).strip()
+    return text if text else None
+
+
+def _read_chart_table(table) -> pd.DataFrame:
+    """Read a Kworb chart table while preserving the signed P+ column."""
+    return pd.read_html(io.StringIO(str(table)), converters={"P+": str})[0]
+
+
 def scrape_spotify_daily(country: str = "global") -> List[SpotifyDaily]:
     """Scrape Spotify daily chart for a specific country."""
     from src.utils.label_lookup import get_labels_batch_optimized
@@ -63,7 +76,7 @@ def scrape_spotify_daily(country: str = "global") -> List[SpotifyDaily]:
         if not table:
             return []
 
-        df = pd.read_html(io.StringIO(str(table)))[0]
+        df = _read_chart_table(table)
         today = date.today()
         
         # Pre-extract titles for batch label lookup
@@ -101,7 +114,7 @@ def scrape_spotify_daily(country: str = "global") -> List[SpotifyDaily]:
                         streams_change=_safe_int(row.get("Streams+", 0)),
                         total_streams=_safe_int(row.get("Total", 0)),
                         label=labels_map.get(artist_title),
-                        rank_change=_get_column(row, ["P+"])
+                        rank_change=_normalize_rank_change(row.get("P+")),
                     )
                 )
             except Exception:
@@ -130,7 +143,7 @@ def scrape_spotify_weekly(country: str = "global") -> List[SpotifyDaily]:
         if not table:
             return []
 
-        df = pd.read_html(io.StringIO(str(table)))[0]
+        df = _read_chart_table(table)
         today = date.today()
         
         # Pre-extract titles
@@ -165,7 +178,8 @@ def scrape_spotify_weekly(country: str = "global") -> List[SpotifyDaily]:
                         streams=_safe_int(row.get("Streams", 0)),
                         streams_change=_safe_int(row.get("Streams+", 0)),
                         total_streams=_safe_int(row.get("Total", 0)),
-                        label=labels_map.get(artist_title)
+                        label=labels_map.get(artist_title),
+                        rank_change=_normalize_rank_change(row.get("P+")),
                     )
                 )
             except Exception:
@@ -194,7 +208,7 @@ def scrape_spotify_totals(country: str = "global") -> List[SpotifyDaily]:
         if not table:
             return []
 
-        df = pd.read_html(io.StringIO(str(table)))[0]
+        df = _read_chart_table(table)
         today = date.today()
         
         # Pre-extract titles
@@ -228,7 +242,8 @@ def scrape_spotify_totals(country: str = "global") -> List[SpotifyDaily]:
                         streams=_safe_int(row.get("Streams", 0)),
                         streams_change=_safe_int(row.get("Streams+", 0)),
                         total_streams=_safe_int(row.get("Total", 0)),
-                        label=labels_map.get(artist_title)
+                        label=labels_map.get(artist_title),
+                        rank_change=_normalize_rank_change(row.get("P+")),
                     )
                 )
             except Exception:
@@ -260,7 +275,7 @@ def scrape_itunes_daily(country: str = "us") -> List[ItunesDaily]:
         if not table:
             return []
 
-        df = pd.read_html(io.StringIO(str(table)))[0]
+        df = _read_chart_table(table)
         today = date.today()
         
         # Pre-extract titles
@@ -296,7 +311,7 @@ def scrape_itunes_daily(country: str = "us") -> List[ItunesDaily]:
                         points_change=_safe_int(row.get("Pts+", row.get("P+", 0))),
                         total_points=_safe_int(row.get("TPts", 0)),
                         label=labels_map.get(artist_title),
-                        rank_change=_get_column(row, ["P+"])
+                        rank_change=_normalize_rank_change(row.get("P+")),
                     )
                 )
             except Exception as e:
@@ -324,7 +339,7 @@ def scrape_itunes_artist_album() -> List[ItunesArtistAlbum]:
         if not table:
             return []
 
-        df = pd.read_html(io.StringIO(str(table)))[0]
+        df = _read_chart_table(table)
         today = date.today()
         
         # Pre-extract titles
@@ -360,7 +375,7 @@ def scrape_itunes_artist_album() -> List[ItunesArtistAlbum]:
                         points_change=_safe_int(row.get("Pts+", row.get("P+", 0))),
                         total_points=_safe_int(row.get("TPts", 0)),
                         label=labels_map.get(artist_title),
-                        rank_change=_get_column(row, ["P+"])
+                        rank_change=_normalize_rank_change(row.get("P+")),
                     )
                 )
             except Exception as e:
@@ -371,7 +386,4 @@ def scrape_itunes_artist_album() -> List[ItunesArtistAlbum]:
     except Exception as e:
         logger.error(f"Failed to parse iTunes Worldwide Artist Album: {e}")
         return []
-
-
-
 

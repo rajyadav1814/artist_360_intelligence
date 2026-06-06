@@ -327,7 +327,16 @@ def save_spotify_daily(data: List[SpotifyDaily]) -> int:
                     INSERT INTO spotify_daily
                         (date, country, rank, artist_title, days, peak, streams, streams_change, total_streams, label, rank_change)
                     VALUES %s
-                    ON CONFLICT (date, country, rank, artist_title) DO NOTHING
+                    ON CONFLICT (date, country, rank, artist_title)
+                    DO UPDATE SET
+                        days            = EXCLUDED.days,
+                        peak            = EXCLUDED.peak,
+                        streams         = EXCLUDED.streams,
+                        streams_change  = EXCLUDED.streams_change,
+                        total_streams   = EXCLUDED.total_streams,
+                        label           = EXCLUDED.label,
+                        rank_change     = EXCLUDED.rank_change,
+                        scraped_at      = NOW()
                     """,
                     rows
                 )
