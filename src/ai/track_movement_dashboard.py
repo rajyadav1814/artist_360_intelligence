@@ -15,8 +15,14 @@ import streamlit.components.v1 as st_components
 
 from src.database.connection import get_connection
 from src.utils.logger import get_logger
+from src.utils.ui import custom_selectbox
 
 logger = get_logger(__name__)
+
+# ─────────────────────── theme CSS ──────────────────────────────
+_THEME_LIGHT = ":root{--bg:#F5F6FA;--bg2:#FFFFFF;--bg3:#F8F9FB;--bg4:#EEF1F7;--border:rgba(148,163,184,.2);--border2:rgba(148,163,184,.35);--t1:#1A1A1A;--t2:#4A5568;--t3:#8A8FA3;--t4:#A0AEC0;--green:#34d399;--gd:rgba(52,211,153,.18);--red:#fb7185;--rd:rgba(251,113,133,.18);--blue:#60a5fa;--bd:rgba(96,165,250,.18);--purple:#c4b5fd;--pd:rgba(196,181,253,.18);--amber:#fcd34d;--teal:#5eead4;--pink:#f9a8d4;}"
+_THEME_DARK  = ":root{--bg:#0d1117;--bg2:#161b26;--bg3:#1f2633;--bg4:#283041;--border:rgba(148,163,184,.15);--border2:rgba(148,163,184,.28);--t1:#ffffff;--t2:#cdd6e4;--t3:#8b95ad;--t4:#6b7a99;--green:#34d399;--gd:rgba(52,211,153,.18);--red:#fb7185;--rd:rgba(251,113,133,.18);--blue:#60a5fa;--bd:rgba(96,165,250,.18);--purple:#c4b5fd;--pd:rgba(196,181,253,.18);--amber:#fcd34d;--teal:#5eead4;--pink:#f9a8d4;}"
+
 
 # Region scope -> (spotify_country, itunes_country)
 SCOPES: dict[str, tuple[str, str]] = {
@@ -180,6 +186,30 @@ def _top20_today(df: pd.DataFrame, latest: date) -> list[dict[str, Any]]:
     return out
 
 
+def _records_to_df(records: list[dict], metric_key: str) -> pd.DataFrame:
+    """Helper to convert movement records back to a flat DataFrame for display."""
+    if not records:
+        return pd.DataFrame()
+    data = []
+    metric_label = "Streams" if metric_key == "streams" else "Score"
+    for r in records:
+        ranks = r.get("ranks", [])
+        first_rank = next((x for x in ranks if x is not None), None)
+        last_rank = next((x for x in reversed(ranks) if x is not None), None)
+        
+        data.append({
+            "Artist": r["n"],
+            "Track": r["t"],
+            "Label": r["lbl"],
+            "Start Rank": first_rank or "—",
+            "Latest Rank": last_rank or "—",
+            "Rank Delta": r["rg"],
+            f"Latest {metric_label}": next((x for x in reversed(r.get(metric_key, [])) if x is not None), 0),
+            f"{metric_label} Delta": r["sg"],
+        })
+    return pd.DataFrame(data)
+
+
 # ─────────────────────────── render ───────────────────────────────
 
 def render_track_movement() -> None:
@@ -193,17 +223,16 @@ def render_track_movement() -> None:
     # ── Filter bar ────────────────────────────────────────────────
     c1, c2, c3 = st.columns([1.2, 1.2, 1.6])
     with c1:
-        scope_label = st.selectbox("Region", list(SCOPES.keys()), index=0, key="tm_scope")
+        scope_label = custom_selectbox("Region", list(SCOPES.keys()), index=0, key="tm_scope")
     with c2:
-        period_label = st.selectbox("Period", list(PERIOD_DAYS.keys()), index=0, key="tm_period")
+        period_label = custom_selectbox("Period", list(PERIOD_DAYS.keys()), index=0, key="tm_period")
     with c3:
-        platform = st.radio(
-            "Platform",
-            ["Both", "Spotify", "iTunes"],
-            horizontal=True,
-            index=0,
-            key="tm_platform",
-        )
+         platform = custom_selectbox(
+             "Platform",
+             ["Both", "Spotify", "iTunes"],
+             index=0,
+             key="tm_platform",
+         )
 
     sp_country, it_country = SCOPES[scope_label]
     days = PERIOD_DAYS[period_label]
@@ -280,107 +309,134 @@ def render_track_movement() -> None:
         },
     }
 
-    html = _build_html(payload)
-    st_components.html(html, height=1700, scrolling=True)
+    html = _build_html(payload, dark_mode=st.session_state.get("dark_mode", True))
+    iframe_height = 1700 if platform == "Both" else 950
+    st_components.html(html, height=iframe_height, scrolling=True)
 
 
 # ─────────────────────────── HTML template ───────────────────────────
 
-def _build_html(payload: dict) -> str:
+def _build_html(payload: dict, dark_mode: bool = False) -> str:
     data_json = json.dumps(payload, default=str)
-    return f"""
+    theme_css = _THEME_DARK if dark_mode else _THEME_LIGHT
+    return """
 <!DOCTYPE html><html><head><meta charset='utf-8'>
 <style>
-*{{box-sizing:border-box;margin:0;padding:0}}
-:root{{
-  --bg:#0d1117;--bg2:#161b26;--bg3:#1f2633;--bg4:#283041;
-  --border:#2a3446;--border2:#3a4661;
-  --t1:#ffffff;--t2:#cdd6e4;--t3:#8b95ad;--t4:#5b657d;
-  --green:#34d399;--gd:rgba(52,211,153,.18);
-  --red:#fb7185;--rd:rgba(251,113,133,.18);
-  --blue:#60a5fa;--bd:rgba(96,165,250,.18);
-  --purple:#c4b5fd;--pd:rgba(196,181,253,.18);
-  --amber:#fcd34d;--teal:#5eead4;--pink:#f9a8d4;
-}}
-body{{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t1);font-size:15px;line-height:1.55}}
-.hdr{{background:linear-gradient(180deg,#1a2235 0%,var(--bg2) 100%);border-bottom:1px solid var(--border);padding:20px 24px 16px}}
-.hdr-top{{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap;gap:10px}}
-.brand{{font-size:11px;color:var(--t3);letter-spacing:1.4px;text-transform:uppercase;display:flex;align-items:center;gap:7px;margin-bottom:6px;font-weight:600}}
-.live{{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);animation:blink 2s infinite}}
-@keyframes blink{{0%,100%{{opacity:1}}50%{{opacity:.4}}}}
-.dash-title{{font-size:26px;font-weight:700;letter-spacing:-.5px;color:#fff}}
-.dash-sub{{font-size:12px;color:var(--t2);letter-spacing:.3px;margin-top:4px;font-weight:500}}
-.kpi-bar{{display:grid;grid-template-columns:repeat(6,1fr);gap:1px;background:var(--border);border-bottom:1px solid var(--border)}}
-.kpi{{background:var(--bg2);padding:16px 18px;transition:.15s}}
-.kpi:hover{{background:var(--bg3)}}
-.kpi-lbl{{font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px;font-weight:600}}
-.kpi-val{{font-size:24px;font-weight:700;letter-spacing:-.5px;line-height:1.15;color:#fff}}
-.kpi-sub{{font-size:11px;color:var(--t2);margin-top:5px;font-weight:500}}
-.kpi-val.g{{color:var(--green)}}.kpi-val.r{{color:var(--red)}}.kpi-val.p{{color:var(--purple)}}.kpi-val.a{{color:var(--amber)}}.kpi-val.b{{color:var(--blue)}}
-.body{{padding:20px 22px;display:flex;flex-direction:column;gap:20px}}
-.sh{{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}}
-.sh-l{{font-size:16px;font-weight:600;color:#fff;letter-spacing:-.2px}}
-.sh-r{{font-size:11px;color:var(--t2);background:var(--bg3);padding:5px 12px;border-radius:5px;border:1px solid var(--border2);font-weight:500}}
-.r2{{display:grid;grid-template-columns:1fr 1fr;gap:16px}}
-.card{{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:18px 20px}}
-.card-ttl{{font-size:12px;color:var(--t2);text-transform:uppercase;letter-spacing:.7px;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--border);font-weight:600}}
-.trk-hdr{{display:grid;gap:8px;padding:6px 0;border-bottom:1px solid var(--border2);margin-bottom:4px}}
-.trk-hdr span{{font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.6px;font-weight:600}}
-.trk{{display:grid;gap:8px;padding:11px 0;border-bottom:1px solid var(--border);align-items:center;cursor:pointer;transition:.1s}}
-.trk:hover{{background:var(--bg3);margin:0 -8px;padding:11px 8px;border-radius:6px}}
-.trk:last-child{{border-bottom:none}}
-.rn{{font-size:13px;color:var(--t3);text-align:center;min-width:20px;font-weight:600}}
-.tn{{font-size:14px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:-.1px}}
-.ta{{font-size:11px;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:3px;font-weight:500}}
-.tv{{font-size:13px;color:var(--t1);text-align:right;white-space:nowrap;font-weight:600;font-variant-numeric:tabular-nums}}
-.dual-bar{{display:flex;gap:4px;margin-top:6px;height:5px}}
-.dual-seg{{flex:1;border-radius:3px;position:relative;overflow:hidden;background:var(--bg4)}}
-.dual-fill{{height:5px;border-radius:3px;position:absolute;top:0;left:0}}
-.bu{{display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;padding:4px 9px;border-radius:5px;background:var(--gd);color:var(--green);min-width:42px;border:1px solid rgba(52,211,153,.35)}}
-.bd{{display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;padding:4px 9px;border-radius:5px;background:var(--rd);color:var(--red);min-width:42px;border:1px solid rgba(251,113,133,.35)}}
-.bn{{display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;padding:4px 9px;border-radius:5px;background:var(--bg3);color:var(--t2);min-width:42px;border:1px solid var(--border2)}}
-.bh{{display:inline-flex;font-size:11px;font-weight:700;padding:5px 10px;border-radius:5px;background:rgba(252,211,77,.15);color:var(--amber);border:1px solid rgba(252,211,77,.4);letter-spacing:.4px}}
-.bp{{display:inline-flex;font-size:11px;font-weight:700;padding:5px 10px;border-radius:5px;background:var(--pd);color:var(--purple);border:1px solid rgba(196,181,253,.4);letter-spacing:.4px}}
-.spot{{background:linear-gradient(135deg,#1a2235 0%,var(--bg2) 100%);border:1px solid var(--border2);border-radius:12px;padding:20px 22px;position:relative;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.3)}}
-.spot::before{{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--green),var(--teal))}}
-.sp-tag{{font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px;font-weight:600}}
-.sp-name{{font-size:22px;font-weight:700;letter-spacing:-.5px;line-height:1.2;margin-bottom:6px;color:#fff}}
-.sp-meta{{font-size:12px;color:var(--t2);margin-bottom:16px;font-weight:500}}
-.sp-grid{{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}}
-.sp-s{{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px 14px}}
-.sp-s-l{{font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px;font-weight:600}}
-.sp-s-v{{font-size:20px;font-weight:700;color:#fff;letter-spacing:-.4px;font-variant-numeric:tabular-nums}}
-.cw{{position:relative;width:100%}}
-.hide{{display:none !important}}
-.section-label{{font-size:13px;font-weight:700;letter-spacing:.5px;margin-bottom:14px;display:flex;align-items:center;gap:8px;text-transform:uppercase}}
-.section-dot{{width:10px;height:10px;border-radius:50%;display:inline-block;box-shadow:0 0 6px currentColor}}
+*{box-sizing:border-box;margin:0;padding:0}
+__THEME__
+body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t1);font-size:15px;line-height:1.55}
+.hdr{background:linear-gradient(180deg,#1a2235 0%,var(--bg2) 100%);border-bottom:1px solid var(--border);padding:20px 24px 16px}
+.hdr-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap;gap:10px}
+.brand{font-size:11px;color:var(--t3);letter-spacing:1.4px;text-transform:uppercase;display:flex;align-items:center;gap:7px;margin-bottom:6px;font-weight:600}
+.live{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);animation:blink 2s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.4}}
+.dash-title{font-size:26px;font-weight:700;letter-spacing:-.5px;color:var(--t1)}
+.dash-sub{font-size:12px;color:var(--t2);letter-spacing:.3px;margin-top:4px;font-weight:500}
+.kpi-bar{display:grid;grid-template-columns:repeat(6,1fr);gap:1px;background:var(--border);border-bottom:1px solid var(--border)}
+.kpi{background:var(--bg2);padding:16px 18px;transition:.15s}
+.kpi:hover{background:var(--bg3)}
+.kpi-lbl{font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px;font-weight:600}
+.kpi-val{font-size:24px;font-weight:700;letter-spacing:-.5px;line-height:1.15;color:var(--t1)}
+.kpi-sub{font-size:11px;color:var(--t2);margin-top:5px;font-weight:500}
+.kpi-val.g{color:var(--green)}.kpi-val.r{color:var(--red)}.kpi-val.p{color:var(--purple)}.kpi-val.a{color:var(--amber)}.kpi-val.b{color:var(--blue)}
+.body{padding:20px 22px;display:flex;flex-direction:column;gap:20px}
+.sh{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+.sh-l{font-size:16px;font-weight:600;color:var(--t1);letter-spacing:-.2px}
+.sh-r{font-size:11px;color:var(--t2);background:var(--bg3);padding:5px 12px;border-radius:5px;border:1px solid var(--border2);font-weight:500}
+.r2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:18px 20px}
+.card-ttl{font-size:12px;color:var(--t2);text-transform:uppercase;letter-spacing:.7px;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--border);font-weight:600}
+.trk-hdr{display:grid;gap:8px;padding:6px 0;border-bottom:1px solid var(--border2);margin-bottom:4px}
+.trk-hdr span{font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.6px;font-weight:600}
+.trk{display:grid;gap:8px;padding:11px 0;border-bottom:1px solid var(--border);align-items:center;cursor:pointer;transition:.1s}
+.trk:hover{background:var(--bg3);margin:0 -8px;padding:11px 8px;border-radius:6px}
+.trk:last-child{border-bottom:none}
+.rn{font-size:13px;color:var(--t3);text-align:center;min-width:20px;font-weight:600}
+.tn{font-size:14px;font-weight:600;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:-.1px}
+.ta{font-size:11px;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:3px;font-weight:500}
+.tv{font-size:13px;color:var(--t1);text-align:right;white-space:nowrap;font-weight:600;font-variant-numeric:tabular-nums}
+.dual-bar{display:flex;gap:4px;margin-top:6px;height:5px}
+.dual-seg{flex:1;border-radius:3px;position:relative;overflow:hidden;background:var(--bg4)}
+.dual-fill{height:5px;border-radius:3px;position:absolute;top:0;left:0}
+.bu{display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;padding:4px 9px;border-radius:5px;background:var(--gd);color:var(--green);min-width:42px;border:1px solid rgba(52,211,153,.35)}
+.bd{display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;padding:4px 9px;border-radius:5px;background:var(--rd);color:var(--red);min-width:42px;border:1px solid rgba(251,113,133,.35)}
+.bn{display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;padding:4px 9px;border-radius:5px;background:var(--bg3);color:var(--t2);min-width:42px;border:1px solid var(--border2)}
+.bh{display:inline-flex;font-size:11px;font-weight:700;padding:5px 10px;border-radius:5px;background:rgba(252,211,77,.15);color:var(--amber);border:1px solid rgba(252,211,77,.4);letter-spacing:.4px}
+.bp{display:inline-flex;font-size:11px;font-weight:700;padding:5px 10px;border-radius:5px;background:var(--pd);color:var(--purple);border:1px solid rgba(196,181,253,.4);letter-spacing:.4px}
+.spot{background:linear-gradient(135deg,#1a2235 0%,var(--bg2) 100%);border:1px solid var(--border2);border-radius:12px;padding:20px 22px;position:relative;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.3)}
+.spot::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--green),var(--teal))}
+.sp-tag{font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px;font-weight:600}
+.sp-name{font-size:22px;font-weight:700;letter-spacing:-.5px;line-height:1.2;margin-bottom:6px;color:var(--t1)}
+.sp-meta{font-size:12px;color:var(--t2);margin-bottom:16px;font-weight:500}
+.sp-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.sp-s{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px 14px}
+.sp-s-l{font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px;font-weight:600}
+.sp-s-v{font-size:20px;font-weight:700;color:var(--t1);letter-spacing:-.4px;font-variant-numeric:tabular-nums}
+.cw{position:relative;width:100%}
+.hide{display:none !important}
+.section-label{font-size:13px;font-weight:700;letter-spacing:.5px;margin-bottom:14px;display:flex;align-items:center;gap:8px;text-transform:uppercase}
+.section-dot{width:10px;height:10px;border-radius:50%;display:inline-block;box-shadow:0 0 6px currentColor}
 </style></head><body>
 
-<div class='hdr'>
-  <div class='hdr-top'>
-    <div>
-      <div class='dash-title'>Track Momentum Dashboard</div>
-      <div class='dash-sub' id='hdr-sub'></div>
-    </div>
-  </div>
-</div>
-
-<div class='kpi-bar' id='kpi-bar'></div>
 
 <div class='body'>
 
-  <div class='r2' id='spot-row'></div>
+  <!-- Guide Banner -->
+  <div style='background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:16px 20px;margin-bottom:8px;'>
+    <div style='display:flex;justify-content:space-between;align-items:center;cursor:pointer;' onclick='toggleGuide()'>
+      <div style='display:flex;align-items:center;gap:10px;font-weight:700;color:var(--t1);font-size:14.5px;'>
+        <span style='font-size:16px;'>💡</span> Understanding Movement & Column Details
+      </div>
+      <span id='guide-toggle-icon' style='font-size:12px;color:var(--t3);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;'>[ Show Details ]</span>
+    </div>
+    <div id='guide-content' style='display:none;margin-top:14px;border-top:1px solid var(--border);padding-top:14px;'>
+      <div style='display:grid;grid-template-columns:1.2fr 1fr;gap:24px;'>
+        <div>
+          <div style='font-weight:700;font-size:12px;text-transform:uppercase;color:var(--t2);letter-spacing:0.8px;margin-bottom:8px;'>Composite Score Logic</div>
+          <p style='font-size:12.5px;color:var(--t3);line-height:1.6;margin-bottom:10px;'>
+            The <b>Riser / Faller</b> ranking is based on a composite score combining two factors:
+          </p>
+          <ul style='font-size:12.5px;color:var(--t3);line-height:1.6;padding-left:18px;margin-bottom:10px;'>
+            <li style='margin-bottom:4px;'><b>Rank Momentum (Weight: 1x):</b> The absolute change in chart position (e.g., jumping from #98 to #85 is a +13 rank gain).</li>
+            <li><b>Metric Momentum (Weight: Up to 50pts):</b> The change in volume (daily streams on Spotify or daily score points on iTunes) normalized against the largest volume change in the active dataset.</li>
+          </ul>
+          <p style='font-size:12.5px;color:var(--t3);line-height:1.6;'>
+            This dual factor identifies tracks that are either climbing rapidly in position or experiencing explosive changes in play count (even if already at the top).
+          </p>
+        </div>
+        <div>
+          <div style='font-weight:700;font-size:12px;text-transform:uppercase;color:var(--t2);letter-spacing:0.8px;margin-bottom:8px;'>Column Details & Guide</div>
+          <div style='display:grid;grid-template-columns:auto 1fr;gap:10px 14px;font-size:12.5px;color:var(--t3);line-height:1.5;'>
+            <b style='color:var(--t2);white-space:nowrap;'>Start / Now</b>
+            <span>The track's chart rank at the beginning and end of the selected window.</span>
+            
+            <b style='color:var(--t2);white-space:nowrap;'>Streams / Score</b>
+            <span>The latest daily streams (Spotify) or daily chart points (iTunes).</span>
+            
+            <b style='color:var(--t2);white-space:nowrap;'>Change (+ / Lost)</b>
+            <span>The absolute change in streams or points from the start to the end of the window.</span>
+            
+            <b style='color:var(--t2);white-space:nowrap;'>Δ Rank</b>
+            <span>The net rank shift (represented by <span class='bu' style='padding:2px 6px;min-width:auto;font-size:10px;'>▲13</span> or <span class='bd' style='padding:2px 6px;min-width:auto;font-size:10px;'>▼23</span>).</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <div style='display:grid;grid-template-columns:1fr 1fr;gap:16px'>
 
     <div id='risers-section' style='background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:18px 20px'>
       <div class='sh'><span class='sh-l'>📈 Top Risers — rank + metric composite</span></div>
+      <div style='font-size:12px;color:var(--t3);margin-top:-6px;margin-bottom:14px;line-height:1.5;'>
+        Tracks with the strongest positive momentum, calculated using a composite score of <b>Rank Improvement</b> and normalized <b>Metric Gain</b> (daily streams or score) over the selected window.
+      </div>
       <div id='sp-riser-block'>
         <div class='section-label' style='color:var(--green)'>
           <span class='section-dot' style='background:var(--green)'></span>Rank + Streams
         </div>
         <div class='trk-hdr' style='grid-template-columns:24px 1fr 50px 50px 64px 64px 60px'>
-          <span></span><span>Track · Artist</span><span style='text-align:center'>Start</span><span style='text-align:center'>Now</span><span style='text-align:right'>Streams</span><span style='text-align:right'>+Streams</span><span style='text-align:right'>Δ Rank</span>
+          <span></span><span>Artist · Track</span><span style='text-align:center'>Start</span><span style='text-align:center'>Now</span><span style='text-align:right'>Streams</span><span style='text-align:right'>+Streams</span><span style='text-align:right'>Δ Rank</span>
         </div>
         <div id='sp-risers'></div>
       </div>
@@ -389,7 +445,7 @@ body{{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--
           <span class='section-dot' style='background:var(--purple)'></span>ITUNES — Rank + Score
         </div>
         <div class='trk-hdr' style='grid-template-columns:24px 1fr 50px 50px 64px 64px 60px'>
-          <span></span><span>Track · Artist</span><span style='text-align:center'>Start</span><span style='text-align:center'>Now</span><span style='text-align:right'>Score</span><span style='text-align:right'>+Score</span><span style='text-align:right'>Δ Rank</span>
+          <span></span><span>Artist · Track</span><span style='text-align:center'>Start</span><span style='text-align:center'>Now</span><span style='text-align:right'>Score</span><span style='text-align:right'>+Score</span><span style='text-align:right'>Δ Rank</span>
         </div>
         <div id='it-risers'></div>
       </div>
@@ -397,12 +453,15 @@ body{{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--
 
     <div id='fallers-section' style='background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:18px 20px'>
       <div class='sh'><span class='sh-l'>📉 Top Fallers — rank + metric composite</span></div>
+      <div style='font-size:12px;color:var(--t3);margin-top:-6px;margin-bottom:14px;line-height:1.5;'>
+        Tracks with the steepest downward decline, calculated using a composite score of <b>Rank Drops</b> and normalized <b>Metric Loss</b> (daily streams or score) over the selected window.
+      </div>
       <div id='sp-faller-block'>
         <div class='section-label' style='color:var(--red)'>
           <span class='section-dot' style='background:var(--red)'></span>Rank + Streams lost
         </div>
         <div class='trk-hdr' style='grid-template-columns:24px 1fr 50px 50px 64px 64px 60px'>
-          <span></span><span>Track · Artist</span><span style='text-align:center'>Start</span><span style='text-align:center'>Now</span><span style='text-align:right'>Streams</span><span style='text-align:right'>Lost</span><span style='text-align:right'>Δ Rank</span>
+          <span></span><span>Artist · Track</span><span style='text-align:center'>Start</span><span style='text-align:center'>Now</span><span style='text-align:right'>Streams</span><span style='text-align:right'>Lost</span><span style='text-align:right'>Δ Rank</span>
         </div>
         <div id='sp-fallers'></div>
       </div>
@@ -411,7 +470,7 @@ body{{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--
           <span class='section-dot' style='background:var(--red)'></span>ITUNES — Rank + Score lost
         </div>
         <div class='trk-hdr' style='grid-template-columns:24px 1fr 50px 50px 64px 64px 60px'>
-          <span></span><span>Track · Artist</span><span style='text-align:center'>Start</span><span style='text-align:center'>Now</span><span style='text-align:right'>Score</span><span style='text-align:right'>Lost</span><span style='text-align:right'>Δ Rank</span>
+          <span></span><span>Artist · Track</span><span style='text-align:center'>Start</span><span style='text-align:center'>Now</span><span style='text-align:right'>Score</span><span style='text-align:right'>Lost</span><span style='text-align:right'>Δ Rank</span>
         </div>
         <div id='it-fallers'></div>
       </div>
@@ -439,85 +498,47 @@ body{{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--
 
 <script src='https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js'></script>
 <script>
-const PAYLOAD = {data_json};
+const PAYLOAD = __DATA__;
 const PLATFORM = PAYLOAD.platform; // Both / Spotify / iTunes
 const SHOW_SP = PLATFORM !== 'iTunes';
 const SHOW_IT = PLATFORM !== 'Spotify';
 
-function fmtN(n,dec=1){{if(n===null||n===undefined||isNaN(n))return'—';n=parseFloat(n);const a=Math.abs(n),sign=n<0?'−':n>0?'+':'';if(a>=1e6)return sign+(a/1e6).toFixed(dec)+'M';if(a>=1e3)return sign+(a/1e3).toFixed(0)+'K';return sign+a.toFixed(0);}}
-function fmtM(n,dec=2,signed=false){{if(n===null||n===undefined||isNaN(n))return'—';n=parseFloat(n);const a=Math.abs(n);const sign=signed?(n<0?'−':n>0?'+':''):(n<0?'−':'');return sign+(a/1e6).toFixed(dec)+'M';}}
-const CDARK={{responsive:true,maintainAspectRatio:false,plugins:{{legend:{{display:false}}}},scales:{{x:{{grid:{{color:'rgba(255,255,255,0.04)'}},ticks:{{color:'#444',font:{{size:9}}}}}},y:{{grid:{{color:'rgba(255,255,255,0.04)'}},ticks:{{color:'#444',font:{{size:9}}}}}}}}}};
+function fmtN(n,dec=1){if(n===null||n===undefined||isNaN(n))return'—';n=parseFloat(n);const a=Math.abs(n),sign=n<0?'−':n>0?'+':'';if(a>=1e6)return sign+(a/1e6).toFixed(dec)+'M';if(a>=1e3)return sign+(a/1e3).toFixed(0)+'K';return sign+a.toFixed(0);}
+function fmtM(n,dec=2,signed=false){if(n===null||n===undefined||isNaN(n))return'—';n=parseFloat(n);const a=Math.abs(n);const sign=signed?(n<0?'−':n>0?'+':''):(n<0?'−':'');return sign+(a/1e6).toFixed(dec)+'M';}
+const CDARK={responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:'rgba(128,128,128,0.12)'},ticks:{color:getComputedStyle(document.documentElement).getPropertyValue('--t3').trim()||'#8b95ad',font:{size:9}}},y:{grid:{color:'rgba(128,128,128,0.12)'},ticks:{color:getComputedStyle(document.documentElement).getPropertyValue('--t3').trim()||'#8b95ad',font:{size:9}}}}};
 const DATES = PAYLOAD.dates;
 const PAL=['#fff','#a78bfa','#2dd4bf','#60a5fa','#fbbf24','#f472b6','#34d399','#fb923c'];
 const PAL2=['#22c55e','#a78bfa','#60a5fa','#fbbf24','#2dd4bf','#f472b6','#fb923c','#94a3b8'];
 
-// Header
-document.getElementById('hdr-sub').textContent = `${{PAYLOAD.scope}} · ${{PLATFORM}} platform${{PLATFORM==='Both'?'s':''}}`;
-
-
 // Hide blocks per platform filter
-if (!SHOW_SP) {{
-  ['sp-riser-block','sp-faller-block'].forEach(id=>{{const e=document.getElementById(id);if(e)e.classList.add('hide');}});
-}}
-if (!SHOW_IT) {{
-  ['it-riser-block','it-faller-block','it-traj-card','it-scatter-card','it-top20-card'].forEach(id=>{{const e=document.getElementById(id);if(e)e.classList.add('hide');}});
-}}
-
-// KPI bar
-function kpiCard(lbl, val, sub, cls){{
-  return `<div class='kpi'><div class='kpi-lbl'>${{lbl}}</div><div class='kpi-val ${{cls||''}}' style='${{val&&val.length>10?'font-size:12px;margin-top:3px':''}}'>${{val||'—'}}</div><div class='kpi-sub'>${{sub||''}}</div></div>`;
-}}
-const k = PAYLOAD.kpis;
-const kpiHtml = [
-  kpiCard('Spotify #1 today', k.sp_no1?k.sp_no1.a:'—', k.sp_no1?`${{fmtM(k.sp_no1.s,2)}} streams · ${{k.sp_no1.t}}`:''),
-  kpiCard('iTunes #1 today', k.it_no1?k.it_no1.a:'—', k.it_no1?`${{k.it_no1.t}} · ${{(k.it_no1.s).toLocaleString()}} pts`:''),
-  kpiCard('Biggest rank riser', k.big_rank_riser?'+'+k.big_rank_riser.rg:'—', k.big_rank_riser?`${{k.big_rank_riser.n}} · ${{k.big_rank_riser.t}}`:'', 'g'),
-  kpiCard('Biggest stream riser', k.big_stream_riser?fmtM(k.big_stream_riser.sg,2,true):'—', k.big_stream_riser?`${{k.big_stream_riser.n}} · ${{k.big_stream_riser.t}}`:'', 'b'),
-  kpiCard('Biggest faller', k.big_faller?k.big_faller.rg:'—', k.big_faller?`${{k.big_faller.n}} · ${{k.big_faller.t}}`:'', 'r'),
-  kpiCard('Tracks rising', k.rising_count, `of ${{k.tracked}} tracked · both platforms`, 'a'),
-].join('');
-document.getElementById('kpi-bar').innerHTML = kpiHtml;
-
-// Spotlights
-function spotCard(d, kind){{
-  if (!d) return '';
-  const tag = kind==='sp' ? "<span class='bh'>🔥 SPOTIFY TOP RISER</span>" : "<span class='bp'>🔥 ITUNES TOP RISER</span>";
-  const accent = kind==='sp' ? 'var(--green)' : 'var(--purple)';
-  const metricArr = kind==='sp' ? d.streams : d.scores;
-  const startRank = d.ranks.find(v=>v!==null);
-  const endRank = [...d.ranks].reverse().find(v=>v!==null);
-  const startMet = metricArr.find(v=>v!==null) || 0;
-  const endMet = [...metricArr].reverse().find(v=>v!==null) || 0;
-  const metLabel = kind==='sp' ? 'Stream gain' : 'Score gain';
-  const style = kind==='sp' ? '' : "style='--green:#a78bfa;--teal:#60a5fa'";
-  return `<div class='spot' ${{style}}>
-    <div class='sp-tag'>${{tag}}</div>
-    <div class='sp-name'>${{d.n}} — ${{d.t}}</div>
-    <div class='sp-meta'>${{d.lbl}} · ${{startRank}} → ${{endRank}}</div>
-    <div class='sp-grid'>
-      <div class='sp-s'><div class='sp-s-l'>Start rank</div><div class='sp-s-v'>${{startRank}}</div></div>
-      <div class='sp-s'><div class='sp-s-l'>Now</div><div class='sp-s-v' style='color:${{accent}}'>${{endRank}}</div></div>
-      <div class='sp-s'><div class='sp-s-l'>Rank gain</div><div class='sp-s-v' style='color:var(--amber)'>+${{d.rg}}</div></div>
-      <div class='sp-s'><div class='sp-s-l'>${{metLabel}}</div><div class='sp-s-v' style='color:var(--blue)'>${{kind==='sp'?fmtM(d.sg,2,true):fmtN(d.sg,0)}}</div></div>
-    </div>
-  </div>`;
-}}
-const spotHtml = [
-  SHOW_SP ? spotCard(PAYLOAD.sp_spot, 'sp') : '',
-  SHOW_IT ? spotCard(PAYLOAD.it_spot, 'it') : '',
-].filter(Boolean).join('');
-document.getElementById('spot-row').innerHTML = spotHtml;
-if (PLATFORM !== 'Both') document.getElementById('spot-row').style.gridTemplateColumns = '1fr';
+if (!SHOW_SP) {
+  ['sp-riser-block','sp-faller-block'].forEach(id=>{const e=document.getElementById(id);if(e)e.classList.add('hide');});
+}
+if (!SHOW_IT) {
+  ['it-riser-block','it-faller-block','it-traj-card','it-scatter-card','it-top20-card'].forEach(id=>{const e=document.getElementById(id);if(e)e.classList.add('hide');});
+}
 
 // Riser/faller table renderer
-function renderTable(elId, data){{
+function toggleGuide() {
+  const content = document.getElementById('guide-content');
+  const icon = document.getElementById('guide-toggle-icon');
+  if (content.style.display === 'none') {
+    content.style.display = 'block';
+    icon.textContent = '[ Hide Details ]';
+  } else {
+    content.style.display = 'none';
+    icon.textContent = '[ Show Details ]';
+  }
+}
+
+function renderTable(elId, data){
   const el = document.getElementById(elId);
   if (!el) return;
-  if (!data || !data.length) {{ el.innerHTML = "<div style='color:#444;font-size:10px;padding:14px 0'>No data in selected window.</div>"; return; }}
+  if (!data || !data.length) { el.innerHTML = "<div style='color:var(--t3);font-size:10px;padding:14px 0'>No data in selected window.</div>"; return; }
   el.innerHTML = '';
   const maxRg = Math.max(...data.map(d=>Math.abs(d.rg)),1);
   const maxSg = Math.max(...data.map(d=>Math.abs(d.sg)),1);
-  data.forEach((d,i)=>{{
+  data.forEach((d,i)=>{
     const metricArr = d.streams || d.scores || [];
     const latVal = [...metricArr].reverse().find(v=>v!==null) || 0;
     const latRank = [...d.ranks].reverse().find(v=>v!==null);
@@ -530,29 +551,25 @@ function renderTable(elId, data){{
     const sgSign = d.sg>0?'+':d.sg<0?'−':'';
     const valFmt = d.streams ? fmtM(latVal,2) : (latVal||0).toLocaleString();
     const sgLabel = d.streams ? fmtM(Math.abs(d.sg),2) : Math.abs(d.sg).toLocaleString();
-    const rankBadge = isPos ? `<span class='bu'>▲${{d.rg}}</span>` : d.rg<0 ? `<span class='bd'>▼${{Math.abs(d.rg)}}</span>` : `<span class='bn'>—</span>`;
+    const rankBadge = isPos ? `<span class='bu'>▲${d.rg}</span>` : d.rg<0 ? `<span class='bd'>▼${Math.abs(d.rg)}</span>` : `<span class='bn'>—</span>`;
     el.innerHTML += `<div class='trk' style='grid-template-columns:24px 1fr 50px 50px 64px 64px 60px'>
-      <span class='rn'>${{i+1}}</span>
+      <span class='rn'>${i+1}</span>
       <div>
-        <div class='tn'>${{d.t}}</div>
-        <div class='ta'>${{d.n}}</div>
-        <div class='dual-bar'>
-          <div class='dual-seg'><div class='dual-fill' style='width:${{rankPct}}%;background:${{rankColor}}'></div></div>
-          <div class='dual-seg'><div class='dual-fill' style='width:${{sgPct}}%;background:${{sgColor}}'></div></div>
-        </div>
+        <div class='tn'>${d.t}</div>
+        <div class='ta'>${d.n}</div>
       </div>
-      <span style='font-size:13px;color:var(--t3);text-align:center;font-weight:600'>${{startRank||'—'}}</span>
-      <span style='font-size:13px;color:${{rankColor}};text-align:center;font-weight:700'>${{latRank||'—'}}</span>
-      <span class='tv'>${{valFmt}}</span>
-      <span class='tv' style='color:${{sgColor}}'>${{sgSign}}${{sgLabel.replace('+','').replace('−','')}}</span>
-      <span style='text-align:right'>${{rankBadge}}</span>
+      <span style='font-size:13px;color:var(--t3);text-align:center;font-weight:600'>${startRank||'—'}</span>
+      <span style='font-size:13px;color:${rankColor};text-align:center;font-weight:700'>${latRank||'—'}</span>
+      <span class='tv'>${valFmt}</span>
+      <span class='tv' style='color:${sgColor}'>${sgSign}${sgLabel.replace('+','').replace('−','')}</span>
+      <span style='text-align:right'>${rankBadge}</span>
     </div>`;
-  }});
-}}
-if (SHOW_SP) {{ renderTable('sp-risers', PAYLOAD.sp_risers); renderTable('sp-fallers', PAYLOAD.sp_fallers); }}
-if (SHOW_IT) {{ renderTable('it-risers', PAYLOAD.it_risers); renderTable('it-fallers', PAYLOAD.it_fallers); }}
+  });
+}
+if (SHOW_SP) { renderTable('sp-risers', PAYLOAD.sp_risers); renderTable('sp-fallers', PAYLOAD.sp_fallers); }
+if (SHOW_IT) { renderTable('it-risers', PAYLOAD.it_risers); renderTable('it-fallers', PAYLOAD.it_fallers); }
 
 // (iTunes trajectory / scatter / top20 charts removed)
 </script>
 </body></html>
-"""
+""".replace("__DATA__", data_json).replace("__THEME__", theme_css)

@@ -84,6 +84,7 @@ hr { margin: 1.25rem 0 !important; border: none !important; border-top: 1px soli
     color: var(--db-t1) !important;
     background: linear-gradient(135deg, rgba(96,165,250,.22), rgba(196,181,253,.22)) !important;
     border-color: rgba(96,165,250,.55) !important;
+    font-weight: 800 !important;
 }
 
 /* ── hero header ── */
@@ -94,6 +95,7 @@ hr { margin: 1.25rem 0 !important; border: none !important; border-top: 1px soli
     border-radius: 20px;
     padding: 26px 30px;
     margin-bottom: 1.6rem;
+    margin-top: 1.5rem;
     box-shadow: 0 24px 60px rgba(0,0,0,.35);
     overflow: hidden;
 }
@@ -106,7 +108,7 @@ hr { margin: 1.25rem 0 !important; border: none !important; border-top: 1px soli
 }
 .db-hero-eyebrow {
     display: inline-flex; align-items: center; gap: 10px;
-    font-size: 12px; font-weight: 800; letter-spacing: .18em;
+    font-size: 14px; font-weight: 900; letter-spacing: .18em;
     text-transform: uppercase; color: var(--db-t3);
     margin-bottom: 14px;
 }
@@ -121,11 +123,11 @@ hr { margin: 1.25rem 0 !important; border: none !important; border-top: 1px soli
     50%     { box-shadow: 0 0 0 8px rgba(52,211,153,.05), 0 0 22px rgba(52,211,153,.85); }
 }
 .db-hero-title {
-    font-size: 2.4rem; font-weight: 900; letter-spacing: -.02em;
+    font-size: 2.6rem; font-weight: 950; letter-spacing: -.02em;
     color: var(--db-t1); margin-bottom: 8px; line-height: 1.1;
 }
 .db-hero-sub {
-    font-size: 0.95rem; color: var(--db-t2); font-weight: 500;
+    font-size: 1.1rem; color: var(--db-t2); font-weight: 500;
     letter-spacing: .02em;
 }
 .db-hero-sub b { color: var(--db-t1); font-weight: 700; }
@@ -135,6 +137,7 @@ hr { margin: 1.25rem 0 !important; border: none !important; border-top: 1px soli
     display: grid;
     grid-template-columns: repeat(5, 1fr);
     gap: 14px;
+    margin-top: 1.5rem;
     margin-bottom: 1.5rem;
 }
 .db-kpi {
@@ -159,12 +162,12 @@ hr { margin: 1.25rem 0 !important; border: none !important; border-top: 1px soli
 .db-kpi.k-amber::before  { background: var(--db-amber); }
 .db-kpi.k-pink::before   { background: var(--db-pink); }
 .db-kpi-lbl {
-    font-size: 11px; font-weight: 800; letter-spacing: .12em;
+    font-size: 13px; font-weight: 900; letter-spacing: .12em;
     text-transform: uppercase; color: var(--db-t3);
     margin-bottom: 10px;
 }
 .db-kpi-val {
-    font-size: 26px; font-weight: 900; color: var(--db-t1);
+    font-size: 28px; font-weight: 950; color: var(--db-t1);
     line-height: 1.1; margin-bottom: 6px; letter-spacing: -.01em;
 }
 .db-kpi.k-blue   .db-kpi-val { color: var(--db-blue); }
@@ -173,7 +176,7 @@ hr { margin: 1.25rem 0 !important; border: none !important; border-top: 1px soli
 .db-kpi.k-amber  .db-kpi-val { color: var(--db-amber); }
 .db-kpi.k-pink   .db-kpi-val { color: var(--db-pink); }
 .db-kpi-sub {
-    font-size: 12px; color: var(--db-t2); font-weight: 500;
+    font-size: 14px; color: var(--db-t2); font-weight: 600;
     line-height: 1.35;
 }
 
@@ -219,23 +222,23 @@ hr { margin: 1.25rem 0 !important; border: none !important; border-top: 1px soli
     border: 1px solid rgba(96,165,250,.26);
 }
 .insight-title {
-    font-size: 11px;
+    font-size: 13px;
     color: #9eabc4;
-    font-weight: 800;
+    font-weight: 900;
     letter-spacing: .12em;
     text-transform: uppercase;
     margin-bottom: 0.48rem;
 }
 .insight-val {
-    font-size: clamp(1.12rem, 1.05vw + .78rem, 1.9rem);
-    font-weight: 800;
+    font-size: clamp(1.3rem, 1.1vw + .9rem, 2.1rem);
+    font-weight: 900;
     color: var(--db-t1);
     margin-bottom: 0.55rem;
     line-height: 1.28;
     letter-spacing: -.01em;
 }
 .insight-desc {
-    font-size: 0.91rem;
+    font-size: 1.05rem;
     color: #c7d1e4;
     line-height: 1.58;
 }
@@ -246,14 +249,14 @@ hr { margin: 1.25rem 0 !important; border: none !important; border-top: 1px soli
     margin: 0 0 14px 2px;
 }
 .sec-title {
-    font-size: 1.1rem; font-weight: 800;
+    font-size: 1.25rem; font-weight: 900;
     color: var(--db-t1); letter-spacing: -.005em;
 }
 .sec-badge {
-    font-size: 11px; font-weight: 700; letter-spacing: .1em;
+    font-size: 12px; font-weight: 800; letter-spacing: .1em;
     text-transform: uppercase; color: var(--db-t2);
     background: var(--db-bg3); border: 1px solid var(--db-line);
-    padding: 5px 12px; border-radius: 999px;
+    padding: 6px 14px; border-radius: 999px;
 }
 
 /* ── table container ── */
@@ -282,7 +285,7 @@ hr { margin: 1.25rem 0 !important; border: none !important; border-top: 1px soli
     display: inline-flex; align-items: center; justify-content: center;
     min-width: 44px; padding: 6px 10px;
     background: var(--db-bg4); color: var(--db-t1);
-    font-size: 14px; font-weight: 800;
+    font-size: 16px; font-weight: 900;
     border-radius: 10px; letter-spacing: -.01em;
 }
 .rank-pill.top { background: linear-gradient(135deg, #34d399, #10b981); color: #0d1117; }
@@ -291,7 +294,7 @@ hr { margin: 1.25rem 0 !important; border: none !important; border-top: 1px soli
 .sbar-fg { height: 100%; border-radius: 4px; }
 
 /* ── spotlight enhancement ── */
-.sp-name { font-size: 1.6rem; font-weight: 900; line-height: 1.2; margin-bottom: 0.5rem; color: var(--db-t1); }
+.sp-name { font-size: 1.8rem; font-weight: 950; line-height: 1.2; margin-bottom: 0.5rem; color: var(--db-t1); }
 .sp-artist { font-size: 0.95rem; color: var(--db-t2); margin-bottom: 1rem; }
 .sp-stat { padding: 0.65rem 0.9rem; border-radius: 12px; background: var(--db-bg3); border: 1px solid var(--db-line); }
 .sp-lbl { font-size: 11px; color: var(--db-t3); font-weight: 700; letter-spacing: .1em; text-transform: uppercase; margin-bottom: 4px; }
@@ -871,14 +874,14 @@ def _debut_table_html(df: pd.DataFrame, score_col: str = "total_streams", max_ro
     max_score = df[score_col].max() if score_col in df.columns else 1
 
     header = """
-    <div style="display:grid;grid-template-columns:80px 1.8fr 1.2fr 1fr 100px 80px;
+    <div style="display:grid;grid-template-columns:80px 1.8fr 1.2fr 1fr 100px 110px;
                 gap:12px;padding:8px 0;border-bottom:1px solid var(--border);margin-bottom:4px;">
-      <span style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;font-weight:700">Rank</span>
-      <span style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;font-weight:700">Track Title</span>
-      <span style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;font-weight:700">Artist</span>
-      <span style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;font-weight:700">Label</span>
-      <span style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;font-weight:700;text-align:right">Score</span>
-      <span style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;font-weight:700;text-align:right">Signal</span>
+      <span style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;font-weight:700;text-align:center">Rank</span>
+      <span style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;font-weight:700;text-align:center">Track Title</span>
+      <span style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;font-weight:700;text-align:center">Artist</span>
+      <span style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;font-weight:700;text-align:center">Label</span>
+      <span style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;font-weight:700;text-align:center">Score</span>
+      <span style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;font-weight:700;text-align:center">Signal</span>
     </div>"""
 
     rows_html = ""
@@ -904,20 +907,20 @@ def _debut_table_html(df: pd.DataFrame, score_col: str = "total_streams", max_ro
         rows_html += f"""
         <div class="rank-row"
              style="grid-template-columns:80px 1.8fr 1.2fr 1fr 100px 110px;">
-          <span class="rank-pill {pill_class}">{rank}</span>
+          <span class="rank-pill {pill_class}" style="justify-self:center">{rank}</span>
           <div>
-            <div style="font-size:15px;font-weight:700;color:var(--db-t1);
-                        white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:6px">{title}</div>
-            <div class="sbar-bg">
+            <div style="font-size:17px;font-weight:800;color:var(--db-t1);
+                        white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:7px;text-align:center">{title}</div>
+            <div class="sbar-bg" style="margin: 0 auto; max-width: 90%;">
               <div class="sbar-fg" style="width:{pct}%;background:{bar_color}"></div>
             </div>
           </div>
-          <div style="font-size:13px;color:var(--db-t2);white-space:nowrap;
-                      overflow:hidden;text-overflow:ellipsis">{artist}</div>
+          <div style="font-size:14px;color:var(--db-t2);white-space:nowrap;
+                      overflow:hidden;text-overflow:ellipsis;text-align:center;font-weight:600;">{artist}</div>
           <div style="font-size:12px;color:var(--db-purple);font-weight:600;white-space:nowrap;
-                      overflow:hidden;text-overflow:ellipsis">{label_display}</div>
-          <span style="font-size:15px;font-weight:800;color:var(--db-t1);text-align:right">{fmt(score)}</span>
-          <span style="text-align:right">{badge}</span>
+                      overflow:hidden;text-overflow:ellipsis;text-align:center">{label_display}</div>
+          <span style="font-size:15px;font-weight:800;color:var(--db-t1);text-align:center">{fmt(score)}</span>
+          <div style="display:flex;justify-content:center">{badge}</div>
         </div>"""
 
     return header + rows_html
@@ -931,12 +934,12 @@ def _itunes_debut_table_html(df: pd.DataFrame, max_rows: int = 15) -> str:
     header = """
     <div style="display:grid;grid-template-columns:80px 1.8fr 1.5fr 1fr 100px 80px;
                 gap:12px;padding:8px 0;border-bottom:1px solid var(--border);margin-bottom:4px;">
-      <span style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;font-weight:700">Rank</span>
-      <span style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;font-weight:700">Track Title</span>
-      <span style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;font-weight:700">Artist</span>
-      <span style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;font-weight:700">Label</span>
-      <span style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;font-weight:700;text-align:right">Points</span>
-      <span style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;font-weight:700;text-align:right">Peak</span>
+      <span style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;font-weight:700;text-align:center">Rank</span>
+      <span style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;font-weight:700;text-align:center">Track Title</span>
+      <span style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;font-weight:700;text-align:center">Artist</span>
+      <span style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;font-weight:700;text-align:center">Label</span>
+      <span style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;font-weight:700;text-align:center">Points</span>
+      <span style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;font-weight:700;text-align:center">Peak</span>
     </div>"""
 
     rows_html = ""
@@ -956,15 +959,15 @@ def _itunes_debut_table_html(df: pd.DataFrame, max_rows: int = 15) -> str:
         rows_html += f"""
         <div class="rank-row"
              style="grid-template-columns:80px 1.8fr 1.5fr 1fr 100px 80px;">
-          <span class="rank-pill {pill_class}">{rank}</span>
+          <span class="rank-pill {pill_class}" style="justify-self:center">{rank}</span>
           <div style="font-size:15px;font-weight:700;color:var(--db-t1);
-                      white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{title}</div>
+                      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center">{title}</div>
           <div style="font-size:13px;color:var(--db-t2);white-space:nowrap;
-                      overflow:hidden;text-overflow:ellipsis">{artist}</div>
+                      overflow:hidden;text-overflow:ellipsis;text-align:center">{artist}</div>
           <div style="font-size:12px;color:var(--db-purple);font-weight:600;white-space:nowrap;
-                      overflow:hidden;text-overflow:ellipsis">{label_display}</div>
-          <span style="font-size:15px;font-weight:800;color:var(--db-t1);text-align:right">{fmt(score)}</span>
-          <span style="font-size:13px;color:{peak_color};text-align:right;font-weight:700">pk#{peak}</span>
+                      overflow:hidden;text-overflow:ellipsis;text-align:center">{label_display}</div>
+          <span style="font-size:15px;font-weight:800;color:var(--db-t1);text-align:center">{fmt(score)}</span>
+          <span style="font-size:13px;color:{peak_color};text-align:center;font-weight:700">pk#{peak}</span>
         </div>"""
 
     return header + rows_html
@@ -976,12 +979,12 @@ def _multi_track_html(multi_df: pd.DataFrame, debut_df: pd.DataFrame) -> str:
         return "<p style='color:var(--text2);font-size:12px'>No multi-track debutants.</p>"
 
     header = """
-    <div style="display:grid;grid-template-columns:2fr 100px 140px 2fr;
+    <div style="display:grid;grid-template-columns:2fr 110px 140px 2fr;
                 gap:12px;padding:8px 0;border-bottom:1px solid var(--border);margin-bottom:4px;">
-      <span style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;font-weight:700">Artist</span>
+      <span style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;font-weight:700;text-align:center">Artist</span>
       <span style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;font-weight:700;text-align:center">Tracks</span>
-      <span style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;font-weight:700;text-align:right">Combined Score</span>
-      <span style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;font-weight:700;padding-left:15px">Breakdown (Rank & Score)</span>
+      <span style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;font-weight:700;text-align:center">Combined Score</span>
+      <span style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;font-weight:700;text-align:center">Breakdown (Rank & Score)</span>
     </div>"""
 
     rows_html = ""
@@ -1003,12 +1006,12 @@ def _multi_track_html(multi_df: pd.DataFrame, debut_df: pd.DataFrame) -> str:
         rows_html += f"""
         <div class="rank-row"
              style="grid-template-columns:2fr 110px 140px 2fr;">
-          <span style="font-size:15px;font-weight:800;color:var(--db-t1)">{artist}</span>
+          <span style="font-size:15px;font-weight:800;color:var(--db-t1);text-align:center">{artist}</span>
           <div style="text-align:center">
             <span class="badge-multi">{track_count} TRACKS</span>
           </div>
-          <span style="font-size:15px;font-weight:800;color:var(--db-purple);text-align:right">{fmt(combined)}</span>
-          <div style="font-size:13px;padding-left:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+          <span style="font-size:15px;font-weight:800;color:var(--db-purple);text-align:center">{fmt(combined)}</span>
+          <div style="font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center">
             {scores_txt}
           </div>
         </div>"""
@@ -1055,11 +1058,11 @@ def _itunes_artist_new_entries_table_html(df: pd.DataFrame) -> str:
     header = """
     <div style="display:grid;grid-template-columns:80px 1.5fr 1fr 120px 120px;
                 gap:12px;padding:8px 0;border-bottom:1px solid var(--border);margin-bottom:4px;">
-      <span style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;font-weight:700">Rank</span>
-      <span style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;font-weight:700">Artist</span>
-      <span style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;font-weight:700">Change</span>
-      <span style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;font-weight:700;text-align:right">Points</span>
-      <span style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;font-weight:700;text-align:right">Date</span>
+      <span style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;font-weight:700;text-align:center">Rank</span>
+      <span style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;font-weight:700;text-align:center">Artist</span>
+      <span style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;font-weight:700;text-align:center">Change</span>
+      <span style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;font-weight:700;text-align:center">Points</span>
+      <span style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;font-weight:700;text-align:center">Date</span>
     </div>"""
 
     rows_html = ""
@@ -1075,12 +1078,12 @@ def _itunes_artist_new_entries_table_html(df: pd.DataFrame) -> str:
         rows_html += f"""
         <div class="rank-row"
              style="grid-template-columns:80px 1.5fr 1fr 120px 120px;">
-          <span class="rank-pill {pill_class}">{rank}</span>
+          <span class="rank-pill {pill_class}" style="justify-self:center">{rank}</span>
           <div style="font-size:15px;font-weight:700;color:var(--db-t1);
-                      white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{artist}</div>
-          <div><span class="badge-new">{change}</span></div>
-          <span style="font-size:15px;font-weight:800;color:var(--db-t1);text-align:right">{fmt(points)}</span>
-          <span style="font-size:13px;color:var(--db-t2);text-align:right;font-weight:600">{date_str}</span>
+                      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center">{artist}</div>
+          <div style="display:flex;justify-content:center"><span class="badge-new">{change}</span></div>
+          <span style="font-size:15px;font-weight:800;color:var(--db-t1);text-align:center">{fmt(points)}</span>
+          <span style="font-size:13px;color:var(--db-t2);text-align:center;font-weight:600">{date_str}</span>
         </div>"""
 
     return header + rows_html
@@ -1147,9 +1150,11 @@ def _chart_score_distribution(debut_df: pd.DataFrame, score_col: str = "total_st
 #  MAIN RENDER
 # ─────────────────────────────────────────────────────────────
 
-def render_debut_tab() -> None:
+def render_debut_tab(filtered_leaderboard: pd.DataFrame | None = None) -> None:
     """
     Main entry point for the Debut Intelligence Dashboard tab.
+    If filtered_leaderboard is provided, debut data is filtered to only
+    include artists present in the filtered leaderboard.
     """
     # Inject CSS
     st.markdown(DEBUT_CSS, unsafe_allow_html=True)
@@ -1161,8 +1166,31 @@ def render_debut_tab() -> None:
     trending_df= get_new_trending_artists()
     itunes_artist_new_df = get_itunes_artist_new_entries(10)
 
+    # ── Apply country filter from sidebar ──────────────────
+    if filtered_leaderboard is not None and not filtered_leaderboard.empty:
+        allowed_artists = set(filtered_leaderboard["name"].dropna().str.lower().unique())
+
+        def _artist_match(artist_title: str, allowed: set) -> bool:
+            """Check if artist name from 'Artist - Track' format is in allowed set."""
+            name = str(artist_title).split(" - ", 1)[0].strip().lower()
+            return name in allowed
+
+        if not debut_df.empty and "artist_title" in debut_df.columns:
+            debut_df = debut_df[debut_df["artist_title"].apply(lambda x: _artist_match(x, allowed_artists))]
+
+        if not all_df.empty and "artist_title" in all_df.columns:
+            all_df = all_df[all_df["artist_title"].apply(lambda x: _artist_match(x, allowed_artists))]
+
+        if not itunes_df.empty and "artist_title" in itunes_df.columns:
+            itunes_df = itunes_df[itunes_df["artist_title"].apply(lambda x: _artist_match(x, allowed_artists))]
+
+        if not itunes_artist_new_df.empty and "artist_name" in itunes_artist_new_df.columns:
+            itunes_artist_new_df = itunes_artist_new_df[itunes_artist_new_df["artist_name"].str.lower().isin(allowed_artists)]
+
+        if not trending_df.empty and "artist_name" in trending_df.columns:
+            trending_df = trending_df[trending_df["artist_name"].str.lower().isin(allowed_artists)]
+
     kpis       = get_debut_kpis(debut_df, all_df)
-    multi_df   = get_multi_track_debutants(debut_df)
     bucket_df  = get_debut_rank_buckets(debut_df)
 
     monday     = datetime.now() - timedelta(days=datetime.now().weekday())
@@ -1237,15 +1265,7 @@ def render_debut_tab() -> None:
         unsafe_allow_html=True,
     )
 
-    st.markdown("<hr>", unsafe_allow_html=True)
 
-        # ── Row 4: Multi-track debutants ──────────────
-    _sec("Multi-track debutants this week", f"{len(multi_df)} artists")
-    multi_html = _multi_track_html(multi_df, debut_df)
-    st.markdown(
-        f'<div class="db-tbl-wrap" style="max-height:420px;overflow-y:auto">{multi_html}</div>',
-        unsafe_allow_html=True,
-    )
 
 
 

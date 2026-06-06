@@ -24,6 +24,10 @@ logger = get_logger(__name__)
 
 WINDOW_DAYS = 30  # take all available data within last N days
 
+# ───────────────────────── theme CSS ──────────────────────────
+_THEME_LIGHT = ":root{--bg:#F5F6FA;--bg2:#FFFFFF;--bg3:#F8F9FB;--bg4:#EEF1F7;--border:rgba(148,163,184,.2);--border2:rgba(148,163,184,.35);--t1:#1A1A1A;--t2:#4A5568;--t3:#8A8FA3;--t4:#A0AEC0;--green:#34d399;--gd:rgba(52,211,153,.18);--red:#fb7185;--rd:rgba(251,113,133,.18);--blue:#60a5fa;--bd:rgba(96,165,250,.18);--purple:#c4b5fd;--pd:rgba(196,181,253,.18);--amber:#fcd34d;--teal:#5eead4;--pink:#f9a8d4;}"
+_THEME_DARK  = ":root{--bg:#0d1117;--bg2:#161b27;--bg3:#1a2035;--bg4:#1e2740;--border:rgba(41,52,85,.7);--border2:rgba(58,70,97,.8);--t1:#e2e8f0;--t2:#94a3b8;--t3:#8b95ad;--t4:#6b7a99;--green:#34d399;--gd:rgba(52,211,153,.18);--red:#fb7185;--rd:rgba(251,113,133,.18);--blue:#60a5fa;--bd:rgba(96,165,250,.18);--purple:#c4b5fd;--pd:rgba(196,181,253,.18);--amber:#fcd34d;--teal:#5eead4;--pink:#f9a8d4;}"
+
 
 # ───────────────────────── data helpers ──────────────────────────
 
@@ -107,17 +111,36 @@ def _load_daily(table: str, country: str, days: int) -> pd.DataFrame:
 
 
 @st.cache_data(ttl=300, show_spinner=False)
-def _load_artist_universe() -> pd.DataFrame:
-    """Primary universe = artists ranked on iTunes WW on the latest scrape day (~300)."""
+def get_processed_artist_payloads(
+    universe_df: pd.DataFrame,
+    sp_artist_df: pd.DataFrame,
+    it_artist_df: pd.DataFrame,
+    sp_daily_df: pd.DataFrame,
+    it_daily_df: pd.DataFrame,
+    dates: list[date],
+) -> dict[str, dict]:
+    """
+    Cached wrapper for building artist payloads.
+    Caching the results of processing logic significantly improves dashboard responsiveness.
+    """
+    return _build_artist_payloads(universe_df, sp_artist_df, it_artist_df, sp_daily_df, it_daily_df, dates)
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def _load_artist_universe(days: int) -> pd.DataFrame:
+    """Primary universe = artists ranked on iTunes WW within the given window."""
     query = """
+        WITH bounds AS (SELECT MAX(scrape_date) AS max_d FROM itunes_artist_rankings)
         SELECT DISTINCT a.id AS artist_id, a.name
         FROM itunes_artist_rankings ir
+        CROSS JOIN bounds b
         JOIN artists a ON a.id = ir.artist_id
-        WHERE ir.scrape_date = (SELECT MAX(scrape_date) FROM itunes_artist_rankings)
+        WHERE ir.scrape_date > (b.max_d - %s::int)
+          AND ir.scrape_date <= b.max_d
           AND a.name IS NOT NULL
         ORDER BY a.name
     """
-    rows = _run_query(query, ())
+    rows = _run_query(query, (days,))
     return pd.DataFrame(rows) if rows else pd.DataFrame(columns=["artist_id", "name"])
 
 
@@ -163,6 +186,7 @@ def _load_itunes_artist_series(days: int) -> pd.DataFrame:
               ir.artist_id,
               ir.scrape_date,
               ir.rank,
+              ir.rank_change,
               ir.total_points,
               ROW_NUMBER() OVER (
                 PARTITION BY ir.artist_id, ir.scrape_date
@@ -172,14 +196,14 @@ def _load_itunes_artist_series(days: int) -> pd.DataFrame:
             WHERE ir.scrape_date >  (b.max_d - %s::int)
               AND ir.scrape_date <= b.max_d
         )
-        SELECT r.artist_id, a.name, r.scrape_date, r.rank, r.total_points
+        SELECT r.artist_id, a.name, r.scrape_date, r.rank, r.rank_change, r.total_points
         FROM ranked r
         JOIN artists a ON a.id = r.artist_id
         WHERE r.rn = 1
     """
     rows = _run_query(query, (days,))
     if not rows:
-        return pd.DataFrame(columns=["artist_id", "name", "scrape_date", "rank", "total_points"])
+        return pd.DataFrame(columns=["artist_id", "name", "scrape_date", "rank", "rank_change", "total_points"])
     df = pd.DataFrame(rows)
     df["scrape_date"] = pd.to_datetime(df["scrape_date"]).dt.date
     df["rank"] = pd.to_numeric(df["rank"], errors="coerce")
@@ -197,14 +221,12 @@ def _series_or_none(values_by_date: dict[date, Any], dates: list[date]) -> list[
     return [values_by_date.get(d) for d in dates]
 
 
-def _signal(score: int, momentum: float, best_rank: int | None) -> tuple[str, str]:
-    if best_rank is not None and best_rank <= 10 and momentum >= 5:
+def _signal(score: int, momentum: float) -> tuple[str, str]:
+    if score >= 70:
         return "STRONG BUY", "sb-buy"
-    if score >= 140 and momentum >= 0:
-        return "STRONG BUY", "sb-buy"
-    if best_rank is not None and best_rank <= 30:
+    if score >= 45:
         return "WATCH", "sb-watch"
-    if momentum <= -25:
+    if momentum <= -10:
         return "CAUTION", "sb-caution"
     return "WATCH", "sb-watch"
 
@@ -222,9 +244,13 @@ def _build_artist_payloads(
     if universe_df.empty:
         return out
 
-    # Pre-group per-artist series (per artist NAME — universe and series share `name`)
-    sp_by_name = {n: g for n, g in sp_artist_df.groupby("name")} if not sp_artist_df.empty else {}
-    it_by_name = {n: g for n, g in it_artist_df.groupby("name")} if not it_artist_df.empty else {}
+    # ── Vectorized data prep ──
+    # Pivot dataframes instead of doing group-by lookups in a loop for massive speed gains
+    ml_pivot = sp_artist_df.pivot_table(index='name', columns='scrape_date', values='monthly_listeners', aggfunc='last').reindex(columns=dates) if not sp_artist_df.empty else pd.DataFrame(index=[], columns=dates)
+    
+    it_pts_pivot = it_artist_df.pivot_table(index='name', columns='scrape_date', values='total_points', aggfunc='last').reindex(columns=dates) if not it_artist_df.empty else pd.DataFrame(index=[], columns=dates)
+    it_rank_pivot = it_artist_df.pivot_table(index='name', columns='scrape_date', values='rank', aggfunc='last').reindex(columns=dates) if not it_artist_df.empty else pd.DataFrame(index=[], columns=dates)
+    it_rank_change_pivot = it_artist_df.pivot_table(index='name', columns='scrape_date', values='rank_change', aggfunc='last').reindex(columns=dates) if not it_artist_df.empty else pd.DataFrame(index=[], columns=dates)
 
     # Spotify chart presence (top tracks, label, best chart rank) is matched by display name.
     if not sp_daily_df.empty:
@@ -238,12 +264,11 @@ def _build_artist_payloads(
             continue
 
         # ── Spotify monthly_listeners trajectory ──
-        ml_g = sp_by_name.get(artist)
-        if ml_g is not None and not ml_g.empty:
-            ml_map = dict(zip(ml_g["scrape_date"], ml_g["monthly_listeners"]))
+        if artist in ml_pivot.index:
+            ml_series_raw = [int(v) if pd.notna(v) else None for v in ml_pivot.loc[artist]]
         else:
-            ml_map = {}
-        ml_series_raw = [int(ml_map[d]) if ml_map.get(d) is not None and pd.notna(ml_map.get(d)) else None for d in dates]
+            ml_series_raw = [None] * len(dates)
+
         # Drop scraper-format outliers: any point < 25% of the series max is likely a metric discontinuity
         peak_ml_raw = max([v for v in ml_series_raw if v is not None] or [0])
         threshold = peak_ml_raw * 0.25 if peak_ml_raw else 0
@@ -256,18 +281,26 @@ def _build_artist_payloads(
         peak_vs_start = ((peak_ml - first_ml) / first_ml * 100) if first_ml else 0.0
 
         # ── iTunes WW per-artist trajectory ──
-        it_g = it_by_name.get(artist)
-        if it_g is not None and not it_g.empty:
-            it_pts_map = dict(zip(it_g["scrape_date"], it_g["total_points"]))
-            it_rank_map = dict(zip(it_g["scrape_date"], it_g["rank"]))
+        if artist in it_pts_pivot.index:
+            it_scores = [int(v) if pd.notna(v) else 0 for v in it_pts_pivot.loc[artist]]
+            it_ranks = [int(v) if pd.notna(v) else None for v in it_rank_pivot.loc[artist]]
+            # For best_it_date logic
+            it_pts_row = it_pts_pivot.loc[artist].dropna()
+            best_it_date = it_pts_row.idxmax() if not it_pts_row.empty else None
         else:
-            it_pts_map, it_rank_map = {}, {}
-        it_scores = [int(it_pts_map[d]) if it_pts_map.get(d) is not None and pd.notna(it_pts_map.get(d)) else 0 for d in dates]
-        it_ranks = [int(it_rank_map[d]) if it_rank_map.get(d) is not None and pd.notna(it_rank_map.get(d)) else None for d in dates]
+            it_scores = [0] * len(dates)
+            it_ranks = [None] * len(dates)
+            best_it_date = None
+
+        is_new_champion = False
+        if artist in it_rank_change_pivot.index:
+            rc_series = it_rank_change_pivot.loc[artist].dropna()
+            if not rc_series.empty and rc_series.iloc[-1] == "NEW":
+                is_new_champion = True
+
         ranks_clean = [r for r in it_ranks if r is not None]
         best_it_rank = min(ranks_clean) if ranks_clean else None
         best_it_score = max([s for s in it_scores if s > 0], default=0)
-        best_it_date = max(it_pts_map, key=lambda d: it_pts_map[d]) if it_pts_map else None
 
         # ── Spotify chart presence (top tracks / label / best chart rank) ──
         sp_d = sp_daily_by_artist.get(artist)
@@ -301,13 +334,25 @@ def _build_artist_payloads(
             tracks = []
         label_upper = (str(label) or "INDEPENDENT").upper()
 
-        # ── Composite acquisition score ──
-        ml_score = min(100, int(peak_ml / 1_000_000)) if peak_ml else 0
-        itunes_bonus = max(0, 60 - best_it_rank) if best_it_rank else 0
-        chart_bonus = min(40, track_count * 4) + (max(0, 50 - best_sp_rank) if best_sp_rank else 0)
-        momentum_bonus = max(-40, min(60, int(momentum)))
-        acq_score = max(0, ml_score + itunes_bonus + chart_bonus + momentum_bonus)
-        signal_text, signal_class = _signal(acq_score, momentum, best_it_rank or best_sp_rank)
+        # ── A&R Business Acquisition Score (5 Pillars Approximation) ──
+        # Reach (25%)
+        sp_score = max(0, 10 - int((best_sp_rank or 200) / 10))
+        it_score = max(0, 10 - int((best_it_rank or 200) / 10))
+        tr_score = min(5, track_count * 2)
+        reach = min(25, sp_score + it_score + tr_score)
+        
+        # Consistency (25%) & Momentum (25%) approximated for Python payload
+        momentum_score = max(0, min(25, int(momentum * 0.5 + 10)))
+        consistency = min(25, 10 + min(15, track_count * 3))
+        
+        # Longevity (15%)
+        longevity = min(15, int(track_count * 3)) if tracks else 0
+        
+        # Commercial Depth (10%)
+        depth = min(10, (3 if best_sp_rank and best_sp_rank <= 10 else 0) + (3 if best_it_rank and best_it_rank <= 10 else 0) + min(4, track_count))
+        
+        acq_score = min(100, max(0, reach + consistency + momentum_score + longevity + depth))
+        signal_text, signal_class = _signal(acq_score, momentum)
 
         # ── Five signals ──
         signals: list[dict[str, str]] = []
@@ -369,15 +414,19 @@ def _build_artist_payloads(
             "signalClass": signal_class,
             "quote": _build_quote(artist, track_count, momentum, best_sp_rank, best_sp_track, best_it_rank, peak_ml),
             "spStreams": [v if v is not None else 0 for v in ml_series],
+            "originalSpStreams": [v if v is not None else 0 for v in ml_series],
             "itScores": it_scores,
+            "originalItScores": it_scores,
             "itRanks": it_ranks,
+            "originalItRanks": it_ranks,
             "bestSpRank": f"{best_sp_rank}" if best_sp_rank else "—",
             "bestSpSub": (best_sp_track[:36] if best_sp_rank else "Not in Top 200"),
             "peakStreams": _fmt_n(peak_ml),
-            "peakStreamsSub": (f"+{peak_vs_start:.1f}% vs day 1" if peak_vs_start >= 0 else f"{peak_vs_start:.1f}% vs day 1"),
+            "peakStreamsSub": "Peak Spotify listeners",
+            "peakStreamsVal": peak_ml,
             "trackCount": str(track_count),
-            "trackCountSub": ("simultaneous charting" if track_count > 1 else ("single-track play" if track_count == 1 else "not on Spotify Global")),
-            "bestItunes": f"{best_it_rank}" if best_it_rank else "—",
+            "trackCountSub": "Simultaneous tracks",
+            "bestItunes": str(best_it_rank) if best_it_rank else "—",
             "itunesSub": (
                 f"Score {_fmt_n(best_it_score)} · {best_it_date.strftime('%b %d')}"
                 if best_it_date else "Not ranked iTunes WW"
@@ -386,6 +435,7 @@ def _build_artist_payloads(
             "acqScore": int(acq_score),
             "tracks": tracks,
             "signals": signals,
+            "isNewChampion": is_new_champion,
         }
 
     return out
@@ -429,22 +479,20 @@ def _fmt_n(n: float | int | None) -> str:
 
 def render_acquisition() -> None:
     st.markdown(
-      "<div style='font-size:0.85rem;color:#97a3c5;margin:-0.5rem 0 0.75rem 0'>"
-      "Commercial signal intelligence — composite acquisition recommendations "
-      "from Spotify Global + iTunes WW daily charts."
+      "<div style='font-size: 0.92rem; color: var(--text2); margin: 0 0 14px; line-height: 1.5; font-weight: 500;'>"
+      "🎤 Artist-level acquisition recommendations driven by peak Spotify monthly listeners, iTunes Worldwide performance, "
+      "and recent audience momentum."
       "</div>",
       unsafe_allow_html=True,
     )
 
-    period_map = {"1 Day": 1, "7 Days": 7, "30 Days": 30}
-    period_label = st.radio("Time period", list(period_map.keys()), index=2, horizontal=True)
-    period_days = period_map[period_label]
+    period_days = 30
 
-    sp_df = _load_daily("spotify_daily", "global", period_days)
-    it_df = _load_daily("itunes_daily", "ww", period_days)
-    universe_df = _load_artist_universe()
-    sp_artist_df = _load_spotify_artist_series(period_days)
-    it_artist_df = _load_itunes_artist_series(period_days)
+    sp_df = _load_daily("spotify_daily", "global", 30)
+    it_df = _load_daily("itunes_daily", "ww", 30)
+    universe_df = _load_artist_universe(30)
+    sp_artist_df = _load_spotify_artist_series(30)
+    it_artist_df = _load_itunes_artist_series(30)
 
     if universe_df.empty:
       st.warning("No iTunes artist rankings available — cannot build acquisition universe.")
@@ -463,7 +511,7 @@ def render_acquisition() -> None:
       st.warning("No dates found in window.")
       return
 
-    artist_data = _build_artist_payloads(universe_df, sp_artist_df, it_artist_df, sp_df, it_df, dates)
+    artist_data = get_processed_artist_payloads(universe_df, sp_artist_df, it_artist_df, sp_df, it_df, dates)
     if not artist_data:
       st.warning("No artist signals could be computed.")
       return
@@ -503,37 +551,30 @@ def render_acquisition() -> None:
         "momentum": momentum_data,
         "defaultArtist": default_artist,
         "allArtists": list(artist_data.keys()),
+        "maxWindowDays": 30,
     }
 
-    html = _build_html(payload)
+    html = _build_html(payload, dark_mode=st.session_state.get("dark_mode", False))
     st_components.html(html, height=1700, scrolling=True)
 
 
 # ───────────────────────── HTML ──────────────────────────
 
-def _build_html(payload: dict) -> str:
+def _build_html(payload: dict, dark_mode: bool = False) -> str:
     data_json = json.dumps(payload, default=str)
+    theme_css = _THEME_DARK if dark_mode else _THEME_LIGHT
     return """
   <!DOCTYPE html><html><head><meta charset='utf-8'>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-:root{
-  --bg:#0d1117;--bg2:#161b26;--bg3:#1f2633;--bg4:#283041;
-  --border:#2a3446;--border2:#3a4661;
-  --t1:#ffffff;--t2:#cdd6e4;--t3:#8b95ad;--t4:#5b657d;
-  --green:#34d399;--gd:rgba(52,211,153,.18);
-  --red:#fb7185;--rd:rgba(251,113,133,.18);
-  --blue:#60a5fa;--bd:rgba(96,165,250,.18);
-  --purple:#c4b5fd;--pd:rgba(196,181,253,.18);
-  --amber:#fcd34d;--teal:#5eead4;--pink:#f9a8d4;
-}
-body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t1);font-size:14px;line-height:1.55}
+__THEME__
+body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t1);font-size:16px;line-height:1.55}
 .hdr{background:linear-gradient(180deg,#1a2235 0%,var(--bg2) 100%);border-bottom:1px solid var(--border);padding:20px 24px 16px;display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:14px}
-.brand{font-size:11px;color:var(--t3);letter-spacing:1.4px;text-transform:uppercase;display:flex;align-items:center;gap:8px;margin-bottom:6px;font-weight:600}
+.brand{font-size:13px;color:var(--t3);letter-spacing:1.4px;text-transform:uppercase;display:flex;align-items:center;gap:8px;margin-bottom:6px;font-weight:700}
 .live-dot{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);animation:blink 2s infinite;flex-shrink:0}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.4}}
-.dash-title{font-size:26px;font-weight:700;letter-spacing:-.5px;color:#fff}
-.dash-sub{font-size:12px;color:var(--t2);letter-spacing:.3px;margin-top:4px;font-weight:500}
+.dash-title{font-size:28px;font-weight:800;letter-spacing:-.5px;color:var(--t1)}
+.dash-sub{font-size:14px;color:var(--t2);letter-spacing:.3px;margin-top:4px;font-weight:600}
 .fy-pill{font-size:10px;color:var(--t2);background:var(--bg3);border:1px solid var(--border2);padding:5px 12px;border-radius:20px;font-weight:500;letter-spacing:.3px}
 
 .selector-bar{background:var(--bg2);border-bottom:1px solid var(--border);padding:14px 24px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;position:relative;z-index:50}
@@ -553,8 +594,8 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
 .dd-search:focus{border-color:var(--blue)}
 .dd-list{flex:1;overflow-y:auto;padding:4px 0}
 .dd-opt{display:flex;align-items:center;gap:10px;padding:8px 14px;cursor:pointer;color:var(--t2);font-size:13px;transition:.1s}
-.dd-opt:hover{background:var(--bg3);color:#fff}
-.dd-opt.on{background:rgba(96,165,250,.12);color:#fff;font-weight:600}
+.dd-opt:hover{background:var(--bg3);color:var(--t1)}
+.dd-opt.on{background:rgba(96,165,250,.12);color:var(--t1);font-weight:600}
 .dd-opt-meta{font-size:10px;color:var(--t3);margin-left:auto;font-variant-numeric:tabular-nums}
 .dd-empty{padding:18px;text-align:center;color:var(--t3);font-size:12px}
 
@@ -564,25 +605,25 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
 .acq-card.buy{border-top:3px solid var(--green)}
 .acq-card.watch{border-top:3px solid var(--blue)}
 .acq-card.caution{border-top:3px solid var(--red)}
-.acq-header{padding:20px 22px 16px;border-bottom:1px solid var(--border)}
-.acq-meta{font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.7px;margin-bottom:8px;font-weight:600}
+.acq-header{padding:14px 20px 12px;border-bottom:1px solid var(--border)}
+.acq-meta{font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.7px;margin-bottom:6px;font-weight:600}
 .acq-row{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:14px}
 .acq-left{flex:1;min-width:240px}
-.acq-id-row{display:flex;align-items:center;gap:14px;margin-bottom:6px}
-.acq-avatar{width:46px;height:46px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;flex-shrink:0}
-.acq-name{font-size:24px;font-weight:700;letter-spacing:-.5px;line-height:1.2;color:#fff}
-.acq-sublabel{font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.7px;margin-top:3px;font-weight:600}
-.acq-quote{font-size:13px;color:var(--t2);line-height:1.65;border-left:2px solid var(--border2);padding-left:14px;margin-top:12px}
+.acq-id-row{display:flex;align-items:center;gap:12px;margin-bottom:4px}
+.acq-avatar{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;flex-shrink:0}
+.acq-name{font-size:22px;font-weight:800;letter-spacing:-.5px;line-height:1.2;color:var(--t1)}
+.acq-sublabel{font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.7px;margin-top:2px;font-weight:600}
+.acq-quote{font-size:14px;color:var(--t2);line-height:1.5;border-left:2px solid var(--border2);padding-left:12px;margin-top:10px}
 .signal-badge{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;padding:7px 14px;border-radius:6px;letter-spacing:.5px;text-transform:uppercase;white-space:nowrap}
 .sb-buy{background:var(--gd);color:var(--green);border:1px solid rgba(52,211,153,.4)}
 .sb-watch{background:var(--bd);color:var(--blue);border:1px solid rgba(96,165,250,.4)}
 .sb-caution{background:var(--rd);color:var(--red);border:1px solid rgba(251,113,133,.4)}
 
-.stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border);border-top:1px solid var(--border)}
-.stat-cell{background:var(--bg2);padding:16px 18px;transition:.15s}
+.stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--border);border-top:1px solid var(--border)}
+.stat-cell{background:var(--bg2);padding:12px 18px;transition:.15s}
 .stat-cell:hover{background:var(--bg3)}
-.stat-lbl{font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.7px;margin-bottom:7px;font-weight:600}
-.stat-val{font-size:24px;font-weight:700;letter-spacing:-.5px;color:#fff;font-variant-numeric:tabular-nums}
+.stat-lbl{font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px;font-weight:800}
+.stat-val{font-size:22px;font-weight:800;letter-spacing:-.5px;color:var(--t1);font-variant-numeric:tabular-nums}
 .stat-val.g{color:var(--green)}.stat-val.r{color:var(--red)}.stat-val.b{color:var(--blue)}.stat-val.p{color:var(--purple)}.stat-val.a{color:var(--amber)}
 .stat-sub{font-size:11px;color:var(--t2);margin-top:5px;font-weight:500}
 .stat-sub.g{color:var(--green)}.stat-sub.r{color:var(--red)}
@@ -598,14 +639,14 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
 .trk{display:grid;gap:8px;padding:11px 0;border-bottom:1px solid var(--border);align-items:center}
 .trk:last-child{border-bottom:none}
 .trk-rank{font-size:12px;color:var(--t3);text-align:center;font-weight:600}
-.trk-name{font-size:13px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:-.1px}
+.trk-name{font-size:13px;font-weight:600;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:-.1px}
 .trk-val{font-size:13px;color:var(--t2);text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums;font-weight:500}
 
 .signals-card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:18px 20px}
 .sig-row{display:flex;align-items:flex-start;gap:14px;padding:12px 0;border-bottom:1px solid var(--border)}
 .sig-row:last-child{border-bottom:none}
 .sig-icon{font-size:20px;flex-shrink:0;margin-top:1px}
-.sig-title{font-size:13px;font-weight:600;color:#fff;margin-bottom:3px;letter-spacing:-.1px}
+.sig-title{font-size:13px;font-weight:600;color:var(--t1);margin-bottom:3px;letter-spacing:-.1px}
 .sig-desc{font-size:12px;color:var(--t2);line-height:1.55}
 
 .leader-card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:18px 20px;max-height:560px;overflow-y:auto}
@@ -615,14 +656,14 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
 .leader-row.on{background:rgba(96,165,250,.1);margin:0 -8px;padding:9px 8px}
 .leader-rank{font-size:12px;color:var(--t3);min-width:22px;text-align:center;font-weight:700}
 .leader-av{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0}
-.leader-name{flex:1;font-size:13px;font-weight:600;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.leader-name{flex:1;font-size:13px;font-weight:600;color:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .score-bar-bg{height:4px;background:var(--bg4);border-radius:3px;margin-top:4px;overflow:hidden}
 .score-bar-fg{height:4px;border-radius:3px;transition:width .4s}
 
 .two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px}
 
 .sh{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--border)}
-.sh-l{font-size:14px;font-weight:600;color:#fff;letter-spacing:-.2px}
+.sh-l{font-size:14px;font-weight:600;color:var(--t1);letter-spacing:-.2px}
 .sh-r{font-size:11px;color:var(--t2);background:var(--bg3);padding:5px 12px;border-radius:5px;border:1px solid var(--border2);font-weight:500}
 
 ::-webkit-scrollbar{width:8px;height:8px}
@@ -631,11 +672,21 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
 ::-webkit-scrollbar-thumb:hover{background:var(--t4)}
 </style></head><body>
 
-<div class="hdr">
-  <div>
-    <div class="brand"></div>
-    <div class="dash-title">Artist Acquisition</div>
-    <div class="dash-sub" id="hdr-sub"></div>
+<div style="background:var(--bg2); border-bottom:1px solid var(--border); padding: 16px 28px;">
+  <div style="max-width:1200px;margin:0 auto;">
+    <details style="cursor:pointer;">
+      <summary style="font-size:13px;font-weight:700;color:var(--t1);outline:none;user-select:none;display:flex;align-items:center;gap:8px;">
+        <span style="color:var(--blue);font-size:15px;">ℹ️</span> How is the Acquisition Score calculated?
+      </summary>
+      <div style="font-size:13px;color:var(--t2);line-height:1.6;margin-top:12px;padding-left:18px;border-left:2px solid var(--border2);margin-left:6px;">
+        Every artist is graded on a 0-100 scale using five key pillars to determine their true business value:<br><br>
+        <b>Reach (25%)</b> — How big is their audience? We look at their peak chart positions to measure their global impact.<br>
+        <b>Consistency (25%)</b> — Do they stick around? We reward artists who maintain steady daily streams rather than one-day viral spikes.<br>
+        <b>Momentum (25%)</b> — Are they gaining traction? We track their daily trajectory to identify artists who are actively blowing up.<br>
+        <b>Longevity (15%)</b> — Do they have staying power? Artists who hold their chart ranks for weeks are proven, safer investments.<br>
+        <b>Commercial Depth (10%)</b> — Do they have a deep catalog? Artists with multiple trending songs are much less risky than one-hit wonders.
+      </div>
+    </details>
   </div>
 </div>
 
@@ -659,37 +710,70 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
 
   <div class="acq-card" id="acq-card">
     <div class="acq-header">
-      <div class="acq-meta" id="acq-meta">Independent artist · signal</div>
+      <div class="acq-meta" style="display:flex;justify-content:space-between">
+        <span>Acquisition recommendation</span>
+        <span id="d-label-top" style="color:var(--t2);text-transform:none"></span>
+      </div>
       <div class="acq-row">
         <div class="acq-left">
           <div class="acq-id-row">
-            <div class="acq-avatar" id="acq-avatar">--</div>
+            <div class="acq-avatar" id="d-av"></div>
             <div>
-              <div class="acq-name" id="acq-name">—</div>
-              <div class="acq-sublabel" id="acq-sublabel">—</div>
+              <div class="acq-name" id="d-name"></div>
+              <div class="acq-sublabel" id="d-label"></div>
+            </div>
+            <div style="margin-left:auto; display:flex; align-items:center; gap:16px;">
+              <div style="text-align:right">
+                <div style="font-size:10px;color:var(--t3);text-transform:uppercase;font-weight:700;letter-spacing:0.5px">ACQ SCORE</div>
+                <div style="font-size:24px;font-weight:800;color:var(--t1);line-height:1" id="d-score">--</div>
+              </div>
+              <div class="signal-badge" id="d-signal"></div>
             </div>
           </div>
-          <div class="acq-quote" id="acq-quote">—</div>
+          <div class="acq-quote" id="d-quote"></div>
         </div>
-        <div id="acq-signal-badge"><span class="signal-badge sb-watch">● WATCH</span></div>
       </div>
     </div>
-    <div class="stat-grid" id="stat-grid">
-      <div class="stat-cell"><div class="stat-lbl">Best Spotify Rank</div><div class="stat-val" id="s-rank">—</div><div class="stat-sub" id="s-rank-sub"></div></div>
-      <div class="stat-cell"><div class="stat-lbl">Monthly Listeners · Peak</div><div class="stat-val b" id="s-streams">—</div><div class="stat-sub" id="s-streams-sub"></div></div>
-      <div class="stat-cell"><div class="stat-lbl">Tracks in Top 200</div><div class="stat-val a" id="s-tracks">—</div><div class="stat-sub" id="s-tracks-sub"></div></div>
-      <div class="stat-cell"><div class="stat-lbl">iTunes WW Best</div><div class="stat-val p" id="s-itunes">—</div><div class="stat-sub" id="s-itunes-sub"></div></div>
+    <div class="stat-grid" style="grid-template-columns: repeat(3, 1fr);">
+      <div class="stat-cell">
+        <div class="stat-lbl">START LISTENERS</div>
+        <div class="stat-val" id="d-l1-v">—</div>
+        <div class="stat-sub" id="d-l1-s"></div>
+      </div>
+      <div class="stat-cell">
+        <div class="stat-lbl">CURRENT LISTENERS</div>
+        <div class="stat-val" id="d-l2-v">—</div>
+        <div class="stat-sub" id="d-l2-s"></div>
+      </div>
+      <div class="stat-cell">
+        <div class="stat-lbl">LISTENER CHANGE</div>
+        <div class="stat-val" id="d-l3-v">—</div>
+        <div class="stat-sub" id="d-l3-s"></div>
+      </div>
+      <div class="stat-cell">
+        <div class="stat-lbl">START RANK</div>
+        <div class="stat-val" id="d-s1-v">—</div>
+        <div class="stat-sub" id="d-s1-s"></div>
+      </div>
+      <div class="stat-cell">
+        <div class="stat-lbl">CURRENT RANK</div>
+        <div class="stat-val" id="d-s2-v">—</div>
+        <div class="stat-sub" id="d-s2-s"></div>
+      </div>
+      <div class="stat-cell">
+        <div class="stat-lbl">RANK CHANGE</div>
+        <div class="stat-val" id="d-s3-v">—</div>
+        <div class="stat-sub" id="d-s3-s"></div>
+      </div>
     </div>
-  </div>
-
-  <div class="charts-row">
-    <div class="chart-card">
-      <div class="chart-ttl" id="traj-title">Spotify monthly listeners · daily trajectory</div>
-      <div class="cw" style="height:240px" id="spTrajChart"></div>
+    
+    <div style="padding:12px 20px">
+        <div class="chart-ttl" style="margin-bottom:8px">iTunes WW Rank trajectory · last window</div>
+        <div class="cw" style="height:150px" id="chart-ml"></div>
     </div>
-    <div class="chart-card">
-      <div class="chart-ttl" id="itunes-title">iTunes WW total points · same period</div>
-      <div class="cw" style="height:240px" id="itTrajChart"></div>
+    <div style="padding:12px 20px; border-top: 1px solid var(--border);">
+        <div class="chart-ttl" style="margin-bottom:8px">Spotify Daily Listener Gain/Loss · last window</div>
+        <div class="cw" style="height:150px" id="chart-sp-listeners"></div>
     </div>
   </div>
 
@@ -708,14 +792,7 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
     </div>
   </div>
 
-    <div class="leader-card">
-    <div class="sh"><span class="sh-l">Acquisition leaderboard · all artists ranked</span><span class="sh-r">Composite score</span></div>
-    <div style="font-size:15px;color:var(--t2);margin-bottom:14px;line-height:1.7">
-      <b>How is this calculated?</b><br>
-      Artists are ranked by a composite acquisition score, combining Spotify monthly listeners, iTunes worldwide chart performance, number of tracks charting, and recent momentum. The score reflects cross-platform commercial signals and is updated daily.
-    </div>
-    <div id="leaderboard"></div>
-  </div>
+
 
 </div>
 
@@ -725,14 +802,182 @@ const PAYLOAD = __PAYLOAD__;
 const DATES = PAYLOAD.dates;
 const ARTISTS = PAYLOAD.artists;
 const ALL_ARTISTS = PAYLOAD.allArtists;
-const LEADERBOARD = PAYLOAD.leaderboard;
+let LEADERBOARD = PAYLOAD.leaderboard;
 const MOMENTUM_DATA = PAYLOAD.momentum;
 
-document.getElementById('acq-meta').textContent = PAYLOAD.windowLabel;
+let currentTimeWindowDays = 30;
+
 document.getElementById('dd-count').textContent = ALL_ARTISTS.length + ' artists tracked';
 
 let currentArtist=null;
 function fmtN(n){if(!n)return'—';const a=Math.abs(n);if(a>=1e6)return(n/1e6).toFixed(1)+'M';if(a>=1e3)return(n/1e3).toFixed(0)+'K';return n.toString();}
+
+function _jsAcqScore(bestSpRank, bestItRank, trackCount, mlArray, itScoresArray, tracks) {
+    const spScore = Math.max(0, 10 - Math.floor((bestSpRank || 200) / 10));
+    const itScore = Math.max(0, 10 - Math.floor((bestItRank || 200) / 10));
+    const trScore = Math.min(5, trackCount * 2);
+    const reach = Math.min(25, spScore + itScore + trScore);
+    
+    let daysPresent = 0, streak = 0, maxStreak = 0;
+    for(let i=0; i<itScoresArray.length; i++){
+        if(itScoresArray[i] > 0) {
+            daysPresent++; streak++;
+            if(streak > maxStreak) maxStreak = streak;
+        } else { streak = 0; }
+    }
+    const presenceScore = Math.min(10, daysPresent);
+    const streakScore = Math.min(5, maxStreak);
+    
+    const mlClean = mlArray.filter(v => v > 0);
+    let cvScore = 0, momentum = 0;
+    if (mlClean.length > 2) {
+        let sum = 0; for(let i=0; i<mlClean.length; i++) sum += mlClean[i];
+        let mean = sum / mlClean.length;
+        let variance = 0; for(let i=0; i<mlClean.length; i++) variance += Math.pow(mlClean[i] - mean, 2);
+        let std = Math.sqrt(variance / mlClean.length);
+        let cv = mean > 0 ? std / mean : 1;
+        cvScore = Math.max(0, 10 - Math.floor(cv * 50));
+        
+        let n = mlClean.length, sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
+        for(let i=0; i<n; i++) { sumX+=i; sumY+=mlClean[i]; sumXY+=i*mlClean[i]; sumXX+=i*i; }
+        let slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
+        let normSlope = mean > 0 ? (slope / mean) * 100 : 0;
+        let slopeScore = Math.max(0, Math.min(15, Math.floor(normSlope * 5 + 5)));
+        
+        let wow = mlClean[0] > 0 ? (mlClean[mlClean.length-1] / mlClean[0] - 1) * 100 : 0;
+        let wowScore = Math.max(0, Math.min(10, Math.floor(wow / 2)));
+        momentum = Math.min(25, slopeScore + wowScore);
+    }
+    const consistency = Math.min(25, presenceScore + cvScore + streakScore);
+    
+    let longevity = 0;
+    if (tracks && tracks.length > 0) {
+        let sumDays = 0, maxDays = 0;
+        for(let i=0; i<tracks.length; i++) {
+            let d = tracks[i].days || 0;
+            sumDays += d; if(d > maxDays) maxDays = d;
+        }
+        let avgDays = sumDays / tracks.length;
+        longevity = Math.min(15, Math.floor(avgDays / 7) + Math.floor(maxDays / 14));
+    }
+    
+    const depth = Math.min(10, ((bestSpRank && bestSpRank <= 10)?3:0) + ((bestItRank && bestItRank <= 10)?3:0) + Math.min(4, trackCount));
+    return Math.min(100, Math.max(0, Math.round(reach + consistency + momentum + longevity + depth)));
+}
+function _jsSignal(score, momentum) {
+    if (score >= 70) return ["STRONG BUY", "sb-buy"];
+    if (score >= 45) return ["WATCH", "sb-watch"];
+    if (momentum <= -10) return ["CAUTION", "sb-caution"];
+    return ["WATCH", "sb-watch"];
+}
+
+function recalculateAll() {
+    const startIndex = Math.max(0, DATES.length - currentTimeWindowDays);
+    
+    for (const name in ARTISTS) {
+        const a = ARTISTS[name];
+        const ml = (a.originalSpStreams || a.spStreams).slice(startIndex);
+        const itS = (a.originalItScores || a.itScores).slice(startIndex);
+        const itR = (a.originalItRanks || a.itRanks).slice(startIndex);
+        
+        const mlClean = ml.filter(v => v > 0);
+        const peakMl = mlClean.length ? Math.max(...mlClean) : 0;
+        const firstMl = mlClean.length ? mlClean[0] : null;
+        const lastMl = mlClean.length ? mlClean[mlClean.length - 1] : null;
+        const mom = firstMl ? ((lastMl - firstMl) / firstMl * 100) : 0.0;
+        
+        let firstMlD = null, lastMlD = null;
+        for(let i=0; i<ml.length; i++) {
+            if(ml[i] > 0) {
+                if(!firstMlD) firstMlD = DATES[startIndex+i];
+                lastMlD = DATES[startIndex+i];
+            }
+        }
+        
+        const ranksClean = itR.filter(r => r !== null && r > 0);
+        const bestIt = ranksClean.length ? Math.min(...ranksClean) : null;
+        
+        let firstR = null, firstD = null;
+        let lastR = null, lastD = null;
+        for(let i=0; i<itR.length; i++) {
+            if(itR[i]) {
+                if(firstR === null) { firstR = itR[i]; firstD = DATES[startIndex+i]; }
+                lastR = itR[i]; lastD = DATES[startIndex+i];
+            }
+        }
+        
+        let rankChangeStr = '—';
+        let rankChangeSub = '';
+        if(firstR !== null && lastR !== null && firstR !== lastR) {
+            let diff = firstR - lastR;
+            rankChangeStr = (diff > 0 ? '+' : '') + diff;
+            rankChangeSub = diff > 0 ? 'gained positions' : 'lost positions';
+            a.rankChangeColor = diff > 0 ? 'g' : 'r';
+        } else if (firstR === lastR && firstR !== null) {
+            rankChangeStr = '0';
+            rankChangeSub = 'no change';
+            a.rankChangeColor = '';
+        } else {
+            a.rankChangeColor = '';
+        }
+        
+        a.startRank = firstR ? '#' + firstR : '—';
+        a.startRankDate = firstD || 'unranked';
+        a.currentRank = lastR ? '#' + lastR : '—';
+        a.currentRankDate = lastD || 'unranked';
+        a.rankChangeStr = rankChangeStr;
+        a.rankChangeSub = rankChangeSub;
+
+        a.spListenersArray = ml.map(v => v > 0 ? v : null);
+        
+        a.startListStr = firstMl !== null ? fmtN(firstMl) : '—';
+        a.startListDate = firstMlD || 'no data';
+        a.currListStr = lastMl !== null ? fmtN(lastMl) : '—';
+        a.currListDate = lastMlD || 'no data';
+        
+        if (firstMl !== null && lastMl !== null) {
+            let diff = lastMl - firstMl;
+            let momStr = mom > 0 ? '+' + mom.toFixed(1) + '%' : mom.toFixed(1) + '%';
+            a.listChangeStr = (diff > 0 ? '+' : '') + fmtN(diff);
+            a.listChangeSub = momStr + ' momentum';
+            a.listChangeColor = diff > 0 ? 'g' : (diff < 0 ? 'r' : '');
+            if(diff === 0) { a.listChangeStr = '0'; a.listChangeSub = 'no change'; a.listChangeColor = ''; }
+        } else {
+            a.listChangeStr = '—';
+            a.listChangeSub = '';
+            a.listChangeColor = '';
+        }
+
+        const bestSp = (a.bestSpRank && a.bestSpRank !== '—') ? parseInt(a.bestSpRank) : null;
+        const score = _jsAcqScore(bestSp, bestIt, parseInt(a.trackCount), ml, itS, a.tracks);
+        const [sigTxt, sigCls] = _jsSignal(score, mom);
+        
+        a.acqScore = score;
+        a.momentum = Math.round(mom * 10) / 10;
+        a.signal = sigTxt;
+        a.signalClass = sigCls;
+        a.spStreams = ml;
+        a.itScores = itS;
+        a.itRanks = itR;
+        a.peakStreamsVal = peakMl;
+        a.firstMlVal = firstMl;
+    }
+
+    LEADERBOARD = ALL_ARTISTS.map(name => {
+        const a = ARTISTS[name];
+        return {
+            n: name,
+            score: a.acqScore,
+            momentum: (a.momentum >= 0 ? '+' : '') + a.momentum + '%',
+            signal: a.signal.includes('BUY') ? 'BUY' : (a.signal.includes('CAUT') ? 'CAUTION' : 'WATCH')
+        };
+    }).sort((a, b) => b.score - a.score);
+
+    renderLeaderboard();
+    renderDdList(ddSearch.value);
+    if (currentArtist) selectArtist(currentArtist);
+}
+
 function avInitials(n){return n.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();}
 function avColor(name){return ARTISTS[name]?.color||'#94a3b8';}
 
@@ -741,10 +986,10 @@ const PLOTLY_LAYOUT_BASE = {
   plot_bgcolor:'rgba(0,0,0,0)',
   font:{family:'Inter,system-ui,sans-serif',color:'#cdd6e4',size:11},
   margin:{l:48,r:18,t:10,b:58},
-  hoverlabel:{bgcolor:'#1f2633',bordercolor:'#3a4661',font:{color:'#fff',size:12}},
+  hoverlabel:{bgcolor:getComputedStyle(document.documentElement).getPropertyValue('--bg2').trim()||'#FFFFFF',bordercolor:getComputedStyle(document.documentElement).getPropertyValue('--border2').trim()||'#3a4661',font:{color:getComputedStyle(document.documentElement).getPropertyValue('--t1').trim()||'#1A1A1A',size:12}},
   showlegend:false,
-  xaxis:{gridcolor:'rgba(255,255,255,0.05)',zerolinecolor:'rgba(255,255,255,0.08)',tickfont:{color:'#8b95ad'},linecolor:'rgba(255,255,255,0.08)'},
-  yaxis:{gridcolor:'rgba(255,255,255,0.05)',zerolinecolor:'rgba(255,255,255,0.08)',tickfont:{color:'#8b95ad'},linecolor:'rgba(255,255,255,0.08)'}
+  xaxis:{gridcolor:'rgba(255,255,255,0.05)',zerolinecolor:'rgba(255,255,255,0.08)',tickfont:{color:getComputedStyle(document.documentElement).getPropertyValue('--t3').trim()||'#8b95ad'},linecolor:'rgba(255,255,255,0.08)'},
+  yaxis:{gridcolor:'rgba(255,255,255,0.05)',zerolinecolor:'rgba(255,255,255,0.08)',tickfont:{color:getComputedStyle(document.documentElement).getPropertyValue('--t3').trim()||'#8b95ad'},linecolor:'rgba(255,255,255,0.08)'}
 };
 const PLOTLY_CFG = {displaylogo:false,displayModeBar:false,responsive:true};
 function layoutClone(extra){
@@ -837,69 +1082,84 @@ function selectArtist(name){
   ddAv.style.color = d.color;
   ddAv.style.border = `1px solid ${d.color}40`;
 
-  // Card accent
-  const card = document.getElementById('acq-card');
-  card.classList.remove('buy','watch','caution');
-  if(d.signalClass==='sb-buy') card.classList.add('buy');
-  else if(d.signalClass==='sb-caution') card.classList.add('caution');
-  else card.classList.add('watch');
-
-  document.getElementById('acq-name').textContent=name;
-  document.getElementById('acq-sublabel').textContent=d.label;
-  document.getElementById('acq-quote').textContent=d.quote;
-  document.getElementById('acq-signal-badge').innerHTML=`<span class="signal-badge ${d.signalClass}">● ${d.signal}</span>`;
-
-  const av=document.getElementById('acq-avatar');
-  av.textContent=d.avatar;
-  av.style.background=d.color+'22';
-  av.style.color=d.color;
-  av.style.border=`1px solid ${d.color}55`;
-
-  document.getElementById('s-rank').textContent=d.bestSpRank;
-  document.getElementById('s-rank-sub').textContent=d.bestSpSub;
-  document.getElementById('s-streams').textContent=d.peakStreams;
-  document.getElementById('s-streams-sub').textContent=d.peakStreamsSub;
-  document.getElementById('s-streams-sub').className='stat-sub '+(d.momentum>=0?'g':'r');
-  document.getElementById('s-tracks').textContent=d.trackCount;
-  document.getElementById('s-tracks-sub').textContent=d.trackCountSub;
-  document.getElementById('s-itunes').textContent=d.bestItunes;
-  document.getElementById('s-itunes-sub').textContent=d.itunesSub;
-
-  // Spotify trajectory
-  requestAnimationFrame(()=>{
-    const sharedDateAxis = Object.assign({}, PLOTLY_LAYOUT_BASE.xaxis, buildDateAxis(DATES));
-    const spTrace = {
-      x: DATES, y: d.spStreams, type:'scatter', mode:'lines+markers',
-      line:{color:d.color, width:3, shape:'spline', smoothing:1.1},
-      fill:'tozeroy', fillcolor:d.color+'25',
-      marker:{color:d.color, size:7, line:{color:'#0d1117', width:1.5}},
-      hovertemplate:'<b>%{x}</b><br>%{y:,.0f} monthly listeners<extra></extra>'
-    };
-    Plotly.react('spTrajChart',[spTrace], layoutClone({
-      xaxis: sharedDateAxis,
-      yaxis:Object.assign({},PLOTLY_LAYOUT_BASE.yaxis,{tickformat:'.2s'})
-    }), PLOTLY_CFG);
-
-    // iTunes trajectory
-    const hasItunes = d.itScores && d.itScores.some(v=>v>0);
-    const itTrace = {
-      x: DATES, y: hasItunes ? d.itScores : DATES.map(()=>null),
-      type:'scatter', mode:'lines+markers',
-      line:{color:'#c4b5fd', width:3, shape:'spline', smoothing:1.1},
-      fill:'tozeroy', fillcolor:'rgba(196,181,253,0.18)',
-      marker:{color:'#c4b5fd', size:7, line:{color:'#0d1117', width:1.5}},
-      hovertemplate:'<b>%{x}</b><br>iTunes points: %{y:,.0f}<extra></extra>',
-      connectgaps:true
-    };
-    const itLayout = layoutClone({
-      xaxis: sharedDateAxis,
-      yaxis:Object.assign({},PLOTLY_LAYOUT_BASE.yaxis,{tickformat:'.2s'})
-    });
-    if(!hasItunes){
-      itLayout.annotations = [{text:'Not ranked iTunes WW',xref:'paper',yref:'paper',x:0.5,y:0.5,showarrow:false,font:{color:'#5b657d',size:13}}];
-    }
-    Plotly.react('itTrajChart',[itTrace], itLayout, PLOTLY_CFG);
+  // Acq Card
+  const ac = document.getElementById('acq-card');
+  ac.className = 'acq-card ' + d.signalClass.replace('sb-','');
+  document.getElementById('d-label-top').textContent = currentTimeWindowDays + '-day acquisition signal';
+  
+  document.getElementById('d-av').textContent = d.avatar;
+  document.getElementById('d-av').style.background = d.color+'22';
+  document.getElementById('d-av').style.color = d.color;
+  
+  document.getElementById('d-name').innerHTML = name + (d.isNewChampion ? ' <span style="font-size:10px;background:var(--gd);border:1px solid var(--green);color:var(--green);padding:2px 6px;border-radius:4px;vertical-align:middle;margin-left:8px;font-weight:700;">NEW CHAMPION</span>' : '');
+  document.getElementById('d-label').textContent = '';
+  
+  const dsig = document.getElementById('d-signal');
+  dsig.textContent = d.signal;
+  dsig.className = 'signal-badge ' + d.signalClass;
+  
+  document.getElementById('d-score').textContent = d.acqScore;
+  
+  document.getElementById('d-quote').textContent = d.quote;
+  
+  document.getElementById('d-l1-v').textContent = d.startListStr;
+  document.getElementById('d-l1-s').textContent = d.startListDate;
+  document.getElementById('d-l2-v').textContent = d.currListStr;
+  document.getElementById('d-l2-s').textContent = d.currListDate;
+  const l3 = document.getElementById('d-l3-v');
+  l3.textContent = d.listChangeStr;
+  l3.className = 'stat-val ' + (d.listChangeColor || '');
+  document.getElementById('d-l3-s').textContent = d.listChangeSub;
+  
+  document.getElementById('d-s1-v').textContent = d.startRank;
+  document.getElementById('d-s1-s').textContent = d.startRankDate;
+  document.getElementById('d-s2-v').textContent = d.currentRank;
+  document.getElementById('d-s2-s').textContent = d.currentRankDate;
+  
+  const v3 = document.getElementById('d-s3-v');
+  v3.textContent = d.rankChangeStr;
+  v3.className = 'stat-val ' + (d.rankChangeColor || '');
+  
+  document.getElementById('d-s3-s').textContent = d.rankChangeSub;
+  
+  const layout = layoutClone({
+    xaxis: buildDateAxis(DATES.slice(Math.max(0, DATES.length - currentTimeWindowDays))),
+    yaxis: {autorange: 'reversed', visible: true, title: {text: 'Rank Position', font: {size: 10, color: 'var(--t3)'}}},
+    margin:{l:50,r:20,t:10,b:30}
   });
+  const trace = {
+    x: DATES.slice(Math.max(0, DATES.length - currentTimeWindowDays)),
+    y: (d.itRanks||[]).map(v=>v>0?v:null),
+    type: 'scatter',
+    mode: 'lines+markers',
+    connectgaps: true,
+    line: {color: d.color, width: 2, shape:'hv'},
+    marker: {size: 6, color: d.color},
+    hovertemplate: '%{x}<br><b>#%{y} iTunes WW</b><extra></extra>'
+  };
+  Plotly.newPlot('chart-ml', [trace], layout, PLOTLY_CFG);
+
+  const spListenersArray = d.spListenersArray || [];
+  const deltas = spListenersArray.map((v, i) => {
+      if (i === 0) return 0;
+      if (v !== null && spListenersArray[i-1] !== null) return v - spListenersArray[i-1];
+      return 0;
+  });
+  const colors = deltas.map(v => v >= 0 ? 'rgba(52, 211, 153, 0.8)' : 'rgba(251, 113, 133, 0.8)');
+
+  const layoutSp = layoutClone({
+    xaxis: buildDateAxis(DATES.slice(Math.max(0, DATES.length - currentTimeWindowDays))),
+    yaxis: {visible: true, title: {text: 'Daily Change', font: {size: 10, color: 'var(--t3)'}}},
+    margin:{l:60,r:20,t:10,b:30}
+  });
+  const traceSp = {
+    x: DATES.slice(Math.max(0, DATES.length - currentTimeWindowDays)),
+    y: deltas,
+    type: 'bar',
+    marker: {color: colors},
+    hovertemplate: '%{x}<br><b>%{y:+,} Listeners</b><extra></extra>'
+  };
+  Plotly.newPlot('chart-sp-listeners', [traceSp], layoutSp, PLOTLY_CFG);
 
   // Tracks
   const tl=document.getElementById('tracks-list');
@@ -942,8 +1202,11 @@ function selectArtist(name){
 }
 
 // ─── Leaderboard ─────────────────────────────────────
+function renderLeaderboard() {
 const maxScore=(LEADERBOARD[0]?.score)||1;
 const lb=document.getElementById('leaderboard');
+if (!lb) return;
+lb.innerHTML = '';
 LEADERBOARD.forEach((d,i)=>{
   const pct=Math.round(d.score/maxScore*100);
   const col=d.signal==='BUY'?'var(--green)':(d.signal==='CAUTION'?'var(--red)':'var(--blue)');
@@ -967,30 +1230,54 @@ LEADERBOARD.forEach((d,i)=>{
     </div>`;
   lb.appendChild(row);
 });
-
+}
+recalculateAll();
+currentArtist = PAYLOAD.defaultArtist;
 selectArtist(PAYLOAD.defaultArtist);
 window.addEventListener('load',()=>{ try{ selectArtist(PAYLOAD.defaultArtist); }catch(e){console.error(e);} });
 </script>
 </body></html>
-""".replace("__PAYLOAD__", data_json)
+""".replace("__PAYLOAD__", data_json).replace("__THEME__", theme_css)
 
 
 def prefetch_acquisition_data() -> None:
     """Warms up the cache for all three Acquisition dashboards (Artist, Track, and Album) in the background."""
     try:
-        _load_daily("spotify_daily", "global", 30)
-        _load_daily("itunes_daily", "ww", 30)
-        _load_artist_universe()
-        _load_spotify_artist_series(30)
-        _load_itunes_artist_series(30)
+        # Artist Acquisition Prep
+        sp_df = _load_daily("spotify_daily", "global", WINDOW_DAYS)
+        it_df = _load_daily("itunes_daily", "ww", WINDOW_DAYS)
+        _load_artist_universe(WINDOW_DAYS)
+        sp_artist_df = _load_spotify_artist_series(WINDOW_DAYS)
+        it_artist_df = _load_itunes_artist_series(WINDOW_DAYS)
+
+        # Pre-build dates and payloads
+        date_set = set()
+        if not sp_artist_df.empty: date_set.update(sp_artist_df["scrape_date"].unique())
+        if not it_artist_df.empty: date_set.update(it_artist_df["scrape_date"].unique())
+        dates = sorted(date_set)
+        if dates:
+            universe_df = _load_artist_universe(WINDOW_DAYS)
+            get_processed_artist_payloads(universe_df, sp_artist_df, it_artist_df, sp_df, it_df, dates)
         
+        # Track Acquisition Prep
+        from src.ai.track_acquisition_dashboard import _load_window_multi as load_track_multi
         from src.ai.track_acquisition_dashboard import _load_window as load_track_window
-        load_track_window("spotify_daily", "global", 7)
-        load_track_window("spotify_daily", "us", 7)
-        load_track_window("itunes_daily", "ww", 7)
+        from src.ai.track_acquisition_dashboard import get_processed_track_rows
+        latam_codes = ["ar", "bo", "br", "cl", "co", "cr", "do", "ec", "sv", "gt", "hn", "mx", "ni", "pa", "pe", "py", "uy", "ve"]
+        all_codes = ["global", "us"] + latam_codes
+        sp_all_df = load_track_multi("spotify_daily", all_codes, 30)
+        it_track_df = load_track_window("itunes_daily", "ww", 30)
+        if not sp_all_df.empty:
+            track_dates = sorted(set(sp_all_df["date"]))
+            get_processed_track_rows(sp_all_df[sp_all_df["country"] == "global"], it_track_df, track_dates, region="Global")
+            get_processed_track_rows(sp_all_df[sp_all_df["country"] == "us"], it_track_df, track_dates, region="US")
         
-        from src.ai.album_acquisition_dashboard import _load_window as load_album_window
-        load_album_window("itunes_artist_album", "ww", 7)
+        # Album Acquisition Prep
+        from src.ai.album_acquisition_dashboard import _load_window_multi as load_album_multi
+        from src.ai.album_acquisition_dashboard import get_processed_album_rows
+        album_all_df = load_album_multi("itunes_artist_album", ["ww", "us"] + latam_codes, 30)
+        if not album_all_df.empty:
+            album_dates = sorted(set(album_all_df["date"]))
+            get_processed_album_rows(album_all_df[album_all_df["country"] == "ww"], pd.DataFrame(), album_dates, region="Global")
     except Exception as e:
         logger.error(f"Error prefetching acquisition data: {e}")
-

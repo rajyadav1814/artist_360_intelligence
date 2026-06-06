@@ -100,7 +100,8 @@ def scrape_spotify_daily(country: str = "global") -> List[SpotifyDaily]:
                         streams=_safe_int(row.get("Streams", 0)),
                         streams_change=_safe_int(row.get("Streams+", 0)),
                         total_streams=_safe_int(row.get("Total", 0)),
-                        label=labels_map.get(artist_title)
+                        label=labels_map.get(artist_title),
+                        rank_change=_get_column(row, ["P+"])
                     )
                 )
             except Exception:

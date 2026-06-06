@@ -1,5 +1,6 @@
 from typing import List, Dict
 
+from psycopg2 import errors
 from psycopg2.extras import execute_values
 from src.database.connection import get_connection
 from src.database.models import ArtistDetail, ItunesRanking, SpotifyArtist, TrendingArtist, SpotifyDaily, ItunesDaily, ItunesArtistAlbum
@@ -272,17 +273,34 @@ def save_artist_details(details: List[ArtistDetail]) -> int:
 
 
 def log_scrape_run(source: str, status: str, rows: int = 0, error: str = None) -> None:
+    insert_sql = """
+        INSERT INTO scrape_runs (source, status, rows_upserted, error_msg, finished_at)
+        VALUES (%s, %s, %s, %s, NOW())
+    """
     conn = get_connection()
     try:
-        with conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    INSERT INTO scrape_runs (source, status, rows_upserted, error_msg, finished_at)
-                    VALUES (%s, %s, %s, %s, NOW())
-                    """,
-                    (source, status, rows, error),
-                )
+        try:
+            with conn:
+                with conn.cursor() as cur:
+                    cur.execute(insert_sql, (source, status, rows, error))
+        except errors.UniqueViolation as exc:
+            if getattr(exc.diag, "constraint_name", None) != "scrape_runs_pkey":
+                raise
+
+            # If the database was restored or rows were inserted manually, the
+            # SERIAL sequence can fall behind MAX(id). Repair it once and retry.
+            with conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        SELECT setval(
+                            pg_get_serial_sequence('scrape_runs', 'id'),
+                            COALESCE((SELECT MAX(id) FROM scrape_runs), 0) + 1,
+                            false
+                        )
+                        """
+                    )
+                    cur.execute(insert_sql, (source, status, rows, error))
     finally:
         conn.close()
 
@@ -299,7 +317,7 @@ def save_spotify_daily(data: List[SpotifyDaily]) -> int:
                 rows = [
                     (
                         d.date, d.country, d.rank, d.artist_title,
-                        d.days, d.peak, d.streams, d.streams_change, d.total_streams, d.label
+                        d.days, d.peak, d.streams, d.streams_change, d.total_streams, d.label, d.rank_change
                     )
                     for d in data
                 ]
@@ -307,15 +325,9 @@ def save_spotify_daily(data: List[SpotifyDaily]) -> int:
                     cur,
                     """
                     INSERT INTO spotify_daily
-                        (date, country, rank, artist_title, days, peak, streams, streams_change, total_streams, label)
+                        (date, country, rank, artist_title, days, peak, streams, streams_change, total_streams, label, rank_change)
                     VALUES %s
-                    ON CONFLICT (date, country, rank, artist_title) DO UPDATE SET
-                        days = EXCLUDED.days,
-                        peak = EXCLUDED.peak,
-                        streams = EXCLUDED.streams,
-                        streams_change = EXCLUDED.streams_change,
-                        total_streams = EXCLUDED.total_streams,
-                        label = EXCLUDED.label
+                    ON CONFLICT (date, country, rank, artist_title) DO NOTHING
                     """,
                     rows
                 )
@@ -346,14 +358,7 @@ def save_itunes_daily(data: List[ItunesDaily]) -> int:
                     INSERT INTO itunes_daily
                         (date, country, rank, artist_title, days, peak, points, points_change, total_points, label, rank_change)
                     VALUES %s
-                    ON CONFLICT (date, country, rank, artist_title) DO UPDATE SET
-                        days = EXCLUDED.days,
-                        peak = EXCLUDED.peak,
-                        points = EXCLUDED.points,
-                        points_change = EXCLUDED.points_change,
-                        total_points = EXCLUDED.total_points,
-                        label = EXCLUDED.label,
-                        rank_change = EXCLUDED.rank_change
+                    ON CONFLICT (date, country, rank, artist_title) DO NOTHING
                     """,
                     rows
                 )
@@ -384,18 +389,10 @@ def save_itunes_artist_album(data: List[ItunesArtistAlbum]) -> int:
                     INSERT INTO itunes_artist_album
                         (date, country, rank, artist_title, days, peak, points, points_change, total_points, label, rank_change)
                     VALUES %s
-                    ON CONFLICT (date, country, rank, artist_title) DO UPDATE SET
-                        days = EXCLUDED.days,
-                        peak = EXCLUDED.peak,
-                        points = EXCLUDED.points,
-                        points_change = EXCLUDED.points_change,
-                        total_points = EXCLUDED.total_points,
-                        label = EXCLUDED.label,
-                        rank_change = EXCLUDED.rank_change
+                    ON CONFLICT (date, country, rank, artist_title) DO NOTHING
                     """,
                     rows
                 )
                 return len(rows)
     finally:
         conn.close()
-
