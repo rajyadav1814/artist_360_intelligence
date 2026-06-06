@@ -1,5 +1,6 @@
 from typing import List, Dict
 
+from psycopg2 import errors
 from psycopg2.extras import execute_values
 from src.database.connection import get_connection
 from src.database.models import ArtistDetail, ItunesRanking, SpotifyArtist, TrendingArtist, SpotifyDaily, ItunesDaily, ItunesArtistAlbum
@@ -272,17 +273,34 @@ def save_artist_details(details: List[ArtistDetail]) -> int:
 
 
 def log_scrape_run(source: str, status: str, rows: int = 0, error: str = None) -> None:
+    insert_sql = """
+        INSERT INTO scrape_runs (source, status, rows_upserted, error_msg, finished_at)
+        VALUES (%s, %s, %s, %s, NOW())
+    """
     conn = get_connection()
     try:
-        with conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    INSERT INTO scrape_runs (source, status, rows_upserted, error_msg, finished_at)
-                    VALUES (%s, %s, %s, %s, NOW())
-                    """,
-                    (source, status, rows, error),
-                )
+        try:
+            with conn:
+                with conn.cursor() as cur:
+                    cur.execute(insert_sql, (source, status, rows, error))
+        except errors.UniqueViolation as exc:
+            if getattr(exc.diag, "constraint_name", None) != "scrape_runs_pkey":
+                raise
+
+            # If the database was restored or rows were inserted manually, the
+            # SERIAL sequence can fall behind MAX(id). Repair it once and retry.
+            with conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        SELECT setval(
+                            pg_get_serial_sequence('scrape_runs', 'id'),
+                            COALESCE((SELECT MAX(id) FROM scrape_runs), 0) + 1,
+                            false
+                        )
+                        """
+                    )
+                    cur.execute(insert_sql, (source, status, rows, error))
     finally:
         conn.close()
 
