@@ -1656,7 +1656,7 @@ def show_artist_details_dialog(row: pd.Series) -> None:
         with acq_content_slot.container():
             sp_df = _load_daily("spotify_daily", "global", WINDOW_DAYS)
             it_df = _load_daily("itunes_daily", "ww", WINDOW_DAYS)
-            universe_df = _load_artist_universe()
+            universe_df = _load_artist_universe(WINDOW_DAYS)
             sp_artist_df = _load_spotify_artist_series(WINDOW_DAYS)
             it_artist_df = _load_itunes_artist_series(WINDOW_DAYS)
 
