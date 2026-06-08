@@ -265,7 +265,7 @@ def render_album_movement() -> None:
     }
 
     html = _build_html(payload, dark_mode=st.session_state.get("dark_mode", True))
-    st_components.html(html, height=950, scrolling=True)
+    st_components.html(html, height=900, scrolling=True)
 
 
 # ─────────────────────────── HTML template ───────────────────────────
@@ -278,36 +278,36 @@ def _build_html(payload: dict, dark_mode: bool = False) -> str:
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 __THEME__
-body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t1);font-size:15px;line-height:1.55}
-.hdr{background:linear-gradient(180deg,#1a2235 0%,var(--bg2) 100%);border-bottom:1px solid var(--border);padding:20px 24px 16px}
+body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t1);font-size:14px;line-height:1.45}
+.hdr{background:linear-gradient(180deg,#1a2235 0%,var(--bg2) 100%);border-bottom:1px solid var(--border);padding:14px 20px 10px}
 .hdr-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap;gap:10px}
 .live{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);animation:blink 2s infinite}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.4}}
-.dash-title{font-size:26px;font-weight:700;letter-spacing:-.5px;color:var(--t1)}
-.dash-sub{font-size:12px;color:var(--t2);letter-spacing:.3px;margin-top:4px;font-weight:500}
+.dash-title{font-size:22px;font-weight:700;letter-spacing:-.5px;color:var(--t1)}
+.dash-sub{font-size:11px;color:var(--t2);letter-spacing:.3px;margin-top:3px;font-weight:500}
 .kpi-bar{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--border);border-bottom:1px solid var(--border)}
-.kpi{background:var(--bg2);padding:16px 18px;transition:.15s}
+.kpi{background:var(--bg2);padding:12px 14px;transition:.15s}
 .kpi:hover{background:var(--bg3)}
-.kpi-lbl{font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px;font-weight:600}
-.kpi-val{font-size:24px;font-weight:700;letter-spacing:-.5px;line-height:1.15;color:var(--t1)}
-.kpi-sub{font-size:11px;color:var(--t2);margin-top:5px;font-weight:500}
+.kpi-lbl{font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px;font-weight:600}
+.kpi-val{font-size:20px;font-weight:700;letter-spacing:-.5px;line-height:1.1;color:var(--t1)}
+.kpi-sub{font-size:10px;color:var(--t2);margin-top:4px;font-weight:500}
 .kpi-val.g{color:var(--green)}.kpi-val.r{color:var(--red)}.kpi-val.p{color:var(--purple)}.kpi-val.a{color:var(--amber)}.kpi-val.b{color:var(--blue)}
-.body{padding:20px 22px;display:flex;flex-direction:column;gap:20px}
-.sh{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
-.sh-l{font-size:16px;font-weight:600;color:var(--t1);letter-spacing:-.2px}
-.sh-r{font-size:11px;color:var(--t2);background:var(--bg3);padding:5px 12px;border-radius:5px;border:1px solid var(--border2);font-weight:500}
+.body{padding:14px 16px;display:flex;flex-direction:column;gap:12px}
+.sh{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.sh-l{font-size:14px;font-weight:600;color:var(--t1);letter-spacing:-.2px}
+.sh-r{font-size:10px;color:var(--t2);background:var(--bg3);padding:4px 10px;border-radius:5px;border:1px solid var(--border2);font-weight:500}
 .r2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-.card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:18px 20px}
-.card-ttl{font-size:12px;color:var(--t2);text-transform:uppercase;letter-spacing:.7px;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--border);font-weight:600}
-.trk-hdr{display:grid;gap:8px;padding:6px 0;border-bottom:1px solid var(--border2);margin-bottom:4px}
-.trk-hdr span{font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.6px;font-weight:600}
-.trk{display:grid;gap:8px;padding:11px 0;border-bottom:1px solid var(--border);align-items:center;cursor:pointer;transition:.1s}
-.trk:hover{background:var(--bg3);margin:0 -8px;padding:11px 8px;border-radius:6px}
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px 16px}
+.card-ttl{font-size:11px;color:var(--t2);text-transform:uppercase;letter-spacing:.7px;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--border);font-weight:600}
+.trk-hdr{display:grid;gap:6px;padding:4px 0;border-bottom:1px solid var(--border2);margin-bottom:4px}
+.trk-hdr span{font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.6px;font-weight:600}
+.trk{display:grid;gap:6px;padding:8px 0;border-bottom:1px solid var(--border);align-items:center;cursor:pointer;transition:.1s}
+.trk:hover{background:var(--bg3);margin:0 -6px;padding:8px 6px;border-radius:6px}
 .trk:last-child{border-bottom:none}
-.rn{font-size:13px;color:var(--t3);text-align:center;min-width:20px;font-weight:600}
-.tn{font-size:14px;font-weight:600;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:-.1px}
-.ta{font-size:11px;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:3px;font-weight:500}
-.tv{font-size:13px;color:var(--t1);text-align:right;white-space:nowrap;font-weight:600;font-variant-numeric:tabular-nums}
+.rn{font-size:12px;color:var(--t3);text-align:center;min-width:18px;font-weight:600}
+.tn{display:block;font-size:13px;font-weight:600;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:-.1px;max-width:100%}
+.ta{font-size:10px;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px;font-weight:500}
+.tv{font-size:12px;color:var(--t1);text-align:right;white-space:nowrap;font-weight:600;font-variant-numeric:tabular-nums}
 .dual-bar{display:flex;gap:4px;margin-top:6px;height:5px}
 .dual-seg{flex:1;border-radius:3px;position:relative;overflow:hidden;background:var(--bg4)}
 .dual-fill{height:5px;border-radius:3px;position:absolute;top:0;left:0}
@@ -316,18 +316,18 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
 .bn{display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;padding:4px 9px;border-radius:5px;background:var(--bg3);color:var(--t2);min-width:42px;border:1px solid var(--border2)}
 .bh{display:inline-flex;font-size:11px;font-weight:700;padding:5px 10px;border-radius:5px;background:rgba(252,211,77,.15);color:var(--amber);border:1px solid rgba(252,211,77,.4);letter-spacing:.4px}
 .bp{display:inline-flex;font-size:11px;font-weight:700;padding:5px 10px;border-radius:5px;background:var(--pd);color:var(--purple);border:1px solid rgba(196,181,253,.4);letter-spacing:.4px}
-.spot{background:linear-gradient(135deg,#1a2235 0%,var(--bg2) 100%);border:1px solid var(--border2);border-radius:12px;padding:20px 22px;position:relative;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.3)}
+.spot{background:linear-gradient(135deg,#1a2235 0%,var(--bg2) 100%);border:1px solid var(--border2);border-radius:12px;padding:16px 18px;position:relative;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.3)}
 .spot::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--green),var(--teal))}
 .sp-tag{font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px;font-weight:600}
-.sp-name{font-size:22px;font-weight:700;letter-spacing:-.5px;line-height:1.2;margin-bottom:6px;color:var(--t1)}
-.sp-meta{font-size:12px;color:var(--t2);margin-bottom:16px;font-weight:500}
-.sp-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
-.sp-s{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px 14px}
-.sp-s-l{font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px;font-weight:600}
-.sp-s-v{font-size:20px;font-weight:700;color:var(--t1);letter-spacing:-.4px;font-variant-numeric:tabular-nums}
+.sp-name{font-size:20px;font-weight:700;letter-spacing:-.5px;line-height:1.2;margin-bottom:4px;color:var(--t1)}
+.sp-meta{font-size:11px;color:var(--t2);margin-bottom:12px;font-weight:500}
+.sp-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.sp-s{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 12px}
+.sp-s-l{font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px;font-weight:600}
+.sp-s-v{font-size:18px;font-weight:700;color:var(--t1);letter-spacing:-.4px;font-variant-numeric:tabular-nums}
 .cw{position:relative;width:100%}
 .hide{display:none !important}
-.section-label{font-size:13px;font-weight:700;letter-spacing:.5px;margin-bottom:14px;display:flex;align-items:center;gap:8px;text-transform:uppercase}
+.section-label{font-size:12px;font-weight:700;letter-spacing:.5px;margin-bottom:10px;display:flex;align-items:center;gap:8px;text-transform:uppercase}
 .section-dot{width:10px;height:10px;border-radius:50%;display:inline-block;box-shadow:0 0 6px currentColor}
 </style></head><body>
 
@@ -335,31 +335,31 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
 <div class='body'>
 
   <!-- Guide Banner -->
-  <div style='background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:16px 20px;margin-bottom:8px;'>
+  <div style='background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px 16px;margin-bottom:6px;'>
     <div style='display:flex;justify-content:space-between;align-items:center;cursor:pointer;' onclick='toggleGuide()'>
-      <div style='display:flex;align-items:center;gap:10px;font-weight:700;color:var(--t1);font-size:14.5px;'>
+      <div style='display:flex;align-items:center;gap:10px;font-weight:700;color:var(--t1);font-size:13.5px;'>
         <span style='font-size:16px;'>💡</span> Understanding Movement & Column Details
       </div>
       <span id='guide-toggle-icon' style='font-size:12px;color:var(--t3);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;'>[ Show Details ]</span>
     </div>
-    <div id='guide-content' style='display:none;margin-top:14px;border-top:1px solid var(--border);padding-top:14px;'>
-      <div style='display:grid;grid-template-columns:1.2fr 1fr;gap:24px;'>
+    <div id='guide-content' style='display:none;margin-top:10px;border-top:1px solid var(--border);padding-top:10px;'>
+      <div style='display:grid;grid-template-columns:1.2fr 1fr;gap:16px;'>
         <div>
-          <div style='font-weight:700;font-size:12px;text-transform:uppercase;color:var(--t2);letter-spacing:0.8px;margin-bottom:8px;'>Composite Score Logic</div>
-          <p style='font-size:12.5px;color:var(--t3);line-height:1.6;margin-bottom:10px;'>
+          <div style='font-weight:700;font-size:11px;text-transform:uppercase;color:var(--t2);letter-spacing:0.8px;margin-bottom:6px;'>Composite Score Logic</div>
+          <p style='font-size:12px;color:var(--t3);line-height:1.45;margin-bottom:8px;'>
             The <b>Riser / Faller</b> ranking is based on a composite score combining two factors:
           </p>
-          <ul style='font-size:12.5px;color:var(--t3);line-height:1.6;padding-left:18px;margin-bottom:10px;'>
+          <ul style='font-size:12px;color:var(--t3);line-height:1.45;padding-left:18px;margin-bottom:8px;'>
             <li style='margin-bottom:4px;'><b>Rank Momentum (Weight: 1x):</b> The absolute change in chart position (e.g., jumping from #98 to #85 is a +13 rank gain).</li>
             <li><b>Metric Momentum (Weight: Up to 50pts):</b> The change in volume (daily score points on iTunes) normalized against the largest volume change in the active dataset.</li>
           </ul>
-          <p style='font-size:12.5px;color:var(--t3);line-height:1.6;'>
+          <p style='font-size:12px;color:var(--t3);line-height:1.45;'>
             This dual factor identifies albums that are either climbing rapidly in position or experiencing explosive changes in play count (even if already at the top).
           </p>
         </div>
         <div>
-          <div style='font-weight:700;font-size:12px;text-transform:uppercase;color:var(--t2);letter-spacing:0.8px;margin-bottom:8px;'>Column Details & Guide</div>
-          <div style='display:grid;grid-template-columns:auto 1fr;gap:10px 14px;font-size:12.5px;color:var(--t3);line-height:1.5;'>
+          <div style='font-weight:700;font-size:11px;text-transform:uppercase;color:var(--t2);letter-spacing:0.8px;margin-bottom:6px;'>Column Details & Guide</div>
+          <div style='display:grid;grid-template-columns:auto 1fr;gap:8px 12px;font-size:12px;color:var(--t3);line-height:1.4;'>
             <b style='color:var(--t2);white-space:nowrap;'>Start / Now</b>
             <span>The album's chart rank at the beginning and end of the selected window.</span>
             
@@ -377,34 +377,34 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
     </div>
   </div>
 
-  <div style='display:grid;grid-template-columns:1fr 1fr;gap:16px'>
+  <div style='display:grid;grid-template-columns:1fr 1fr;gap:12px'>
 
-    <div id='risers-section' style='background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:18px 20px'>
+    <div id='risers-section' style='background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px 16px'>
       <div class='sh'><span class='sh-l'>📈 Top Risers — rank + metric composite</span></div>
-      <div style='font-size:12px;color:var(--t3);margin-top:-6px;margin-bottom:14px;line-height:1.5;'>
+      <div style='font-size:11px;color:var(--t3);margin-top:-4px;margin-bottom:10px;line-height:1.4;'>
         Albums with the strongest positive momentum, calculated using a composite score of <b>Rank Improvement</b> and normalized <b>Metric Gain</b> (iTunes Points) over the selected window.
       </div>
       <div id='it-riser-block'>
         <div class='section-label' style='color:var(--purple)'>
           <span class='section-dot' style='background:var(--purple)'></span>ITUNES — Rank + Score
         </div>
-        <div class='trk-hdr' style='grid-template-columns:24px 1fr 50px 50px 64px 64px 60px'>
+        <div class='trk-hdr' style='grid-template-columns:22px 1fr 44px 44px 56px 56px 52px'>
           <span></span><span>Artist · Album</span><span style='text-align:center'>Start</span><span style='text-align:center'>Now</span><span style='text-align:right'>Score</span><span style='text-align:right'>+Score</span><span style='text-align:right'>Δ Rank</span>
         </div>
         <div id='it-risers'></div>
       </div>
     </div>
 
-    <div id='fallers-section' style='background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:18px 20px'>
+    <div id='fallers-section' style='background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px 16px'>
       <div class='sh'><span class='sh-l'>📉 Top Fallers — rank + metric composite</span></div>
-      <div style='font-size:12px;color:var(--t3);margin-top:-6px;margin-bottom:14px;line-height:1.5;'>
+      <div style='font-size:11px;color:var(--t3);margin-top:-4px;margin-bottom:10px;line-height:1.4;'>
         Albums with the steepest downward decline, calculated using a composite score of <b>Rank Drops</b> and normalized <b>Metric Loss</b> (iTunes Points) over the selected window.
       </div>
       <div id='it-faller-block'>
         <div class='section-label' style='color:var(--red)'>
           <span class='section-dot' style='background:var(--red)'></span>ITUNES — Rank + Score lost
         </div>
-        <div class='trk-hdr' style='grid-template-columns:24px 1fr 50px 50px 64px 64px 60px'>
+        <div class='trk-hdr' style='grid-template-columns:22px 1fr 44px 44px 56px 56px 52px'>
           <span></span><span>Artist · Album</span><span style='text-align:center'>Start</span><span style='text-align:center'>Now</span><span style='text-align:right'>Score</span><span style='text-align:right'>Lost</span><span style='text-align:right'>Δ Rank</span>
         </div>
         <div id='it-fallers'></div>
@@ -473,9 +473,9 @@ function renderTable(elId, data){
     const valFmt = (latVal||0).toLocaleString();
     const sgLabel = Math.abs(d.sg).toLocaleString();
     const rankBadge = isPos ? `<span class='bu'>▲+${d.rg}</span>` : d.rg<0 ? `<span class='bd'>▼${Math.abs(d.rg)}</span>` : `<span class='bn'>—</span>`;
-    el.innerHTML += `<div class='trk' style='grid-template-columns:24px 1fr 50px 50px 64px 64px 60px'>
+    el.innerHTML += `<div class='trk' style='grid-template-columns:22px minmax(0,1fr) 44px 44px 56px 56px 52px'>
       <span class='rn'>${i+1}</span>
-      <div>
+      <div style='min-width:0'>
         <div class='tn'>${d.t}</div>
         <div class='ta'>${d.n}</div>
       </div>
