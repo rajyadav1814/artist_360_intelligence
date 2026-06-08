@@ -1762,6 +1762,115 @@ def show_artist_details_dialog(row: pd.Series) -> None:
         acq_loader_slot.empty()
         st.warning(f"Could not load acquisition data: {exc}")
 
+    # SECTION 8: WIKIPEDIA SUMMARY
+    st.markdown(f"""
+        <div class="dlg-section-title">{artist_name} Summary <span class="dlg-section-badge">Knowledge</span></div>
+        <div style="font-size: 0.82rem; color: {dlg_text2}; margin: 8px 4px 12px; line-height: 1.4; font-weight: 500;">
+            Quick reference sourced from Wikipedia for additional context on the artist's background and career.
+        </div>
+    """, unsafe_allow_html=True)
+
+    wiki_loader_slot = st.empty()
+    wiki_loader_bg = "rgba(17, 26, 46, 0.5)" if is_dark else "rgba(241, 245, 249, 0.5)"
+    wiki_loader_border = "rgba(148, 163, 184, 0.15)" if is_dark else "rgba(148, 163, 184, 0.3)"
+    wiki_loader_text = "#cdd6e4" if is_dark else "#475569"
+
+    wiki_loader_slot.markdown(f"""
+        <style>
+        @keyframes dlg-wiki-spin {{ 0% {{ transform: rotate(0deg); }} 100% {{ transform: rotate(360deg); }} }}
+        .dlg-wiki-loader {{
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            gap: 12px; padding: 30px 20px;
+            background: {wiki_loader_bg}; border-radius: 12px;
+            border: 1px solid {wiki_loader_border}; margin: 10px 0;
+        }}
+        .dlg-wiki-ring {{
+            width: 28px; height: 28px; border-radius: 50%;
+            border: 2px solid rgba(251, 113, 133, 0.18);
+            border-top-color: #fb7185;
+            animation: dlg-wiki-spin 0.8s linear infinite;
+        }}
+        .dlg-wiki-text {{ font-size: .82rem; font-weight: 600; color: {wiki_loader_text}; }}
+        </style>
+        <div class="dlg-wiki-loader">
+            <div class="dlg-wiki-ring"></div>
+            <div class="dlg-wiki-text">Loading Wikipedia summary...</div>
+        </div>
+    """, unsafe_allow_html=True)
+
+    try:
+        from src.scrapers.wikipedia_scraper import get_wikipedia_info
+        wiki_data = get_wikipedia_info(artist_name)
+
+        if wiki_data:
+            wiki_loader_slot.empty()
+            wiki_extract = (wiki_data.get("extract") or "").replace("<span class=\"searchmatch\">", "").replace("</span>", "")
+            wiki_description = wiki_data.get("description")
+            wiki_title = wiki_data.get("title", artist_name)
+            wiki_thumbnail = wiki_data.get("thumbnail")
+
+            wiki_bg = "#1e293b" if is_dark else "#ffffff"
+            wiki_border = "rgba(251, 113, 133, 0.3)" if is_dark else "rgba(251, 113, 133, 0.15)"
+
+            st.markdown(f"""
+                <style>
+                .dlg-wiki-panel {{
+                    background: {wiki_bg}; border: 1px solid {dlg_border};
+                    border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,.05);
+                    display: grid; grid-template-columns: 80px 1fr; gap: 14px; padding: 14px;
+                    align-items: flex-start;
+                }}
+                .dlg-wiki-thumb {{
+                    width: 80px; height: 80px; border-radius: 12px; object-fit: cover;
+                    border: 1px solid {dlg_divider};
+                }}
+                .dlg-wiki-extract {{
+                    color: {dlg_text1}; font-size: .85rem; line-height: 1.6;
+                }}
+                .dlg-wiki-desc {{
+                    color: {dlg_text2}; font-size: .78rem; font-weight: 600; text-transform: uppercase;
+                    letter-spacing: .06em; margin-bottom: 6px;
+                }}
+                .dlg-wiki-link {{
+                    display: inline-block; margin-top: 8px; padding: 5px 10px;
+                    border-radius: 8px; font-size: .78rem; font-weight: 600;
+                    background: rgba(96, 165, 250, 0.1); color: #60a5fa;
+                    text-decoration: none; border: 1px solid rgba(96, 165, 250, 0.3);
+                }}
+                .dlg-wiki-link:hover {{
+                    background: rgba(96, 165, 250, 0.2);
+                }}
+                @media (max-width: 500px) {{
+                    .dlg-wiki-panel {{ grid-template-columns: 1fr; text-align: center; }}
+                    .dlg-wiki-thumb {{ margin: 0 auto; }}
+                }}
+                </style>
+                <div class="dlg-wiki-panel">
+                    {'<img src="' + wiki_thumbnail + '" class="dlg-wiki-thumb" alt="Artist">' if wiki_thumbnail else ''}
+                    <div>
+                        {'<div class="dlg-wiki-desc">' + escape(wiki_description) + '</div>' if wiki_description else ''}
+                        <div class="dlg-wiki-extract">{escape(wiki_extract)}</div>
+                    </div>
+                </div>
+            """, unsafe_allow_html=True)
+        else:
+            wiki_loader_slot.empty()
+            st.markdown(f"""
+                <div style="margin: 8px 0; padding: 12px 16px; background: rgba(151,163,197,0.1); border-radius: 10px;
+                    font-size: .82rem; color: var(--text2);">
+                    No Wikipedia summary available for {escape(artist_name)}.
+                </div>
+            """, unsafe_allow_html=True)
+    except Exception as wiki_exc:
+        wiki_loader_slot.empty()
+        st.markdown(f"""
+            <div style="margin: 8px 0; padding: 12px 16px; background: rgba(232,69,69,0.1); border-radius: 10px;
+                font-size: .82rem; color: #ff9c9c;">
+                Could not load Wikipedia data: {escape(str(wiki_exc))}
+            </div>
+        """, unsafe_allow_html=True)
+
+
 def trend_badge_html(value: str | None) -> str:
     token = str(value or "=").strip().upper()
     if token == "NEW":
@@ -3886,6 +3995,123 @@ def render_debut_artist_chart(leaderboard: pd.DataFrame) -> None:
         """,
         unsafe_allow_html=True,
     )
+
+    # Wikipedia Integration Section
+    wiki_placeholder = st.empty()
+    with wiki_placeholder.container():
+        wiki_loader = st.empty()
+        is_dark = st.session_state.get("dark_mode", True)
+        wiki_loader_bg = "rgba(17, 26, 46, 0.5)" if is_dark else "rgba(241, 245, 249, 0.5)"
+        wiki_loader_border = "rgba(148, 163, 184, 0.15)" if is_dark else "rgba(148, 163, 184, 0.3)"
+        wiki_loader_text = "#cdd6e4" if is_dark else "#475569"
+        wiki_loader.markdown(f"""
+            <style>
+            @keyframes wiki-spin {{ 0% {{ transform: rotate(0deg); }} 100% {{ transform: rotate(360deg); }} }}
+            .wiki-loader-box {{
+                display: flex; flex-direction: column; align-items: center; justify-content: center;
+                gap: 12px; padding: 24px 20px;
+                background: {wiki_loader_bg}; border-radius: 12px;
+                border: 1px solid {wiki_loader_border}; margin: 8px 0;
+            }}
+            .wiki-loader-ring {{
+                width: 28px; height: 28px; border-radius: 50%;
+                border: 2px solid rgba(251, 113, 133, 0.18);
+                border-top-color: #fb7185;
+                animation: wiki-spin 0.8s linear infinite;
+            }}
+            .wiki-loader-text {{
+                font-size: .82rem; font-weight: 600; color: {wiki_loader_text};
+            }}
+            </style>
+            <div class="wiki-loader-box">
+                <div class="wiki-loader-ring"></div>
+                <div class="wiki-loader-text">Loading Wikipedia summary...</div>
+            </div>
+        """, unsafe_allow_html=True)
+
+        try:
+            from src.scrapers.wikipedia_scraper import get_wikipedia_info
+            wiki_data = get_wikipedia_info(artist_name)
+
+            if wiki_data:
+                wiki_loader.empty()
+                wiki_extract = (wiki_data.get("extract") or "").replace("<span class=\"searchmatch\">", "").replace("</span>", "")
+                wiki_description = wiki_data.get("description")
+                wiki_title = wiki_data.get("title", artist_name)
+                wiki_thumbnail = wiki_data.get("thumbnail")
+                is_dark = st.session_state.get("dark_mode", True)
+
+                wiki_bg = "#161b26" if is_dark else "#FFFFFF"
+                wiki_border = "rgba(148, 163, 184, 0.15)" if is_dark else "rgba(148, 163, 184, 0.3)"
+                wiki_text1 = "#f8fafc" if is_dark else "#1A1A1A"
+                wiki_text2 = "#94a3b8" if is_dark else "#475569"
+
+                st.markdown(f"""
+                    <style>
+                    .wiki-section {{
+                        background: {wiki_bg};
+                        border: 1px solid {wiki_border};
+                        border-radius: 14px;
+                        padding: 16px 20px;
+                        margin-top: 16px;
+                        margin-bottom: 14px;
+                    }}
+                    .wiki-header {{
+                        font-size: 1.05rem; font-weight: 800; color: {wiki_text1};
+                        letter-spacing: -.01em; margin-bottom: 12px; padding-bottom: 10px;
+                        border-bottom: 1px solid {wiki_border};
+                        display: flex; align-items: center; gap: 10px;
+                    }}
+                    .wiki-badge {{
+                        font-size: .68rem; font-weight: 700; letter-spacing: .1em;
+                        text-transform: uppercase; color: {wiki_text2};
+                        background: rgba(148, 163, 184, 0.1); border: 1px solid {wiki_border};
+                        padding: 3px 10px; border-radius: 999px;
+                    }}
+                    .wiki-content {{
+                        display: grid; grid-template-columns: 80px 1fr; gap: 14px; align-items: flex-start;
+                    }}
+                    .wiki-thumbnail {{
+                        width: 80px; height: 80px; border-radius: 12px; object-fit: cover;
+                        border: 1px solid {wiki_border};
+                    }}
+                    .wiki-extract {{
+                        color: {wiki_text1}; font-size: .88rem; line-height: 1.6;
+                    }}
+                    .wiki-desc {{
+                        color: {wiki_text2}; font-size: .78rem; font-weight: 600; text-transform: uppercase;
+                        letter-spacing: .06em; margin-bottom: 6px;
+                    }}
+                    @media (max-width: 500px) {{
+                        .wiki-content {{ grid-template-columns: 1fr; }}
+                        .wiki-thumbnail {{ margin: 0 auto; }}
+                    }}
+                    </style>
+                    <div class="wiki-section">
+                        <div class="wiki-header">{artist_name} Summary <span class="wiki-badge">Knowledge</span></div>
+                        <div class="wiki-content">
+                            {'<img src="' + wiki_thumbnail + '" class="wiki-thumbnail" alt="Artist">' if wiki_thumbnail else ''}
+                            <div>
+                                {'<div class="wiki-desc">' + escape(wiki_description) + '</div>' if wiki_description else ''}
+                            <div class="wiki-extract">{escape(wiki_extract)}</div>
+                            </div>
+                        </div>
+                    </div>
+                """, unsafe_allow_html=True)
+            else:
+                wiki_loader.empty()
+                st.markdown(f"""
+                    <div style="margin: 8px 0; padding: 12px 16px; background: rgba(151,163,197,0.1); border-radius: 10px; font-size: .85rem; color: var(--text2);">
+                        No Wikipedia summary available for {escape(artist_name)}.
+                    </div>
+                """, unsafe_allow_html=True)
+        except Exception as wiki_exc:
+            wiki_loader.empty()
+            st.markdown(f"""
+                <div style="margin: 8px 0; padding: 12px 16px; background: rgba(232,69,69,0.1); border-radius: 10px; font-size: .85rem; color: #ff9c9c;">
+                    Could not load Wikipedia data: {escape(str(wiki_exc))}
+                </div>
+            """, unsafe_allow_html=True)
 
 
 def render_ops_monitor(runs: pd.DataFrame) -> None:
