@@ -334,12 +334,19 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
 .pt-it{background:rgba(252,211,77,.16);color:var(--amber)}
 .kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:18px}
 .kpi{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:14px 16px}
-.kpi-label{font-size:12px;color:var(--t2);margin-bottom:6px}
+.kpi-head{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.kpi-icon{width:22px;height:22px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;background:var(--bg3);border:1px solid var(--border);color:var(--blue);flex:0 0 auto}
+.kpi-icon svg{width:14px;height:14px;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.kpi-icon.green{color:var(--green);background:var(--gd)}
+.kpi-icon.amber{color:var(--amber);background:rgba(252,211,77,.15)}
+.kpi-icon.purple{color:var(--purple);background:var(--pd)}
+.kpi-label{font-size:12px;color:var(--t2)}
 .kpi-value{font-size:22px;font-weight:600;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .kpi-sub{font-size:11px;color:var(--t3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.tab-bar{display:flex;gap:6px;margin-bottom:16px;border-bottom:1px solid var(--border);overflow-x:auto}
-.tab{padding:9px 16px;font-size:13px;font-weight:600;background:none;border:0;border-bottom:2px solid transparent;cursor:pointer;color:var(--t2);margin-bottom:-1px;white-space:nowrap}
-.tab.active{color:var(--t1);border-bottom-color:var(--blue)}
+.tab-bar{display:flex;gap:18px;justify-content:flex-start;margin-bottom:16px;border-bottom:1px solid var(--border);padding:8px 0 14px;overflow-x:auto}
+.tab{min-width:158px;padding:10px 22px;font-size:13px;font-weight:600;background:rgba(251,113,133,.10);border:1px solid rgba(251,113,133,.28);border-radius:12px;cursor:pointer;color:var(--t1);white-space:nowrap;text-align:center;transition:background .15s,border-color .15s,box-shadow .15s}
+.tab:hover{background:rgba(251,113,133,.14);border-color:rgba(251,113,133,.42)}
+.tab.active{background:rgba(251,113,133,.18);border-color:rgba(251,113,133,.55);box-shadow:0 0 0 2px rgba(251,113,133,.08)}
 .panel{display:none}.panel.active{display:block}
 .two-col{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 .card{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:15px 16px}
@@ -386,10 +393,10 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
 </style></head><body>
 <div class='dash'>
   <div class='kpi-grid'>
-    <div class='kpi'><div class='kpi-label'>Albums tracked</div><div class='kpi-value' id='kpi-tracked'>0</div><div class='kpi-sub'>Active movement records</div></div>
-    <div class='kpi'><div class='kpi-label'>Rising albums</div><div class='kpi-value up' id='kpi-rising'>0</div><div class='kpi-sub'>Positive rank movement</div></div>
-    <div class='kpi'><div class='kpi-label'>Top rank riser</div><div class='kpi-value' id='kpi-riser'>-</div><div class='kpi-sub' id='kpi-riser-sub'>No movement</div></div>
-    <div class='kpi'><div class='kpi-label'>Biggest point gain</div><div class='kpi-value' id='kpi-score'>-</div><div class='kpi-sub' id='kpi-score-sub'>iTunes points</div></div>
+    <div class='kpi'><div class='kpi-head'><span class='kpi-icon'><svg viewBox='0 0 24 24'><circle cx='12' cy='12' r='9'/><circle cx='12' cy='12' r='2'/><path d='M12 3v3'/><path d='M21 12h-3'/></svg></span><div class='kpi-label'>Albums tracked</div></div><div class='kpi-value' id='kpi-tracked'>0</div><div class='kpi-sub'>Active movement records</div></div>
+    <div class='kpi'><div class='kpi-head'><span class='kpi-icon green'><svg viewBox='0 0 24 24'><path d='M3 17l6-6 4 4 8-8'/><path d='M14 7h7v7'/></svg></span><div class='kpi-label'>Rising albums</div></div><div class='kpi-value up' id='kpi-rising'>0</div><div class='kpi-sub'>Positive rank movement</div></div>
+    <div class='kpi'><div class='kpi-head'><span class='kpi-icon amber'><svg viewBox='0 0 24 24'><path d='M12 19V5'/><path d='M5 12l7-7 7 7'/></svg></span><div class='kpi-label'>Top rank riser</div></div><div class='kpi-value' id='kpi-riser'>-</div><div class='kpi-sub' id='kpi-riser-sub'>No movement</div></div>
+    <div class='kpi'><div class='kpi-head'><span class='kpi-icon purple'><svg viewBox='0 0 24 24'><path d='M3 3v18h18'/><path d='M7 15l4-4 3 3 5-7'/></svg></span><div class='kpi-label'>Biggest point gain</div></div><div class='kpi-value' id='kpi-score'>-</div><div class='kpi-sub' id='kpi-score-sub'>iTunes points</div></div>
   </div>
 
   <div class='tab-bar'>
