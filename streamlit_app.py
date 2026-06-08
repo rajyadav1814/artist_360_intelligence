@@ -4046,13 +4046,13 @@ app_pages = [
         show_movement_page,
         title="Trends",
         icon=":material/show_chart:",
-        url_path="movement",
+        url_path="trends",
     ),
       st.Page(
         show_acquisition_page,
         title="Acquisition Analysis",
         icon=":material/handshake:",
-        url_path="acquisition",
+        url_path="acquisition-Analysis",
     ),
 
     # st.Page(
