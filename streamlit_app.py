@@ -3976,6 +3976,38 @@ def show_debut_report_page() -> None:
 
 def show_movement_page() -> None:
     """Wrapper function for Movement page"""
+    st.markdown(
+        """
+        <style>
+        div[data-testid="stTabs"] div[role="tablist"] {
+            gap: 10px;
+        }
+        div[data-testid="stTabs"] button[role="tab"] {
+            border: 1px solid var(--border) !important;
+            border-radius: 10px !important;
+            background: var(--surface) !important;
+            color: var(--text2) !important;
+            font-weight: 700 !important;
+            min-height: 44px !important;
+            transition: background .15s ease, border-color .15s ease, color .15s ease, box-shadow .15s ease;
+        }
+        div[data-testid="stTabs"] button[role="tab"]:hover {
+            border-color: rgba(251,113,133,.5) !important;
+            color: var(--text) !important;
+        }
+        div[data-testid="stTabs"] button[role="tab"][aria-selected="true"] {
+            background: rgba(251,113,133,.14) !important;
+            border-color: #fb7185 !important;
+            color: var(--text) !important;
+            box-shadow: inset 0 0 0 1px rgba(251,113,133,.18), 0 6px 16px rgba(251,113,133,.10) !important;
+        }
+        div[data-testid="stTabs"] div[data-baseweb="tab-highlight"] {
+            display: none !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
     tab1, tab2, tab3 = st.tabs(["🎵 Track Movement", "💿 Album Movement", "🎤 Artist Movement"])
     with tab1:
         render_track_movement()
