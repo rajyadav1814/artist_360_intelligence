@@ -398,6 +398,7 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
 .tab:hover{background:rgba(251,113,133,.14);border-color:rgba(251,113,133,.42)}
 .tab.active{background:rgba(251,113,133,.18);border-color:rgba(251,113,133,.55);box-shadow:0 0 0 2px rgba(251,113,133,.08)}
 .panel{display:none}.panel.active{display:block}
+.tab-desc{font-size:12px;color:var(--t2);line-height:1.45;margin:0 0 12px;max-width:920px}
 .two-col{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 .card{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:15px 16px}
 .section-label{font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;display:flex;align-items:center;gap:7px}
@@ -432,6 +433,7 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
 .badge-eq{background:var(--bg3);color:var(--t2)}
 .badge-new{background:var(--bd);color:var(--blue)}
 .chart-wrap{position:relative;width:100%;height:300px}
+.chart-wrap.consistency-chart{height:440px}
 .legend-row{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:10px;font-size:12px;color:var(--t2)}
 .legend-item{display:flex;align-items:center;gap:5px;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .legend-dot{width:10px;height:10px;border-radius:2px;flex:0 0 auto}
@@ -450,11 +452,12 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
   <div class='tab-bar'>
     <button class='tab active' onclick="showTab(event,'consistency')">Consistency</button>
     <button class='tab' onclick="showTab(event,'movement')">Biggest movement</button>
-    <button class='tab' onclick="showTab(event,'live')">Latest charts</button>
+    <button class='tab' onclick="showTab(event,'live')">New Tracks</button>
     <button class='tab' onclick="showTab(event,'trend')">Rank trend</button>
   </div>
 
   <div class='panel active' id='panel-consistency'>
+    <div class='tab-desc'>Highlights tracks that stayed visible across the selected window, combining repeated chart presence, best rank, and metric strength to separate steady performers from short spikes.</div>
     <div class='two-col'>
       <div class='card' id='it-cons-card'>
         <div class='section-label'><span class='tag pt-it'>iTunes</span> Top consistent tracks</div>
@@ -467,11 +470,12 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
     </div>
     <div class='card' id='cons-chart-card' style='margin-top:14px'>
       <div class='section-label'>Consistency score - top 15</div>
-      <div class='chart-wrap'><canvas id='consistencyChart'></canvas></div>
+      <div class='chart-wrap consistency-chart'><canvas id='consistencyChart'></canvas></div>
     </div>
   </div>
 
   <div class='panel' id='panel-movement'>
+    <div class='tab-desc'>Shows the biggest positive and negative movers by comparing each track's first available rank and metric value with its latest available result in the selected window.</div>
     <div class='two-col'>
       <div class='card' id='it-up-card'><div class='section-label'><span class='tag pt-it'>iTunes</span> Biggest movers up</div><div id='it-up-list'></div></div>
       <div class='card' id='it-down-card'><div class='section-label'><span class='tag pt-it'>iTunes</span> Biggest movers down</div><div id='it-down-list'></div></div>
@@ -484,6 +488,7 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
   </div>
 
   <div class='panel' id='panel-live'>
+    <div class='tab-desc'>Lists the current top chart entries for the latest available date, with day-over-day rank movement and the latest streams or iTunes points beside each track.</div>
     <div class='two-col'>
       <div class='card' id='live-it-card'><div class='section-label'><span class='tag pt-it'>iTunes</span> Top 20 latest</div><div id='live-it-list'></div></div>
       <div class='card' id='live-sp-card'><div class='section-label'><span class='tag pt-sp'>Spotify</span> Top 20 latest</div><div id='live-sp-list'></div></div>
@@ -491,6 +496,7 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
   </div>
 
   <div class='panel' id='panel-trend'>
+    <div class='tab-desc'>Plots daily rank paths for the strongest risers so you can see whether momentum was gradual, sudden, or volatile over the selected period.</div>
     <div class='card' id='it-trend-card' style='margin-bottom:14px'>
       <div class='section-label'><span class='tag pt-it'>iTunes</span> Rank trend - top risers</div>
       <div class='legend-row' id='it-trend-legend'></div>
@@ -621,7 +627,7 @@ function makeConsistencyChart(){
     ...(SHOW_SP ? (PAYLOAD.sp_consistent || []).slice(0,8).map(d=>({...d, platform:'Spotify'})) : [])
   ].sort((a,b)=>b.score-a.score).slice(0,15);
   if(!rows.length)return;
-  new Chart(canvas,{type:'bar',data:{labels:rows.map(d=>(d.t.length>18?d.t.slice(0,18)+'...':d.t)),datasets:[{data:rows.map(d=>d.score),backgroundColor:rows.map(d=>d.platform==='Spotify'?'#1d9e75':'#3266ad'),borderRadius:4,borderSkipped:false}]},options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>`${rows[ctx.dataIndex].platform}: ${fmtNum(ctx.raw)} score`}}},scales:{x:{ticks:{color:getComputedStyle(document.documentElement).getPropertyValue('--t2')},grid:{color:'rgba(128,128,128,.14)'}},y:{ticks:{color:getComputedStyle(document.documentElement).getPropertyValue('--t2')},grid:{display:false}}}}});
+  new Chart(canvas,{type:'bar',data:{labels:rows.map(d=>(d.t.length>18?d.t.slice(0,18)+'...':d.t)),datasets:[{data:rows.map(d=>d.score),backgroundColor:rows.map(d=>d.platform==='Spotify'?'#1d9e75':'#3266ad'),borderRadius:4,borderSkipped:false,categoryPercentage:.72,barPercentage:.72,maxBarThickness:14}]},options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',layout:{padding:{top:8,bottom:8}},plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>`${rows[ctx.dataIndex].platform}: ${fmtNum(ctx.raw)} score`}}},scales:{x:{ticks:{color:getComputedStyle(document.documentElement).getPropertyValue('--t2')},grid:{color:'rgba(128,128,128,.14)'}},y:{ticks:{color:getComputedStyle(document.documentElement).getPropertyValue('--t2'),padding:10},grid:{display:false}}}}});
 }
 makeConsistencyChart();
 </script>

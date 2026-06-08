@@ -348,6 +348,7 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
 .tab:hover{background:rgba(251,113,133,.14);border-color:rgba(251,113,133,.42)}
 .tab.active{background:rgba(251,113,133,.18);border-color:rgba(251,113,133,.55);box-shadow:0 0 0 2px rgba(251,113,133,.08)}
 .panel{display:none}.panel.active{display:block}
+.tab-desc{font-size:12px;color:var(--t2);line-height:1.45;margin:0 0 12px;max-width:920px}
 .two-col{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 .card{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:15px 16px}
 .section-label{font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;display:flex;align-items:center;gap:7px}
@@ -385,6 +386,7 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
 .badge-eq{background:var(--bg3);color:var(--t2)}
 .badge-new{background:var(--bd);color:var(--blue)}
 .chart-wrap{position:relative;width:100%;height:300px}
+.chart-wrap.consistency-chart{height:440px}
 .legend-row{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:10px;font-size:12px;color:var(--t2)}
 .legend-item{display:flex;align-items:center;gap:5px;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .legend-dot{width:10px;height:10px;border-radius:2px;flex:0 0 auto}
@@ -402,11 +404,12 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
   <div class='tab-bar'>
     <button class='tab active' onclick="showTab(event,'consistency')">Consistency</button>
     <button class='tab' onclick="showTab(event,'movement')">Biggest movement</button>
-    <button class='tab' onclick="showTab(event,'live')">Latest chart</button>
+    <button class='tab' onclick="showTab(event,'live')">New Albums</button>
     <button class='tab' onclick="showTab(event,'trend')">Rank trend</button>
   </div>
 
   <div class='panel active' id='panel-consistency'>
+    <div class='tab-desc'>Highlights albums with the strongest sustained chart footprint, combining repeated presence, best rank, average rank, and total points across the selected window.</div>
     <div class='card'>
       <div class='section-label'><span class='tag pt-it'>iTunes</span> Top consistent albums</div>
       <div class='note'>Best for finding albums with sustained chart footprint, not just one-day spikes.</div>
@@ -414,11 +417,12 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
     </div>
     <div class='card' style='margin-top:14px'>
       <div class='section-label'>Album consistency score - top 15</div>
-      <div class='chart-wrap'><canvas id='consistencyChart'></canvas></div>
+      <div class='chart-wrap consistency-chart'><canvas id='consistencyChart'></canvas></div>
     </div>
   </div>
 
   <div class='panel' id='panel-movement'>
+    <div class='tab-desc'>Shows albums with the sharpest gains and drops by comparing their first available rank and points with the latest available values in the selected window.</div>
     <div class='two-col'>
       <div class='card'><div class='section-label'><span class='tag pt-it'>iTunes</span> Biggest album movers up</div><div class='note'>Positive momentum: rank climbed, points grew, or both.</div><div id='it-up-list'></div></div>
       <div class='card'><div class='section-label'><span class='tag pt-it'>iTunes</span> Biggest album movers down</div><div class='note'>Negative momentum: rank dropped, points fell, or both.</div><div id='it-down-list'></div></div>
@@ -426,10 +430,12 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
   </div>
 
   <div class='panel' id='panel-live'>
+    <div class='tab-desc'>Lists the latest iTunes album chart leaders, including current position, artist, latest points, and day-over-day rank movement.</div>
     <div class='card'><div class='section-label'><span class='tag pt-it'>iTunes</span> Top 20 latest albums</div><div class='note'>Current chart leaders with day-over-day rank movement and latest points.</div><div id='live-it-list'></div></div>
   </div>
 
   <div class='panel' id='panel-trend'>
+    <div class='tab-desc'>Plots daily rank paths for top rising albums so you can quickly spot steady climbs, sudden jumps, and unstable movement patterns.</div>
     <div class='card'>
       <div class='section-label'><span class='tag pt-it'>iTunes</span> Album rank trend - top risers</div>
       <div class='note'>Tracks the top risers from the movement tab. The y-axis is reversed because #1 is the strongest rank.</div>
@@ -553,7 +559,7 @@ function makeConsistencyChart(){
   const canvas=document.getElementById('consistencyChart');
   const rows=(PAYLOAD.it_consistent || []).slice(0,15);
   if(!canvas || !rows.length)return;
-  new Chart(canvas,{type:'bar',data:{labels:rows.map(d=>(d.t.length>22?d.t.slice(0,22)+'...':d.t)),datasets:[{data:rows.map(d=>d.score),backgroundColor:'#3266ad',borderRadius:4,borderSkipped:false}]},options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>`${fmtNum(ctx.raw)} score`}}},scales:{x:{ticks:{color:getComputedStyle(document.documentElement).getPropertyValue('--t2')},grid:{color:'rgba(128,128,128,.14)'}},y:{ticks:{color:getComputedStyle(document.documentElement).getPropertyValue('--t2')},grid:{display:false}}}}});
+  new Chart(canvas,{type:'bar',data:{labels:rows.map(d=>(d.t.length>22?d.t.slice(0,22)+'...':d.t)),datasets:[{data:rows.map(d=>d.score),backgroundColor:'#3266ad',borderRadius:4,borderSkipped:false,categoryPercentage:.72,barPercentage:.72,maxBarThickness:14}]},options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',layout:{padding:{top:8,bottom:8}},plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>`${fmtNum(ctx.raw)} score`}}},scales:{x:{ticks:{color:getComputedStyle(document.documentElement).getPropertyValue('--t2')},grid:{color:'rgba(128,128,128,.14)'}},y:{ticks:{color:getComputedStyle(document.documentElement).getPropertyValue('--t2'),padding:10},grid:{display:false}}}}});
 }
 makeConsistencyChart();
 </script>
