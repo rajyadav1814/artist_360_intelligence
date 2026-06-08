@@ -274,19 +274,19 @@ function buildLine(id, items, label, metric, chartColor, reverse=false){
   if(!el || !items.length) return;
   const values=items.map(d=>reverse ? d.rank : d.value);
   const maxRank=Math.max(...values, 10) + 4;
-  charts[id]=new Chart(el,{type:'line',data:{labels:items.map(d=>d.date.slice(5)),datasets:[{label,data:values,borderColor:chartColor,backgroundColor:chartColor+'22',fill:true,tension:.38,pointRadius:2,borderWidth:2}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>reverse?'Rank #'+c.parsed.y:fmt(c.parsed.y)+' '+metric}}},scales:{x:{grid:{display:false},ticks:{color:chartText(),font:{size:10},maxRotation:0}},y:{reverse,min:reverse?1:undefined,max:reverse?maxRank:undefined,grid:{color:gridColor()},ticks:{color:chartText(),font:{size:10},callback:v=>reverse?'#'+v:fmt(v)}}}}});
+  charts[id]=new Chart(el,{type:'line',data:{labels:items.map(d=>d.date.slice(5)),datasets:[{label,data:values,borderColor:chartColor,backgroundColor:chartColor+'22',fill:true,tension:.38,pointRadius:2,borderWidth:2}]},options:{animation:false,responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>reverse?'Rank #'+c.parsed.y:fmt(c.parsed.y)+' '+metric}}},scales:{x:{grid:{display:false},ticks:{color:chartText(),font:{size:10},maxRotation:0}},y:{reverse,min:reverse?1:undefined,max:reverse?maxRank:undefined,grid:{color:gridColor()},ticks:{color:chartText(),font:{size:10},callback:v=>reverse?'#'+v:fmt(v)}}}}});
 }
 
 function buildBar(id, items, label, chartColor){
   const el=document.getElementById(id);
   if(!el || !items.length) return;
-  charts[id]=new Chart(el,{type:'bar',data:{labels:items.map(d=>d.date.slice(5)),datasets:[{label,data:items.map(d=>d.value),backgroundColor:chartColor+'44',borderColor:chartColor,borderWidth:1.5,borderRadius:3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{color:chartText(),font:{size:10},maxRotation:0,autoSkip:true,maxTicksLimit:8}},y:{grid:{color:gridColor()},ticks:{color:chartText(),font:{size:10},callback:v=>fmt(v)}}}}});
+  charts[id]=new Chart(el,{type:'bar',data:{labels:items.map(d=>d.date.slice(5)),datasets:[{label,data:items.map(d=>d.value),backgroundColor:chartColor+'44',borderColor:chartColor,borderWidth:1.5,borderRadius:3}]},options:{animation:false,responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{color:chartText(),font:{size:10},maxRotation:0,autoSkip:true,maxTicksLimit:8}},y:{grid:{color:gridColor()},ticks:{color:chartText(),font:{size:10},callback:v=>fmt(v)}}}}});
 }
 
 function buildAlbums(){
   const el=document.getElementById('albumChart');
   if(!el || !DATA.albums.length) return;
-  charts.albumChart=new Chart(el,{type:'bar',data:{labels:DATA.albums.map(a=>a.song),datasets:[{data:DATA.albums.map(a=>a.value || 1),backgroundColor:'#185FA555',borderColor:'#185FA5',borderWidth:1.5,borderRadius:4}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{display:false},y:{grid:{display:false},ticks:{color:chartText(),font:{size:11}}}}}});
+  charts.albumChart=new Chart(el,{type:'bar',data:{labels:DATA.albums.map(a=>a.song),datasets:[{data:DATA.albums.map(a=>a.value || 1),backgroundColor:'#185FA555',borderColor:'#185FA5',borderWidth:1.5,borderRadius:4}]},options:{indexAxis:'y',animation:false,responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{display:false},y:{grid:{display:false},ticks:{color:chartText(),font:{size:11}}}}}});
 }
 
 function activeTab(panel){
@@ -375,12 +375,34 @@ function render(){
     </div>`;
   document.querySelectorAll('.tab').forEach(btn=>btn.addEventListener('click',()=>activeTab(btn.dataset.panel)));
   activeTab('streams');
+
+  function updateHeight() {
+    const height = Math.max(
+      document.body.scrollHeight,
+      document.documentElement.scrollHeight,
+      document.body.offsetHeight,
+      document.documentElement.offsetHeight
+    ) + 65;
+    window.parent.postMessage({
+      type: 'streamlit:setFrameHeight',
+      height: height
+    }, '*');
+  }
+  window.addEventListener('load', updateHeight);
+  window.addEventListener('resize', updateHeight);
+  setTimeout(updateHeight, 100);
+  setTimeout(updateHeight, 300);
+  setTimeout(updateHeight, 600);
+
+  if (window.ResizeObserver) {
+    new ResizeObserver(updateHeight).observe(document.getElementById('dash'));
+  }
 }
 render();
 </script>
 <style>
-*{box-sizing:border-box} html,body{margin:0;background:transparent;overflow-x:hidden}
-.dash{--color-background-primary:__BG1__;--color-background-secondary:__BG2__;--color-border-tertiary:__BORDER__;--color-text-primary:__TEXT1__;--color-text-secondary:__TEXT2__;--color-text-tertiary:__TEXT3__;padding:.35rem 0 1rem;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--color-text-primary)}
+*{box-sizing:border-box} html,body{margin:0;background:transparent;overflow-x:hidden;padding-bottom:25px}
+.dash{--color-background-primary:__BG1__;--color-background-secondary:__BG2__;--color-border-tertiary:__BORDER__;--color-text-primary:__TEXT1__;--color-text-secondary:__TEXT2__;--color-text-tertiary:__TEXT3__;padding:0 0 2rem 0;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--color-text-primary)}
 .header{display:grid;grid-template-columns:116px minmax(0,1fr);align-items:center;gap:1.35rem;margin-bottom:1rem;padding:1.15rem;border:1px solid var(--color-border-tertiary);border-radius:8px;background:var(--color-background-primary)}
 .avatar{width:116px;height:116px;border-radius:8px;object-fit:cover;flex-shrink:0;border:1px solid var(--color-border-tertiary);background:var(--color-background-secondary)}
 .head-copy{min-width:0}.eyebrow{font-size:11px;font-weight:750;text-transform:uppercase;letter-spacing:.08em;color:var(--color-text-tertiary);margin-bottom:5px}.artist-name{font-size:36px;font-weight:760;color:var(--color-text-primary);line-height:1.04;letter-spacing:0}.artist-meta{font-size:14px;color:var(--color-text-secondary);margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:760px}
@@ -406,4 +428,4 @@ render();
     html = html.replace("__DATA__", data_json).replace("__THEME__", theme_json)
     for key, value in colors.items():
         html = html.replace(key, value)
-    st_components.html(html, height=1120, width=None, scrolling=True)
+    st_components.html(html, height=1000, width=None, scrolling=False)

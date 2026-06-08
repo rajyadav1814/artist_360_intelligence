@@ -3864,8 +3864,13 @@ def show_debut_artist_page() -> None:
     st.markdown("""
         <style>
         /* Forcefully remove the massive empty space above the Artist Spotlight dashboard */
-        .stMainBlockContainer {
+        .stMainBlockContainer, .block-container {
             padding-top: 0rem !important;
+            padding-bottom: 0rem !important;
+        }
+        /* Tighten vertical gaps between elements on this page */
+        div[data-testid="stVerticalBlock"] {
+            gap: 0.5rem !important;
         }
         </style>
     """, unsafe_allow_html=True)
