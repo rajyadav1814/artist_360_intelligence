@@ -4044,13 +4044,13 @@ app_pages = [
     ),
      st.Page(
         show_movement_page,
-        title="Movement",
+        title="Trends",
         icon=":material/show_chart:",
         url_path="movement",
     ),
       st.Page(
         show_acquisition_page,
-        title="Acquisition",
+        title="Acquisition Analysis",
         icon=":material/handshake:",
         url_path="acquisition",
     ),
