@@ -199,6 +199,7 @@ def render_debut_artist_chart(leaderboard: pd.DataFrame) -> None:
         "label": str(row.get("page_title") or row.get("top_country") or "Global chart artist"),
         "rank": safe_int(row.get("rank")),
         "rankChange": trend_raw,
+        "primaryMarket": str(row.get("display_country") or row.get("top_country") or "Global"),
         "followers": safe_int(row.get("peak_listeners")),
         "monthlyListeners": safe_int(row.get("monthly_listeners")),
         "spotifySongsCount": safe_int(row.get("songs_count"), len(sp_songs)),
@@ -206,8 +207,8 @@ def render_debut_artist_chart(leaderboard: pd.DataFrame) -> None:
         "albumsCount": safe_int(row.get("albums_count"), len(albums)),
         "countriesCount": len(countries),
         "countries": countries,
-        "totalStreams": sum(item["value"] for item in sp_songs),
-        "totalItunesSales": sum(item["value"] for item in it_songs),
+        "totalStreams": sum(item["value"] for item in sp_timeline) or sum(item["value"] for item in sp_songs),
+        "totalItunesSales": sum(item["value"] for item in it_timeline) or sum(item["value"] for item in it_songs),
         "bestSpotifyRank": min([item["rank"] for item in sp_timeline if item["rank"]] or [0]),
         "bestItunesRank": min([item["rank"] for item in it_timeline if item["rank"]] or [safe_int(row.get("rank"))]),
         "totalPoints": safe_int(row.get("total_points")),
@@ -239,6 +240,22 @@ function destroyCharts(){Object.values(charts).forEach(c=>{try{c.destroy()}catch
 function chartText(){return THEME.dark ? '#cdd6e4' : '#475569';}
 function gridColor(){return THEME.dark ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.08)';}
 function noData(label){return `<div class="empty">${esc(label)}</div>`;}
+function changeCopy(v){
+  const token=String(v||'=').trim();
+  if(token.toUpperCase()==='NEW')return 'New chart entry';
+  const n=Number(token.replace('+',''));
+  if(!isNaN(n) && n>0)return `Up ${n} positions`;
+  if(!isNaN(n) && n<0)return `Down ${Math.abs(n)} positions`;
+  return 'Stable rank';
+}
+function signalClass(v){
+  const token=String(v||'=').trim();
+  if(token.toUpperCase()==='NEW')return 'signal-new';
+  const n=Number(token.replace('+',''));
+  if(!isNaN(n) && n>0)return 'signal-up';
+  if(!isNaN(n) && n<0)return 'signal-down';
+  return 'signal-flat';
+}
 
 function rows(items, valueLabel){
   if(!items.length) return `<tr><td colspan="4" class="empty-cell">No ${esc(valueLabel)} data for this period</td></tr>`;
@@ -283,26 +300,46 @@ function activeTab(panel){
 
 function render(){
   const countries = DATA.countries.length ? DATA.countries.map(c=>`<span class="country-pill">${esc(c)}</span>`).join('') : '<span class="muted">Global presence</span>';
+  const marketLabel = DATA.primaryMarket && DATA.primaryMarket !== '—' ? DATA.primaryMarket : 'Global';
+  const rankText = DATA.rank ? `#${esc(DATA.rank)}` : '—';
   document.getElementById('spotlight').innerHTML = `
     <div class="header">
       <img class="avatar" src="${esc(DATA.image)}" alt="${esc(DATA.name)}">
       <div class="head-copy">
+        <div class="eyebrow">Artist Spotlight</div>
         <div class="artist-name">${esc(DATA.name)}</div>
         <div class="artist-meta">${esc(DATA.label)}</div>
         <div class="badges">
-          <span class="badge badge-sp"><span class="ico">▶</span> Spotify · ${esc(DATA.spotifySongsCount)} songs</span>
-          <span class="badge badge-it"><span class="ico"></span> iTunes · ${esc(DATA.itunesSongsCount)} songs</span>
-          <span class="badge badge-world"><span class="ico">◎</span> ${esc(DATA.countriesCount)} LATAM markets</span>
+          <span class="badge badge-rank">Current rank ${rankText}</span>
+          <span class="badge ${signalClass(DATA.rankChange)}">${changeCopy(DATA.rankChange)}</span>
+          <span class="badge badge-world">${esc(marketLabel)}</span>
         </div>
       </div>
     </div>
+    <div class="summary-grid">
+      <div class="summary-card">
+        <div class="summary-head"><span class="summary-icon audience-icon">◉</span><div class="summary-label">Audience</div></div>
+        <div class="summary-value">${fmt(DATA.monthlyListeners)}</div>
+        <div class="summary-note">Monthly listeners with ${fmt(DATA.followers)} peak listener history.</div>
+      </div>
+      <div class="summary-card">
+        <div class="summary-head"><span class="summary-icon catalog-icon">♪</span><div class="summary-label">Catalog Signal</div></div>
+        <div class="summary-value">${esc(DATA.spotifySongsCount)} songs · ${esc(DATA.albumsCount)} albums</div>
+        <div class="summary-note">Active chart footprint across Spotify, iTunes songs, and albums.</div>
+      </div>
+      <div class="summary-card">
+        <div class="summary-head"><span class="summary-icon market-icon">◆</span><div class="summary-label">Market Reach</div></div>
+        <div class="summary-value">${esc(DATA.countriesCount || '—')} markets</div>
+        <div class="summary-note">Primary market: ${esc(marketLabel)}.</div>
+      </div>
+    </div>
     <div class="kpi-grid">
-      <div class="kpi"><div class="kpi-label"><span class="ico">◉</span> Peak listeners</div><div class="kpi-val">${fmt(DATA.followers)}</div><div class="kpi-sub">Spotify history</div></div>
-      <div class="kpi"><div class="kpi-label"><span class="ico">◌</span> Monthly listeners</div><div class="kpi-val">${fmt(DATA.monthlyListeners)}</div><div class="kpi-sub">Spotify audience</div></div>
-      <div class="kpi"><div class="kpi-label"><span class="ico">≋</span> Total streams</div><div class="kpi-val">${fmt(DATA.totalStreams)}</div><div class="kpi-sub">Daily chart rows</div></div>
-      <div class="kpi"><div class="kpi-label"><span class="ico">#</span> Artist rank</div><div class="kpi-val" style="color:${color}">#${esc(DATA.rank)}</div><div class="kpi-sub">Change ${esc(DATA.rankChange)}</div></div>
+      <div class="kpi"><div class="kpi-label"><span class="ico">◉</span> Peak listeners</div><div class="kpi-val">${fmt(DATA.followers)}</div><div class="kpi-sub">Highest observed audience</div></div>
+      <div class="kpi"><div class="kpi-label"><span class="ico">◌</span> Monthly listeners</div><div class="kpi-val">${fmt(DATA.monthlyListeners)}</div><div class="kpi-sub">Current Spotify audience</div></div>
+      <div class="kpi"><div class="kpi-label"><span class="ico">≋</span> Stream signal</div><div class="kpi-val">${fmt(DATA.totalStreams)}</div><div class="kpi-sub">Recent Spotify volume</div></div>
+      <div class="kpi kpi-rank"><div class="kpi-label"><span class="ico">#</span> Artist rank</div><div class="kpi-val" style="color:${color}">${rankText}</div><div class="kpi-sub">${changeCopy(DATA.rankChange)}</div></div>
       <div class="kpi"><div class="kpi-label"><span class="ico">◆</span> iTunes points</div><div class="kpi-val">${fmt(DATA.totalItunesSales || DATA.totalPoints)}</div><div class="kpi-sub">Best rank #${esc(DATA.bestItunesRank || DATA.rank)}</div></div>
-      <div class="kpi"><div class="kpi-label"><span class="ico">◎</span> Countries</div><div class="kpi-val">${esc(DATA.countriesCount || '—')}</div><div class="kpi-sub">Top markets</div></div>
+      <div class="kpi"><div class="kpi-label"><span class="ico">◎</span> Market reach</div><div class="kpi-val">${esc(DATA.countriesCount || '—')}</div><div class="kpi-sub">Tracked LATAM markets</div></div>
     </div>
     <div style="--accent:${color}">
       <div class="tabs">
@@ -342,19 +379,19 @@ function render(){
 render();
 </script>
 <style>
-*{box-sizing:border-box} body{margin:0;background:transparent}
-.dash{padding:.35rem 0 1rem;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--color-text-primary)}
-.dash{--color-background-primary:__BG1__;--color-background-secondary:__BG2__;--color-border-tertiary:__BORDER__;--color-text-primary:__TEXT1__;--color-text-secondary:__TEXT2__;--color-text-tertiary:__TEXT3__}
-.header{display:flex;align-items:center;gap:1.25rem;margin-bottom:1.2rem;padding-bottom:1.2rem;border-bottom:1px solid var(--color-border-tertiary)}
-.avatar{width:192px;height:192px;border-radius:50%;object-fit:cover;flex-shrink:0;border:1px solid var(--color-border-tertiary);background:var(--color-background-secondary)}
-.head-copy{flex:1;min-width:0}.artist-name{font-size:24px;font-weight:650;color:var(--color-text-primary);line-height:1.15}.artist-meta{font-size:13px;color:var(--color-text-secondary);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.badges{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}.badge{display:inline-flex;align-items:center;gap:5px;font-size:11px;padding:4px 10px;border-radius:999px;font-weight:650}.badge-sp{background:#e7f7ec;color:#0f6e56}.badge-it{background:#e8edf7;color:#185FA5}.badge-world{background:var(--color-background-secondary);color:var(--color-text-secondary);border:1px solid var(--color-border-tertiary)}
+*{box-sizing:border-box} html,body{margin:0;background:transparent;overflow-x:hidden}
+.dash{--color-background-primary:__BG1__;--color-background-secondary:__BG2__;--color-border-tertiary:__BORDER__;--color-text-primary:__TEXT1__;--color-text-secondary:__TEXT2__;--color-text-tertiary:__TEXT3__;padding:.35rem 0 1rem;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--color-text-primary)}
+.header{display:grid;grid-template-columns:116px minmax(0,1fr);align-items:center;gap:1.35rem;margin-bottom:1rem;padding:1.15rem;border:1px solid var(--color-border-tertiary);border-radius:8px;background:var(--color-background-primary)}
+.avatar{width:116px;height:116px;border-radius:8px;object-fit:cover;flex-shrink:0;border:1px solid var(--color-border-tertiary);background:var(--color-background-secondary)}
+.head-copy{min-width:0}.eyebrow{font-size:11px;font-weight:750;text-transform:uppercase;letter-spacing:.08em;color:var(--color-text-tertiary);margin-bottom:5px}.artist-name{font-size:36px;font-weight:760;color:var(--color-text-primary);line-height:1.04;letter-spacing:0}.artist-meta{font-size:14px;color:var(--color-text-secondary);margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:760px}
+.badges{display:flex;gap:8px;margin-top:13px;flex-wrap:wrap}.badge{display:inline-flex;align-items:center;gap:5px;font-size:12px;padding:6px 11px;border-radius:999px;font-weight:700;border:1px solid var(--color-border-tertiary);background:var(--color-background-secondary);color:var(--color-text-secondary)}.badge-rank{background:rgba(24,95,165,.12);color:#185FA5;border-color:rgba(24,95,165,.32)}.badge-world{background:rgba(139,92,246,.10);color:#8B5CF6;border-color:rgba(139,92,246,.28)}.signal-up{background:rgba(29,158,117,.12);color:#0f8a64;border-color:rgba(29,158,117,.32)}.signal-down{background:rgba(226,75,74,.12);color:#c63a3a;border-color:rgba(226,75,74,.32)}.signal-new{background:rgba(24,95,165,.12);color:#185FA5;border-color:rgba(24,95,165,.32)}.signal-flat{background:var(--color-background-secondary);color:var(--color-text-secondary)}
+.summary-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:0 0 1rem}.summary-card{background:var(--color-background-secondary);border:1px solid var(--color-border-tertiary);border-radius:8px;padding:14px 16px;min-width:0}.summary-head{display:flex;align-items:center;gap:8px;margin-bottom:6px}.summary-icon{width:22px;height:22px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;flex:0 0 auto}.audience-icon{background:rgba(29,158,117,.13);color:#1D9E75}.catalog-icon{background:rgba(24,95,165,.13);color:#185FA5}.market-icon{background:rgba(139,92,246,.13);color:#8B5CF6}.summary-label{font-size:11px;text-transform:uppercase;letter-spacing:.07em;font-weight:760;color:var(--color-text-tertiary)}.summary-value{font-size:18px;font-weight:780;color:var(--color-text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.summary-note{font-size:12px;color:var(--color-text-secondary);line-height:1.4;margin-top:5px}
 .ico{display:inline-flex;align-items:center;justify-content:center;line-height:1;font-style:normal;font-weight:750;color:var(--accent,#1D9E75)}
-.kpi-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px;margin-bottom:1.35rem}.kpi{background:var(--color-background-secondary);border:1px solid var(--color-border-tertiary);border-radius:8px;padding:1.05rem 1.15rem;min-height:118px;min-width:0}.kpi-label{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:.055em;margin-bottom:7px}.kpi-val{font-size:30px;font-weight:750;color:var(--color-text-primary);line-height:1.02}.kpi-sub{font-size:12px;color:var(--color-text-tertiary);margin-top:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.tabs{display:flex;gap:8px;margin-bottom:1rem;padding-bottom:10px;border-bottom:1px solid var(--color-border-tertiary);overflow-x:auto}.tab{display:inline-flex;align-items:center;gap:8px;padding:9px 16px 9px 10px;font-size:16px;border:1px solid var(--color-border-tertiary);border-radius:999px;background:var(--color-background-primary);cursor:pointer;color:var(--color-text-secondary);white-space:nowrap;transition:background .15s ease,border-color .15s ease,color .15s ease}.tab .ico{width:26px;height:26px;border-radius:999px;background:var(--color-background-secondary);border:1px solid var(--color-border-tertiary);font-size:13px}.tab.active{color:var(--color-text-primary);font-weight:650;border-color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,var(--color-background-primary))}.tab.active .ico{background:var(--accent);border-color:var(--accent);color:#fff}
-.panel{display:none}.panel.active{display:block}.two-col{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem}.card,.full-card{background:var(--color-background-primary);border:1px solid var(--color-border-tertiary);border-radius:8px;padding:1rem 1.1rem}.full-card{margin-bottom:1rem}.sec-title{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:650;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px}.sec-title span:not(.ico){font-size:10px;color:var(--color-text-tertiary);font-weight:400;text-transform:none;letter-spacing:0}.sec-desc{min-height:34px;color:var(--color-text-tertiary);font-size:12px;line-height:1.35;margin-bottom:12px}
-.chart-wrap{position:relative;height:300px}.chart-wrap.tall{height:320px}.empty{height:300px;display:flex;align-items:center;justify-content:center;color:var(--color-text-tertiary);font-size:13px;text-align:center}.table-scroll{overflow-x:auto}.song-table{width:100%;border-collapse:collapse;font-size:12px}.song-table th{font-size:11px;font-weight:650;color:var(--color-text-secondary);text-align:left;padding:5px 7px 7px;border-bottom:1px solid var(--color-border-tertiary);white-space:nowrap}.song-table td{padding:7px;border-bottom:1px solid var(--color-border-tertiary);color:var(--color-text-primary);vertical-align:middle;white-space:nowrap}.song-table tr:last-child td{border-bottom:none}.song-name{max-width:260px;overflow:hidden;text-overflow:ellipsis}.rank-pill{display:inline-block;font-size:10px;padding:2px 7px;border-radius:10px;font-weight:650}.trend-up{color:#1D9E75}.trend-dn{color:#E24B4A}.trend-neu{color:var(--color-text-secondary)}.bar-cell{display:flex;align-items:center;gap:6px}.mini-bar-bg{flex:1;height:4px;background:var(--color-background-secondary);border-radius:2px;min-width:44px}.mini-bar{height:4px;border-radius:2px}.empty-cell{text-align:center;color:var(--color-text-tertiary)!important;padding:18px!important}.country-pill{font-size:12px;padding:4px 10px;border-radius:999px;background:var(--color-background-secondary);color:var(--color-text-secondary);border:1px solid var(--color-border-tertiary);display:inline-block;margin:3px}.muted{color:var(--color-text-tertiary);font-size:13px}.countries{margin-bottom:13px}.market-lines{border-top:1px solid var(--color-border-tertiary);padding-top:10px}.market-lines div{display:flex;justify-content:space-between;font-size:13px;margin-bottom:8px}.market-lines span{color:var(--color-text-secondary)}.market-lines strong{color:var(--color-text-primary)}
-@media(max-width:900px){.header{flex-direction:column;align-items:flex-start}.avatar{width:min(100%,176px);height:auto;aspect-ratio:1}.kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.artist-name{font-size:21px}.song-name{max-width:180px}}
+.kpi-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin-bottom:1.15rem}.kpi{background:var(--color-background-primary);border:1px solid var(--color-border-tertiary);border-radius:8px;padding:1rem;min-height:112px;min-width:0}.kpi-rank{border-color:rgba(24,95,165,.35)}.kpi-label{display:flex;align-items:center;gap:7px;font-size:11px;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;font-weight:750}.kpi-val{font-size:28px;font-weight:790;color:var(--color-text-primary);line-height:1.02;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.kpi-sub{font-size:12px;color:var(--color-text-tertiary);margin-top:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tabs{display:flex;gap:8px;margin-bottom:1rem;padding-bottom:11px;border-bottom:1px solid var(--color-border-tertiary);overflow-x:auto}.tab{display:inline-flex;align-items:center;gap:8px;padding:9px 16px 9px 10px;font-size:15px;border:1px solid var(--color-border-tertiary);border-radius:999px;background:var(--color-background-primary);cursor:pointer;color:var(--color-text-secondary);white-space:nowrap;transition:background .15s ease,border-color .15s ease,color .15s ease}.tab .ico{width:25px;height:25px;border-radius:999px;background:var(--color-background-secondary);border:1px solid var(--color-border-tertiary);font-size:12px}.tab.active{color:var(--color-text-primary);font-weight:720;border-color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,var(--color-background-primary))}.tab.active .ico{background:var(--accent);border-color:var(--accent);color:#fff}
+.panel{display:none}.panel.active{display:block}.two-col{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem;margin-bottom:1rem}.card,.full-card{background:var(--color-background-primary);border:1px solid var(--color-border-tertiary);border-radius:8px;padding:1rem 1.1rem;min-width:0}.full-card{margin-bottom:1rem}.sec-title{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:760;color:var(--color-text-primary);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px}.sec-title span:not(.ico){font-size:10px;color:var(--color-text-tertiary);font-weight:500;text-transform:none;letter-spacing:0}.sec-desc{min-height:34px;color:var(--color-text-secondary);font-size:12px;line-height:1.4;margin-bottom:12px}
+.chart-wrap{position:relative;height:320px;min-width:0;overflow:hidden}.chart-wrap canvas{max-width:100%!important}.chart-wrap.tall{height:340px}.empty{height:300px;display:flex;align-items:center;justify-content:center;color:var(--color-text-tertiary);font-size:13px;text-align:center}.table-scroll{overflow-x:auto}.song-table{width:100%;border-collapse:collapse;font-size:13px}.song-table th{font-size:11px;font-weight:750;color:var(--color-text-secondary);text-align:left;padding:8px 8px 10px;border-bottom:1px solid var(--color-border-tertiary);white-space:nowrap}.song-table td{padding:10px 8px;border-bottom:1px solid var(--color-border-tertiary);color:var(--color-text-primary);vertical-align:middle;white-space:nowrap}.song-table tr:last-child td{border-bottom:none}.song-table tr:hover td{background:var(--color-background-secondary)}.song-name{max-width:320px;overflow:hidden;text-overflow:ellipsis}.rank-pill{display:inline-block;font-size:11px;padding:3px 8px;border-radius:999px;font-weight:750}.trend-up{color:#1D9E75}.trend-dn{color:#E24B4A}.trend-neu{color:var(--color-text-secondary)}.bar-cell{display:flex;align-items:center;gap:6px}.mini-bar-bg{flex:1;height:4px;background:var(--color-background-secondary);border-radius:2px;min-width:44px}.mini-bar{height:4px;border-radius:2px}.empty-cell{text-align:center;color:var(--color-text-tertiary)!important;padding:18px!important}.country-pill{font-size:12px;padding:6px 10px;border-radius:999px;background:var(--color-background-secondary);color:var(--color-text-secondary);border:1px solid var(--color-border-tertiary);display:inline-block;margin:3px}.muted{color:var(--color-text-tertiary);font-size:13px}.countries{margin-bottom:14px}.market-lines{border-top:1px solid var(--color-border-tertiary);padding-top:12px}.market-lines div{display:flex;justify-content:space-between;font-size:13px;margin-bottom:9px;gap:16px}.market-lines span{color:var(--color-text-secondary)}.market-lines strong{color:var(--color-text-primary);font-weight:780}
+@media(max-width:980px){.header{grid-template-columns:96px minmax(0,1fr);align-items:start}.avatar{width:96px;height:96px}.summary-grid{grid-template-columns:1fr}.kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.artist-name{font-size:28px}.song-name{max-width:180px}}
 @media(max-width:640px){.two-col{grid-template-columns:1fr}}
 </style>
 """
@@ -370,4 +407,3 @@ render();
     for key, value in colors.items():
         html = html.replace(key, value)
     st_components.html(html, height=1120, width=None, scrolling=True)
-
