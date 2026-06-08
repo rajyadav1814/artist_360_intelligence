@@ -166,6 +166,36 @@ def _top_n(records: list[dict], n: int, *, risers: bool) -> list[dict]:
     return out
 
 
+def _consistent_records(records: list[dict], n: int, metric_key: str) -> list[dict[str, Any]]:
+    """Rank tracks by repeated chart presence, rank quality, and metric volume."""
+    rows: list[dict[str, Any]] = []
+    for r in records:
+        ranks = [x for x in r.get("ranks", []) if x is not None]
+        metrics = [x for x in r.get(metric_key, []) if x is not None]
+        if not ranks:
+            continue
+        total_metric = int(sum(metrics))
+        rows.append({
+            "n": r["n"],
+            "t": r["t"],
+            "lbl": r.get("lbl", "—"),
+            "days": len(ranks),
+            "best": int(min(ranks)),
+            "avg": round(sum(ranks) / len(ranks), 1),
+            "latest": int(metrics[-1]) if metrics else 0,
+            "total": total_metric,
+        })
+    if not rows:
+        return []
+    max_total = max((r["total"] for r in rows), default=1) or 1
+    for r in rows:
+        rank_quality = max(0, 250 - r["avg"])
+        metric_quality = (r["total"] / max_total) * 1000
+        r["score"] = int((r["days"] * 1000) + (rank_quality * 8) + metric_quality)
+    rows.sort(key=lambda r: (r["score"], r["days"], -r["avg"]), reverse=True)
+    return rows[:n]
+
+
 def _top20_today(df: pd.DataFrame, latest: date) -> list[dict[str, Any]]:
     today = df[df["date"] == latest].copy()
     if today.empty:
@@ -174,15 +204,28 @@ def _top20_today(df: pd.DataFrame, latest: date) -> list[dict[str, Any]]:
     prev_dates = sorted([d for d in df["date"].unique() if d < latest])
     prev = prev_dates[-1] if prev_dates else None
     prev_df = df[df["date"] == prev] if prev is not None else pd.DataFrame()
-    prev_map = dict(zip(prev_df["artist_title"], prev_df["metric"])) if not prev_df.empty else {}
+    prev_metric_map = dict(zip(prev_df["artist_title"], prev_df["metric"])) if not prev_df.empty else {}
+    prev_rank_map = dict(zip(prev_df["artist_title"], prev_df["rank"])) if not prev_df.empty else {}
     today = today.sort_values("rank").head(20)
     out: list[dict[str, Any]] = []
     for _, row in today.iterrows():
         artist, title = _split_at(row["artist_title"])
         s = int(row["metric"]) if pd.notna(row["metric"]) else 0
-        prev_v = prev_map.get(row["artist_title"])
+        prev_v = prev_metric_map.get(row["artist_title"])
         c = int(s - prev_v) if prev_v is not None and pd.notna(prev_v) else 0
-        out.append({"t": title, "a": artist, "s": s, "c": c})
+        prev_rank = prev_rank_map.get(row["artist_title"])
+        if prev_rank is not None and pd.notna(prev_rank):
+            movement: str | int = int(prev_rank - row["rank"])
+        else:
+            movement = "NEW"
+        out.append({
+            "rank": int(row["rank"]) if pd.notna(row["rank"]) else None,
+            "t": title,
+            "a": artist,
+            "s": s,
+            "c": c,
+            "m": movement,
+        })
     return out
 
 
@@ -213,15 +256,15 @@ def _records_to_df(records: list[dict], metric_key: str) -> pd.DataFrame:
 # ─────────────────────────── render ───────────────────────────────
 
 def render_track_movement() -> None:
-    st.markdown(
-        "<div style='font-size:0.85rem;color:#97a3c5;margin:-0.5rem 0 0.75rem 0'>"
-        "Rank + metric momentum across Spotify and iTunes daily charts."
-        "</div>",
-        unsafe_allow_html=True,
-    )
-
     # ── Filter bar ────────────────────────────────────────────────
-    c1, c2, c3 = st.columns([1.2, 1.2, 1.6])
+    c0, c1, c2, c3 = st.columns([1.7, 1.2, 1.2, 1.6])
+    with c0:
+        st.markdown(
+            "<div style='font-size:0.85rem;color:#97a3c5;padding-top:1.95rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis'>"
+            "Rank + metric momentum across Spotify and iTunes daily charts."
+            "</div>",
+            unsafe_allow_html=True,
+        )
     with c1:
         scope_label = custom_selectbox("Region", list(SCOPES.keys()), index=0, key="tm_scope")
     with c2:
@@ -259,9 +302,11 @@ def render_track_movement() -> None:
     sp_fallers = _top_n(sp_records, 15, risers=False)
     it_risers = _top_n(it_records, 15, risers=True)
     it_fallers = _top_n(it_records, 15, risers=False)
+    sp_consistent = _consistent_records(sp_records, 15, "streams")
+    it_consistent = _consistent_records(it_records, 15, "scores")
 
-    sp_top20 = _top20_today(sp_df, all_dates[-1]) if not sp_df.empty else []
-    it_top20 = _top20_today(it_df, all_dates[-1]) if not it_df.empty else []
+    sp_top20 = _top20_today(sp_df, max(sp_dates)) if sp_dates else []
+    it_top20 = _top20_today(it_df, max(it_dates)) if it_dates else []
 
     # KPIs
     sp_no1 = next((t for t in sp_top20 if True), None)
@@ -285,15 +330,19 @@ def render_track_movement() -> None:
     it_spot = it_risers[0] if it_risers else None
 
     date_strs = [d.strftime("%b %d") for d in all_dates]
+    window_label = f"{all_dates[0].strftime('%b %d')} - {all_dates[-1].strftime('%b %d, %Y')} · {PERIOD_LABELS[period_label]}"
 
     payload = {
         "dates": date_strs,
+        "window_label": window_label,
         "scope": scope_label,
         "platform": platform,
         "sp_risers": sp_risers,
         "sp_fallers": sp_fallers,
         "it_risers": it_risers,
         "it_fallers": it_fallers,
+        "sp_consistent": sp_consistent,
+        "it_consistent": it_consistent,
         "sp_top20": sp_top20,
         "it_top20": it_top20,
         "sp_spot": sp_spot,
@@ -325,251 +374,256 @@ def _build_html(payload: dict, dark_mode: bool = False) -> str:
 *{box-sizing:border-box;margin:0;padding:0}
 __THEME__
 body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t1);font-size:14px;line-height:1.45}
-.hdr{background:linear-gradient(180deg,#1a2235 0%,var(--bg2) 100%);border-bottom:1px solid var(--border);padding:14px 20px 10px}
-.hdr-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap;gap:10px}
-.brand{font-size:11px;color:var(--t3);letter-spacing:1.4px;text-transform:uppercase;display:flex;align-items:center;gap:7px;margin-bottom:6px;font-weight:600}
-.live{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);animation:blink 2s infinite}
-@keyframes blink{0%,100%{opacity:1}50%{opacity:.4}}
-.dash-title{font-size:22px;font-weight:700;letter-spacing:-.5px;color:var(--t1)}
-.dash-sub{font-size:11px;color:var(--t2);letter-spacing:.3px;margin-top:3px;font-weight:500}
-.kpi-bar{display:grid;grid-template-columns:repeat(6,1fr);gap:1px;background:var(--border);border-bottom:1px solid var(--border)}
-.kpi{background:var(--bg2);padding:12px 14px;transition:.15s}
-.kpi:hover{background:var(--bg3)}
-.kpi-lbl{font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px;font-weight:600}
-.kpi-val{font-size:20px;font-weight:700;letter-spacing:-.5px;line-height:1.1;color:var(--t1)}
-.kpi-sub{font-size:10px;color:var(--t2);margin-top:4px;font-weight:500}
-.kpi-val.g{color:var(--green)}.kpi-val.r{color:var(--red)}.kpi-val.p{color:var(--purple)}.kpi-val.a{color:var(--amber)}.kpi-val.b{color:var(--blue)}
-.body{padding:14px 16px;display:flex;flex-direction:column;gap:12px}
-.sh{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
-.sh-l{font-size:14px;font-weight:600;color:var(--t1);letter-spacing:-.2px}
-.sh-r{font-size:10px;color:var(--t2);background:var(--bg3);padding:4px 10px;border-radius:5px;border:1px solid var(--border2);font-weight:500}
-.r2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-.card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px 16px}
-.card-ttl{font-size:11px;color:var(--t2);text-transform:uppercase;letter-spacing:.7px;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--border);font-weight:600}
-.trk-hdr{display:grid;gap:6px;padding:4px 0;border-bottom:1px solid var(--border2);margin-bottom:4px}
-.trk-hdr span{font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.6px;font-weight:600}
-.trk{display:grid;gap:6px;padding:8px 0;border-bottom:1px solid var(--border);align-items:center;cursor:pointer;transition:.1s}
-.trk:hover{background:var(--bg3);margin:0 -6px;padding:8px 6px;border-radius:6px}
-.trk:last-child{border-bottom:none}
-.rn{font-size:12px;color:var(--t3);text-align:center;min-width:18px;font-weight:600}
-.tn{display:block;font-size:13px;font-weight:600;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:-.1px;max-width:100%}
-.ta{font-size:10px;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px;font-weight:500}
-.tv{font-size:12px;color:var(--t1);text-align:right;white-space:nowrap;font-weight:600;font-variant-numeric:tabular-nums}
-.dual-bar{display:flex;gap:4px;margin-top:6px;height:5px}
-.dual-seg{flex:1;border-radius:3px;position:relative;overflow:hidden;background:var(--bg4)}
-.dual-fill{height:5px;border-radius:3px;position:absolute;top:0;left:0}
-.bu{display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;padding:4px 9px;border-radius:5px;background:var(--gd);color:var(--green);min-width:42px;border:1px solid rgba(52,211,153,.35)}
-.bd{display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;padding:4px 9px;border-radius:5px;background:var(--rd);color:var(--red);min-width:42px;border:1px solid rgba(251,113,133,.35)}
-.bn{display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;padding:4px 9px;border-radius:5px;background:var(--bg3);color:var(--t2);min-width:42px;border:1px solid var(--border2)}
-.bh{display:inline-flex;font-size:11px;font-weight:700;padding:5px 10px;border-radius:5px;background:rgba(252,211,77,.15);color:var(--amber);border:1px solid rgba(252,211,77,.4);letter-spacing:.4px}
-.bp{display:inline-flex;font-size:11px;font-weight:700;padding:5px 10px;border-radius:5px;background:var(--pd);color:var(--purple);border:1px solid rgba(196,181,253,.4);letter-spacing:.4px}
-.spot{background:linear-gradient(135deg,#1a2235 0%,var(--bg2) 100%);border:1px solid var(--border2);border-radius:12px;padding:16px 18px;position:relative;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.3)}
-.spot::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--green),var(--teal))}
-.sp-tag{font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px;font-weight:600}
-.sp-name{font-size:20px;font-weight:700;letter-spacing:-.5px;line-height:1.2;margin-bottom:4px;color:var(--t1)}
-.sp-meta{font-size:11px;color:var(--t2);margin-bottom:12px;font-weight:500}
-.sp-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
-.sp-s{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 12px}
-.sp-s-l{font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px;font-weight:600}
-.sp-s-v{font-size:18px;font-weight:700;color:var(--t1);letter-spacing:-.4px;font-variant-numeric:tabular-nums}
-.cw{position:relative;width:100%}
-.hide{display:none !important}
-.section-label{font-size:12px;font-weight:700;letter-spacing:.5px;margin-bottom:10px;display:flex;align-items:center;gap:8px;text-transform:uppercase}
-.section-dot{width:10px;height:10px;border-radius:50%;display:inline-block;box-shadow:0 0 6px currentColor}
+.dash{padding:14px 4px 18px}
+.top{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:12px}
+.title{font-size:18px;font-weight:600;color:var(--t1)}
+.sub{font-size:12px;color:var(--t2);margin-top:2px}
+.tags{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.tag{font-size:10px;padding:2px 7px;border-radius:4px;font-weight:700;border:1px solid var(--border)}
+.pt-it{background:rgba(252,211,77,.16);color:var(--amber)}
+.pt-sp{background:rgba(52,211,153,.16);color:var(--green)}
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:18px}
+.kpi{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:14px 16px}
+.kpi-head{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.kpi-icon{width:22px;height:22px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;background:var(--bg3);border:1px solid var(--border);color:var(--blue);flex:0 0 auto}
+.kpi-icon svg{width:14px;height:14px;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.kpi-icon.green{color:var(--green);background:var(--gd)}
+.kpi-icon.amber{color:var(--amber);background:rgba(252,211,77,.15)}
+.kpi-icon.purple{color:var(--purple);background:var(--pd)}
+.kpi-label{font-size:12px;color:var(--t2)}
+.kpi-value{font-size:22px;font-weight:600;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kpi-sub{font-size:11px;color:var(--t3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tab-bar{display:flex;gap:18px;justify-content:flex-start;margin-bottom:16px;border-bottom:1px solid var(--border);padding:8px 0 14px;overflow-x:auto}
+.tab{min-width:158px;padding:10px 22px;font-size:13px;font-weight:600;background:rgba(251,113,133,.10);border:1px solid rgba(251,113,133,.28);border-radius:12px;cursor:pointer;color:var(--t1);white-space:nowrap;text-align:center;transition:background .15s,border-color .15s,box-shadow .15s}
+.tab:hover{background:rgba(251,113,133,.14);border-color:rgba(251,113,133,.42)}
+.tab.active{background:rgba(251,113,133,.18);border-color:rgba(251,113,133,.55);box-shadow:0 0 0 2px rgba(251,113,133,.08)}
+.panel{display:none}.panel.active{display:block}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:15px 16px}
+.section-label{font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;display:flex;align-items:center;gap:7px}
+.rank-table{width:100%;border-collapse:collapse;font-size:13px}
+.rank-table th{text-align:left;font-size:11px;font-weight:700;color:var(--t2);padding:6px 8px;border-bottom:1px solid var(--border)}
+.rank-table td{padding:9px 8px;border-bottom:1px solid var(--border);color:var(--t1);vertical-align:middle}
+.rank-table tr:last-child td{border-bottom:0}
+.rank-table tr:hover td{background:var(--bg3)}
+.rank-num{font-size:12px;font-weight:700;color:var(--t2);min-width:22px}
+.item-name{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:260px}
+.item-sub{font-size:11px;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:260px;margin-top:1px}
+.bar-wrap{display:flex;align-items:center;gap:8px;margin-top:4px}
+.bar-bg{flex:1;height:5px;background:var(--bg4);border-radius:3px;overflow:hidden}
+.bar-fill{height:100%;border-radius:3px}
+.mv-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid var(--border);font-size:12px}
+.mv-row:last-child{border-bottom:0}
+.mv-left{min-width:0;flex:1}
+.mv-art{font-weight:600;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mv-trk{color:var(--t2);font-size:11px;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mv-val{font-size:13px;font-weight:700;min-width:58px;text-align:right;font-variant-numeric:tabular-nums}
+.up{color:var(--green)}.dn{color:var(--red)}
+.live-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)}
+.live-row:last-child{border-bottom:0}
+.live-rank{font-size:15px;font-weight:700;min-width:30px;color:var(--t1)}
+.live-info{flex:1;min-width:0}
+.live-title{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.live-meta{font-size:11px;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.live-score{font-size:12px;color:var(--t2);text-align:right;min-width:64px;font-variant-numeric:tabular-nums}
+.badge{display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;min-width:34px}
+.badge-up{background:var(--gd);color:var(--green)}
+.badge-down{background:var(--rd);color:var(--red)}
+.badge-eq{background:var(--bg3);color:var(--t2)}
+.badge-new{background:var(--bd);color:var(--blue)}
+.chart-wrap{position:relative;width:100%;height:300px}
+.legend-row{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:10px;font-size:12px;color:var(--t2)}
+.legend-item{display:flex;align-items:center;gap:5px;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.legend-dot{width:10px;height:10px;border-radius:2px;flex:0 0 auto}
+.empty{color:var(--t3);font-size:12px;padding:12px 0}
+.hide{display:none!important}
+@media(max-width:720px){.top{align-items:flex-start;flex-direction:column}.two-col{grid-template-columns:1fr}.kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 </style></head><body>
+<div class='dash'>
+  <div class='kpi-grid'>
+    <div class='kpi'><div class='kpi-head'><span class='kpi-icon'><svg viewBox='0 0 24 24'><path d='M9 18V5l12-2v13'/><circle cx='6' cy='18' r='3'/><circle cx='18' cy='16' r='3'/></svg></span><div class='kpi-label'>Tracks tracked</div></div><div class='kpi-value' id='kpi-tracked'>0</div><div class='kpi-sub'>Active movement records</div></div>
+    <div class='kpi'><div class='kpi-head'><span class='kpi-icon green'><svg viewBox='0 0 24 24'><path d='M3 17l6-6 4 4 8-8'/><path d='M14 7h7v7'/></svg></span><div class='kpi-label'>Rising tracks</div></div><div class='kpi-value up' id='kpi-rising'>0</div><div class='kpi-sub'>Positive rank movement</div></div>
+    <div class='kpi'><div class='kpi-head'><span class='kpi-icon amber'><svg viewBox='0 0 24 24'><path d='M12 19V5'/><path d='M5 12l7-7 7 7'/></svg></span><div class='kpi-label'>Top rank riser</div></div><div class='kpi-value' id='kpi-riser'>-</div><div class='kpi-sub' id='kpi-riser-sub'>No movement</div></div>
+    <div class='kpi'><div class='kpi-head'><span class='kpi-icon purple'><svg viewBox='0 0 24 24'><path d='M3 3v18h18'/><path d='M7 15l4-4 3 3 5-7'/></svg></span><div class='kpi-label'>Biggest metric gain</div></div><div class='kpi-value' id='kpi-metric'>-</div><div class='kpi-sub' id='kpi-metric-sub'>Spotify streams</div></div>
+  </div>
 
+  <div class='tab-bar'>
+    <button class='tab active' onclick="showTab(event,'consistency')">Consistency</button>
+    <button class='tab' onclick="showTab(event,'movement')">Biggest movement</button>
+    <button class='tab' onclick="showTab(event,'live')">Latest charts</button>
+    <button class='tab' onclick="showTab(event,'trend')">Rank trend</button>
+  </div>
 
-<div class='body'>
-
-  <!-- Guide Banner -->
-  <div style='background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px 16px;margin-bottom:6px;'>
-    <div style='display:flex;justify-content:space-between;align-items:center;cursor:pointer;' onclick='toggleGuide()'>
-      <div style='display:flex;align-items:center;gap:10px;font-weight:700;color:var(--t1);font-size:13.5px;'>
-        <span style='font-size:16px;'>💡</span> Understanding Movement & Column Details
+  <div class='panel active' id='panel-consistency'>
+    <div class='two-col'>
+      <div class='card' id='it-cons-card'>
+        <div class='section-label'><span class='tag pt-it'>iTunes</span> Top consistent tracks</div>
+        <table class='rank-table'><thead><tr><th>#</th><th>Track</th><th>Best</th><th>Score</th></tr></thead><tbody id='it-cons-body'></tbody></table>
       </div>
-      <span id='guide-toggle-icon' style='font-size:12px;color:var(--t3);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;'>[ Show Details ]</span>
+      <div class='card' id='sp-cons-card'>
+        <div class='section-label'><span class='tag pt-sp'>Spotify</span> Top consistent tracks</div>
+        <table class='rank-table'><thead><tr><th>#</th><th>Track</th><th>Best</th><th>Score</th></tr></thead><tbody id='sp-cons-body'></tbody></table>
+      </div>
     </div>
-    <div id='guide-content' style='display:none;margin-top:10px;border-top:1px solid var(--border);padding-top:10px;'>
-      <div style='display:grid;grid-template-columns:1.2fr 1fr;gap:16px;'>
-        <div>
-          <div style='font-weight:700;font-size:11px;text-transform:uppercase;color:var(--t2);letter-spacing:0.8px;margin-bottom:6px;'>Composite Score Logic</div>
-          <p style='font-size:12px;color:var(--t3);line-height:1.45;margin-bottom:8px;'>
-            The <b>Riser / Faller</b> ranking is based on a composite score combining two factors:
-          </p>
-          <ul style='font-size:12px;color:var(--t3);line-height:1.45;padding-left:18px;margin-bottom:8px;'>
-            <li style='margin-bottom:4px;'><b>Rank Momentum (Weight: 1x):</b> The absolute change in chart position (e.g., jumping from #98 to #85 is a +13 rank gain).</li>
-            <li><b>Metric Momentum (Weight: Up to 50pts):</b> The change in volume (daily streams on Spotify or daily score points on iTunes) normalized against the largest volume change in the active dataset.</li>
-          </ul>
-          <p style='font-size:12px;color:var(--t3);line-height:1.45;'>
-            This dual factor identifies tracks that are either climbing rapidly in position or experiencing explosive changes in play count (even if already at the top).
-          </p>
-        </div>
-        <div>
-          <div style='font-weight:700;font-size:11px;text-transform:uppercase;color:var(--t2);letter-spacing:0.8px;margin-bottom:6px;'>Column Details & Guide</div>
-          <div style='display:grid;grid-template-columns:auto 1fr;gap:8px 12px;font-size:12px;color:var(--t3);line-height:1.4;'>
-            <b style='color:var(--t2);white-space:nowrap;'>Start / Now</b>
-            <span>The track's chart rank at the beginning and end of the selected window.</span>
-            
-            <b style='color:var(--t2);white-space:nowrap;'>Streams / Score</b>
-            <span>The latest daily streams (Spotify) or daily chart points (iTunes).</span>
-            
-            <b style='color:var(--t2);white-space:nowrap;'>Change (+ / Lost)</b>
-            <span>The absolute change in streams or points from the start to the end of the window.</span>
-            
-            <b style='color:var(--t2);white-space:nowrap;'>Δ Rank</b>
-            <span>The net rank shift (represented by <span class='bu' style='padding:2px 6px;min-width:auto;font-size:10px;'>▲13</span> or <span class='bd' style='padding:2px 6px;min-width:auto;font-size:10px;'>▼23</span>).</span>
-          </div>
-        </div>
-      </div>
+    <div class='card' id='cons-chart-card' style='margin-top:14px'>
+      <div class='section-label'>Consistency score - top 15</div>
+      <div class='chart-wrap'><canvas id='consistencyChart'></canvas></div>
     </div>
   </div>
 
-  <div style='display:grid;grid-template-columns:1fr 1fr;gap:12px'>
-
-    <div id='risers-section' style='background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px 16px'>
-      <div class='sh'><span class='sh-l'>📈 Top Risers — rank + metric composite</span></div>
-      <div style='font-size:11px;color:var(--t3);margin-top:-4px;margin-bottom:10px;line-height:1.4;'>
-        Tracks with the strongest positive momentum, calculated using a composite score of <b>Rank Improvement</b> and normalized <b>Metric Gain</b> (daily streams or score) over the selected window.
-      </div>
-      <div id='sp-riser-block'>
-        <div class='section-label' style='color:var(--green)'>
-          <span class='section-dot' style='background:var(--green)'></span>Rank + Streams
-        </div>
-        <div class='trk-hdr' style='grid-template-columns:22px 1fr 44px 44px 56px 56px 52px'>
-          <span></span><span>Artist · Track</span><span style='text-align:center'>Start</span><span style='text-align:center'>Now</span><span style='text-align:right'>Streams</span><span style='text-align:right'>+Streams</span><span style='text-align:right'>Δ Rank</span>
-        </div>
-        <div id='sp-risers'></div>
-      </div>
-      <div id='it-riser-block' style='margin-top:16px'>
-        <div class='section-label' style='color:var(--purple)'>
-          <span class='section-dot' style='background:var(--purple)'></span>ITUNES — Rank + Score
-        </div>
-        <div class='trk-hdr' style='grid-template-columns:24px 1fr 50px 50px 64px 64px 60px'>
-          <span></span><span>Artist · Track</span><span style='text-align:center'>Start</span><span style='text-align:center'>Now</span><span style='text-align:right'>Score</span><span style='text-align:right'>+Score</span><span style='text-align:right'>Δ Rank</span>
-        </div>
-        <div id='it-risers'></div>
-      </div>
+  <div class='panel' id='panel-movement'>
+    <div class='two-col'>
+      <div class='card' id='it-up-card'><div class='section-label'><span class='tag pt-it'>iTunes</span> Biggest movers up</div><div id='it-up-list'></div></div>
+      <div class='card' id='it-down-card'><div class='section-label'><span class='tag pt-it'>iTunes</span> Biggest movers down</div><div id='it-down-list'></div></div>
     </div>
-
-    <div id='fallers-section' style='background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px 16px'>
-      <div class='sh'><span class='sh-l'>📉 Top Fallers — rank + metric composite</span></div>
-      <div style='font-size:11px;color:var(--t3);margin-top:-4px;margin-bottom:10px;line-height:1.4;'>
-        Tracks with the steepest downward decline, calculated using a composite score of <b>Rank Drops</b> and normalized <b>Metric Loss</b> (daily streams or score) over the selected window.
-      </div>
-      <div id='sp-faller-block'>
-        <div class='section-label' style='color:var(--red)'>
-          <span class='section-dot' style='background:var(--red)'></span>Rank + Streams lost
-        </div>
-        <div class='trk-hdr' style='grid-template-columns:22px 1fr 44px 44px 56px 56px 52px'>
-          <span></span><span>Artist · Track</span><span style='text-align:center'>Start</span><span style='text-align:center'>Now</span><span style='text-align:right'>Streams</span><span style='text-align:right'>Lost</span><span style='text-align:right'>Δ Rank</span>
-        </div>
-        <div id='sp-fallers'></div>
-      </div>
-      <div id='it-faller-block' style='margin-top:16px'>
-        <div class='section-label' style='color:var(--red)'>
-          <span class='section-dot' style='background:var(--red)'></span>ITUNES — Rank + Score lost
-        </div>
-        <div class='trk-hdr' style='grid-template-columns:24px 1fr 50px 50px 64px 64px 60px'>
-          <span></span><span>Artist · Track</span><span style='text-align:center'>Start</span><span style='text-align:center'>Now</span><span style='text-align:right'>Score</span><span style='text-align:right'>Lost</span><span style='text-align:right'>Δ Rank</span>
-        </div>
-        <div id='it-fallers'></div>
-      </div>
+    <div style='height:14px'></div>
+    <div class='two-col'>
+      <div class='card' id='sp-up-card'><div class='section-label'><span class='tag pt-sp'>Spotify</span> Biggest stream gainers</div><div id='sp-up-list'></div></div>
+      <div class='card' id='sp-down-card'><div class='section-label'><span class='tag pt-sp'>Spotify</span> Biggest stream drops</div><div id='sp-down-list'></div></div>
     </div>
-
   </div>
 
-  <div class='card' id='it-traj-card' style='display:none'>
-    <div class='card-ttl'>iTunes — top 8 risers score trajectory (higher = better)</div>
-    <div style='display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px' id='it-traj-leg'></div>
-    <div class='cw' style='height:220px'><canvas id='itTrajChart'></canvas></div>
+  <div class='panel' id='panel-live'>
+    <div class='two-col'>
+      <div class='card' id='live-it-card'><div class='section-label'><span class='tag pt-it'>iTunes</span> Top 20 latest</div><div id='live-it-list'></div></div>
+      <div class='card' id='live-sp-card'><div class='section-label'><span class='tag pt-sp'>Spotify</span> Top 20 latest</div><div id='live-sp-list'></div></div>
+    </div>
   </div>
 
-  <div class='card' id='it-scatter-card' style='display:none'>
-    <div class='card-ttl'>iTunes — score gain vs rank gain</div>
-    <div class='cw' style='height:240px'><canvas id='itScatterChart'></canvas></div>
+  <div class='panel' id='panel-trend'>
+    <div class='card' id='it-trend-card' style='margin-bottom:14px'>
+      <div class='section-label'><span class='tag pt-it'>iTunes</span> Rank trend - top risers</div>
+      <div class='legend-row' id='it-trend-legend'></div>
+      <div class='chart-wrap'><canvas id='itTrendChart'></canvas></div>
+    </div>
+    <div class='card' id='sp-trend-card'>
+      <div class='section-label'><span class='tag pt-sp'>Spotify</span> Rank trend - top risers</div>
+      <div class='legend-row' id='sp-trend-legend'></div>
+      <div class='chart-wrap'><canvas id='spTrendChart'></canvas></div>
+    </div>
   </div>
-
-  <div class='card' id='it-top20-card' style='display:none'>
-    <div class='card-ttl'>iTunes top 20 today · colour = daily score change</div>
-    <div class='cw' style='height:310px'><canvas id='it20Chart'></canvas></div>
-  </div>
-
 </div>
 
 <script src='https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js'></script>
 <script>
 const PAYLOAD = __DATA__;
-const PLATFORM = PAYLOAD.platform; // Both / Spotify / iTunes
+const PLATFORM = PAYLOAD.platform || 'Both';
 const SHOW_SP = PLATFORM !== 'iTunes';
 const SHOW_IT = PLATFORM !== 'Spotify';
+const COLORS = ['#3266ad','#d85a30','#1d9e75','#ba7517','#993556','#3b6d11','#534ab7','#888780'];
 
-function fmtN(n,dec=1){if(n===null||n===undefined||isNaN(n))return'—';n=parseFloat(n);const a=Math.abs(n),sign=n<0?'−':n>0?'+':'';if(a>=1e6)return sign+(a/1e6).toFixed(dec)+'M';if(a>=1e3)return sign+(a/1e3).toFixed(0)+'K';return sign+a.toFixed(0);}
-function fmtM(n,dec=2,signed=false){if(n===null||n===undefined||isNaN(n))return'—';n=parseFloat(n);const a=Math.abs(n);const sign=signed?(n<0?'−':n>0?'+':''):(n<0?'−':'');return sign+(a/1e6).toFixed(dec)+'M';}
-const CDARK={responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:'rgba(128,128,128,0.12)'},ticks:{color:getComputedStyle(document.documentElement).getPropertyValue('--t3').trim()||'#8b95ad',font:{size:9}}},y:{grid:{color:'rgba(128,128,128,0.12)'},ticks:{color:getComputedStyle(document.documentElement).getPropertyValue('--t3').trim()||'#8b95ad',font:{size:9}}}}};
-const DATES = PAYLOAD.dates;
-const PAL=['#fff','#a78bfa','#2dd4bf','#60a5fa','#fbbf24','#f472b6','#34d399','#fb923c'];
-const PAL2=['#22c55e','#a78bfa','#60a5fa','#fbbf24','#2dd4bf','#f472b6','#fb923c','#94a3b8'];
-
-// Hide blocks per platform filter
-if (!SHOW_SP) {
-  ['sp-riser-block','sp-faller-block'].forEach(id=>{const e=document.getElementById(id);if(e)e.classList.add('hide');});
+function showTab(evt,id){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  evt.currentTarget.classList.add('active');
+  document.getElementById('panel-'+id).classList.add('active');
 }
-if (!SHOW_IT) {
-  ['it-riser-block','it-faller-block','it-traj-card','it-scatter-card','it-top20-card'].forEach(id=>{const e=document.getElementById(id);if(e)e.classList.add('hide');});
+function fmtNum(n){
+  if(n===null||n===undefined||isNaN(n))return'-';
+  n=Number(n); const a=Math.abs(n);
+  if(a>=1e9)return (n/1e9).toFixed(1)+'B';
+  if(a>=1e6)return (n/1e6).toFixed(1)+'M';
+  if(a>=1e3)return (n/1e3).toFixed(0)+'K';
+  return String(Math.round(n));
 }
-
-// Riser/faller table renderer
-function toggleGuide() {
-  const content = document.getElementById('guide-content');
-  const icon = document.getElementById('guide-toggle-icon');
-  if (content.style.display === 'none') {
-    content.style.display = 'block';
-    icon.textContent = '[ Hide Details ]';
-  } else {
-    content.style.display = 'none';
-    icon.textContent = '[ Show Details ]';
+function metricArr(d){return d.streams || d.scores || []}
+function latestMetric(d){return [...metricArr(d)].reverse().find(v=>v!==null) || 0}
+function latestRank(d){return [...(d.ranks||[])].reverse().find(v=>v!==null)}
+function startRank(d){return (d.ranks||[]).find(v=>v!==null)}
+function rankBadge(n){
+  if(n==='NEW')return '<span class="badge badge-new">NEW</span>';
+  n=Number(n);
+  if(!n)return '<span class="badge badge-eq">=</span>';
+  if(n>0)return `<span class="badge badge-up">+${n}</span>`;
+  return `<span class="badge badge-down">${n}</span>`;
+}
+function movementRow(d, metricName){
+  const up = d.sg >= 0;
+  const metric = metricName === 'streams' ? fmtNum(Math.abs(d.sg)) : Math.abs(d.sg).toLocaleString();
+  return `<div class='mv-row'>
+    <div class='mv-left'><div class='mv-art'>${d.n}</div><div class='mv-trk'>${d.t} · #${startRank(d)||'-'} to #${latestRank(d)||'-'}</div></div>
+    <div class='mv-val ${up?'up':'dn'}'>${up?'+':'-'}${metric}</div>
+    ${rankBadge(d.rg)}
+  </div>`;
+}
+function renderList(id, data, metricName){
+  const el=document.getElementById(id);
+  if(!el)return;
+  el.innerHTML = data && data.length ? data.map(d=>movementRow(d,metricName)).join('') : "<div class='empty'>No data in selected window.</div>";
+}
+function liveRow(r, metricLabel){
+  return `<div class='live-row'>
+    <div class='live-rank'>${r.rank || '-'}</div>
+    <div class='live-info'><div class='live-title'>${r.t}</div><div class='live-meta'>${r.a}</div></div>
+    <div style='display:flex;align-items:center;gap:6px'><div class='live-score'>${fmtNum(r.s)} ${metricLabel}</div>${rankBadge(r.m)}</div>
+  </div>`;
+}
+function renderLive(id, data, label){
+  const el=document.getElementById(id);
+  if(!el)return;
+  el.innerHTML = data && data.length ? data.map(r=>liveRow(r,label)).join('') : "<div class='empty'>No latest chart rows.</div>";
+}
+function renderConsistency(id, data, color){
+  const el=document.getElementById(id);
+  if(!el)return;
+  if(!data || !data.length){
+    el.innerHTML = "<tr><td colspan='4' class='empty'>No consistency data.</td></tr>";
+    return;
   }
+  const maxScore = Math.max(...data.map(d=>d.score),1);
+  el.innerHTML = data.map((d,i)=>{
+    const pct = Math.max(4, Math.round(d.score / maxScore * 100));
+    return `<tr>
+      <td class='rank-num'>${i+1}</td>
+      <td>
+        <div class='item-name'>${d.t}</div>
+        <div class='item-sub'>${d.n}</div>
+        <div class='bar-wrap'><div class='bar-bg'><div class='bar-fill' style='width:${pct}%;background:${color}'></div></div><span style='font-size:10px;color:var(--t3)'>${pct}%</span></div>
+      </td>
+      <td>#${d.best}</td>
+      <td>${fmtNum(d.score)}</td>
+    </tr>`;
+  }).join('');
 }
+function hide(ids){ids.forEach(id=>{const el=document.getElementById(id);if(el)el.classList.add('hide')})}
 
-function renderTable(elId, data){
-  const el = document.getElementById(elId);
-  if (!el) return;
-  if (!data || !data.length) { el.innerHTML = "<div style='color:var(--t3);font-size:10px;padding:14px 0'>No data in selected window.</div>"; return; }
-  el.innerHTML = '';
-  const maxRg = Math.max(...data.map(d=>Math.abs(d.rg)),1);
-  const maxSg = Math.max(...data.map(d=>Math.abs(d.sg)),1);
-  data.forEach((d,i)=>{
-    const metricArr = d.streams || d.scores || [];
-    const latVal = [...metricArr].reverse().find(v=>v!==null) || 0;
-    const latRank = [...d.ranks].reverse().find(v=>v!==null);
-    const startRank = d.ranks.find(v=>v!==null);
-    const rankPct = Math.min(Math.abs(d.rg)/maxRg*100, 100);
-    const sgPct = Math.min(Math.abs(d.sg)/maxSg*100, 100);
-    const isPos = d.rg > 0;
-    const rankColor = isPos?'var(--green)':d.rg<0?'var(--red)':'var(--t3)';
-    const sgColor = d.sg>0?'var(--blue)':d.sg<0?'var(--red)':'var(--t3)';
-    const sgSign = d.sg>0?'+':d.sg<0?'−':'';
-    const valFmt = d.streams ? fmtM(latVal,2) : (latVal||0).toLocaleString();
-    const sgLabel = d.streams ? fmtM(Math.abs(d.sg),2) : Math.abs(d.sg).toLocaleString();
-    const rankBadge = isPos ? `<span class='bu'>▲${d.rg}</span>` : d.rg<0 ? `<span class='bd'>▼${Math.abs(d.rg)}</span>` : `<span class='bn'>—</span>`;
-    el.innerHTML += `<div class='trk' style='grid-template-columns:22px minmax(0,1fr) 44px 44px 56px 56px 52px'>
-      <span class='rn'>${i+1}</span>
-      <div style='min-width:0'>
-        <div class='tn'>${d.t}</div>
-        <div class='ta'>${d.n}</div>
-      </div>
-      <span style='font-size:13px;color:var(--t3);text-align:center;font-weight:600'>${startRank||'—'}</span>
-      <span style='font-size:13px;color:${rankColor};text-align:center;font-weight:700'>${latRank||'—'}</span>
-      <span class='tv'>${valFmt}</span>
-      <span class='tv' style='color:${sgColor}'>${sgSign}${sgLabel.replace('+','').replace('−','')}</span>
-      <span style='text-align:right'>${rankBadge}</span>
-    </div>`;
-  });
+document.getElementById('kpi-tracked').textContent = (PAYLOAD.kpis.tracked || 0).toLocaleString();
+document.getElementById('kpi-rising').textContent = (PAYLOAD.kpis.rising_count || 0).toLocaleString();
+const br = PAYLOAD.kpis.big_rank_riser;
+document.getElementById('kpi-riser').textContent = br ? br.n : '-';
+document.getElementById('kpi-riser-sub').textContent = br ? `${br.t} · +${br.rg} rank` : 'No movement';
+const bm = PAYLOAD.kpis.big_stream_riser;
+document.getElementById('kpi-metric').textContent = bm ? bm.n : '-';
+document.getElementById('kpi-metric-sub').textContent = bm ? `${bm.t} · +${fmtNum(bm.sg)} streams` : 'Spotify streams';
+
+if(!SHOW_SP) hide(['sp-cons-card','sp-up-card','sp-down-card','live-sp-card','sp-trend-card']);
+if(!SHOW_IT) hide(['it-cons-card','it-up-card','it-down-card','live-it-card','it-trend-card']);
+if(SHOW_SP){renderConsistency('sp-cons-body', PAYLOAD.sp_consistent, '#1d9e75');}
+if(SHOW_IT){renderConsistency('it-cons-body', PAYLOAD.it_consistent, '#3266ad');}
+if(SHOW_SP){renderList('sp-up-list', PAYLOAD.sp_risers, 'streams'); renderList('sp-down-list', PAYLOAD.sp_fallers, 'streams'); renderLive('live-sp-list', PAYLOAD.sp_top20, 'streams');}
+if(SHOW_IT){renderList('it-up-list', PAYLOAD.it_risers, 'scores'); renderList('it-down-list', PAYLOAD.it_fallers, 'scores'); renderLive('live-it-list', PAYLOAD.it_top20, 'points');}
+
+function makeTrend(canvasId, legendId, rows){
+  const canvas=document.getElementById(canvasId);
+  const legend=document.getElementById(legendId);
+  if(!canvas || !rows || !rows.length){ if(legend) legend.innerHTML="<span class='empty'>No trend data.</span>"; return; }
+  const top=rows.slice(0,8);
+  legend.innerHTML = top.map((d,i)=>`<span class='legend-item'><span class='legend-dot' style='background:${COLORS[i]}'></span>${d.n}</span>`).join('');
+  new Chart(canvas,{type:'line',data:{labels:PAYLOAD.dates,datasets:top.map((d,i)=>({label:d.n,data:d.ranks,borderColor:COLORS[i],backgroundColor:'transparent',borderWidth:2,pointRadius:2,tension:.25,spanGaps:true}))},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{reverse:true,title:{display:true,text:'Chart rank (lower is better)',color:getComputedStyle(document.documentElement).getPropertyValue('--t2')},ticks:{color:getComputedStyle(document.documentElement).getPropertyValue('--t2')},grid:{color:'rgba(128,128,128,.14)'}},x:{ticks:{color:getComputedStyle(document.documentElement).getPropertyValue('--t2'),maxRotation:35},grid:{display:false}}}}});
 }
-if (SHOW_SP) { renderTable('sp-risers', PAYLOAD.sp_risers); renderTable('sp-fallers', PAYLOAD.sp_fallers); }
-if (SHOW_IT) { renderTable('it-risers', PAYLOAD.it_risers); renderTable('it-fallers', PAYLOAD.it_fallers); }
-
-// (iTunes trajectory / scatter / top20 charts removed)
+if(SHOW_IT) makeTrend('itTrendChart','it-trend-legend',PAYLOAD.it_risers);
+if(SHOW_SP) makeTrend('spTrendChart','sp-trend-legend',PAYLOAD.sp_risers);
+function makeConsistencyChart(){
+  const canvas=document.getElementById('consistencyChart');
+  if(!canvas)return;
+  const rows = [
+    ...(SHOW_IT ? (PAYLOAD.it_consistent || []).slice(0,8).map(d=>({...d, platform:'iTunes'})) : []),
+    ...(SHOW_SP ? (PAYLOAD.sp_consistent || []).slice(0,8).map(d=>({...d, platform:'Spotify'})) : [])
+  ].sort((a,b)=>b.score-a.score).slice(0,15);
+  if(!rows.length)return;
+  new Chart(canvas,{type:'bar',data:{labels:rows.map(d=>(d.t.length>18?d.t.slice(0,18)+'...':d.t)),datasets:[{data:rows.map(d=>d.score),backgroundColor:rows.map(d=>d.platform==='Spotify'?'#1d9e75':'#3266ad'),borderRadius:4,borderSkipped:false}]},options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>`${rows[ctx.dataIndex].platform}: ${fmtNum(ctx.raw)} score`}}},scales:{x:{ticks:{color:getComputedStyle(document.documentElement).getPropertyValue('--t2')},grid:{color:'rgba(128,128,128,.14)'}},y:{ticks:{color:getComputedStyle(document.documentElement).getPropertyValue('--t2')},grid:{display:false}}}}});
+}
+makeConsistencyChart();
 </script>
 </body></html>
 """.replace("__DATA__", data_json).replace("__THEME__", theme_css)

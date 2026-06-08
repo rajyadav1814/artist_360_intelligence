@@ -2617,6 +2617,20 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
             letter-spacing:.6px;padding:10px 14px 8px;border-bottom:1px solid var(--border);
             display:flex;align-items:center;gap:8px;margin-bottom:6px;
         }
+        .ct-section-desc{
+            font-size:12px;color:var(--text2);line-height:1.5;padding:0 14px 12px;
+        }
+        .ct-chart-note{
+            background:var(--surface);border:1px solid var(--border);border-radius:12px;
+            padding:14px 16px;margin:12px 0 12px;
+        }
+        .ct-chart-note-title{
+            font-size:14px;font-weight:700;color:var(--text);margin-bottom:5px;
+            display:flex;align-items:center;gap:8px;
+        }
+        .ct-chart-note-copy{
+            font-size:12px;color:var(--text2);line-height:1.5;
+        }
 
         /* Movement table */
         .ct-mv-tbl{width:100%;border-collapse:collapse;font-size:13px}
@@ -2978,41 +2992,72 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
         best_df_plot = best_df.copy()
         max_best_position = int(best_df_plot["best_position"].max())
         best_df_plot["position_score"] = max_best_position + 1 - best_df_plot["best_position"]
+        max_position_score = max(float(best_df_plot["position_score"].max()), 1.0)
+        best_df_plot["position_strength"] = (best_df_plot["position_score"] / max_position_score * 7800).round(0)
         best_df_plot = best_df_plot.sort_values("best_position", ascending=True)
+        best_df_plot["artist_tick"] = best_df_plot["artist"].map(
+            lambda v: v if len(str(v)) <= 20 else f"{str(v)[:18]}..."
+        )
 
-        bar_colors = [BRIGHT_PALETTE[idx % len(BRIGHT_PALETTE)] for idx in range(len(best_df_plot))]
-        text_color_chart = "#e2e8f0" if is_dark else "#1A1A1A"
+        st.markdown(
+            """
+            <div class='ct-chart-note'>
+              <div class='ct-chart-note-title'>🏆 Best Recent Positions</div>
+              <div class='ct-chart-note-copy'>
+                This chart highlights each artist's strongest chart rank within the selected time window.
+                A longer bar means a stronger recent peak position. Hover over any bar to see the actual best rank reached.
+              </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        blue_scale = [
+            "#0f5ea8", "#1469b6", "#1d76c8", "#2f86d8", "#4299e8",
+            "#5aa8ee", "#73b6f2", "#8bc3f6", "#9cccf8", "#add6fb",
+        ]
+        bar_colors = [blue_scale[min(idx, len(blue_scale) - 1)] for idx in range(len(best_df_plot))]
         fig_best = go.Figure(
             data=[
                 go.Bar(
-                    x=best_df_plot["position_score"],
+                    x=best_df_plot["position_strength"],
                     y=best_df_plot["artist"],
                     orientation="h",
                     marker=dict(color=bar_colors, line=dict(width=0)),
-                    text=[f"{int(v)}" for v in best_df_plot["best_position"]],
-                    textposition="outside",
-                    textfont=dict(color=text_color_chart, size=12),
                     cliponaxis=False,
-                    customdata=best_df_plot[["best_position"]].to_numpy(),
-                    hovertemplate="<b>%{y}</b><br>Score: %{x:.0f}<br>Best position: %{customdata[0]}<extra></extra>",
+                    customdata=best_df_plot[["artist", "best_position"]].to_numpy(),
+                    hovertemplate="<b>%{customdata[0]}</b><br>Best recent rank: #%{customdata[1]}<br>Position strength: %{x:,.0f}<extra></extra>",
                 )
             ]
         )
         style_figure(fig_best, max(380, 34 * len(best_df) + 80), dark_mode=is_dark)
+        try:
+            fig_best.update_traces(marker_cornerradius=4)
+        except Exception:  # noqa: BLE001
+            pass
         fig_best.update_layout(
-            title=dict(text="🏆 Best Recent Positions", x=0.03, xanchor="left", font=dict(size=18, color=text_color)),
+            title=dict(text="", x=0.03, xanchor="left", font=dict(size=18, color=text_color)),
             showlegend=False,
             yaxis_title="",
-            margin=dict(l=70, r=20, t=70, b=40),
-            bargap=0.35,
+            margin=dict(l=134, r=24, t=8, b=46),
+            bargap=0.28,
         )
-        fig_best.update_xaxes(dtick=1, showgrid=False, range=[0, max_best_position + 1.3],
-                              showticklabels=False, title="")
+        fig_best.update_xaxes(
+            dtick=1000,
+            showgrid=True,
+            range=[0, 8200],
+            showticklabels=True,
+            tickformat=",",
+            title=dict(text="Position strength score", font=dict(color=tick_color, size=11)),
+        )
         fig_best.update_yaxes(
             autorange="reversed",
             categoryorder="array",
             categoryarray=best_df_plot["artist"].tolist(),
-            ticklabelstandoff=18,
+            tickmode="array",
+            tickvals=best_df_plot["artist"].tolist(),
+            ticktext=best_df_plot["artist_tick"].tolist(),
+            ticklabelstandoff=10,
             tickfont=dict(color=text_color, size=12),
         )
         render_plotly_html(fig_best)
