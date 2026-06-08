@@ -660,7 +660,17 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
 .score-bar-bg{height:4px;background:var(--bg4);border-radius:3px;margin-top:4px;overflow:hidden}
 .score-bar-fg{height:4px;border-radius:3px;transition:width .4s}
 
-.two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.hero-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:stretch}
+.hero-row > *{min-width:0}
+.stack-col{display:flex;flex-direction:column;gap:16px;min-width:0;height:100%}
+.stack-col .track-list,
+.stack-col .signals-card{flex:1 1 0;min-height:0}
+.stack-col .track-list{display:flex;flex-direction:column}
+.stack-col .signals-card{display:flex;flex-direction:column}
+
+@media (max-width: 1100px){
+  .hero-row{grid-template-columns:1fr}
+}
 
 .sh{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--border)}
 .sh-l{font-size:14px;font-weight:600;color:var(--t1);letter-spacing:-.2px}
@@ -680,11 +690,11 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
       </summary>
       <div style="font-size:13px;color:var(--t2);line-height:1.6;margin-top:12px;padding-left:18px;border-left:2px solid var(--border2);margin-left:6px;">
         Every artist is graded on a 0-100 scale using five key pillars to determine their true business value:<br><br>
-        <b>Reach (25%)</b> — How big is their audience? We look at their peak chart positions to measure their global impact.<br>
-        <b>Consistency (25%)</b> — Do they stick around? We reward artists who maintain steady daily streams rather than one-day viral spikes.<br>
-        <b>Momentum (25%)</b> — Are they gaining traction? We track their daily trajectory to identify artists who are actively blowing up.<br>
-        <b>Longevity (15%)</b> — Do they have staying power? Artists who hold their chart ranks for weeks are proven, safer investments.<br>
-        <b>Commercial Depth (10%)</b> — Do they have a deep catalog? Artists with multiple trending songs are much less risky than one-hit wonders.
+        <b>Reach (25%)</b> — How big is their audience?<br>
+        <b>Consistency (25%)</b> — Do they stick around?<br>
+        <b>Momentum (25%)</b> — Are they gaining traction? <br>
+        <b>Longevity (15%)</b> — Do they have staying power?<br>
+        <b>Commercial Depth (10%)</b> — Do they have a deep catalog?<br>
       </div>
     </details>
   </div>
@@ -708,87 +718,88 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
 
 <div class="body">
 
-  <div class="acq-card" id="acq-card">
-    <div class="acq-header">
-      <div class="acq-meta" style="display:flex;justify-content:space-between">
-        <span>Acquisition recommendation</span>
-        <span id="d-label-top" style="color:var(--t2);text-transform:none"></span>
-      </div>
-      <div class="acq-row">
-        <div class="acq-left">
-          <div class="acq-id-row">
-            <div class="acq-avatar" id="d-av"></div>
-            <div>
-              <div class="acq-name" id="d-name"></div>
-              <div class="acq-sublabel" id="d-label"></div>
-            </div>
-            <div style="margin-left:auto; display:flex; align-items:center; gap:16px;">
-              <div style="text-align:right">
-                <div style="font-size:10px;color:var(--t3);text-transform:uppercase;font-weight:700;letter-spacing:0.5px">ACQ SCORE</div>
-                <div style="font-size:24px;font-weight:800;color:var(--t1);line-height:1" id="d-score">--</div>
+  <div class="hero-row">
+    <div class="acq-card" id="acq-card">
+      <div class="acq-header">
+        <div class="acq-meta" style="display:flex;justify-content:space-between">
+          <span>Acquisition recommendation</span>
+          <span id="d-label-top" style="color:var(--t2);text-transform:none"></span>
+        </div>
+        <div class="acq-row">
+          <div class="acq-left">
+            <div class="acq-id-row">
+              <div class="acq-avatar" id="d-av"></div>
+              <div>
+                <div class="acq-name" id="d-name"></div>
+                <div class="acq-sublabel" id="d-label"></div>
               </div>
-              <div class="signal-badge" id="d-signal"></div>
+              <div style="margin-left:auto; display:flex; align-items:center; gap:16px;">
+                <div style="text-align:right">
+                  <div style="font-size:10px;color:var(--t3);text-transform:uppercase;font-weight:700;letter-spacing:0.5px">ACQ SCORE</div>
+                  <div style="font-size:24px;font-weight:800;color:var(--t1);line-height:1" id="d-score">--</div>
+                </div>
+                <div class="signal-badge" id="d-signal"></div>
+              </div>
             </div>
+            <div class="acq-quote" id="d-quote"></div>
           </div>
-          <div class="acq-quote" id="d-quote"></div>
         </div>
       </div>
-    </div>
-    <div class="stat-grid" style="grid-template-columns: repeat(3, 1fr);">
-      <div class="stat-cell">
-        <div class="stat-lbl">START LISTENERS</div>
-        <div class="stat-val" id="d-l1-v">—</div>
-        <div class="stat-sub" id="d-l1-s"></div>
+      <div class="stat-grid" style="grid-template-columns: repeat(3, 1fr);">
+        <div class="stat-cell">
+          <div class="stat-lbl">START LISTENERS</div>
+          <div class="stat-val" id="d-l1-v">—</div>
+          <div class="stat-sub" id="d-l1-s"></div>
+        </div>
+        <div class="stat-cell">
+          <div class="stat-lbl">CURRENT LISTENERS</div>
+          <div class="stat-val" id="d-l2-v">—</div>
+          <div class="stat-sub" id="d-l2-s"></div>
+        </div>
+        <div class="stat-cell">
+          <div class="stat-lbl">LISTENER CHANGE</div>
+          <div class="stat-val" id="d-l3-v">—</div>
+          <div class="stat-sub" id="d-l3-s"></div>
+        </div>
+        <div class="stat-cell">
+          <div class="stat-lbl">START RANK</div>
+          <div class="stat-val" id="d-s1-v">—</div>
+          <div class="stat-sub" id="d-s1-s"></div>
+        </div>
+        <div class="stat-cell">
+          <div class="stat-lbl">CURRENT RANK</div>
+          <div class="stat-val" id="d-s2-v">—</div>
+          <div class="stat-sub" id="d-s2-s"></div>
+        </div>
+        <div class="stat-cell">
+          <div class="stat-lbl">RANK CHANGE</div>
+          <div class="stat-val" id="d-s3-v">—</div>
+          <div class="stat-sub" id="d-s3-s"></div>
+        </div>
       </div>
-      <div class="stat-cell">
-        <div class="stat-lbl">CURRENT LISTENERS</div>
-        <div class="stat-val" id="d-l2-v">—</div>
-        <div class="stat-sub" id="d-l2-s"></div>
+      <div style="padding:12px 20px">
+          <div class="chart-ttl" style="margin-bottom:8px">iTunes WW Rank trajectory · last window</div>
+          <div class="cw" style="height:150px" id="chart-ml"></div>
       </div>
-      <div class="stat-cell">
-        <div class="stat-lbl">LISTENER CHANGE</div>
-        <div class="stat-val" id="d-l3-v">—</div>
-        <div class="stat-sub" id="d-l3-s"></div>
+      <div style="padding:12px 20px; border-top: 1px solid var(--border);">
+          <div class="chart-ttl" style="margin-bottom:8px">Spotify Daily Listener Gain/Loss (%) · last window</div>
+          <div class="cw" style="height:150px" id="chart-sp-listeners"></div>
       </div>
-      <div class="stat-cell">
-        <div class="stat-lbl">START RANK</div>
-        <div class="stat-val" id="d-s1-v">—</div>
-        <div class="stat-sub" id="d-s1-s"></div>
-      </div>
-      <div class="stat-cell">
-        <div class="stat-lbl">CURRENT RANK</div>
-        <div class="stat-val" id="d-s2-v">—</div>
-        <div class="stat-sub" id="d-s2-s"></div>
-      </div>
-      <div class="stat-cell">
-        <div class="stat-lbl">RANK CHANGE</div>
-        <div class="stat-val" id="d-s3-v">—</div>
-        <div class="stat-sub" id="d-s3-s"></div>
-      </div>
-    </div>
-    
-    <div style="padding:12px 20px">
-        <div class="chart-ttl" style="margin-bottom:8px">iTunes WW Rank trajectory · last window</div>
-        <div class="cw" style="height:150px" id="chart-ml"></div>
-    </div>
-    <div style="padding:12px 20px; border-top: 1px solid var(--border);">
-        <div class="chart-ttl" style="margin-bottom:8px">Spotify Daily Listener Gain/Loss · last window</div>
-        <div class="cw" style="height:150px" id="chart-sp-listeners"></div>
-    </div>
-  </div>
-
-  <div class="two-col">
-    <div class="track-list">
-      <div class="sh"><span class="sh-l" id="tracks-title">Top tracks · Spotify Global</span><span class="sh-r">By total streams</span></div>
-      <div class="trk-hdr" style="grid-template-columns:30px 1fr 80px 64px 50px">
-        <span></span><span>Track</span><span style="text-align:right">Streams</span><span style="text-align:right">Best Rank</span><span style="text-align:right">Days</span>
-      </div>
-      <div id="tracks-list"></div>
     </div>
 
-    <div class="signals-card">
-      <div class="sh"><span class="sh-l">Why this artist · signals</span></div>
-      <div id="five-signals"></div>
+    <div class="stack-col">
+      <div class="track-list">
+        <div class="sh"><span class="sh-l" id="tracks-title">Top tracks · Spotify Global</span><span class="sh-r">By total streams</span></div>
+        <div class="trk-hdr" style="grid-template-columns:30px 1fr 80px 64px 50px">
+          <span></span><span>Track</span><span style="text-align:right">Streams</span><span style="text-align:right">Best Rank</span><span style="text-align:right">Days</span>
+        </div>
+        <div id="tracks-list"></div>
+      </div>
+
+      <div class="signals-card">
+        <div class="sh"><span class="sh-l">Why this artist · signals</span></div>
+        <div id="five-signals"></div>
+      </div>
     </div>
   </div>
 
@@ -984,12 +995,12 @@ function avColor(name){return ARTISTS[name]?.color||'#94a3b8';}
 const PLOTLY_LAYOUT_BASE = {
   paper_bgcolor:'rgba(0,0,0,0)',
   plot_bgcolor:'rgba(0,0,0,0)',
-  font:{family:'Inter,system-ui,sans-serif',color:'#cdd6e4',size:11},
+  font:{family:'Inter,system-ui,sans-serif',color:'#000000',size:11},
   margin:{l:48,r:18,t:10,b:58},
-  hoverlabel:{bgcolor:getComputedStyle(document.documentElement).getPropertyValue('--bg2').trim()||'#FFFFFF',bordercolor:getComputedStyle(document.documentElement).getPropertyValue('--border2').trim()||'#3a4661',font:{color:getComputedStyle(document.documentElement).getPropertyValue('--t1').trim()||'#1A1A1A',size:12}},
+  hoverlabel:{bgcolor:getComputedStyle(document.documentElement).getPropertyValue('--bg2').trim()||'#FFFFFF',bordercolor:getComputedStyle(document.documentElement).getPropertyValue('--border2').trim()||'#3a4661',font:{color:'#000000',size:12}},
   showlegend:false,
-  xaxis:{gridcolor:'rgba(255,255,255,0.05)',zerolinecolor:'rgba(255,255,255,0.08)',tickfont:{color:getComputedStyle(document.documentElement).getPropertyValue('--t3').trim()||'#8b95ad'},linecolor:'rgba(255,255,255,0.08)'},
-  yaxis:{gridcolor:'rgba(255,255,255,0.05)',zerolinecolor:'rgba(255,255,255,0.08)',tickfont:{color:getComputedStyle(document.documentElement).getPropertyValue('--t3').trim()||'#8b95ad'},linecolor:'rgba(255,255,255,0.08)'}
+  xaxis:{gridcolor:'rgba(255,255,255,0.05)',zerolinecolor:'rgba(255,255,255,0.08)',tickfont:{color:'#000000'},linecolor:'rgba(255,255,255,0.08)'},
+  yaxis:{gridcolor:'rgba(255,255,255,0.05)',zerolinecolor:'rgba(255,255,255,0.08)',tickfont:{color:'#000000'},linecolor:'rgba(255,255,255,0.08)'}
 };
 const PLOTLY_CFG = {displaylogo:false,displayModeBar:false,responsive:true};
 function layoutClone(extra){
@@ -1024,7 +1035,7 @@ function buildDateAxis(labels){
     tickvals,
     ticktext,
     tickangle:0,
-    tickfont:{color:'#9aa5bd', size:10},
+    tickfont:{color:'#000000', size:10},
     automargin:true,
   };
 }
@@ -1124,40 +1135,73 @@ function selectArtist(name){
   
   const layout = layoutClone({
     xaxis: buildDateAxis(DATES.slice(Math.max(0, DATES.length - currentTimeWindowDays))),
-    yaxis: {autorange: 'reversed', visible: true, title: {text: 'Rank Position', font: {size: 10, color: 'var(--t3)'}}},
+    yaxis: {autorange: 'reversed', visible: true, title: {text: 'Rank Position', font: {size: 10, color: '#000000'}}},
     margin:{l:50,r:20,t:10,b:30}
   });
+  const rankLabels = (d.itRanks || []).map(v => (v && v > 0) ? `#${v}` : '');
+  const firstRank = (d.itRanks || []).find(v => v && v > 0);
+  const lastRank = [...(d.itRanks || [])].reverse().find(v => v && v > 0);
+  const rankDelta = (firstRank && lastRank) ? (firstRank - lastRank) : null;
+  const rankDeltaLabel = rankDelta === null ? 'No rank change' : `${rankDelta > 0 ? '+' : ''}${rankDelta} positions`;
   const trace = {
     x: DATES.slice(Math.max(0, DATES.length - currentTimeWindowDays)),
     y: (d.itRanks||[]).map(v=>v>0?v:null),
     type: 'scatter',
-    mode: 'lines+markers',
+    mode: 'lines+markers+text',
     connectgaps: true,
     line: {color: d.color, width: 2, shape:'hv'},
     marker: {size: 6, color: d.color},
+    text: rankLabels,
+    textposition: 'top center',
+    textfont: {size: 10, color: '#000000'},
     hovertemplate: '%{x}<br><b>#%{y} iTunes WW</b><extra></extra>'
   };
-  Plotly.newPlot('chart-ml', [trace], layout, PLOTLY_CFG);
+  Plotly.newPlot('chart-ml', [trace], {
+    ...layout,
+    annotations: [{
+      xref: 'paper',
+      yref: 'paper',
+      x: 1,
+      y: 1.16,
+      xanchor: 'right',
+      yanchor: 'top',
+      text: rankDeltaLabel,
+      showarrow: false,
+      font: {size: 11, color: '#000000'}
+    }]
+  }, PLOTLY_CFG);
 
   const spListenersArray = d.spListenersArray || [];
-  const deltas = spListenersArray.map((v, i) => {
-      if (i === 0) return 0;
-      if (v !== null && spListenersArray[i-1] !== null) return v - spListenersArray[i-1];
-      return 0;
+  const pctChanges = spListenersArray.map((v, i) => {
+      if (i === 0) return null;
+      const prev = spListenersArray[i - 1];
+      if (v === null || prev === null || prev === 0) return null;
+      return ((v - prev) / prev) * 100;
   });
-  const colors = deltas.map(v => v >= 0 ? 'rgba(52, 211, 153, 0.8)' : 'rgba(251, 113, 133, 0.8)');
+  const colors = pctChanges.map(v => (v === null || v >= 0) ? 'rgba(52, 211, 153, 0.8)' : 'rgba(251, 113, 133, 0.8)');
+  const pctLabels = pctChanges.map(v => {
+    if (v === null) return '';
+    if (v > 0) return `↑ +${v.toFixed(1)}%`;
+    if (v < 0) return `↓ ${v.toFixed(1)}%`;
+    return `0.0%`;
+  });
 
   const layoutSp = layoutClone({
     xaxis: buildDateAxis(DATES.slice(Math.max(0, DATES.length - currentTimeWindowDays))),
-    yaxis: {visible: true, title: {text: 'Daily Change', font: {size: 10, color: 'var(--t3)'}}},
-    margin:{l:60,r:20,t:10,b:30}
+    yaxis: {visible: true, title: {text: '% Change', font: {size: 10, color: '#000000'}}, ticksuffix: '%', zeroline: true},
+    margin:{l:60,r:20,t:10,b:36}
   });
   const traceSp = {
     x: DATES.slice(Math.max(0, DATES.length - currentTimeWindowDays)),
-    y: deltas,
+    y: pctChanges,
     type: 'bar',
     marker: {color: colors},
-    hovertemplate: '%{x}<br><b>%{y:+,} Listeners</b><extra></extra>'
+    text: pctLabels,
+    texttemplate: '%{text}',
+    textposition: 'auto',
+    textfont: {size: 10, color: '#000000'},
+    cliponaxis: false,
+    hovertemplate: '%{x}<br><b>%{y:+.1f}%</b><extra></extra>'
   };
   Plotly.newPlot('chart-sp-listeners', [traceSp], layoutSp, PLOTLY_CFG);
 

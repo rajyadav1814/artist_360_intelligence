@@ -25,6 +25,36 @@ def _upsert_artist(cur, name: str, profile_url: str = None) -> int:
     return cur.fetchone()["id"]
 
 
+def _repair_serial_sequence(cur, table_name: str) -> None:
+    """
+    Repair a SERIAL/IDENTITY sequence if it has fallen behind MAX(id).
+
+    This is safe to call repeatedly and is a no-op when the table has no
+    sequence or when the sequence is already ahead of the data.
+    """
+    cur.execute("SELECT pg_get_serial_sequence(%s, 'id') AS seq_name", (table_name,))
+    row = cur.fetchone()
+    seq_name = row["seq_name"] if row else None
+    if not seq_name:
+        return
+
+    cur.execute(
+        f"""
+        SELECT setval(
+            %s,
+            COALESCE((SELECT MAX(id) FROM {table_name}), 0) + 1,
+            false
+        )
+        """,
+        (seq_name,),
+    )
+
+
+def _repair_serial_sequences(cur, table_names: List[str]) -> None:
+    for table_name in table_names:
+        _repair_serial_sequence(cur, table_name)
+
+
 def _batch_upsert_artists(cur, artist_data: List[tuple]) -> Dict[str, int]:
     """Batch upsert artists and return a mapping of name -> artist_id.
     
@@ -66,6 +96,8 @@ def save_itunes_rankings(rankings: List[ItunesRanking]) -> int:
     try:
         with conn:
             with conn.cursor() as cur:
+                _repair_serial_sequences(cur, ["artists", "itunes_artist_rankings"])
+
                 # Step 1: Batch upsert all artists
                 artist_data = [(r.artist_name, r.profile_url) for r in rankings]
                 artist_map = _batch_upsert_artists(cur, artist_data)
@@ -121,6 +153,8 @@ def save_spotify_artists(artists: List[SpotifyArtist]) -> int:
     try:
         with conn:
             with conn.cursor() as cur:
+                _repair_serial_sequences(cur, ["artists", "spotify_artists"])
+
                 # Step 1: Batch upsert all artists
                 artist_data = [(a.artist_name, None) for a in artists]
                 artist_map = _batch_upsert_artists(cur, artist_data)
@@ -165,6 +199,8 @@ def save_trending_artists(trending: List[TrendingArtist]) -> int:
     try:
         with conn:
             with conn.cursor() as cur:
+                _repair_serial_sequences(cur, ["artists", "trending_artists_monthly"])
+
                 # Step 1: Batch upsert all artists
                 artist_data = [(t.artist_name, None) for t in trending]
                 artist_map = _batch_upsert_artists(cur, artist_data)
@@ -219,6 +255,8 @@ def save_artist_details(details: List[ArtistDetail]) -> int:
     try:
         with conn:
             with conn.cursor() as cur:
+                _repair_serial_sequences(cur, ["artists", "artist_details"])
+
                 # Step 1: Batch upsert all artists
                 artist_data = [(d.artist_name, d.profile_url) for d in details]
                 artist_map = _batch_upsert_artists(cur, artist_data)
@@ -282,6 +320,7 @@ def log_scrape_run(source: str, status: str, rows: int = 0, error: str = None) -
         try:
             with conn:
                 with conn.cursor() as cur:
+                    _repair_serial_sequence(cur, "scrape_runs")
                     cur.execute(insert_sql, (source, status, rows, error))
         except errors.UniqueViolation as exc:
             if getattr(exc.diag, "constraint_name", None) != "scrape_runs_pkey":
@@ -314,6 +353,8 @@ def save_spotify_daily(data: List[SpotifyDaily]) -> int:
     try:
         with conn:
             with conn.cursor() as cur:
+                _repair_serial_sequence(cur, "spotify_daily")
+
                 rows = [
                     (
                         d.date, d.country, d.rank, d.artist_title,
@@ -354,6 +395,8 @@ def save_itunes_daily(data: List[ItunesDaily]) -> int:
     try:
         with conn:
             with conn.cursor() as cur:
+                _repair_serial_sequence(cur, "itunes_daily")
+
                 rows = [
                     (
                         d.date, d.country, d.rank, d.artist_title,
@@ -385,6 +428,8 @@ def save_itunes_artist_album(data: List[ItunesArtistAlbum]) -> int:
     try:
         with conn:
             with conn.cursor() as cur:
+                _repair_serial_sequence(cur, "itunes_artist_album")
+
                 rows = [
                     (
                         d.date, d.country, d.rank, d.artist_title,

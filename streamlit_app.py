@@ -3418,16 +3418,13 @@ def render_stream_trends(top_spotify: pd.DataFrame, leaderboard: pd.DataFrame, t
                     title="",
                     gridcolor="rgba(255,255,255,0.05)"
                 ),
-                height=max(500, len(gl_chart_df) * 40),
+                height=min(420, max(320, len(gl_chart_df) * 28)),
                 margin=dict(l=180, r=150, t=60, b=40),
                 paper_bgcolor="rgba(0,0,0,0)",
                 plot_bgcolor="rgba(0,0,0,0)",
                 bargap=0.35
             )
-            
-            chart_box_height = 750 if len(gl_chart_df) > 15 else None
-            with st.container(height=chart_box_height):
-                render_plotly_html(fig_move)
+            render_plotly_html(fig_move)
         
     
     # Detailed Data Table removed as requested
