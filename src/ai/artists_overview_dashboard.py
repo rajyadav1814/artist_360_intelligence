@@ -326,9 +326,9 @@ def render_artists_overview() -> None:
             "</div></div>"
         )
 
-    def bars_html(df: pd.DataFrame, label_col: str, value_col: str, title: str, limit: int = 7) -> str:
+    def bars_html(df: pd.DataFrame, label_col: str, value_col: str, title: str, desc: str, limit: int = 7) -> str:
         if df.empty:
-            return f"<section class='panel'><div class='panel-head'><h3>{escape(title)}</h3></div><div class='empty'>No rows available.</div></section>"
+            return f"<section class='panel'><div class='panel-head'><div><h3>{escape(title)}</h3><p>{escape(desc)}</p></div></div><div class='empty'>No rows available.</div></section>"
         df = df.head(limit).reset_index(drop=True)
         max_value = float(df[value_col].max()) or 1.0
         rows = []
@@ -346,41 +346,13 @@ def render_artists_overview() -> None:
             )
         return (
             "<section class='panel'>"
-            f"<div class='panel-head'><h3>{escape(title)}</h3><span class='toggle'><b>Top</b><i>All</i></span></div>"
+            f"<div class='panel-head'><div><h3>{escape(title)}</h3><p>{escape(desc)}</p></div><span class='toggle'><b>Top</b><i>All</i></span></div>"
             f"<div class='bars'>{''.join(rows)}</div></section>"
-        )
-
-    def line_svg(df: pd.DataFrame) -> str:
-        if df.empty:
-            return "<section class='panel'><div class='panel-head'><h3>Tracks over Time</h3></div><div class='empty'>No track rows available.</div></section>"
-        by_date = df.groupby("date")["title"].nunique().reset_index(name="tracks")
-        values = [float(v) for v in by_date["tracks"].tolist()]
-        labels = [str(v) for v in by_date["date"].tolist()]
-        width, height, pad = 360, 190, 24
-        max_value = max(values) or 1.0
-        min_value = min(values) if len(values) > 1 else 0.0
-        span = max(max_value - min_value, 1.0)
-        points = []
-        for idx, value in enumerate(values):
-            x = pad + (idx / max(len(values) - 1, 1)) * (width - pad * 2)
-            y = height - pad - ((value - min_value) / span) * (height - pad * 2)
-            points.append((x, y))
-        point_str = " ".join(f"{x:.1f},{y:.1f}" for x, y in points)
-        area_str = f"{pad},{height-pad} {point_str} {width-pad},{height-pad}"
-        circles = "".join(f"<circle cx='{x:.1f}' cy='{y:.1f}' r='3.5'></circle>" for x, y in points)
-        return (
-            "<section class='panel chart-panel'><div class='panel-head'><h3>Tracks over Time</h3></div>"
-            f"<svg class='line-chart' viewBox='0 0 {width} {height}' role='img'>"
-            f"<polygon points='{area_str}'></polygon><polyline points='{point_str}'></polyline>{circles}"
-            f"<text x='{pad}' y='{height-4}'>{escape(labels[0]) if labels else ''}</text>"
-            f"<text x='{width-pad}' y='{height-4}' text-anchor='end'>{escape(labels[-1]) if labels else ''}</text>"
-            f"<text x='{width-pad}' y='{pad}' text-anchor='end'>{escape(_fmt_n(max_value))}</text>"
-            "</svg></section>"
         )
 
     def donut_html(df: pd.DataFrame) -> str:
         if df.empty or "top_country" not in df.columns:
-            return "<section class='panel'><div class='panel-head'><h3>Top Country</h3></div><div class='empty'>No country rows available.</div></section>"
+            return "<section class='panel'><div class='panel-head'><div><h3>Top Country</h3><p>Most common lead market among ranked artists.</p></div></div><div class='empty'>No country rows available.</div></section>"
         counts = df["top_country"].fillna("Unknown").replace("", "Unknown").value_counts().head(5)
         total = float(counts.sum()) or 1.0
         colors = ["#fb7185", "#60a5fa", "#34d399", "#c4b5fd", "#fcd34d"]
@@ -393,14 +365,14 @@ def render_artists_overview() -> None:
             legend.append(f"<div class='legend-row'><span style='background:{color}'></span><b>{escape(str(label))}</b><i>{int(value)}</i></div>")
             start = end
         return (
-            "<section class='panel donut-panel'><div class='panel-head'><h3>Top Country</h3></div>"
+            "<section class='panel donut-panel'><div class='panel-head'><div><h3>Top Country</h3><p>Most common lead market among ranked artists.</p></div></div>"
             f"<div class='donut' style='background:conic-gradient({', '.join(segments)})'><span>{escape(_fmt_n(total))}</span></div>"
             f"<div class='legend'>{''.join(legend)}</div></section>"
         )
 
     def treemap_html(df: pd.DataFrame) -> str:
         if df.empty:
-            return "<section class='panel'><div class='panel-head'><h3>Top 10 Popular albums</h3></div><div class='empty'>No album rows available.</div></section>"
+            return "<section class='panel'><div class='panel-head'><div><h3>Top 10 Popular albums</h3><p>Album chart leaders by total album metric.</p></div></div><div class='empty'>No album rows available.</div></section>"
         top = df.groupby("album")["metric"].sum().reset_index().sort_values("metric", ascending=False).head(10)
         max_value = float(top["metric"].max()) or 1.0
         tiles = []
@@ -411,7 +383,7 @@ def render_artists_overview() -> None:
             palette = ["#fb7185", "#60a5fa", "#34d399", "#c4b5fd", "#fcd34d", "#5eead4", "#f9a8d4", "#84cc16", "#f97316", "#a855f7"]
             color = palette[idx % len(palette)]
             tiles.append(f"<div class='tile' style='flex-grow:{grow:.2f};background:{color}'><span>{escape(_short_label(str(row['album']), 22))}</span><b>{idx + 1}</b></div>")
-        return "<section class='panel'><div class='panel-head'><h3>Top 10 Popular albums</h3><span class='top-chip'>Top 10</span></div><div class='treemap'>" + "".join(tiles) + "</div></section>"
+        return "<section class='panel'><div class='panel-head'><div><h3>Top 10 Popular albums</h3><p>Album chart leaders by total album metric.</p></div><span class='top-chip'>Top 10</span></div><div class='treemap'>" + "".join(tiles) + "</div></section>"
 
     def radar_html(df: pd.DataFrame) -> str:
         source_cols = [("iTunes", "itunes_points"), ("Spotify", "spotify_points"), ("Apple Music", "apple_music_points"), ("Shazam", "shazam_points"), ("YouTube", "youtube_points"), ("Other", "other_points")]
@@ -421,7 +393,7 @@ def render_artists_overview() -> None:
                 labels.append(label)
                 values.append(float(df[col].fillna(0).sum()))
         if not any(values):
-            return "<section class='panel'><div class='panel-head'><h3>Source Performance</h3></div><div class='empty'>No source point rows available.</div></section>"
+            return "<section class='panel'><div class='panel-head'><div><h3>Source Performance</h3><p>Platform contribution mix from artist ranking points.</p></div></div><div class='empty'>No source point rows available.</div></section>"
         max_value = max(values) or 1.0
         cx, cy, radius = 180, 96, 72
         points, label_nodes, axes = [], [], []
@@ -436,7 +408,7 @@ def render_artists_overview() -> None:
             label_nodes.append(f"<text x='{lx:.1f}' y='{ly:.1f}' text-anchor='middle'>{escape(label)}</text>")
             axes.append(f"<line x1='{cx}' y1='{cy}' x2='{ax:.1f}' y2='{ay:.1f}'></line>")
         rings = "".join(f"<circle cx='{cx}' cy='{cy}' r='{r}'></circle>" for r in [24, 48, 72])
-        return "<section class='panel chart-panel'><div class='panel-head'><h3>Source Performance</h3></div><svg class='radar' viewBox='0 0 360 192'><g class='radar-grid'>" + rings + "".join(axes) + "</g><polygon points='" + " ".join(points) + "'></polygon>" + "".join(label_nodes) + "</svg></section>"
+        return "<section class='panel chart-panel'><div class='panel-head'><div><h3>Source Performance</h3><p>Platform contribution mix from artist ranking points.</p></div></div><svg class='radar' viewBox='0 0 360 192'><g class='radar-grid'>" + rings + "".join(axes) + "</g><polygon points='" + " ".join(points) + "'></polygon>" + "".join(label_nodes) + "</svg></section>"
 
     def word_cloud_html(df: pd.DataFrame) -> str:
         cloud_df = df[["name", "total_points"]].fillna({"total_points": 0}).sort_values("total_points", ascending=False).head(36) if not df.empty else pd.DataFrame()
@@ -456,29 +428,71 @@ def render_artists_overview() -> None:
                 f"{escape(str(row['name']))}"
                 "</span>"
             )
+        graph_df = cloud_df.head(18).reset_index(drop=True)
+        graph_svg = ""
+        if not graph_df.empty:
+            width, height, pad_x, pad_y = 980, 132, 28, 18
+            values = [float(v or 0) for v in graph_df["total_points"].tolist()]
+            max_value = max(values) or 1.0
+            min_value = min(values) if len(values) > 1 else 0.0
+            span = max(max_value - min_value, 1.0)
+            points = []
+            bars = []
+            for idx, value in enumerate(values):
+                x = pad_x + (idx / max(len(values) - 1, 1)) * (width - pad_x * 2)
+                y = height - pad_y - ((value - min_value) / span) * (height - pad_y * 2)
+                points.append((x, y))
+                bar_h = max(4, (height - pad_y - y))
+                tone = idx % 5
+                bars.append(
+                    f"<rect class='perf-bar tone-fill-{tone}' x='{x - 11:.1f}' y='{height - pad_y - bar_h:.1f}' width='22' height='{bar_h:.1f}' rx='6'></rect>"
+                )
+            point_str = " ".join(f"{x:.1f},{y:.1f}" for x, y in points)
+            area_str = f"{pad_x},{height-pad_y} {point_str} {width-pad_x},{height-pad_y}"
+            dots = "".join(f"<circle class='perf-dot tone-fill-{idx % 5}' cx='{x:.1f}' cy='{y:.1f}' r='5.5'></circle>" for idx, (x, y) in enumerate(points))
+            grid = "".join(
+                f"<line class='perf-grid' x1='{pad_x}' y1='{gy}' x2='{width-pad_x}' y2='{gy}'></line>"
+                for gy in [30, 58, 86, 114]
+            )
+            first_name = escape(_short_label(str(graph_df.iloc[0]["name"]), 18))
+            last_name = escape(_short_label(str(graph_df.iloc[-1]["name"]), 18))
+            graph_svg = (
+                "<svg class='perf-graph' viewBox='0 0 980 132' role='img' aria-label='Top artist total points trend'>"
+                + grid
+                + f"<line class='perf-axis' x1='{pad_x}' y1='{height-pad_y}' x2='{width-pad_x}' y2='{height-pad_y}'></line>"
+                + "".join(bars)
+                + f"<polygon class='perf-area' points='{area_str}'></polygon>"
+                + f"<polyline class='perf-line' points='{point_str}'></polyline>"
+                + dots
+                + f"<text class='perf-title' x='{pad_x}' y='16'>Top score {_fmt_n(max_value)}</text>"
+                + f"<text class='perf-name' x='{pad_x}' y='130'>{first_name}</text>"
+                + f"<text class='perf-name' x='{width-pad_x}' y='130' text-anchor='end'>{last_name}</text>"
+                + "</svg>"
+            )
         return (
             "<section class='panel word-panel'>"
-            "<div class='panel-head'><h3>Artist Performance</h3><span class='top-chip'>Top 36 by total points</span></div>"
-            f"<div class='word-cloud'>{''.join(words)}</div></section>"
+            "<div class='panel-head'><div><h3>Artist Performance</h3><p>Ranked artist strength by total points, with the top 18 plotted below.</p></div><span class='top-chip'>Top 36 by total points</span></div>"
+            f"<div class='word-cloud'>{''.join(words)}</div>{graph_svg}</section>"
         )
 
-    top_artists = filtered[["name", "total_points"]].fillna({"total_points": 0}).sort_values("total_points", ascending=False).head(7) if not filtered.empty else pd.DataFrame()
-    top_tracks = tracks_df.groupby("title")["metric"].sum().reset_index().sort_values("metric", ascending=False).head(7) if not tracks_df.empty else pd.DataFrame()
+    top_artists = filtered[["name", "total_points"]].fillna({"total_points": 0}).sort_values("total_points", ascending=False).head(10) if not filtered.empty else pd.DataFrame()
+    top_tracks = tracks_df.groupby("title")["metric"].sum().reset_index().sort_values("metric", ascending=False).head(10) if not tracks_df.empty else pd.DataFrame()
+    top_albums = albums_df.groupby("album")["metric"].sum().reset_index().sort_values("metric", ascending=False).head(10) if not albums_df.empty else pd.DataFrame()
     theme = "dark" if st.session_state.get("dark_mode", True) else "light"
     html = """
 <!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
-*{box-sizing:border-box}body{margin:0;font-family:Inter,ui-sans-serif,system-ui;background:transparent}.dash{min-height:780px;padding:18px;color:var(--text);background:var(--bg)}
+*{box-sizing:border-box}body{margin:0;font-family:Inter,ui-sans-serif,system-ui;background:transparent}.dash{min-height:1060px;padding:18px;color:var(--text);background:var(--bg)}
 .dash.dark{--bg:linear-gradient(135deg,#0d1117 0%,#111827 42%,#17152a 72%,#261d3d 100%);--panel:#161b26;--panel2:#1f2633;--panel3:#283041;--text:#f8fafc;--muted:#cdd6e4;--soft:#94a3b8;--border:rgba(148,163,184,.15);--track:rgba(148,163,184,.13);--shadow:0 18px 42px rgba(0,0,0,.24);--rose:#fb7185;--blue:#60a5fa;--green:#34d399;--purple:#c4b5fd;--amber:#fcd34d}
 .dash.light{--bg:linear-gradient(135deg,#f5f6fa 0%,#ffffff 58%,#f8f9fb 100%);--panel:#fff;--panel2:#f8f9fb;--panel3:#eef1f7;--text:#1a1a1a;--muted:#4a5568;--soft:#8a8fa3;--border:rgba(148,163,184,.22);--track:rgba(15,23,42,.08);--shadow:0 14px 30px rgba(15,23,42,.08);--rose:#fb7185;--blue:#60a5fa;--green:#34d399;--purple:#a78bfa;--amber:#f59e0b}
 .kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:18px;margin-bottom:16px}.kpi{min-height:124px;border-radius:16px;background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--border);padding:18px 16px;display:flex;align-items:center;gap:16px;box-shadow:var(--shadow);position:relative;overflow:hidden}.kpi:before{content:"";position:absolute;inset:0 auto 0 0;width:4px;background:var(--accent)}.kpi-icon{width:44px;height:44px;border-radius:14px;color:#fff;background:linear-gradient(135deg,var(--accent),var(--accent2));font-size:24px;display:flex;align-items:center;justify-content:center;flex:0 0 auto}.kpi:nth-child(1){--accent:var(--rose);--accent2:#f43f5e}.kpi:nth-child(2){--accent:var(--blue);--accent2:#2563eb}.kpi:nth-child(3){--accent:var(--green);--accent2:#10b981}.kpi:nth-child(4){--accent:var(--purple);--accent2:#8b5cf6}.kpi:nth-child(5){--accent:var(--amber);--accent2:#f97316}.kpi-title{color:var(--soft);font-size:12px;text-transform:uppercase;letter-spacing:.06em;font-weight:800;margin-bottom:10px;white-space:nowrap}.kpi-value{font-size:30px;font-weight:900;line-height:1;color:var(--text);font-variant-numeric:tabular-nums}.kpi-sub{color:var(--muted);margin-top:8px;font-size:11px;font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px}
-.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-bottom:14px}.panel{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--border);border-radius:16px;padding:12px;min-height:220px;overflow:hidden;box-shadow:var(--shadow)}.panel-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:8px}.panel h3{margin:0;color:var(--text);font-size:16px;font-weight:800}.toggle{display:inline-flex;border:1px solid var(--border);border-radius:3px;overflow:hidden;font-size:10px}.toggle b,.toggle i{padding:4px 7px;font-style:normal}.toggle b{background:var(--rose);color:#fff}.toggle i{background:var(--panel3);color:var(--muted)}
+.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-bottom:14px}.panel{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--border);border-radius:16px;padding:12px;min-height:276px;overflow:hidden;box-shadow:var(--shadow)}.panel-head{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px;gap:10px}.panel h3{margin:0;color:var(--text);font-size:16px;font-weight:800}.panel p{margin:5px 0 0;color:var(--muted);font-size:11px;font-weight:650;line-height:1.25}.toggle{display:inline-flex;border:1px solid var(--border);border-radius:3px;overflow:hidden;font-size:10px;flex:0 0 auto}.toggle b,.toggle i{padding:4px 7px;font-style:normal}.toggle b{background:var(--rose);color:#fff}.toggle i{background:var(--panel3);color:var(--muted)}
 .bars{display:flex;flex-direction:column;gap:9px}.bar-row{display:grid;grid-template-columns:16px minmax(82px,30%) 1fr;gap:8px;align-items:center}.bar-index,.bar-label{font-size:11px}.bar-index{color:var(--soft)}.bar-label{color:var(--text);font-weight:750;overflow:hidden;text-overflow:ellipsis}.bar-track{height:18px;background:var(--track);border-radius:4px;position:relative}.bar-fill{display:block;height:100%;border-radius:4px;background:linear-gradient(90deg,var(--rose),var(--blue));border:1px solid rgba(251,113,133,.32)}.bar-track b{position:absolute;right:5px;top:50%;transform:translateY(-50%);font-size:10px;color:var(--text)}
-.line-chart,.radar{width:100%;height:190px}.line-chart polygon{fill:rgba(96,165,250,.18)}.line-chart polyline{fill:none;stroke:var(--blue);stroke-width:3;stroke-dasharray:4 4}.line-chart circle{fill:var(--rose)}.line-chart text,.radar text{fill:var(--soft);font-size:10px}.radar-grid circle,.radar-grid line{fill:none;stroke:var(--border)}.radar polygon{fill:rgba(196,181,253,.18);stroke:var(--purple);stroke-width:2}
+.radar{width:100%;height:220px}.radar text{fill:var(--soft);font-size:10px}.radar-grid circle,.radar-grid line{fill:none;stroke:var(--border)}.radar polygon{fill:rgba(196,181,253,.18);stroke:var(--purple);stroke-width:2}
 .donut{width:132px;height:132px;border-radius:50%;margin:8px auto 12px;display:grid;place-items:center;position:relative}.donut:after{content:"";position:absolute;width:72px;height:72px;border-radius:50%;background:var(--panel)}.donut span{position:relative;z-index:1;color:var(--text);font-weight:900}.legend{display:grid;gap:6px}.legend-row{display:grid;grid-template-columns:12px 1fr auto;gap:7px;align-items:center;color:var(--muted);font-size:11px}.legend-row span{width:10px;height:10px;border-radius:50%}.legend-row b{color:var(--text);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.legend-row i{font-style:normal}
-.treemap{height:170px;display:flex;flex-wrap:wrap;gap:2px}.tile{min-width:72px;min-height:52px;padding:7px;color:#fff;display:flex;flex-direction:column;justify-content:space-between;font-size:11px;font-weight:800;text-shadow:0 1px 2px rgba(0,0,0,.28)}.tile b{font-size:13px}.top-chip{font-size:11px;color:var(--muted);background:var(--panel3);border:1px solid var(--border);padding:3px 7px;border-radius:4px}.word-panel{min-height:172px;padding:14px 14px 16px}.word-panel .panel-head{margin-bottom:12px}.word-cloud{min-height:104px;max-height:118px;overflow:hidden;line-height:1.12;display:flex;align-content:flex-start;align-items:baseline;flex-wrap:wrap;gap:8px 14px}.artist-word{display:inline-flex;align-items:baseline;font-weight:900;letter-spacing:.01em;white-space:nowrap;text-shadow:0 8px 20px rgba(0,0,0,.18)}.tier-xl{font-size:30px;line-height:1}.tier-lg{font-size:20px;line-height:1}.tier-md{font-size:14px;line-height:1}.tier-sm{font-size:11px;line-height:1;opacity:.86}.tone-0{color:var(--rose)}.tone-1{color:var(--blue)}.tone-2{color:var(--green)}.tone-3{color:var(--purple)}.tone-4{color:var(--amber)}
+.treemap{height:224px;display:flex;flex-wrap:wrap;gap:2px}.tile{min-width:72px;min-height:52px;padding:7px;color:#fff;display:flex;flex-direction:column;justify-content:space-between;font-size:11px;font-weight:800;text-shadow:0 1px 2px rgba(0,0,0,.28)}.tile b{font-size:13px}.top-chip{font-size:11px;color:var(--muted);background:var(--panel3);border:1px solid var(--border);padding:3px 7px;border-radius:4px}.word-panel{min-height:312px;padding:14px 14px 18px}.word-panel .panel-head{margin-bottom:12px}.word-cloud{min-height:88px;max-height:100px;overflow:hidden;line-height:1.12;display:flex;align-content:flex-start;align-items:baseline;flex-wrap:wrap;gap:8px 14px}.artist-word{display:inline-flex;align-items:baseline;font-weight:900;letter-spacing:.01em;white-space:nowrap;text-shadow:0 8px 20px rgba(0,0,0,.18)}.tier-xl{font-size:30px;line-height:1}.tier-lg{font-size:20px;line-height:1}.tier-md{font-size:14px;line-height:1}.tier-sm{font-size:11px;line-height:1;opacity:.86}.tone-0{color:var(--rose)}.tone-1{color:var(--blue)}.tone-2{color:var(--green)}.tone-3{color:var(--purple)}.tone-4{color:var(--amber)}.perf-graph{width:100%;height:132px;margin-top:14px;display:block;border-radius:12px;background:linear-gradient(180deg,rgba(96,165,250,.10),rgba(251,113,133,.05))}.perf-grid{stroke:var(--border);stroke-width:1;stroke-dasharray:4 5}.perf-axis{stroke:var(--soft);stroke-width:1.5}.perf-area{fill:rgba(96,165,250,.24)}.perf-line{fill:none;stroke:var(--rose);stroke-width:5;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 0 8px rgba(251,113,133,.42))}.perf-bar{opacity:.72}.perf-dot{stroke:var(--panel);stroke-width:3;filter:drop-shadow(0 0 5px rgba(255,255,255,.22))}.perf-graph text{fill:var(--soft);font-size:11px;font-weight:900}.perf-title{fill:var(--text)!important;font-size:13px!important}.perf-name{font-size:10px!important}.tone-fill-0{fill:var(--rose)}.tone-fill-1{fill:var(--blue)}.tone-fill-2{fill:var(--green)}.tone-fill-3{fill:var(--purple)}.tone-fill-4{fill:var(--amber)}
 .empty{color:var(--muted);font-size:12px;padding:24px 4px}
 @media(max-width:1050px){.kpis{grid-template-columns:repeat(2,1fr)}.grid{grid-template-columns:1fr}}@media(max-width:640px){.kpis{grid-template-columns:1fr}.dash{padding:10px}.kpi{min-height:100px}}
 </style></head><body>
-""" + f"<main class='dash {theme}'>" + "<div class='kpis'>" + kpi_html("Artists", _fmt_n(artist_total), "&#127908;", f"Latest rank snapshot: {latest_label}") + kpi_html("Songs", _fmt_n(song_total), "&#9835;", details_label) + kpi_html("Albums", _fmt_n(album_total), "&#9673;", album_rows_label) + kpi_html("Chart Days", _fmt_n(chart_days), "&#9719;", f"Max track streak in last {WINDOW_DAYS} days") + kpi_html("Popular Songs", _fmt_n(popular_songs), "&#9679;", f"Top 10 ranked tracks · {track_rows_label}") + "</div><div class='grid'>" + bars_html(top_artists, "name", "total_points", "Top Artist", 7) + bars_html(top_tracks, "title", "metric", "Top Track", 7) + line_svg(tracks_df) + "</div><div class='grid'>" + donut_html(filtered) + treemap_html(albums_df) + radar_html(filtered) + "</div>" + word_cloud_html(filtered) + "</main></body></html>"
-    st_components.html(html, height=840, scrolling=False)
+""" + f"<main class='dash {theme}'>" + "<div class='kpis'>" + kpi_html("Artists", _fmt_n(artist_total), "&#127908;", f"Latest rank snapshot: {latest_label}") + kpi_html("Songs", _fmt_n(song_total), "&#9835;", details_label) + kpi_html("Albums", _fmt_n(album_total), "&#9673;", album_rows_label) + kpi_html("Chart Days", _fmt_n(chart_days), "&#9719;", f"Max track streak in last {WINDOW_DAYS} days") + kpi_html("Popular Songs", _fmt_n(popular_songs), "&#9679;", f"Top 10 ranked tracks · {track_rows_label}") + "</div><div class='grid'>" + bars_html(top_artists, "name", "total_points", "Top Artist", "Highest scoring artists in the latest ranking snapshot.", 10) + bars_html(top_tracks, "title", "metric", "Top Track", "Tracks with the strongest combined chart metric.", 10) + bars_html(top_albums, "album", "metric", "Top Album", "Albums with the strongest album chart metric.", 10) + "</div><div class='grid'>" + donut_html(filtered) + treemap_html(albums_df) + radar_html(filtered) + "</div>" + word_cloud_html(filtered) + "</main></body></html>"
+    st_components.html(html, height=1120, scrolling=False)
