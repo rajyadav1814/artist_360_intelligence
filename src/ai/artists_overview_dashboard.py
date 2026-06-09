@@ -177,7 +177,7 @@ def _load_track_dashboard(days: int = WINDOW_DAYS) -> tuple[pd.DataFrame, pd.Dat
               AND d.date > (b.max_d - %s::int)
               AND d.date <= b.max_d
         ),
-        parsed AS (
+        parsed AS MATERIALIZED (
             SELECT
                 CASE
                     WHEN position(' - ' in artist_title) > 0 THEN split_part(artist_title, ' - ', 1)
@@ -294,7 +294,7 @@ def _load_album_dashboard(days: int = WINDOW_DAYS) -> tuple[pd.DataFrame, pd.Dat
         WITH bounds AS (
             SELECT MAX(date) AS max_d FROM itunes_artist_album WHERE country = 'ww'
         ),
-        parsed AS (
+        parsed AS MATERIALIZED (
             SELECT
                 CASE
                     WHEN position(' - ' in d.artist_title) > 0 THEN split_part(d.artist_title, ' - ', 1)
@@ -469,8 +469,45 @@ def _build_artist_table(
     return table.sort_values(["rank", "total_points"], ascending=[True, False])
 
 
+@st.cache_data(ttl=300, show_spinner=False)
+def _load_artists_overview_data(days: int = WINDOW_DAYS) -> tuple[
+    pd.DataFrame,
+    pd.DataFrame,
+    pd.DataFrame,
+    pd.DataFrame,
+    pd.DataFrame,
+    dict[str, float],
+    pd.DataFrame,
+    pd.DataFrame,
+    dict[str, float],
+    pd.DataFrame,
+]:
+    latest_artists = _load_artist_rank_history(days)
+    spotify_df = _load_spotify_artist_latest()
+    details_df = _load_artist_details_latest()
+    track_artist_stats, top_tracks, track_kpis = _load_track_dashboard(days)
+    album_artist_stats, top_albums, album_kpis = _load_album_dashboard(days)
+    filtered = _build_artist_table(latest_artists, spotify_df, details_df, track_artist_stats, album_artist_stats)
+    return (
+        latest_artists,
+        spotify_df,
+        details_df,
+        track_artist_stats,
+        top_tracks,
+        track_kpis,
+        album_artist_stats,
+        top_albums,
+        album_kpis,
+        filtered,
+    )
+
+
+def prefetch_artists_overview_data() -> None:
+    """Warm the cached overview payload in the background app prefetch thread."""
+    _load_artists_overview_data(WINDOW_DAYS)
+
+
 def render_artists_overview() -> None:
-    latest_artists = _load_artist_rank_history(WINDOW_DAYS)
     st.markdown(
         """
         <div style='font-size: 0.92rem; color: var(--text2); margin: 0 0 14px; line-height: 1.5; font-weight: 500;'>
@@ -480,17 +517,24 @@ def render_artists_overview() -> None:
         """,
         unsafe_allow_html=True,
     )
-    spotify_df = _load_spotify_artist_latest()
-    details_df = _load_artist_details_latest()
-    track_artist_stats, top_tracks, track_kpis = _load_track_dashboard(WINDOW_DAYS)
-    album_artist_stats, top_albums, album_kpis = _load_album_dashboard(WINDOW_DAYS)
+    (
+        latest_artists,
+        _spotify_df,
+        details_df,
+        _track_artist_stats,
+        top_tracks,
+        track_kpis,
+        _album_artist_stats,
+        top_albums,
+        album_kpis,
+        filtered,
+    ) = _load_artists_overview_data(WINDOW_DAYS)
 
     if latest_artists.empty and details_df.empty and top_tracks.empty and top_albums.empty:
         st.info("No artist overview data is available yet.")
         return
 
     latest_date = latest_artists["scrape_date"].max() if not latest_artists.empty else None
-    filtered = _build_artist_table(latest_artists, spotify_df, details_df, track_artist_stats, album_artist_stats)
 
     artist_total = float(latest_artists["name"].nunique()) if not latest_artists.empty else 0
     song_total = float(details_df["songs_count"].sum()) if "songs_count" in details_df else 0
@@ -663,6 +707,14 @@ def render_artists_overview() -> None:
         )
 
     top_artists = filtered[["name", "total_points"]].fillna({"total_points": 0}).sort_values("total_points", ascending=False).head(10) if not filtered.empty else pd.DataFrame()
+    top_listeners = (
+        filtered[["name", "monthly_listeners"]]
+        .fillna({"monthly_listeners": 0})
+        .sort_values("monthly_listeners", ascending=False)
+        .head(10)
+        if not filtered.empty and "monthly_listeners" in filtered.columns
+        else pd.DataFrame()
+    )
     theme = "dark" if st.session_state.get("dark_mode", True) else "light"
     html = """
 <!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
@@ -670,14 +722,14 @@ def render_artists_overview() -> None:
 *{box-sizing:border-box}body{margin:0;font-family:Inter,ui-sans-serif,system-ui;background:transparent}.dash{min-height:1060px;padding:18px;color:var(--text);background:var(--bg)}
 .dash.dark{--bg:linear-gradient(135deg,#0d1117 0%,#111827 42%,#17152a 72%,#261d3d 100%);--panel:#161b26;--panel2:#1f2633;--panel3:#283041;--text:#f8fafc;--muted:#cdd6e4;--soft:#94a3b8;--border:rgba(148,163,184,.15);--track:rgba(148,163,184,.13);--shadow:0 18px 42px rgba(0,0,0,.24);--rose:#fb7185;--blue:#60a5fa;--green:#34d399;--purple:#c4b5fd;--amber:#fcd34d}
 .dash.light{--bg:linear-gradient(135deg,#f5f6fa 0%,#ffffff 58%,#f8f9fb 100%);--panel:#fff;--panel2:#f8f9fb;--panel3:#eef1f7;--text:#1a1a1a;--muted:#4a5568;--soft:#8a8fa3;--border:rgba(148,163,184,.22);--track:rgba(15,23,42,.08);--shadow:0 14px 30px rgba(15,23,42,.08);--rose:#fb7185;--blue:#60a5fa;--green:#34d399;--purple:#a78bfa;--amber:#f59e0b}
-.kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:18px;margin-bottom:16px}.kpi{min-height:124px;border-radius:16px;background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--border);padding:18px 16px;display:flex;align-items:center;gap:16px;box-shadow:var(--shadow);position:relative;overflow:hidden}.kpi:before{content:"";position:absolute;inset:0 auto 0 0;width:4px;background:var(--accent)}.kpi-icon{width:44px;height:44px;border-radius:14px;color:#fff;background:linear-gradient(135deg,var(--accent),var(--accent2));font-size:24px;display:flex;align-items:center;justify-content:center;flex:0 0 auto}.kpi:nth-child(1){--accent:var(--rose);--accent2:#f43f5e}.kpi:nth-child(2){--accent:var(--blue);--accent2:#2563eb}.kpi:nth-child(3){--accent:var(--green);--accent2:#10b981}.kpi:nth-child(4){--accent:var(--purple);--accent2:#8b5cf6}.kpi:nth-child(5){--accent:var(--amber);--accent2:#f97316}.kpi-title{color:var(--soft);font-size:12px;text-transform:uppercase;letter-spacing:.06em;font-weight:800;margin-bottom:10px;white-space:nowrap}.kpi-value{font-size:30px;font-weight:900;line-height:1;color:var(--text);font-variant-numeric:tabular-nums}.kpi-sub{color:var(--muted);margin-top:8px;font-size:11px;font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px}
-.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-bottom:14px}.panel{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--border);border-radius:16px;padding:12px;min-height:276px;overflow:hidden;box-shadow:var(--shadow)}.panel-head{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px;gap:10px}.panel h3{margin:0;color:var(--text);font-size:16px;font-weight:800}.panel p{margin:5px 0 0;color:var(--muted);font-size:11px;font-weight:650;line-height:1.25}.toggle{display:inline-flex;border:1px solid var(--border);border-radius:3px;overflow:hidden;font-size:10px;flex:0 0 auto}.toggle b,.toggle i{padding:4px 7px;font-style:normal}.toggle b{background:var(--rose);color:#fff}.toggle i{background:var(--panel3);color:var(--muted)}
+.kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px;margin-bottom:16px}.kpi{min-height:122px;border-radius:16px;background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--border);padding:16px 14px;display:flex;align-items:center;gap:12px;box-shadow:var(--shadow);position:relative;overflow:hidden}.kpi:before{content:"";position:absolute;inset:0 auto 0 0;width:4px;background:var(--accent)}.kpi-icon{width:44px;height:44px;border-radius:14px;color:#fff;background:linear-gradient(135deg,var(--accent),var(--accent2));font-size:24px;display:flex;align-items:center;justify-content:center;flex:0 0 auto}.kpi-copy{min-width:0;flex:1}.kpi:nth-child(1){--accent:var(--rose);--accent2:#f43f5e}.kpi:nth-child(2){--accent:var(--blue);--accent2:#2563eb}.kpi:nth-child(3){--accent:var(--green);--accent2:#10b981}.kpi:nth-child(4){--accent:var(--purple);--accent2:#8b5cf6}.kpi:nth-child(5){--accent:var(--amber);--accent2:#f97316}.kpi-title{color:var(--soft);font-size:11px;text-transform:uppercase;letter-spacing:.06em;font-weight:800;margin-bottom:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.kpi-value{font-size:30px;font-weight:900;line-height:1;color:var(--text);font-variant-numeric:tabular-nums}.kpi-sub{color:var(--muted);margin-top:7px;font-size:10.5px;font-weight:650;line-height:1.25;white-space:normal;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-bottom:14px}.insight-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.panel{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--border);border-radius:16px;padding:12px;min-height:276px;overflow:hidden;box-shadow:var(--shadow)}.panel-head{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px;gap:10px}.panel h3{margin:0;color:var(--text);font-size:16px;font-weight:800}.panel p{margin:5px 0 0;color:var(--muted);font-size:11px;font-weight:650;line-height:1.25}.toggle{display:inline-flex;border:1px solid var(--border);border-radius:3px;overflow:hidden;font-size:10px;flex:0 0 auto}.toggle b,.toggle i{padding:4px 7px;font-style:normal}.toggle b{background:var(--rose);color:#fff}.toggle i{background:var(--panel3);color:var(--muted)}
 .bars{display:flex;flex-direction:column;gap:9px}.bar-row{display:grid;grid-template-columns:16px minmax(82px,30%) 1fr;gap:8px;align-items:center}.bar-index,.bar-label{font-size:11px}.bar-index{color:var(--soft)}.bar-label{color:var(--text);font-weight:750;overflow:hidden;text-overflow:ellipsis}.bar-track{height:18px;background:var(--track);border-radius:4px;position:relative}.bar-fill{display:block;height:100%;border-radius:4px;background:linear-gradient(90deg,var(--rose),var(--blue));border:1px solid rgba(251,113,133,.32)}.bar-track b{position:absolute;right:5px;top:50%;transform:translateY(-50%);font-size:10px;color:var(--text)}
 .radar{width:100%;height:220px}.radar text{fill:var(--soft);font-size:10px}.radar-grid circle,.radar-grid line{fill:none;stroke:var(--border)}.radar polygon{fill:rgba(196,181,253,.18);stroke:var(--purple);stroke-width:2}
 .donut{width:132px;height:132px;border-radius:50%;margin:8px auto 12px;display:grid;place-items:center;position:relative}.donut:after{content:"";position:absolute;width:72px;height:72px;border-radius:50%;background:var(--panel)}.donut span{position:relative;z-index:1;color:var(--text);font-weight:900}.legend{display:grid;gap:6px}.legend-row{display:grid;grid-template-columns:12px 1fr auto;gap:7px;align-items:center;color:var(--muted);font-size:11px}.legend-row span{width:10px;height:10px;border-radius:50%}.legend-row b{color:var(--text);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.legend-row i{font-style:normal}
 .treemap{height:224px;display:flex;flex-wrap:wrap;gap:2px}.tile{min-width:72px;min-height:52px;padding:7px;color:#fff;display:flex;flex-direction:column;justify-content:space-between;font-size:11px;font-weight:800;text-shadow:0 1px 2px rgba(0,0,0,.28)}.tile b{font-size:13px}.top-chip{font-size:11px;color:var(--muted);background:var(--panel3);border:1px solid var(--border);padding:3px 7px;border-radius:4px}.word-panel{min-height:312px;padding:14px 14px 18px}.word-panel .panel-head{margin-bottom:12px}.word-cloud{min-height:88px;max-height:100px;overflow:hidden;line-height:1.12;display:flex;align-content:flex-start;align-items:baseline;flex-wrap:wrap;gap:8px 14px}.artist-word{display:inline-flex;align-items:baseline;font-weight:900;letter-spacing:.01em;white-space:nowrap;text-shadow:0 8px 20px rgba(0,0,0,.18)}.tier-xl{font-size:30px;line-height:1}.tier-lg{font-size:20px;line-height:1}.tier-md{font-size:14px;line-height:1}.tier-sm{font-size:11px;line-height:1;opacity:.86}.tone-0{color:var(--rose)}.tone-1{color:var(--blue)}.tone-2{color:var(--green)}.tone-3{color:var(--purple)}.tone-4{color:var(--amber)}.perf-graph{width:100%;height:132px;margin-top:14px;display:block;border-radius:12px;background:linear-gradient(180deg,rgba(96,165,250,.10),rgba(251,113,133,.05))}.perf-grid{stroke:var(--border);stroke-width:1;stroke-dasharray:4 5}.perf-axis{stroke:var(--soft);stroke-width:1.5}.perf-area{fill:rgba(96,165,250,.24)}.perf-line{fill:none;stroke:var(--rose);stroke-width:5;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 0 8px rgba(251,113,133,.42))}.perf-bar{opacity:.72}.perf-dot{stroke:var(--panel);stroke-width:3;filter:drop-shadow(0 0 5px rgba(255,255,255,.22))}.perf-graph text{fill:var(--soft);font-size:11px;font-weight:900}.perf-title{fill:var(--text)!important;font-size:13px!important}.perf-name{font-size:10px!important}.tone-fill-0{fill:var(--rose)}.tone-fill-1{fill:var(--blue)}.tone-fill-2{fill:var(--green)}.tone-fill-3{fill:var(--purple)}.tone-fill-4{fill:var(--amber)}
 .empty{color:var(--muted);font-size:12px;padding:24px 4px}
-@media(max-width:1050px){.kpis{grid-template-columns:repeat(2,1fr)}.grid{grid-template-columns:1fr}}@media(max-width:640px){.kpis{grid-template-columns:1fr}.dash{padding:10px}.kpi{min-height:100px}}
+@media(max-width:1050px){.kpis{grid-template-columns:repeat(2,1fr)}.grid,.insight-grid{grid-template-columns:1fr}}@media(max-width:640px){.kpis{grid-template-columns:1fr}.dash{padding:10px}.kpi{min-height:100px}}
 </style></head><body>
-""" + f"<main class='dash {theme}'>" + "<div class='kpis'>" + kpi_html("Artists", _fmt_n(artist_total), "&#127908;", f"Latest rank snapshot: {latest_label}") + kpi_html("Songs", _fmt_n(song_total), "&#9835;", details_label) + kpi_html("Albums", _fmt_n(album_total), "&#9673;", album_rows_label) + kpi_html("Chart Days", _fmt_n(chart_days), "&#9719;", f"Max track streak in last {WINDOW_DAYS} days") + kpi_html("Popular Songs", _fmt_n(popular_songs), "&#9679;", f"Top 10 ranked tracks · {track_rows_label}") + "</div><div class='grid'>" + bars_html(top_artists, "name", "total_points", "Top Artist", "Highest scoring artists in the latest ranking snapshot.", 10) + bars_html(top_tracks, "title", "metric", "Top Track", "Tracks with the strongest combined chart metric.", 10) + bars_html(top_albums, "album", "metric", "Top Album", "Albums with the strongest album chart metric.", 10) + "</div><div class='grid'>" + donut_html(filtered) + treemap_html(top_albums) + radar_html(filtered) + "</div>" + word_cloud_html(filtered) + "</main></body></html>"
+""" + f"<main class='dash {theme}'>" + "<div class='kpis'>" + kpi_html("Artists", _fmt_n(artist_total), "&#127908;", f"Latest rank snapshot") + kpi_html("Songs", _fmt_n(song_total), "&#9835;", details_label) + kpi_html("Albums", _fmt_n(album_total), "&#9673;", album_rows_label) + kpi_html("Chart Days", _fmt_n(chart_days), "&#9719;", f"Max track streak in last {WINDOW_DAYS} days") + kpi_html("Popular Songs", _fmt_n(popular_songs), "&#9679;", f"Top 10 ranked tracks · {track_rows_label}") + "</div><div class='grid'>" + bars_html(top_artists, "name", "total_points", "Top Artist", "Highest scoring artists in the latest ranking snapshot.", 10) + bars_html(top_tracks, "title", "metric", "Top Track", "Tracks with the strongest combined chart metric.", 10) + bars_html(top_albums, "album", "metric", "Top Album", "Albums with the strongest album chart metric.", 10) + "</div><div class='grid insight-grid'>" + donut_html(filtered) + radar_html(filtered) + bars_html(top_listeners, "name", "monthly_listeners", "Spotify Listener Leaders", "Artists with the highest latest monthly listener counts.", 10) + "</div>" + word_cloud_html(filtered) + "</main></body></html>"
     st_components.html(html, height=1120, scrolling=False)

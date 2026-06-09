@@ -20,7 +20,7 @@ from src.ai.track_movement_dashboard import render_track_movement
 from src.ai.album_movement_dashboard import render_album_movement
 from src.ai.artist_spotlight_dashboard import render_debut_artist_chart
 from src.ai.artist_movement_dashboard import render_chart_tracker
-from src.ai.artists_overview_dashboard import render_artists_overview
+from src.ai.artists_overview_dashboard import render_artists_overview, prefetch_artists_overview_data
 from src.ai.acquisition_dashboard import (
     render_acquisition,
     _load_daily,
@@ -3441,6 +3441,7 @@ try:
         def run_prefetch():
             try:
                 prefetch_debut_data()
+                prefetch_artists_overview_data()
                 prefetch_label_data()
                 prefetch_acquisition_data()
             except Exception as e:
