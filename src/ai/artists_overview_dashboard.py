@@ -471,6 +471,15 @@ def _build_artist_table(
 
 def render_artists_overview() -> None:
     latest_artists = _load_artist_rank_history(WINDOW_DAYS)
+    st.markdown(
+        """
+        <div style='font-size: 0.92rem; color: var(--text2); margin: 0 0 14px; line-height: 1.5; font-weight: 500;'>
+        This dashboard provides a comprehensive overview of all tracked artists, including their catalog, 
+        chart activity, listeners, and key performance indicators, offering a holistic view of their market presence and performance.
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
     spotify_df = _load_spotify_artist_latest()
     details_df = _load_artist_details_latest()
     track_artist_stats, top_tracks, track_kpis = _load_track_dashboard(WINDOW_DAYS)
