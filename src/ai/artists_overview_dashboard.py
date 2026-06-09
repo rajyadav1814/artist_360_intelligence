@@ -90,12 +90,11 @@ def _load_artist_rank_history(days: int = WINDOW_DAYS) -> pd.DataFrame:
             FROM itunes_artist_rankings r
             JOIN artists a ON a.id = r.artist_id
             CROSS JOIN bounds b
-            WHERE r.scrape_date > (b.max_d - %s::int)
-              AND r.scrape_date <= b.max_d
+            WHERE r.scrape_date = b.max_d
         )
         SELECT * FROM ranked WHERE rn = 1
     """
-    rows = _run_query(query, (days,))
+    rows = _run_query(query)
     if not rows:
         return pd.DataFrame()
     df = pd.DataFrame(rows)
@@ -161,68 +160,246 @@ def _load_artist_details_latest() -> pd.DataFrame:
 
 
 @st.cache_data(ttl=300, show_spinner=False)
-def _load_track_window(days: int = WINDOW_DAYS) -> pd.DataFrame:
+def _load_track_dashboard(days: int = WINDOW_DAYS) -> tuple[pd.DataFrame, pd.DataFrame, dict[str, float]]:
     query = """
         WITH sp_bounds AS (SELECT MAX(date) AS max_d FROM spotify_daily WHERE country = 'global'),
         it_bounds AS (SELECT MAX(date) AS max_d FROM itunes_daily WHERE country = 'ww'),
-        spotify_rows AS (
-            SELECT 'Spotify' AS platform, d.date, d.artist_title, d.rank, d.days,
-                   d.streams::numeric AS metric, d.label
+        raw_rows AS (
+            SELECT d.artist_title, d.rank, d.days, d.streams::numeric AS metric
             FROM spotify_daily d, sp_bounds b
             WHERE d.country = 'global'
               AND d.date > (b.max_d - %s::int)
               AND d.date <= b.max_d
-        ),
-        itunes_rows AS (
-            SELECT 'iTunes' AS platform, d.date, d.artist_title, d.rank, d.days,
-                   d.points::numeric AS metric, d.label
+            UNION ALL
+            SELECT d.artist_title, d.rank, d.days, d.points::numeric AS metric
             FROM itunes_daily d, it_bounds b
             WHERE d.country = 'ww'
               AND d.date > (b.max_d - %s::int)
               AND d.date <= b.max_d
+        ),
+        parsed AS (
+            SELECT
+                CASE
+                    WHEN position(' - ' in artist_title) > 0 THEN split_part(artist_title, ' - ', 1)
+                    ELSE COALESCE(NULLIF(artist_title, ''), 'Unknown')
+                END AS artist,
+                CASE
+                    WHEN position(' - ' in artist_title) > 0 THEN substring(artist_title from position(' - ' in artist_title) + 3)
+                    ELSE COALESCE(NULLIF(artist_title, ''), 'Unknown')
+                END AS title,
+                rank,
+                days,
+                COALESCE(metric, 0) AS metric
+            FROM raw_rows
+        ),
+        artist_stats AS (
+            SELECT
+                artist,
+                SUM(metric) AS metric,
+                COUNT(DISTINCT title) AS chart_count,
+                COUNT(*) AS entries,
+                MIN(rank) AS best_rank,
+                MAX(days) AS max_days,
+                COUNT(*) AS row_count
+            FROM parsed
+            GROUP BY artist
+        ),
+        track_stats AS (
+            SELECT title, SUM(metric) AS metric, MIN(rank) AS best_rank
+            FROM parsed
+            GROUP BY title
+            ORDER BY metric DESC
+            LIMIT 10
+        ),
+        kpis AS (
+            SELECT
+                SUM(metric) AS metric,
+                COUNT(DISTINCT title) FILTER (WHERE rank <= 10) AS popular_songs,
+                COUNT(*) AS entries,
+                MAX(days) AS max_days,
+                COUNT(*) AS row_count
+            FROM parsed
         )
-        SELECT * FROM spotify_rows
+        SELECT
+            'artist'::text AS row_type,
+            artist AS label,
+            metric,
+            chart_count,
+            entries,
+            best_rank,
+            max_days,
+            row_count
+        FROM artist_stats
         UNION ALL
-        SELECT * FROM itunes_rows
+        SELECT
+            'track'::text AS row_type,
+            title AS label,
+            metric,
+            NULL::bigint AS chart_count,
+            NULL::bigint AS entries,
+            best_rank,
+            NULL::integer AS max_days,
+            NULL::bigint AS row_count
+        FROM track_stats
+        UNION ALL
+        SELECT
+            'kpi'::text AS row_type,
+            '__all__' AS label,
+            metric,
+            popular_songs AS chart_count,
+            entries,
+            NULL::integer AS best_rank,
+            max_days,
+            row_count
+        FROM kpis
     """
     rows = _run_query(query, (days, days))
     if not rows:
-        return pd.DataFrame()
+        return pd.DataFrame(), pd.DataFrame(), {"max_days": 0, "popular_songs": 0, "row_count": 0}
     df = pd.DataFrame(rows)
-    df["date"] = pd.to_datetime(df["date"]).dt.date
-    df["rank"] = pd.to_numeric(df["rank"], errors="coerce")
-    df["days"] = pd.to_numeric(df["days"], errors="coerce").fillna(0)
-    df["metric"] = pd.to_numeric(df["metric"], errors="coerce").fillna(0)
-    split = df["artist_title"].map(_split_artist_title)
-    df["artist"] = [item[0] for item in split]
-    df["title"] = [item[1] for item in split]
-    return df
+    for col in ["metric", "chart_count", "entries", "best_rank", "max_days", "row_count"]:
+        df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
+
+    artist_stats = (
+        df[df["row_type"] == "artist"]
+        .rename(
+            columns={
+                "label": "name",
+                "metric": "track_metric",
+                "chart_count": "chart_tracks",
+                "entries": "track_entries",
+                "best_rank": "best_track_rank",
+            }
+        )[["name", "chart_tracks", "track_entries", "track_metric", "best_track_rank"]]
+        .copy()
+    )
+    top_tracks = (
+        df[df["row_type"] == "track"]
+        .rename(columns={"label": "title"})[["title", "metric"]]
+        .sort_values("metric", ascending=False)
+        .reset_index(drop=True)
+    )
+    kpi_row = df[df["row_type"] == "kpi"].head(1)
+    kpis = {
+        "max_days": float(kpi_row["max_days"].iloc[0]) if not kpi_row.empty else 0,
+        "popular_songs": float(kpi_row["chart_count"].iloc[0]) if not kpi_row.empty else 0,
+        "row_count": float(kpi_row["row_count"].iloc[0]) if not kpi_row.empty else 0,
+    }
+    return artist_stats, top_tracks, kpis
 
 
 @st.cache_data(ttl=300, show_spinner=False)
-def _load_album_window(days: int = WINDOW_DAYS) -> pd.DataFrame:
+def _load_album_dashboard(days: int = WINDOW_DAYS) -> tuple[pd.DataFrame, pd.DataFrame, dict[str, float]]:
     query = """
         WITH bounds AS (
             SELECT MAX(date) AS max_d FROM itunes_artist_album WHERE country = 'ww'
+        ),
+        parsed AS (
+            SELECT
+                CASE
+                    WHEN position(' - ' in d.artist_title) > 0 THEN split_part(d.artist_title, ' - ', 1)
+                    ELSE COALESCE(NULLIF(d.artist_title, ''), 'Unknown')
+                END AS artist,
+                CASE
+                    WHEN position(' - ' in d.artist_title) > 0 THEN substring(d.artist_title from position(' - ' in d.artist_title) + 3)
+                    ELSE COALESCE(NULLIF(d.artist_title, ''), 'Unknown')
+                END AS album,
+                d.rank,
+                d.days,
+                COALESCE(d.points::numeric, 0) AS metric
+            FROM itunes_artist_album d, bounds b
+            WHERE d.country = 'ww'
+              AND d.date > (b.max_d - %s::int)
+              AND d.date <= b.max_d
+        ),
+        artist_stats AS (
+            SELECT
+                artist,
+                SUM(metric) AS metric,
+                COUNT(DISTINCT album) AS chart_count,
+                COUNT(*) AS entries,
+                MIN(rank) AS best_rank,
+                MAX(days) AS max_days,
+                COUNT(*) AS row_count
+            FROM parsed
+            GROUP BY artist
+        ),
+        album_stats AS (
+            SELECT album, SUM(metric) AS metric, MIN(rank) AS best_rank
+            FROM parsed
+            GROUP BY album
+            ORDER BY metric DESC
+            LIMIT 10
+        ),
+        kpis AS (
+            SELECT SUM(metric) AS metric, COUNT(*) AS entries, MAX(days) AS max_days, COUNT(*) AS row_count
+            FROM parsed
         )
-        SELECT date, artist_title, rank, days, points::numeric AS metric, label
-        FROM itunes_artist_album d, bounds b
-        WHERE d.country = 'ww'
-          AND d.date > (b.max_d - %s::int)
-          AND d.date <= b.max_d
+        SELECT
+            'artist'::text AS row_type,
+            artist AS label,
+            metric,
+            chart_count,
+            entries,
+            best_rank,
+            max_days,
+            row_count
+        FROM artist_stats
+        UNION ALL
+        SELECT
+            'album'::text AS row_type,
+            album AS label,
+            metric,
+            NULL::bigint AS chart_count,
+            NULL::bigint AS entries,
+            best_rank,
+            NULL::integer AS max_days,
+            NULL::bigint AS row_count
+        FROM album_stats
+        UNION ALL
+        SELECT
+            'kpi'::text AS row_type,
+            '__all__' AS label,
+            metric,
+            NULL::bigint AS chart_count,
+            entries,
+            NULL::integer AS best_rank,
+            max_days,
+            row_count
+        FROM kpis
     """
     rows = _run_query(query, (days,))
     if not rows:
-        return pd.DataFrame()
+        return pd.DataFrame(), pd.DataFrame(), {"row_count": 0, "max_days": 0}
     df = pd.DataFrame(rows)
-    df["date"] = pd.to_datetime(df["date"]).dt.date
-    df["rank"] = pd.to_numeric(df["rank"], errors="coerce")
-    df["days"] = pd.to_numeric(df["days"], errors="coerce").fillna(0)
-    df["metric"] = pd.to_numeric(df["metric"], errors="coerce").fillna(0)
-    split = df["artist_title"].map(_split_artist_title)
-    df["artist"] = [item[0] for item in split]
-    df["album"] = [item[1] for item in split]
-    return df
+    for col in ["metric", "chart_count", "entries", "best_rank", "max_days", "row_count"]:
+        df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
+
+    artist_stats = (
+        df[df["row_type"] == "artist"]
+        .rename(
+            columns={
+                "label": "name",
+                "metric": "album_metric",
+                "chart_count": "chart_albums",
+                "entries": "album_entries",
+                "best_rank": "best_album_rank",
+            }
+        )[["name", "chart_albums", "album_entries", "album_metric", "best_album_rank"]]
+        .copy()
+    )
+    top_albums = (
+        df[df["row_type"] == "album"]
+        .rename(columns={"label": "album"})[["album", "metric"]]
+        .sort_values("metric", ascending=False)
+        .reset_index(drop=True)
+    )
+    kpi_row = df[df["row_type"] == "kpi"].head(1)
+    kpis = {
+        "row_count": float(kpi_row["row_count"].iloc[0]) if not kpi_row.empty else 0,
+        "max_days": float(kpi_row["max_days"].iloc[0]) if not kpi_row.empty else 0,
+    }
+    return artist_stats, top_albums, kpis
 
 
 def _build_artist_table(
@@ -240,32 +417,38 @@ def _build_artist_table(
     table = table.merge(details_df, on="name", how="left")
 
     if not tracks_df.empty:
-        track_stats = (
-            tracks_df.groupby("artist")
-            .agg(
-                chart_tracks=("title", "nunique"),
-                track_entries=("artist_title", "count"),
-                track_metric=("metric", "sum"),
-                best_track_rank=("rank", "min"),
+        if {"name", "chart_tracks", "track_entries", "track_metric", "best_track_rank"}.issubset(tracks_df.columns):
+            table = table.merge(tracks_df, on="name", how="left")
+        else:
+            track_stats = (
+                tracks_df.groupby("artist")
+                .agg(
+                    chart_tracks=("title", "nunique"),
+                    track_entries=("artist_title", "count"),
+                    track_metric=("metric", "sum"),
+                    best_track_rank=("rank", "min"),
+                )
+                .reset_index()
+                .rename(columns={"artist": "name"})
             )
-            .reset_index()
-            .rename(columns={"artist": "name"})
-        )
-        table = table.merge(track_stats, on="name", how="left")
+            table = table.merge(track_stats, on="name", how="left")
 
     if not albums_df.empty:
-        album_stats = (
-            albums_df.groupby("artist")
-            .agg(
-                chart_albums=("album", "nunique"),
-                album_entries=("artist_title", "count"),
-                album_metric=("metric", "sum"),
-                best_album_rank=("rank", "min"),
+        if {"name", "chart_albums", "album_entries", "album_metric", "best_album_rank"}.issubset(albums_df.columns):
+            table = table.merge(albums_df, on="name", how="left")
+        else:
+            album_stats = (
+                albums_df.groupby("artist")
+                .agg(
+                    chart_albums=("album", "nunique"),
+                    album_entries=("artist_title", "count"),
+                    album_metric=("metric", "sum"),
+                    best_album_rank=("rank", "min"),
+                )
+                .reset_index()
+                .rename(columns={"artist": "name"})
             )
-            .reset_index()
-            .rename(columns={"artist": "name"})
-        )
-        table = table.merge(album_stats, on="name", how="left")
+            table = table.merge(album_stats, on="name", how="left")
 
     for col in [
         "monthly_listeners",
@@ -287,32 +470,27 @@ def _build_artist_table(
 
 
 def render_artists_overview() -> None:
-    artist_history = _load_artist_rank_history(WINDOW_DAYS)
+    latest_artists = _load_artist_rank_history(WINDOW_DAYS)
     spotify_df = _load_spotify_artist_latest()
     details_df = _load_artist_details_latest()
-    tracks_df = _load_track_window(WINDOW_DAYS)
-    albums_df = _load_album_window(WINDOW_DAYS)
+    track_artist_stats, top_tracks, track_kpis = _load_track_dashboard(WINDOW_DAYS)
+    album_artist_stats, top_albums, album_kpis = _load_album_dashboard(WINDOW_DAYS)
 
-    if artist_history.empty and details_df.empty and tracks_df.empty and albums_df.empty:
+    if latest_artists.empty and details_df.empty and top_tracks.empty and top_albums.empty:
         st.info("No artist overview data is available yet.")
         return
 
-    latest_date = artist_history["scrape_date"].max() if not artist_history.empty else None
-    latest_artists = (
-        artist_history[artist_history["scrape_date"] == latest_date].copy()
-        if latest_date
-        else pd.DataFrame()
-    )
-    filtered = _build_artist_table(latest_artists, spotify_df, details_df, tracks_df, albums_df)
+    latest_date = latest_artists["scrape_date"].max() if not latest_artists.empty else None
+    filtered = _build_artist_table(latest_artists, spotify_df, details_df, track_artist_stats, album_artist_stats)
 
     artist_total = float(latest_artists["name"].nunique()) if not latest_artists.empty else 0
     song_total = float(details_df["songs_count"].sum()) if "songs_count" in details_df else 0
     album_total = float(details_df["albums_count"].sum()) if "albums_count" in details_df else 0
-    chart_days = float(tracks_df["days"].max()) if not tracks_df.empty and "days" in tracks_df else 0
-    popular_songs = float(tracks_df.loc[tracks_df["rank"].le(10), "title"].nunique()) if not tracks_df.empty else 0
+    chart_days = float(track_kpis.get("max_days", 0))
+    popular_songs = float(track_kpis.get("popular_songs", 0))
     latest_label = str(latest_date) if latest_date else "No snapshot date"
-    track_rows_label = f"{_fmt_n(len(tracks_df))} chart rows"
-    album_rows_label = f"{_fmt_n(len(albums_df))} album chart rows"
+    track_rows_label = f"{_fmt_n(track_kpis.get('row_count', 0))} chart rows"
+    album_rows_label = f"{_fmt_n(album_kpis.get('row_count', 0))} album chart rows"
     details_label = f"{_fmt_n(len(details_df))} artist detail rows"
 
     def kpi_html(title: str, value: str, icon: str, subtitle: str) -> str:
@@ -476,8 +654,6 @@ def render_artists_overview() -> None:
         )
 
     top_artists = filtered[["name", "total_points"]].fillna({"total_points": 0}).sort_values("total_points", ascending=False).head(10) if not filtered.empty else pd.DataFrame()
-    top_tracks = tracks_df.groupby("title")["metric"].sum().reset_index().sort_values("metric", ascending=False).head(10) if not tracks_df.empty else pd.DataFrame()
-    top_albums = albums_df.groupby("album")["metric"].sum().reset_index().sort_values("metric", ascending=False).head(10) if not albums_df.empty else pd.DataFrame()
     theme = "dark" if st.session_state.get("dark_mode", True) else "light"
     html = """
 <!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
@@ -494,5 +670,5 @@ def render_artists_overview() -> None:
 .empty{color:var(--muted);font-size:12px;padding:24px 4px}
 @media(max-width:1050px){.kpis{grid-template-columns:repeat(2,1fr)}.grid{grid-template-columns:1fr}}@media(max-width:640px){.kpis{grid-template-columns:1fr}.dash{padding:10px}.kpi{min-height:100px}}
 </style></head><body>
-""" + f"<main class='dash {theme}'>" + "<div class='kpis'>" + kpi_html("Artists", _fmt_n(artist_total), "&#127908;", f"Latest rank snapshot: {latest_label}") + kpi_html("Songs", _fmt_n(song_total), "&#9835;", details_label) + kpi_html("Albums", _fmt_n(album_total), "&#9673;", album_rows_label) + kpi_html("Chart Days", _fmt_n(chart_days), "&#9719;", f"Max track streak in last {WINDOW_DAYS} days") + kpi_html("Popular Songs", _fmt_n(popular_songs), "&#9679;", f"Top 10 ranked tracks · {track_rows_label}") + "</div><div class='grid'>" + bars_html(top_artists, "name", "total_points", "Top Artist", "Highest scoring artists in the latest ranking snapshot.", 10) + bars_html(top_tracks, "title", "metric", "Top Track", "Tracks with the strongest combined chart metric.", 10) + bars_html(top_albums, "album", "metric", "Top Album", "Albums with the strongest album chart metric.", 10) + "</div><div class='grid'>" + donut_html(filtered) + treemap_html(albums_df) + radar_html(filtered) + "</div>" + word_cloud_html(filtered) + "</main></body></html>"
+""" + f"<main class='dash {theme}'>" + "<div class='kpis'>" + kpi_html("Artists", _fmt_n(artist_total), "&#127908;", f"Latest rank snapshot: {latest_label}") + kpi_html("Songs", _fmt_n(song_total), "&#9835;", details_label) + kpi_html("Albums", _fmt_n(album_total), "&#9673;", album_rows_label) + kpi_html("Chart Days", _fmt_n(chart_days), "&#9719;", f"Max track streak in last {WINDOW_DAYS} days") + kpi_html("Popular Songs", _fmt_n(popular_songs), "&#9679;", f"Top 10 ranked tracks · {track_rows_label}") + "</div><div class='grid'>" + bars_html(top_artists, "name", "total_points", "Top Artist", "Highest scoring artists in the latest ranking snapshot.", 10) + bars_html(top_tracks, "title", "metric", "Top Track", "Tracks with the strongest combined chart metric.", 10) + bars_html(top_albums, "album", "metric", "Top Album", "Albums with the strongest album chart metric.", 10) + "</div><div class='grid'>" + donut_html(filtered) + treemap_html(top_albums) + radar_html(filtered) + "</div>" + word_cloud_html(filtered) + "</main></body></html>"
     st_components.html(html, height=1120, scrolling=False)

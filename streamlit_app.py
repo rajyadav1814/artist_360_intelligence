@@ -1831,19 +1831,22 @@ def load_dashboard_data() -> dict[str, pd.DataFrame]:
             LIMIT 100
         """,
         "history": f"""
-            WITH latest_run AS (
-                SELECT MAX(scraped_at) AS ts FROM itunes_artist_rankings
+            WITH bounds AS (
+                SELECT MAX(scraped_at) AS ts, MAX(scrape_date) AS max_d
+                FROM itunes_artist_rankings
             ),
             top_artists AS (
                 SELECT artist_id
                 FROM itunes_artist_rankings r
-                JOIN latest_run lr ON r.scraped_at = lr.ts
+                JOIN bounds b ON r.scraped_at = b.ts
                 WHERE r.rank <= 300
             )
             SELECT a.name, r.rank, r.scraped_at
             FROM itunes_artist_rankings r
             JOIN artists a ON a.id = r.artist_id
+            CROSS JOIN bounds b
             WHERE r.artist_id IN (SELECT artist_id FROM top_artists)
+              AND r.scrape_date >= (b.max_d - 35::int)
             ORDER BY r.scraped_at ASC, r.rank ASC
         """,
         "longevity": """
@@ -4059,18 +4062,18 @@ def show_acquisition_page() -> None:
 
 
 app_pages = [
+        st.Page(
+        show_artists_overview_page,
+        title="Overview",
+        icon=":material/dashboard:",
+        url_path="artists-overview",
+        default=True,
+    ),
     st.Page(
         show_leaderboard_page,
         title="Leaderboard",
         icon=":material/trending_up:",
         url_path="leaderboard",
-        default=True,
-    ),
-    st.Page(
-        show_artists_overview_page,
-        title="Artists Overview",
-        icon=":material/dashboard:",
-        url_path="artists-overview",
     ),
      st.Page(
         show_movement_page,
