@@ -20,6 +20,7 @@ from src.ai.track_movement_dashboard import render_track_movement
 from src.ai.album_movement_dashboard import render_album_movement
 from src.ai.artist_spotlight_dashboard import render_debut_artist_chart
 from src.ai.artist_movement_dashboard import render_chart_tracker
+from src.ai.artists_overview_dashboard import render_artists_overview
 from src.ai.acquisition_dashboard import (
     render_acquisition,
     _load_daily,
@@ -101,6 +102,10 @@ PAGE_META = {
     "Leaderboard": (
         "🏆 Artist 360° Leaderboard",
         "Top Latin artists ranked by iTunes performance, Spotify reach, and global footprint",
+    ),
+    "Artists Overview": (
+        "🎤 Artists Overview",
+        "Catalog, chart activity, listeners, and top artist table from your stored artist data",
     ),
     "Artist Spotlight": (
         "🎤 Artist Spotlight",
@@ -3878,6 +3883,20 @@ def show_debut_artist_page() -> None:
     render_debut_artist_chart(global_filtered)
 
 
+def show_artists_overview_page() -> None:
+    st.markdown(
+        """
+        <style>
+        .stMainBlockContainer, .block-container {
+            padding-top: 0.8rem !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+    render_artists_overview()
+
+
 def show_ai_analyst_page() -> None:
     # Previously, this page rendered the custom AI chatbot component via render_custom_chatbot().
     # render_custom_chatbot() provides an interactive chat interface that builds query plans and
@@ -4046,6 +4065,12 @@ app_pages = [
         icon=":material/trending_up:",
         url_path="leaderboard",
         default=True,
+    ),
+    st.Page(
+        show_artists_overview_page,
+        title="Artists Overview",
+        icon=":material/dashboard:",
+        url_path="artists-overview",
     ),
      st.Page(
         show_movement_page,
