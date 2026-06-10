@@ -31,6 +31,7 @@ from src.ai.acquisition_dashboard import (
     _fmt_n as acq_fmt_n,
     WINDOW_DAYS,
 )
+from src.ai.redesign_dashboard import render_redesign_dashboard
 from src.ai.track_acquisition_dashboard import render_track_acquisition
 from src.ai.album_acquisition_dashboard import render_album_acquisition
 from src.database.connection import get_connection
@@ -106,6 +107,10 @@ PAGE_META = {
     "Artists Overview": (
         "🎤 Artists Overview",
         "Catalog, chart activity, listeners, and top artist table from your stored artist data",
+    ),
+    "Redesign Lab": (
+        "🧪 Redesign Lab",
+        "Story-first acquisition, fatigue, and roster health prototype inspired by the redesign deck",
     ),
     "Artist Spotlight": (
         "🎤 Artist Spotlight",
@@ -3901,6 +3906,20 @@ def show_artists_overview_page() -> None:
     render_artists_overview(last_run_label)
 
 
+def show_redesign_dashboard_page() -> None:
+    st.markdown(
+        """
+        <style>
+        .stMainBlockContainer, .block-container {
+            padding-top: 0.8rem !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+    render_redesign_dashboard(filtered, history, last_run_label)
+
+
 def show_ai_analyst_page() -> None:
     # Previously, this page rendered the custom AI chatbot component via render_custom_chatbot().
     # render_custom_chatbot() provides an interactive chat interface that builds query plans and
@@ -4069,6 +4088,12 @@ app_pages = [
         icon=":material/dashboard:",
         url_path="artists-overview",
         default=True,
+    ),
+    st.Page(
+        show_redesign_dashboard_page,
+        title="Redesign Lab",
+        icon=":material/auto_awesome:",
+        url_path="redesign-lab",
     ),
     st.Page(
         show_leaderboard_page,
