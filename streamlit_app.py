@@ -3898,7 +3898,7 @@ def show_artists_overview_page() -> None:
         """,
         unsafe_allow_html=True,
     )
-    render_artists_overview()
+    render_artists_overview(last_run_label)
 
 
 def show_ai_analyst_page() -> None:

@@ -507,9 +507,13 @@ def prefetch_artists_overview_data() -> None:
     _load_artists_overview_data(WINDOW_DAYS)
 
 
-def render_artists_overview() -> None:
+def render_artists_overview(last_run_label: str = "n/a") -> None:
     st.markdown(
-        """
+        f"""
+        <div style='display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin:0 0 8px;'>
+            <span style='font-size:1.05rem; font-weight:800; color:var(--text); letter-spacing:-0.01em;'>📊 Artist Overview</span>
+            <span class='time-chip'>{escape(f"Last Update: {last_run_label}")}</span>
+        </div>
         <div style='font-size: 0.92rem; color: var(--text2); margin: 0 0 14px; line-height: 1.5; font-weight: 500;'>
         This dashboard provides a comprehensive overview of all tracked artists, including their catalog, 
         chart activity, listeners, and key performance indicators, offering a holistic view of their market presence and performance.
