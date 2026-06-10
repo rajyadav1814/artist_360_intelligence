@@ -471,7 +471,17 @@ def _filter_acq_rows(df: pd.DataFrame, *, latam_only: bool, independent_only: bo
     return filtered
 
 
-def _render_acq_row(row: pd.Series, *, idx: int, mode: str, score_col: str, selected: bool, theme: str) -> str:
+def _render_acq_row(
+    row: pd.Series,
+    *,
+    idx: int,
+    mode: str,
+    score_col: str,
+    selected: bool,
+    theme: str,
+    latam_only: bool,
+    independent_only: bool,
+) -> str:
     name = escape(_acq_display_name(row, mode))
     subtitle = escape(_acq_display_subtitle(row, mode))
     market = escape(str(row.get("display_country") or row.get("top_country") or "—"))
@@ -482,7 +492,13 @@ def _render_acq_row(row: pd.Series, *, idx: int, mode: str, score_col: str, sele
     rank_text = f"#{int(rank)}" if pd.notna(rank) else "—"
     row_class = " active" if selected else ""
     momentum_class = " up" if momentum_val > 0 else (" down" if momentum_val < 0 else "")
-    href = f"?theme={escape(theme)}&redesign_acq_index={idx - 1}"
+    href = (
+        f"?theme={escape(theme)}"
+        f"&redesign_acq_mode={escape(mode)}"
+        f"&redesign_acq_latam={int(latam_only)}"
+        f"&redesign_acq_independent={int(independent_only)}"
+        f"&redesign_acq_index={idx - 1}"
+    )
     return textwrap.dedent(
         f"""
         <a class="a360-acq-row{row_class}" href="{href}" target="_self">
@@ -1183,13 +1199,17 @@ def render_redesign_dashboard(leaderboard: pd.DataFrame, history: pd.DataFrame, 
             flex-wrap: wrap;
             margin-bottom: 8px;
         }
+        .a360-acq-control-shell {
+            margin: 8px 0 12px;
+            padding: 0 2px;
+        }
         .a360-acq-switch-row {
             display: flex;
             align-items: center;
             justify-content: space-between;
             gap: 10px;
             flex-wrap: wrap;
-            margin: 8px 0 12px;
+            margin: 0;
         }
         .a360-acq-tabs,
         .a360-acq-filter-pills {
@@ -1212,8 +1232,19 @@ def render_redesign_dashboard(leaderboard: pd.DataFrame, history: pd.DataFrame, 
             line-height: 1;
             min-height: 30px;
             padding: 8px 14px;
+            text-decoration: none !important;
+            box-shadow: none;
+            transition: transform .15s ease, border-color .15s ease, background .15s ease, color .15s ease;
         }
-        .a360-acq-tab.active {
+        .a360-acq-tab:hover,
+        .a360-acq-filter-pill:hover {
+            transform: translateY(-1px);
+            border-color: var(--a360-acq-tab-active-border);
+            color: var(--a360-acq-tab-active-text);
+            text-decoration: none !important;
+        }
+        .a360-acq-tab.active,
+        .a360-acq-filter-pill.active {
             border-color: var(--a360-acq-tab-active-border);
             background: var(--a360-acq-tab-active-bg);
             color: var(--a360-acq-tab-active-text);
@@ -1308,8 +1339,15 @@ def render_redesign_dashboard(leaderboard: pd.DataFrame, history: pd.DataFrame, 
             border-radius: 0;
             border-bottom: 1px solid var(--a360-acq-panel-border);
             transition: transform .15s ease, background .15s ease, border-color .15s ease;
-            text-decoration: none;
+            text-decoration: none !important;
+            color: inherit !important;
             cursor: pointer;
+        }
+        .a360-acq-row *,
+        .a360-acq-row:hover *,
+        .a360-acq-row:visited *,
+        .a360-acq-row:focus * {
+            text-decoration: none !important;
         }
         .a360-acq-row:hover {
             background: var(--a360-acq-row-hover-bg);
@@ -1585,6 +1623,16 @@ def render_redesign_dashboard(leaderboard: pd.DataFrame, history: pd.DataFrame, 
     if "redesign_acq_independent" not in st.session_state:
         st.session_state.redesign_acq_independent = False
 
+    query_mode = st.query_params.get("redesign_acq_mode")
+    if query_mode in {"Track", "Album", "Artist"}:
+        st.session_state.redesign_acq_mode = query_mode
+    query_latam = st.query_params.get("redesign_acq_latam")
+    if query_latam in {"0", "1"}:
+        st.session_state.redesign_acq_latam = query_latam == "1"
+    query_independent = st.query_params.get("redesign_acq_independent")
+    if query_independent in {"0", "1"}:
+        st.session_state.redesign_acq_independent = query_independent == "1"
+
     mode = st.session_state.redesign_acq_mode
     latam_only = bool(st.session_state.redesign_acq_latam)
     independent_only = bool(st.session_state.redesign_acq_independent)
@@ -1594,8 +1642,35 @@ def render_redesign_dashboard(leaderboard: pd.DataFrame, history: pd.DataFrame, 
     if not acq_rows.empty:
         acq_rows[f"{score_col}_rank"] = acq_rows[score_col].rank(ascending=False, method="min").astype(int)
 
+    theme_name = "dark" if is_dark else "light"
+
+    def _acq_control_href(
+        *,
+        next_mode: str | None = None,
+        next_latam: bool | None = None,
+        next_independent: bool | None = None,
+        next_index: int = 0,
+    ) -> str:
+        return (
+            f"?theme={theme_name}"
+            f"&redesign_acq_mode={escape(next_mode or mode)}"
+            f"&redesign_acq_latam={int(latam_only if next_latam is None else next_latam)}"
+            f"&redesign_acq_independent={int(independent_only if next_independent is None else next_independent)}"
+            f"&redesign_acq_index={next_index}"
+        )
+
+    tabs_html = "".join(
+        f'<a class="a360-acq-tab{" active" if mode == label else ""}" href="{_acq_control_href(next_mode=label)}" target="_self">{label}</a>'
+        for label in ["Track", "Album", "Artist"]
+    )
+    filters_html = (
+        f'<a class="a360-acq-filter-pill{" active" if latam_only else ""}" href="{_acq_control_href(next_latam=not latam_only)}" target="_self">LATAM only</a>'
+        f'<a class="a360-acq-filter-pill{" active" if independent_only else ""}" href="{_acq_control_href(next_independent=not independent_only)}" target="_self">Independent only</a>'
+    )
+
     st.markdown(
-        f"""
+        textwrap.dedent(
+            f"""
         <section class="a360-acq-shell">
             <div class="a360-acq-header">
                 <div>
@@ -1604,43 +1679,17 @@ def render_redesign_dashboard(leaderboard: pd.DataFrame, history: pd.DataFrame, 
                 </div>
                 <div class="a360-acq-meta">{escape(window_label)} · {len(acq_rows)} artists scored</div>
             </div>
+            <div class="a360-acq-control-shell">
+                <div class="a360-acq-switch-row">
+                    <div class="a360-acq-tabs">{tabs_html}</div>
+                    <div class="a360-acq-filter-pills">{filters_html}</div>
+                </div>
+            </div>
         </section>
-        """,
+        """
+        ).strip(),
         unsafe_allow_html=True,
     )
-
-    btn_cols = st.columns([0.85, 0.85, 0.85, 4.2, 1.25, 1.65], gap="small")
-    for idx, label in enumerate(["Track", "Album", "Artist"]):
-        with btn_cols[idx]:
-            if st.button(
-                label,
-                key=f"redesign_acq_mode_btn_{label.lower()}",
-                type="primary" if mode == label else "secondary",
-                use_container_width=True,
-            ):
-                st.session_state.redesign_acq_mode = label
-                st.query_params["redesign_acq_index"] = "0"
-                st.rerun()
-    with btn_cols[4]:
-        if st.button(
-            "LATAM only",
-            key="redesign_acq_latam_btn",
-            type="primary" if latam_only else "secondary",
-            use_container_width=True,
-        ):
-            st.session_state.redesign_acq_latam = not latam_only
-            st.query_params["redesign_acq_index"] = "0"
-            st.rerun()
-    with btn_cols[5]:
-        if st.button(
-            "Independent only",
-            key="redesign_acq_independent_btn",
-            type="primary" if independent_only else "secondary",
-            use_container_width=True,
-        ):
-            st.session_state.redesign_acq_independent = not independent_only
-            st.query_params["redesign_acq_index"] = "0"
-            st.rerun()
 
     if acq_rows.empty:
         st.info("No rows match the current acquisition filters.")
@@ -1665,7 +1714,6 @@ def render_redesign_dashboard(leaderboard: pd.DataFrame, history: pd.DataFrame, 
             </div>
             """
         ).strip()
-        theme_name = "dark" if is_dark else "light"
         rows_html = "".join(
             _render_acq_row(
                 row,
@@ -1674,6 +1722,8 @@ def render_redesign_dashboard(leaderboard: pd.DataFrame, history: pd.DataFrame, 
                 score_col=score_col,
                 selected=i == selected_idx,
                 theme=theme_name,
+                latam_only=latam_only,
+                independent_only=independent_only,
             )
             for i, (_, row) in enumerate(visible_rows.iterrows())
         )
