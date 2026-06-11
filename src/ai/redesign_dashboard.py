@@ -736,13 +736,49 @@ body {
   border-color: var(--a-blue);
   box-shadow: 0 8px 20px rgba(0,0,0,0.12);
 }
+.kpi-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
 .kpi-label {
   font-size: .68rem;
   font-weight: 800;
   letter-spacing: .15em;
   text-transform: uppercase;
   color: var(--a-t3);
-  margin-bottom: 6px;
+  margin-bottom: 0;
+}
+.kpi-icon {
+  width: 2.2rem;
+  height: 2.2rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  border: 1px solid var(--a-border);
+  background: var(--a-bg3);
+  color: var(--a-t1);
+  font-size: 1rem;
+  line-height: 1;
+}
+.kpi-icon.up {
+  background: rgba(52,211,153,.12);
+  border-color: rgba(52,211,153,.22);
+  color: var(--a-green);
+}
+.kpi-icon.dn {
+  background: rgba(251,113,133,.12);
+  border-color: rgba(251,113,133,.22);
+  color: var(--a-red);
+}
+.kpi-icon.neutral {
+  background: rgba(96,165,250,.10);
+  border-color: rgba(96,165,250,.18);
+  color: var(--a-blue);
 }
 .kpi-value {
   font-size: 1.2rem;
@@ -756,37 +792,30 @@ body {
 /* Top nav tabs */
 .tab-bar {
   display: flex;
-  gap: 8px;
+  gap: 10px;
   margin-bottom: 24px;
-  border-bottom: 1px solid var(--a-border);
-  padding: 8px 0 16px;
+  padding: 0 0 16px;
   overflow-x: auto;
   align-items: center;
 }
-.brand {
-  font-size: .75rem;
-  font-weight: 900;
-  letter-spacing: .25em;
-  text-transform: uppercase;
-  color: var(--a-t3);
-  margin-right: 8px;
-  padding-right: 16px;
-  border-right: 1px solid var(--a-border);
-  white-space: nowrap;
-  align-self: center;
-}
 .tab {
-  padding: 9px 20px;
-  font-size: .82rem;
-  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 154px;
+  padding: 10px 18px;
+  font-size: .84rem;
+  font-weight: 800;
   background: var(--a-bg2);
-  border: 1px solid var(--a-border);
+  border: 1px solid rgba(148,163,184,.18);
   border-radius: 99px;
   cursor: pointer;
   color: var(--a-t2);
   white-space: nowrap;
   text-align: center;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 1px 2px rgba(15,23,42,.04);
 }
 .tab:hover {
   background: var(--a-nav-active-bg);
@@ -795,15 +824,65 @@ body {
   transform: translateY(-1px);
 }
 .tab.active {
-  background: var(--a-nav-active-bg);
-  color: var(--a-nav-active-text);
-  border-color: var(--a-nav-active-border);
+  background: #e31d2d;
+  color: #fff;
+  border-color: #e31d2d;
   font-weight: 800;
-  box-shadow: 0 4px 12px rgba(96, 165, 250, 0.12);
+  box-shadow: 0 8px 18px rgba(227,29,45,.22);
+}
+.tab-icon,
+.title-icon,
+.band-icon,
+.section-kicker-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  border: 1px solid var(--a-border);
+  background: var(--a-bg3);
+  color: var(--a-t1);
+  line-height: 1;
+}
+.tab-icon {
+  width: 1.8rem;
+  height: 1.8rem;
+  font-size: .88rem;
+  background: rgba(255,255,255,.92);
+  border-color: rgba(148,163,184,.22);
+  color: var(--a-t1);
+}
+.tab.active .tab-icon {
+  background: rgba(255,255,255,.18);
+  border-color: rgba(255,255,255,.30);
+  color: #fff;
+}
+.title-icon {
+  width: 2rem;
+  height: 2rem;
+  font-size: .92rem;
+  background: rgba(96,165,250,.10);
+  border-color: rgba(96,165,250,.20);
+  color: var(--a-blue);
+}
+.band-icon {
+  width: 1.45rem;
+  height: 1.45rem;
+  font-size: .75rem;
+  background: rgba(96,165,250,.10);
+  border-color: rgba(96,165,250,.18);
+  color: var(--a-blue);
+}
+.section-kicker-icon {
+  width: 1.2rem;
+  height: 1.2rem;
+  font-size: .62rem;
+  margin-right: 6px;
+  background: rgba(148,163,184,.10);
+  border-color: rgba(148,163,184,.20);
+  color: var(--a-t2);
 }
 .panel{display:none}.panel.active{display:block}
-.nav-meta{margin-left:auto;font-size:.75rem;color:var(--a-t3);align-self:center;white-space:nowrap}
-
 /* Section headers */
 .screen-kicker {
   font-size: .68rem;
@@ -814,6 +893,9 @@ body {
   margin-bottom: 6px;
 }
 .screen-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   font-size: 1.35rem;
   font-weight: 850;
   color: var(--a-t1);
@@ -926,7 +1008,7 @@ body {
 
 /* Acquisition radar */
 .acq-header{display:flex;align-items:flex-end;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:12px}
-.acq-title{font-size:1.8rem;font-weight:850;color:var(--a-t1);margin:0}
+.acq-title{display:flex;align-items:center;gap:10px;font-size:1.8rem;font-weight:850;color:var(--a-t1);margin:0}
 .acq-sub{font-size:.88rem;color:var(--a-t2);margin-top:3px;max-width:66ch;line-height:1.45}
 .acq-meta{font-size:.82rem;color:var(--a-t3);text-align:right;line-height:1.4;min-width:150px}
 .acq-grid {
@@ -1175,40 +1257,18 @@ body {
 </style></head><body>
 <div class='dash'>
 
-  <div class='filter-bar'>
-    <div class='filter-group'>
-      <label for='modeFilter'>Object type</label>
-      <select id='modeFilter' onchange='updateFilters()'>
-        <option value='Track'>Track</option>
-        <option value='Album'>Album</option>
-        <option value='Artist'>Artist</option>
-      </select>
-    </div>
-    <div class='filter-group' style='margin-left: 8px;'>
-      <input type='checkbox' id='latamFilter' onchange='updateFilters()'>
-      <label for='latamFilter'>LATAM only</label>
-    </div>
-    <div class='filter-group'>
-      <input type='checkbox' id='indFilter' onchange='updateFilters()'>
-      <label for='indFilter'>Independent only</label>
-    </div>
-  </div>
-
   <div class='kpi-strip' id='kpi-strip'></div>
 
   <div class='tab-bar'>
-    <span class='brand'>Artist360</span>
-    <button class='tab active' onclick="showTab(event,'brief')">Today's Brief</button>
-    <button class='tab' onclick="showTab(event,'radar')">Acquisition Radar</button>
-    <button class='tab' onclick="showTab(event,'fatigue')">Fatigue Map</button>
-    <button class='tab' onclick="showTab(event,'roster')">Roster Health</button>
-    <span class='nav-meta' id='nav-meta'></span>
+    <button class='tab active' onclick="showTab(event,'brief')"><span class='tab-icon' aria-hidden='true'>▣</span>Today's Brief</button>
+    <button class='tab' onclick="showTab(event,'radar')"><span class='tab-icon' aria-hidden='true'>♫</span>Acquisition Radar</button>
+    <button class='tab' onclick="showTab(event,'fatigue')"><span class='tab-icon' aria-hidden='true'>♪</span>Fatigue Map</button>
+    <button class='tab' onclick="showTab(event,'roster')"><span class='tab-icon' aria-hidden='true'>◔</span>Roster Health</button>
   </div>
 
   <!-- SCREEN 1: Today's Brief -->
   <div class='panel active' id='panel-brief'>
-    <div class='screen-kicker'>Screen 1 of 4</div>
-    <h2 class='screen-title'>Today's brief</h2>
+    <h2 class='screen-title'><span class='title-icon' aria-hidden='true'>✦</span>Today's brief</h2>
     <p class='screen-sub'>Three decisions, equal weight. Read the verdict, scan the three, click to open the evidence.</p>
     <div class='brief-grid' id='brief-grid'></div>
   </div>
@@ -1217,11 +1277,9 @@ body {
   <div class='panel' id='panel-radar'>
     <div class='acq-header'>
       <div>
-        <div class='screen-kicker'>Screen 2 of 4</div>
-        <h2 class='acq-title'>Acquisition radar</h2>
+        <h2 class='acq-title'><span class='title-icon' aria-hidden='true'>⌁</span>Acquisition radar</h2>
         <div class='acq-sub' id='acq-sub-text'></div>
       </div>
-      <div class='acq-meta' id='acq-meta'></div>
     </div>
     <div class='acq-grid'>
       <div class='acq-panel'>
@@ -1234,22 +1292,20 @@ body {
 
   <!-- SCREEN 3: Fatigue Map -->
   <div class='panel' id='panel-fatigue'>
-    <div class='screen-kicker'>Screen 3 of 4</div>
-    <h2 class='screen-title'>Fatigue map</h2>
-    <p class='screen-sub'>Verdict: top-left is fatigue — large audience, falling momentum. Hover any point for its weakest country.</p>
+    <h2 class='screen-title'><span class='title-icon' aria-hidden='true'>↘</span>Fatigue map</h2>
+    <p class='screen-sub'>Verdict: top-left is fatigue - large audience, falling momentum. Hover any point for its weakest country.</p>
     __FATIGUE_CHART__
     <div id='fatigue-alert-slot'></div>
   </div>
 
   <!-- SCREEN 4: Roster Health -->
   <div class='panel' id='panel-roster'>
-    <div class='screen-kicker'>Screen 4 of 4</div>
-    <h2 class='screen-title'>Roster health</h2>
+    <h2 class='screen-title'><span class='title-icon' aria-hidden='true'>◉</span>Roster health</h2>
     <p class='screen-sub'>One card per signed artist — holding, rising, or slipping, with rank trend and weakest market. Signed artists · 30-day window.</p>
     <div id='roster-cards'></div>
     <div style='margin-top:24px'>
-      <div class='screen-kicker'>Dependencies</div>
-      <h2 class='screen-title' style='margin-bottom:4px'>What changes, and what it depends on</h2>
+      <div class='screen-kicker'><span class='section-kicker-icon' aria-hidden='true'>⚙</span>Dependencies</div>
+      <h2 class='screen-title' style='margin-bottom:4px'><span class='title-icon' aria-hidden='true'>⚙</span>What changes, and what it depends on</h2>
       <p class='screen-sub'>Which KPIs are cut, which stay decision-grade, and what data must land before the filters stop being visual only.</p>
       <div class='spec-grid'>
         <div class='spec-card'>
@@ -1293,22 +1349,6 @@ body {
 <script>
 const D = __DATA__;
 
-// Initialize filters from data
-document.getElementById('modeFilter').value = D.active_mode;
-document.getElementById('latamFilter').checked = D.latam_only;
-document.getElementById('indFilter').checked = D.independent_only;
-
-function updateFilters() {
-  const mode = document.getElementById('modeFilter').value;
-  const latam = document.getElementById('latamFilter').checked;
-  const ind = document.getElementById('indFilter').checked;
-  const params = new URLSearchParams(window.parent.location.search);
-  params.set("mode", mode);
-  params.set("latam", latam);
-  params.set("ind", ind);
-  window.parent.location.search = params.toString();
-}
-
 function showTab(evt, id){
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
@@ -1324,14 +1364,13 @@ function showTab(evt, id){
   const k = D.kpis;
   const strip = document.getElementById('kpi-strip');
   const kpis = [
-    {label:'Artists scored', value: k.total},
-    {label:'Rising now',     value: k.risers,   cls:'up'},
-    {label:'Fatigue watch',  value: k.fatigue,  cls:'dn'},
-    {label:'Avg listeners',  value: k.avg_listeners},
-    {label:'Last run',       value: k.last_run},
+    {label:'Artists scored', value: k.total,        icon:'✦', tone:'neutral'},
+    {label:'Rising now',     value: k.risers,      cls:'up', icon:'↗', tone:'up'},
+    {label:'Fatigue watch',  value: k.fatigue,     cls:'dn', icon:'↘', tone:'dn'},
+    {label:'Avg listeners',  value: k.avg_listeners,           icon:'◔', tone:'neutral'},
+    {label:'Last run',       value: k.last_run,               icon:'⏱', tone:'neutral'},
   ];
-  strip.innerHTML = kpis.map(k=>`<div class='kpi'><div class='kpi-label'>${k.label}</div><div class='kpi-value ${k.cls||''}'>${k.value}</div></div>`).join('');
-  document.getElementById('nav-meta').textContent = 'Updated '+k.last_run+' · LATAM focus';
+  strip.innerHTML = kpis.map(k=>`<div class='kpi'><div class='kpi-head'><div class='kpi-label'>${k.label}</div><span class='kpi-icon ${k.tone||'neutral'}' aria-hidden='true'>${k.icon}</span></div><div class='kpi-value ${k.cls||''}'>${k.value}</div></div>`).join('');
 })();
 
 // ── Today's brief ──────────────────────────────────────────────
@@ -1352,26 +1391,26 @@ function briefArtistRow(r){
     ${labelBadge(r.label_type, r.label_str)}
   </div>`;
 }
-function briefBand(rows, title, chip, chipCls, sub, drillLabel, drillScreen){
+function briefBand(rows, title, icon, chip, chipCls, sub, drillLabel, drillScreen){
   const cls = chipCls==='chip-g'?'brief-good':chipCls==='chip-r'?'brief-bad':'brief-neutral';
   const items = rows.length
     ? rows.map(briefArtistRow).join('')
     : "<div class='empty-band'>No signals available.</div>";
   return `<article class='brief-band ${cls}'>
-    <div class='band-title-row'><span class='band-title'>${title}</span><span class='band-chip ${chipCls}'>${chip}</span></div>
+    <div class='band-title-row'><span class='band-icon' aria-hidden='true'>${icon}</span><span class='band-title'>${title}</span><span class='band-chip ${chipCls}'>${chip}</span></div>
     <p class='band-sub'>${sub}</p>
     <div>${items}</div>
     <button class='band-drill' onclick="showTabById('${drillScreen}')">${drillLabel} →</button>
   </article>`;
 }
 document.getElementById('brief-grid').innerHTML = [
-  briefBand(D.brief_acq, 'Acquire now', D.brief_acq.length+' clean risers', 'chip-g',
+  briefBand(D.brief_acq, 'Acquire now', '↗', D.brief_acq.length+' clean risers', 'chip-g',
     'Rising, acquirable, in a market we want — verdict: move on these before a major does.',
     'Open acquisition radar', 'radar'),
-  briefBand(D.brief_fatigue, 'Watch — fatigue', D.brief_fatigue.length+' cooling', 'chip-r',
+  briefBand(D.brief_fatigue, 'Watch — fatigue', '↘', D.brief_fatigue.length+' cooling', 'chip-r',
     'Large audience, declining momentum — verdict: demand softening, see where before it spreads.',
     'Open fatigue map', 'fatigue'),
-  briefBand(D.brief_hold, 'Our roster status', D.brief_hold.length+' signed artists', 'chip-b',
+  briefBand(D.brief_hold, 'Our roster status', '◉', D.brief_hold.length+' signed artists', 'chip-b',
     'Are our top artists holding up — verdict per artist: holding, rising, or slipping.',
     'Open roster health', 'roster'),
 ].join('');
@@ -1391,7 +1430,6 @@ function showTabById(id){
 // ── Acquisition radar ──────────────────────────────────────────
 (function(){
   document.getElementById('acq-sub-text').textContent = 'Verdict: rising + acquirable + in a market we want. '+D.score_formula;
-  document.getElementById('acq-meta').textContent = D.window_label+' · '+D.acq_list.length+' tracks scored';
   const modeLabel = {Track:'Artist / Track', Album:'Artist / Album', Artist:'Artist'}[D.active_mode] || 'Artist / Track';
   document.getElementById('entity-col-label').textContent = modeLabel;
 
