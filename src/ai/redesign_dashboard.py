@@ -28,6 +28,19 @@ _PALETTE = {
     "slate": "#94a3b8",
 }
 
+_ROSTER_ACCENTS = [
+    "#f97316",
+    "#38bdf8",
+    "#10b981",
+    "#8b5cf6",
+    "#f59e0b",
+    "#fb7185",
+    "#60a5fa",
+    "#22c55e",
+    "#a78bfa",
+    "#fbbf24",
+]
+
 
 def _fmt_n(value: float | int | None) -> str:
     if value is None or pd.isna(value):
@@ -50,6 +63,16 @@ def _safe_float(value: Any, default: float = 0.0) -> float:
         return float(value)
     except Exception:  # noqa: BLE001
         return default
+
+
+def _hex_to_rgba(hex_color: str, alpha: float) -> str:
+    raw = hex_color.lstrip("#")
+    if len(raw) != 6:
+        return f"rgba(96,165,250,{alpha})"
+    r = int(raw[0:2], 16)
+    g = int(raw[2:4], 16)
+    b = int(raw[4:6], 16)
+    return f"rgba({r},{g},{b},{alpha})"
 
 
 def _percentile(series: pd.Series) -> pd.Series:
@@ -478,9 +501,6 @@ def _render_acq_row(
     mode: str,
     score_col: str,
     selected: bool,
-    theme: str,
-    latam_only: bool,
-    independent_only: bool,
 ) -> str:
     name = escape(_acq_display_name(row, mode))
     subtitle = escape(_acq_display_subtitle(row, mode))
@@ -492,16 +512,9 @@ def _render_acq_row(
     rank_text = f"#{int(rank)}" if pd.notna(rank) else "—"
     row_class = " active" if selected else ""
     momentum_class = " up" if momentum_val > 0 else (" down" if momentum_val < 0 else "")
-    href = (
-        f"?theme={escape(theme)}"
-        f"&redesign_acq_mode={escape(mode)}"
-        f"&redesign_acq_latam={int(latam_only)}"
-        f"&redesign_acq_independent={int(independent_only)}"
-        f"&redesign_acq_index={idx - 1}"
-    )
     return textwrap.dedent(
         f"""
-        <a class="a360-acq-row{row_class}" href="{href}" target="_self">
+        <div class="a360-acq-row{row_class}">
             <div class="a360-acq-pos">{idx}</div>
             <div class="a360-acq-main">
                 <div class="a360-acq-name">{name}</div>
@@ -510,7 +523,7 @@ def _render_acq_row(
             <div class="a360-acq-market">{market}</div>
             <div class="a360-acq-mom{momentum_class}">{escape(momentum_text)}</div>
             <div class="a360-acq-score">{score}</div>
-        </a>
+        </div>
         """
     ).strip()
 
@@ -703,40 +716,50 @@ def _brief_sentence(prefix: str, rows: pd.DataFrame, score_col: str) -> str:
     return f"{names[0]}, {names[1]}, and {names[2]} lead the {prefix.lower()} list."
 
 
-def _roster_card(row: pd.Series) -> str:
+def _roster_card(row: pd.Series, idx: int) -> str:
     name = escape(str(row.get("name") or "Unknown"))
     verdict = str(row.get("verdict") or "holding")
-    verdict_label = {"rising": "Rising", "slipping": "Slipping", "holding": "Holding"}.get(verdict, "Holding")
     verdict_class = {"rising": "good", "slipping": "bad", "holding": "neutral"}.get(verdict, "neutral")
     delta = float(row.get("rank_delta_45d") or 0.0)
     rank = row.get("rank")
     points = _fmt_n(row.get("total_points"))
     listeners = _fmt_n(row.get("monthly_listeners"))
+    songs = _fmt_n(row.get("songs_count"))
+    albums = _fmt_n(row.get("albums_count"))
     country = str(row.get("display_country") or row.get("top_country") or "—")
-    spark = _sparkline_svg(row.get("rank_series") or [], color={"rising": _PALETTE["green"], "slipping": _PALETTE["pink"], "holding": _PALETTE["blue"]}.get(verdict, _PALETTE["blue"]), reverse=False)
-    top_song = str(row.get("top_song") or "—")
-    top_album = str(row.get("top_album") or "—")
+    markets_count = int(max(_safe_float(row.get("countries_count")), _safe_float(row.get("max_countries"))))
+    if markets_count <= 0 and country != "—":
+        markets_count = 1
     rank_text = f"#{int(rank)}" if pd.notna(rank) else "—"
-    delta_text = f"{delta:+.0f}" if abs(delta) >= 0.5 else "0"
+    if verdict == "rising":
+        status_text = f"▲ {abs(int(round(delta))) or 1}"
+    elif verdict == "slipping":
+        status_text = f"▼ {abs(int(round(delta))) or 1}"
+    else:
+        status_text = "Stable"
+    accent = _ROSTER_ACCENTS[(max(idx, 1) - 1) % len(_ROSTER_ACCENTS)]
+    accent_soft = _hex_to_rgba(accent, 0.15)
+    accent_border = _hex_to_rgba(accent, 0.26)
+    accent_strong = _hex_to_rgba(accent, 0.9)
     return textwrap.dedent(
         f"""
-        <article class="a360-roster-card a360-card-{verdict_class}">
+        <article class="a360-roster-card a360-card-{verdict_class}" style="--a360-card-accent:{accent}; --a360-card-accent-soft:{accent_soft}; --a360-card-accent-border:{accent_border}; --a360-card-accent-strong:{accent_strong};">
             <div class="a360-roster-head">
-                <div>
+                <div class="a360-roster-head-left">
+                    <div class="a360-roster-rank">{rank_text}</div>
                     <div class="a360-roster-name">{name}</div>
-                    <div class="a360-roster-sub">Rank {rank_text} · {escape(country)}</div>
                 </div>
-                <span class="a360-status a360-status-{verdict_class}">{escape(verdict_label)}</span>
+                <span class="a360-status a360-status-{verdict_class}">{escape(status_text)}</span>
             </div>
             <div class="a360-roster-metrics">
-                <div><span>Momentum</span><b>{escape(delta_text)}</b></div>
-                <div><span>Listeners</span><b>{escape(listeners)}</b></div>
-                <div><span>Points</span><b>{escape(points)}</b></div>
+                <div class="a360-roster-metric"><span>Points</span><b>{escape(points)}</b></div>
+                <div class="a360-roster-metric"><span>Listeners</span><b>{escape(listeners)}</b></div>
+                <div class="a360-roster-metric"><span>Songs</span><b>{escape(songs)}</b></div>
+                <div class="a360-roster-metric"><span>Albums</span><b>{escape(albums)}</b></div>
             </div>
-            <div class="a360-spark-wrap">{spark}</div>
-            <div class="a360-roster-notes">
-                <div><span>Top song</span><b>{escape(top_song)}</b></div>
-                <div><span>Top album</span><b>{escape(top_album)}</b></div>
+            <div class="a360-roster-footer">
+                <span>Top market: <strong>{escape(country)}</strong></span>
+                <span>{markets_count} market{'s' if markets_count != 1 else ''}</span>
             </div>
         </article>
         """
@@ -1043,9 +1066,9 @@ def render_redesign_dashboard(leaderboard: pd.DataFrame, history: pd.DataFrame, 
             gap: 10px;
         }
         .a360-roster-card {
-            padding: 12px;
-            border-radius: 14px;
-            border: 1px solid var(--a360-border);
+            padding: 16px;
+            border-radius: 12px;
+            border: 15px solid var(--a360-border);
             background: linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.015));
         }
         .a360-card-good { box-shadow: inset 0 1px 0 rgba(52,211,153,.16); }
@@ -1080,51 +1103,58 @@ def render_redesign_dashboard(leaderboard: pd.DataFrame, history: pd.DataFrame, 
             text-transform: uppercase;
             white-space: nowrap;
         }
-        .a360-status-good { color: #34d399; background: rgba(52,211,153,.12); border: 1px solid rgba(52,211,153,.24); }
-        .a360-status-bad { color: #fb7185; background: rgba(251,113,133,.12); border: 1px solid rgba(251,113,133,.24); }
-        .a360-status-neutral { color: #60a5fa; background: rgba(96,165,250,.12); border: 1px solid rgba(96,165,250,.24); }
+        .a360-status-good { color: #22c55e; background: rgba(34,197,94,.12); border: 1px solid rgba(34,197,94,.22); }
+        .a360-status-bad { color: #fb7185; background: rgba(251,113,133,.12); border: 1px solid rgba(251,113,133,.22); }
+        .a360-status-neutral { color: #64748b; background: rgba(100,116,139,.10); border: 1px solid rgba(100,116,139,.20); }
         .a360-roster-metrics {
             display: grid;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: 6px;
-            margin-top: 8px;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 4px;
+            margin-top: 4px;
         }
-        .a360-roster-metrics div,
-        .a360-roster-notes div {
-            padding: 8px;
-            border-radius: 10px;
-            background: rgba(255,255,255,.03);
+        .a360-roster-metric {
+            padding: 5px 6px 6px;
+            border-radius: 7px;
+            background: rgba(255,255,255,.04);
             border: 1px solid var(--a360-border);
+            min-height: 30px;
         }
-        .a360-roster-metrics span,
-        .a360-roster-notes span {
+        .a360-roster-metric span {
             display: block;
             color: var(--a360-soft);
-            font-size: 10px;
+            font-size: 6px;
             text-transform: uppercase;
-            letter-spacing: .12em;
-            margin-bottom: 4px;
+            letter-spacing: .1em;
+            margin-bottom: 1px;
             font-weight: 800;
         }
-        .a360-roster-metrics b,
-        .a360-roster-notes b {
+        .a360-roster-metric b {
             display: block;
             color: var(--a360-text);
-            font-size: .93rem;
-            line-height: 1.25;
+            font-size: .68rem;
+            line-height: 1;
+            font-weight: 850;
         }
-        .a360-spark-wrap {
-            margin-top: 8px;
-            height: 42px;
+        .a360-roster-footer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 6px;
+            margin-top: 6px;
+            color: var(--a360-soft);
+            font-size: .55rem;
+            font-weight: 700;
+            line-height: 1.1;
+        }
+        .a360-roster-footer strong {
+            color: var(--a360-text);
+            font-size: .68rem;
+            font-weight: 850;
+        }
+        .a360-roster-footer span {
+            white-space: nowrap;
             overflow: hidden;
-            border-radius: 10px;
-            border: 1px solid var(--a360-border);
-            background: rgba(255,255,255,.03);
-            padding: 3px 5px 2px;
-        }
-        .a360-spark {
-            width: 100%;
-            height: 100%;
+            text-overflow: ellipsis;
         }
         .a360-final-note {
             margin-top: 10px;
@@ -1341,7 +1371,7 @@ def render_redesign_dashboard(leaderboard: pd.DataFrame, history: pd.DataFrame, 
             transition: transform .15s ease, background .15s ease, border-color .15s ease;
             text-decoration: none !important;
             color: inherit !important;
-            cursor: pointer;
+            cursor: default;
         }
         .a360-acq-row *,
         .a360-acq-row:hover *,
@@ -1544,9 +1574,16 @@ def render_redesign_dashboard(leaderboard: pd.DataFrame, history: pd.DataFrame, 
         @media (max-width: 1100px) {
             .a360-band-grid,
             .a360-grid-two,
-            .a360-roster-grid,
             .a360-acq-grid,
             .a360-live-strip {
+                grid-template-columns: 1fr;
+            }
+            .a360-roster-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+        }
+        @media (max-width: 720px) {
+            .a360-roster-grid {
                 grid-template-columns: 1fr;
             }
         }
@@ -1616,57 +1653,46 @@ def render_redesign_dashboard(leaderboard: pd.DataFrame, history: pd.DataFrame, 
         unsafe_allow_html=True,
     )
 
-    if "redesign_acq_mode" not in st.session_state:
+    if st.session_state.get("redesign_acq_mode") not in {"Track", "Album", "Artist"}:
         st.session_state.redesign_acq_mode = "Track"
     if "redesign_acq_latam" not in st.session_state:
         st.session_state.redesign_acq_latam = False
     if "redesign_acq_independent" not in st.session_state:
         st.session_state.redesign_acq_independent = False
+    if "redesign_acq_index" not in st.session_state:
+        st.session_state.redesign_acq_index = 0
 
     query_mode = st.query_params.get("redesign_acq_mode")
     if query_mode in {"Track", "Album", "Artist"}:
         st.session_state.redesign_acq_mode = query_mode
+
     query_latam = st.query_params.get("redesign_acq_latam")
     if query_latam in {"0", "1"}:
         st.session_state.redesign_acq_latam = query_latam == "1"
+
     query_independent = st.query_params.get("redesign_acq_independent")
     if query_independent in {"0", "1"}:
         st.session_state.redesign_acq_independent = query_independent == "1"
 
+    query_index = st.query_params.get("redesign_acq_index")
+    if query_index is not None:
+        try:
+            st.session_state.redesign_acq_index = max(0, int(query_index))
+        except (TypeError, ValueError):
+            pass
+
+    for query_key in ("redesign_acq_mode", "redesign_acq_latam", "redesign_acq_independent", "redesign_acq_index"):
+        if query_key in st.query_params:
+            del st.query_params[query_key]
+
     mode = st.session_state.redesign_acq_mode
     latam_only = bool(st.session_state.redesign_acq_latam)
     independent_only = bool(st.session_state.redesign_acq_independent)
-    score_col, mode_title, mode_subtitle = _acq_score_label(mode)
+    score_col, _mode_title, mode_subtitle = _acq_score_label(mode)
     acq_rows = _filter_acq_rows(focus_pool, latam_only=latam_only, independent_only=independent_only)
     acq_rows = acq_rows.sort_values([score_col, "rank"], ascending=[False, True]).reset_index(drop=True)
     if not acq_rows.empty:
         acq_rows[f"{score_col}_rank"] = acq_rows[score_col].rank(ascending=False, method="min").astype(int)
-
-    theme_name = "dark" if is_dark else "light"
-
-    def _acq_control_href(
-        *,
-        next_mode: str | None = None,
-        next_latam: bool | None = None,
-        next_independent: bool | None = None,
-        next_index: int = 0,
-    ) -> str:
-        return (
-            f"?theme={theme_name}"
-            f"&redesign_acq_mode={escape(next_mode or mode)}"
-            f"&redesign_acq_latam={int(latam_only if next_latam is None else next_latam)}"
-            f"&redesign_acq_independent={int(independent_only if next_independent is None else next_independent)}"
-            f"&redesign_acq_index={next_index}"
-        )
-
-    tabs_html = "".join(
-        f'<a class="a360-acq-tab{" active" if mode == label else ""}" href="{_acq_control_href(next_mode=label)}" target="_self">{label}</a>'
-        for label in ["Track", "Album", "Artist"]
-    )
-    filters_html = (
-        f'<a class="a360-acq-filter-pill{" active" if latam_only else ""}" href="{_acq_control_href(next_latam=not latam_only)}" target="_self">LATAM only</a>'
-        f'<a class="a360-acq-filter-pill{" active" if independent_only else ""}" href="{_acq_control_href(next_independent=not independent_only)}" target="_self">Independent only</a>'
-    )
 
     st.markdown(
         textwrap.dedent(
@@ -1679,27 +1705,40 @@ def render_redesign_dashboard(leaderboard: pd.DataFrame, history: pd.DataFrame, 
                 </div>
                 <div class="a360-acq-meta">{escape(window_label)} · {len(acq_rows)} artists scored</div>
             </div>
-            <div class="a360-acq-control-shell">
-                <div class="a360-acq-switch-row">
-                    <div class="a360-acq-tabs">{tabs_html}</div>
-                    <div class="a360-acq-filter-pills">{filters_html}</div>
-                </div>
-            </div>
         </section>
         """
         ).strip(),
         unsafe_allow_html=True,
     )
 
+    control_col_1, control_col_2, control_col_3 = st.columns([1.7, 1.0, 1.15], gap="small")
+    with control_col_1:
+        st.radio(
+            "Acquisition mode",
+            ["Track", "Album", "Artist"],
+            horizontal=True,
+            key="redesign_acq_mode",
+        )
+    with control_col_2:
+        st.toggle("LATAM only", key="redesign_acq_latam")
+    with control_col_3:
+        st.toggle("Independent only", key="redesign_acq_independent")
+
+    latam_only = bool(st.session_state.redesign_acq_latam)
+    independent_only = bool(st.session_state.redesign_acq_independent)
+
     if acq_rows.empty:
         st.info("No rows match the current acquisition filters.")
     else:
         visible_rows = acq_rows.head(12).copy()
         entity_label = {"Track": "Artist / Track", "Album": "Artist / Album", "Artist": "Artist"}.get(mode, "Artist / Track")
-        try:
-            selected_idx = int(st.query_params.get("redesign_acq_index", "0"))
-        except (TypeError, ValueError):
-            selected_idx = 0
+        st.session_state.redesign_acq_index = max(0, min(int(st.session_state.redesign_acq_index), len(visible_rows) - 1))
+        selected_idx = st.selectbox(
+            "Spotlight row",
+            options=list(range(len(visible_rows))),
+            format_func=lambda idx: f"{idx + 1}. {_acq_display_name(visible_rows.iloc[idx], mode)}",
+            key="redesign_acq_index",
+        )
         selected_idx = max(0, min(selected_idx, len(visible_rows) - 1))
         row = visible_rows.iloc[selected_idx]
         score_rank = int(row.get(f"{score_col}_rank") or selected_idx + 1)
@@ -1721,9 +1760,6 @@ def render_redesign_dashboard(leaderboard: pd.DataFrame, history: pd.DataFrame, 
                 mode=mode,
                 score_col=score_col,
                 selected=i == selected_idx,
-                theme=theme_name,
-                latam_only=latam_only,
-                independent_only=independent_only,
             )
             for i, (_, row) in enumerate(visible_rows.iterrows())
         )
@@ -1778,7 +1814,7 @@ def render_redesign_dashboard(leaderboard: pd.DataFrame, history: pd.DataFrame, 
             <div class="a360-section-head">
                 <div>
                     <h2>Roster Health</h2>
-                    <div class="a360-section-sub">One card per artist, with a verdict chip, a reversed-rank sparkline, and a market note. This is the page for asking whether the roster is still holding.</div>
+                    <div class="a360-section-sub">One compact card per artist, with a rank label, verdict chip, four KPI tiles, and a market footer. This is the page for asking whether the roster is still holding.</div>
                 </div>
             </div>
         </section>
@@ -1791,7 +1827,7 @@ def render_redesign_dashboard(leaderboard: pd.DataFrame, history: pd.DataFrame, 
         st.markdown(
             f"""
             <div class="a360-note">
-                <b>{escape(str(row.get('name') or 'Artist'))}</b> is the current focus. The dashboard uses the latest ranking and the recent rank trajectory as the working proxy for roster health until confirmed roster flags arrive.
+                <b>{escape(str(row.get('name') or 'Artist'))}</b> is the current focus. The dashboard uses the latest ranking and the current market footprint as the working proxy for roster health until confirmed roster flags arrive.
             </div>
             """,
             unsafe_allow_html=True,
@@ -1801,7 +1837,7 @@ def render_redesign_dashboard(leaderboard: pd.DataFrame, history: pd.DataFrame, 
     if roster_cards.empty:
         st.info("No roster rows available for the current slice.")
     else:
-        cards_html = "".join(_roster_card(row) for _, row in roster_cards.iterrows())
+        cards_html = "".join(_roster_card(row, idx=i + 1) for i, (_, row) in enumerate(roster_cards.iterrows()))
         st.markdown(f"<div class='a360-roster-grid'>{cards_html}</div>", unsafe_allow_html=True)
 
     cuts_html = "".join(
