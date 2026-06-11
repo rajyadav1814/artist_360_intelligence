@@ -4201,6 +4201,21 @@ with st.sidebar:
     
     # Proper sidebar routing for all dashboard views
     current_page = st.navigation(app_pages, position="sidebar", expanded=True)
+
+    st.markdown(
+        "<div style='margin:.25rem 0 .35rem; color: var(--text2); font-size:.78rem; font-weight:800; letter-spacing:.08em; text-transform:uppercase;'>Appearance</div>",
+        unsafe_allow_html=True,
+    )
+    is_dark = st.session_state.get("dark_mode", True)
+    toggle_label = "☀️ Light Mode" if is_dark else "🌙 Dark Mode"
+    if st.button(
+        toggle_label,
+        key="theme_toggle_btn",
+        use_container_width=True,
+    ):
+        st.session_state.dark_mode = not is_dark
+        st.query_params["theme"] = "dark" if st.session_state.dark_mode else "light"
+        st.rerun()
     
     # Collapsible advanced settings
     with st.expander("🔍 Search & Filter", expanded=True):
@@ -4243,18 +4258,6 @@ with st.sidebar:
     
     with st.expander("🎛️ Display Options", expanded=True):
         max_rows = st.slider("📊 Table rows", min_value=15, max_value=300, value=15, step=5)
-        
-        # ── Dark / Light mode toggle ───────────────────────────────
-        is_dark = st.session_state.get("dark_mode", True)
-        toggle_label = "☀️ Light Mode" if is_dark else "🌙 Dark Mode"
-        if st.button(
-            toggle_label,
-            key="theme_toggle_btn",
-            use_container_width=True,
-        ):
-            st.session_state.dark_mode = not is_dark
-            st.query_params["theme"] = "dark" if st.session_state.dark_mode else "light"
-            st.rerun()
     
     # Apply global filters (Latam, Countries)
     global_filtered = leaderboard.copy()
