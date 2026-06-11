@@ -4072,6 +4072,39 @@ def show_movement_page() -> None:
 
 def show_acquisition_page() -> None:
     """Wrapper function for Acquisition Recommendation page"""
+    st.markdown(
+        """
+        <style>
+        div[data-testid="stTabs"] div[role="tablist"] {
+            gap: 10px;
+        }
+        div[data-testid="stTabs"] button[role="tab"] {
+            border: 1px solid var(--border) !important;
+            border-radius: 10px !important;
+            background: var(--surface) !important;
+            color: var(--text2) !important;
+            font-weight: 700 !important;
+            min-height: 44px !important;
+            transition: background .15s ease, border-color .15s ease, color .15s ease, box-shadow .15s ease, transform .15s ease;
+        }
+        div[data-testid="stTabs"] button[role="tab"]:hover {
+            border-color: #e31b23 !important;
+            color: var(--text) !important;
+            transform: translateY(-1px);
+        }
+        div[data-testid="stTabs"] button[role="tab"][aria-selected="true"] {
+            background: linear-gradient(135deg, rgba(255,255,255,.98), rgba(255,232,234,.96)) !important;
+            border-color: #e31b23 !important;
+            color: #8f0f1c !important;
+            box-shadow: inset 0 0 0 1px rgba(227,27,35,.18), 0 6px 16px rgba(227,27,35,.12) !important;
+        }
+        div[data-testid="stTabs"] div[data-baseweb="tab-highlight"] {
+            display: none !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
     tab1, tab2, tab3 = st.tabs(["🎵 Track Acquisition", "💿 Album Acquisition", "🎤 Artist Acquisition"])
     with tab1:
         render_track_acquisition()
