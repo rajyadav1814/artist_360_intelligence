@@ -19,8 +19,8 @@ from src.utils.ui import custom_selectbox
 logger = get_logger(__name__)
 
 # ─────────────────────── theme CSS ──────────────────────────────
-_THEME_LIGHT = ":root{--bg:#F5F6FA;--bg2:#FFFFFF;--bg3:#F8F9FB;--bg4:#EEF1F7;--border:rgba(148,163,184,.2);--border2:rgba(148,163,184,.35);--t1:#1A1A1A;--t2:#4A5568;--t3:#8A8FA3;--t4:#A0AEC0;--green:#34d399;--gd:rgba(52,211,153,.18);--red:#fb7185;--rd:rgba(251,113,133,.18);--blue:#60a5fa;--bd:rgba(96,165,250,.18);--purple:#c4b5fd;--pd:rgba(196,181,253,.18);--amber:#fcd34d;--teal:#5eead4;--pink:#f9a8d4;}"
-_THEME_DARK  = ":root{--bg:#0d1117;--bg2:#161b26;--bg3:#1f2633;--bg4:#283041;--border:rgba(148,163,184,.15);--border2:rgba(148,163,184,.28);--t1:#ffffff;--t2:#cdd6e4;--t3:#8b95ad;--t4:#6b7a99;--green:#34d399;--gd:rgba(52,211,153,.18);--red:#fb7185;--rd:rgba(251,113,133,.18);--blue:#60a5fa;--bd:rgba(96,165,250,.18);--purple:#c4b5fd;--pd:rgba(196,181,253,.18);--amber:#fcd34d;--teal:#5eead4;--pink:#f9a8d4;}"
+_THEME_LIGHT = ":root{--bg:#F5F6FA;--bg2:#FFFFFF;--bg3:#F8F9FB;--bg4:#EEF1F7;--border:rgba(148,163,184,.2);--border2:rgba(148,163,184,.35);--t1:#1A1A1A;--t2:#4A5568;--t3:#8A8FA3;--t4:#A0AEC0;--green:#34d399;--gd:rgba(52,211,153,.18);--red:#e31b23;--rd:rgba(227,27,35,.18);--blue:#e31b23;--bd:rgba(227,27,35,.18);--purple:#8f0f1c;--pd:rgba(143,15,28,.18);--amber:#fcd34d;--teal:#5eead4;--pink:#ffb3bb;}"
+_THEME_DARK  = ":root{--bg:#0d1117;--bg2:#161b26;--bg3:#1f2633;--bg4:#283041;--border:rgba(148,163,184,.15);--border2:rgba(148,163,184,.28);--t1:#ffffff;--t2:#cdd6e4;--t3:#8b95ad;--t4:#6b7a99;--green:#34d399;--gd:rgba(52,211,153,.18);--red:#e31b23;--rd:rgba(227,27,35,.18);--blue:#e31b23;--bd:rgba(227,27,35,.18);--purple:#8f0f1c;--pd:rgba(143,15,28,.18);--amber:#fcd34d;--teal:#5eead4;--pink:#ffb3bb;}"
 
 # ─────────────────────── constants ──────────────────────────────
 
@@ -860,22 +860,21 @@ __THEME__
 body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t1);font-size:16px;line-height:1.55}
 .body{padding:20px 22px;display:flex;flex-direction:column;gap:20px}
 /* KPI bar */
-.kpi-bar{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:4px}
+.kpi-bar{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:4px;width:100%}
 .kpi{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px 16px;transition:.15s}
 .kpi:hover{background:var(--bg3)}
 .kpi-lbl{font-size:12px;color:var(--t3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px;font-weight:600}
 .kpi-val{font-size:32px;font-weight:700;letter-spacing:-.5px;line-height:1.15;color:var(--t1)}
 .kpi-sub{font-size:13px;color:var(--t2);margin-top:5px;font-weight:500}
 /* tabs */
-.tab-row{display:flex;gap:8px;margin-bottom:18px;align-items:center;flex-wrap:wrap}
-.tab{display:inline-flex;align-items:center;justify-content:center;font-size:14px;padding:8px 16px;border-radius:999px;background:var(--bg3);color:var(--t2);cursor:pointer;border:1px solid var(--border);min-width:42px;transition:.15s;font-weight:500}
-.tab:hover{background:var(--bg4);border-color:var(--border2);color:var(--t1)}
-.tab.active{background:#185FA5;color:#E6F1FB;border-color:#185FA5;font-weight:600}
+.tab-row{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-bottom:18px;align-items:stretch;width:100%}
+.tab{display:inline-flex;align-items:center;justify-content:center;font-size:14px;padding:10px 16px;border-radius:999px;background:var(--bg3);color:var(--t2);cursor:pointer;border:1px solid var(--border);min-width:0;transition:.15s;font-weight:500;white-space:nowrap}
+.tab:hover{background:var(--bg4);border-color:var(--border2);color:var(--t1);transform:translateY(-1px)}
+.tab.active{background:linear-gradient(135deg,#e31b23,#b31217);color:#ffffff;border-color:#e31b23;font-weight:700;box-shadow:0 10px 22px rgba(227,27,35,.22),inset 0 1px 0 rgba(255,255,255,.18);transform:translateY(-1px)}
 /* cards */
 .card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:18px 20px}
 .card-ttl{font-size:14px;color:var(--t2);text-transform:uppercase;letter-spacing:.7px;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--border);font-weight:600}
 .card-ttl-flex{display:flex;justify-content:space-between;align-items:center}
-.time-chip{background:var(--bg3);color:var(--t2);font-size:11px;padding:3px 8px;border-radius:12px;font-weight:500;text-transform:none;letter-spacing:0;border:1px solid var(--border)}
 .r2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
 /* table */
 .ctable{width:100%;border-collapse:collapse;font-size:14px}
@@ -896,6 +895,10 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
 .fix-canonical{font-size:14px;font-weight:600;color:var(--t1);margin-bottom:6px;display:flex;align-items:center;gap:8px}
 .fix-variant{font-size:13px;color:var(--t3);padding:2px 0 2px 12px;display:flex;align-items:center;gap:4px}
 .fix-count{font-size:12px;color:var(--t3);background:var(--bg3);padding:1px 6px;border-radius:10px;margin-left:auto;white-space:nowrap}
+@media(max-width:900px){.kpi-bar{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:640px){.kpi-bar{grid-template-columns:1fr}}
+@media(max-width:900px){.tab-row{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:640px){.tab-row{grid-template-columns:1fr}}
 
 </style></head><body>
 
@@ -907,17 +910,17 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
 
   <!-- Tabs -->
   <div class='tab-row'>
-    <div class='tab active' onclick="showTab('overview',this)">Overview</div>
-    <div class='tab' onclick="showTab('itunes',this)">iTunes</div>
-    <div class='tab' onclick="showTab('spotify',this)">Spotify</div>
-    <div class='tab' onclick="showTab('country',this)">Country</div>
+    <div class='tab active' onclick="showTab('overview',this)">📊 Overview</div>
+    <div class='tab' onclick="showTab('itunes',this)">🎵 iTunes</div>
+    <div class='tab' onclick="showTab('spotify',this)">🎧 Spotify</div>
+    <div class='tab' onclick="showTab('country',this)">🌍 Country</div>
   </div>
 
   <!-- Overview tab -->
   <div id='tab-overview'>
     <div class='r2' style='margin-bottom:16px'>
       <div class='card'>
-        <div class='card-ttl card-ttl-flex'><span id='topTracksTtl'>Top 5 tracks of Epic (Spotify)</span><span class='time-chip'>__DATA_DATE__</span></div>
+        <div class='card-ttl card-ttl-flex'><span id='topTracksTtl'>🔥 Top 5 tracks of Epic (Spotify)</span></div>
         <div style='font-size:11px;color:var(--t3);margin-top:-8px;margin-bottom:10px'>Historical data based on total streams</div>
         <table class='ctable'>
           <thead>
@@ -931,13 +934,13 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
         </table>
       </div>
       <div class='card'>
-        <div class='card-ttl card-ttl-flex'><span>Power score — overall dominance</span><span class='time-chip'>__DATA_DATE__</span></div>
+        <div class='card-ttl card-ttl-flex'><span>⚡ Power score — overall dominance</span></div>
         <div style='font-size:11px;color:var(--t3);margin-top:-8px;margin-bottom:12px'>20% iTunes entries + 20% Spotify entries + 30% Spotify streams + 30% iTunes streams</div>
         <div id='pwrBars'></div>
       </div>
     </div>
     <div class='card'>
-      <div class='card-ttl card-ttl-flex'><span>Platform reach — separate volume split</span><span class='time-chip'>__DATA_DATE__</span></div>
+      <div class='card-ttl card-ttl-flex'><span>🌐 Platform reach — separate volume split</span></div>
       <div style='display:grid;grid-template-columns:1fr 1fr;gap:20px'>
         <div>
           <div style='font-size:12px;font-weight:600;margin-bottom:8px;text-align:center;color:var(--t2)'>iTunes Streams</div>
@@ -955,16 +958,16 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
   <div id='tab-itunes' style='display:none'>
     <div class='r2'>
       <div class='card'>
-        <div class='card-ttl card-ttl-flex'><span>iTunes — points by label (top 12)</span><span class='time-chip'>__DATA_DATE__</span></div>
+        <div class='card-ttl card-ttl-flex'><span>🍏 iTunes — points by label (top 12)</span></div>
         <div style='position:relative;height:300px'><canvas id='itBar'></canvas></div>
       </div>
       <div class='card'>
-        <div class='card-ttl card-ttl-flex'><span>iTunes — average chart rank (lower = better)</span><span class='time-chip'>__DATA_DATE__</span></div>
+        <div class='card-ttl card-ttl-flex'><span>📉 iTunes — average chart rank (lower = better)</span></div>
         <div style='position:relative;height:300px'><canvas id='itRank'></canvas></div>
       </div>
     </div>
     <div class='card' style='margin-top:16px'>
-      <div class='card-ttl card-ttl-flex'><span>Top 10 iTunes Tracks by Points</span><span class='time-chip'>__DATA_DATE__</span></div>
+      <div class='card-ttl card-ttl-flex'><span>🏅 Top 10 iTunes Tracks by Points</span></div>
       <table class='ctable'>
         <thead>
           <tr>
@@ -983,16 +986,16 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
   <div id='tab-spotify' style='display:none'>
     <div class='r2'>
       <div class='card'>
-        <div class='card-ttl card-ttl-flex'><span>Spotify — streams by label (top 12)</span><span class='time-chip'>__DATA_DATE__</span></div>
+        <div class='card-ttl card-ttl-flex'><span>🎼 Spotify — streams by label (top 12)</span></div>
         <div style='position:relative;height:300px'><canvas id='spBar'></canvas></div>
       </div>
       <div class='card'>
-        <div class='card-ttl card-ttl-flex'><span>Spotify — average chart rank (lower = better)</span><span class='time-chip'>__DATA_DATE__</span></div>
+        <div class='card-ttl card-ttl-flex'><span>📈 Spotify — average chart rank (lower = better)</span></div>
         <div style='position:relative;height:300px'><canvas id='spRank'></canvas></div>
       </div>
     </div>
     <div class='card' style='margin-top:16px'>
-      <div class='card-ttl card-ttl-flex'><span>Top 10 Spotify Tracks by Streams</span><span class='time-chip'>__DATA_DATE__</span></div>
+      <div class='card-ttl card-ttl-flex'><span>🏆 Top 10 Spotify Tracks by Streams</span></div>
       <table class='ctable'>
         <thead>
           <tr>
@@ -1011,7 +1014,7 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
   <div id='tab-country' style='display:none'>
     <div class='r2' style='margin-bottom:16px'>
       <div class='card'>
-        <div class='card-ttl card-ttl-flex'><span>Dominant label by country</span><span class='time-chip'>__DATA_DATE__</span></div>
+        <div class='card-ttl card-ttl-flex'><span>🧭 Dominant label by country</span></div>
         <table class='ctable'>
           <thead><tr>
             <th>Country</th><th>Top Label</th><th style='text-align:right'>Entries</th>
@@ -1021,7 +1024,7 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
         </table>
       </div>
       <div class='card' style='display:flex;flex-direction:column;height:100%'>
-        <div class='card-ttl card-ttl-flex'><span>Streams by country (Spotify)</span><span class='time-chip'>__DATA_DATE__</span></div>
+        <div class='card-ttl card-ttl-flex'><span>🗺️ Streams by country (Spotify)</span></div>
         <div style='position:relative;flex-grow:1;min-height:400px'><canvas id='ctryStream'></canvas></div>
       </div>
     </div>
@@ -1030,7 +1033,7 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
   <!-- Fixes log tab -->
   <div id='tab-fixes' style='display:none'>
     <div class='card' style='margin-bottom:16px'>
-      <div class='card-ttl card-ttl-flex'><span>Sub Labels Mapping</span><span class='time-chip'>__DATA_DATE__</span></div>
+      <div class='card-ttl card-ttl-flex'><span>🧩 Sub Labels Mapping</span></div>
       <div class='fix-grid' id='fixGrid'></div>
     </div>
 
@@ -1060,9 +1063,9 @@ function showTab(id,el){
 
 // ── KPI bar ──────────────────────────────────────────────────
 const kpiData = [
-  {lbl:'Top label overall',   val:K.top_label, sub:'Based on latest daily chart'},
-  {lbl:'iTunes labels', val:K.it_unique_after},
-  {lbl:'Spotify labels',val:K.sp_unique_after},
+  {lbl:'🏆 Top label overall',   val:K.top_label, sub:'Based on latest daily chart'},
+  {lbl:'🍏 iTunes labels', val:K.it_unique_after},
+  {lbl:'🎧 Spotify labels',val:K.sp_unique_after},
 ];
 const kpiBar = document.getElementById('kpiBar');
 kpiData.forEach(k=>{
@@ -1093,7 +1096,7 @@ const epicTbody = document.getElementById('epicTbody');
 const topTracksTtl = document.getElementById('topTracksTtl');
 
 function showLabelTracks(label) {
-  topTracksTtl.innerText = 'Top 10 tracks of ' + label + ' (Spotify)';
+  topTracksTtl.innerText = '🔥 Top 10 tracks of ' + label + ' (Spotify)';
   const tracks = PAYLOAD.label_top_tracks[label] || [];
   epicTbody.innerHTML = '';
   if(tracks.length === 0) {
@@ -1116,7 +1119,7 @@ showLabelTracks(defaultLabel);
 new Chart(document.getElementById('stackBarItunes'),{
   type:'bar',
   data:{labels:itTop.map(d=>d.label),datasets:[
-    {label:'iTunes',  data:itTop.map(d=>d.points), backgroundColor:'#60a5fa',borderRadius:0}
+    {label:'iTunes',  data:itTop.map(d=>d.points), backgroundColor:'#e31b23',borderRadius:0}
   ]},
   options:{responsive:true,maintainAspectRatio:false,
     plugins:{legend:{display:false}},
@@ -1126,7 +1129,7 @@ new Chart(document.getElementById('stackBarItunes'),{
 new Chart(document.getElementById('stackBarSpotify'),{
   type:'bar',
   data:{labels:spTop.map(d=>d.label),datasets:[
-    {label:'Spotify', data:spTop.map(d=>d.total_streams), backgroundColor:'#34d399',borderRadius:0}
+    {label:'Spotify', data:spTop.map(d=>d.total_streams), backgroundColor:'#b31217',borderRadius:0}
   ]},
   options:{responsive:true,maintainAspectRatio:false,
     plugins:{legend:{display:false}},
@@ -1138,7 +1141,7 @@ new Chart(document.getElementById('stackBarSpotify'),{
 new Chart(document.getElementById('itBar'),{
   type:'bar',
   data:{labels:itTop.map(d=>d.label),
-    datasets:[{label:'Points',data:itTop.map(d=>d.points),backgroundColor:'#60a5fa',borderRadius:3}]},
+    datasets:[{label:'Points',data:itTop.map(d=>d.points),backgroundColor:'#e31b23',borderRadius:3}]},
   options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
     plugins:{legend:{display:false}},
     scales:{y:{ticks:{color:tc,font:{size:12}},grid:{color:gc}},
@@ -1148,7 +1151,7 @@ new Chart(document.getElementById('itBar'),{
 new Chart(document.getElementById('itRank'),{
   type:'bar',
   data:{labels:itTop.map(d=>d.label),
-    datasets:[{label:'Avg Rank',data:itTop.map(d=>d.avg_rank),backgroundColor:'#c4b5fd',borderRadius:3}]},
+    datasets:[{label:'Avg Rank',data:itTop.map(d=>d.avg_rank),backgroundColor:'#8f0f1c',borderRadius:3}]},
   options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
     plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`Avg rank: ${c.parsed.x}`}}},
     scales:{y:{ticks:{color:tc,font:{size:12}},grid:{color:gc}},
@@ -1171,7 +1174,7 @@ if (itTopTbody) {
 new Chart(document.getElementById('spBar'),{
   type:'bar',
   data:{labels:spTop.map(d=>d.label),
-    datasets:[{label:'Streams',data:spTop.map(d=>d.total_streams),backgroundColor:'#34d399',borderRadius:3}]},
+    datasets:[{label:'Streams',data:spTop.map(d=>d.total_streams),backgroundColor:'#b31217',borderRadius:3}]},
   options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
     plugins:{legend:{display:false}},
     scales:{y:{ticks:{color:tc,font:{size:12}},grid:{color:gc}},
@@ -1181,7 +1184,7 @@ new Chart(document.getElementById('spBar'),{
 new Chart(document.getElementById('spRank'),{
   type:'bar',
   data:{labels:spTop.map(d=>d.label),
-    datasets:[{label:'Avg Rank',data:spTop.map(d=>d.avg_rank),backgroundColor:'#f9a8d4',borderRadius:3}]},
+    datasets:[{label:'Avg Rank',data:spTop.map(d=>d.avg_rank),backgroundColor:'#ff8f99',borderRadius:3}]},
   options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
     plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`Avg rank: ${c.parsed.x}`}}},
     scales:{y:{ticks:{color:tc,font:{size:12}},grid:{color:gc}},
@@ -1220,7 +1223,7 @@ const streamTop = [...ctryData].sort((a,b)=>b.total_streams-a.total_streams);
 new Chart(document.getElementById('ctryStream'),{
   type:'bar',
   data:{labels:streamTop.map(d=>d.country),
-    datasets:[{label:'Streams',data:streamTop.map(d=>d.total_streams),backgroundColor:'#34d399',borderRadius:3}]},
+    datasets:[{label:'Streams',data:streamTop.map(d=>d.total_streams),backgroundColor:'#b31217',borderRadius:3}]},
   options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
     plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>fmtN(c.parsed.x)+' streams'}}},
     scales:{y:{ticks:{color:tc,font:{size:12}},grid:{color:gc}},
@@ -1242,4 +1245,4 @@ const fg = document.getElementById('fixGrid');
 
 </script>
 </body></html>
-""".replace("__DATA__", data_json).replace("__THEME__", theme_css).replace("__DATA_DATE__", payload.get("data_date", "All-Time"))
+""".replace("__DATA__", data_json).replace("__THEME__", theme_css)
