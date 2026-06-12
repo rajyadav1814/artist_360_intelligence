@@ -54,6 +54,10 @@ st.markdown(
         [data-testid="stToolbar"],
         [data-testid="stDecoration"],
         header[data-testid="stHeader"],
+        [data-testid="stStatusWidget"],
+        [data-testid="viewerBadge"],
+        .viewerBadge_container,
+        .stDeployButton,
         #MainMenu,
         footer {
             display: none !important;
