@@ -24,7 +24,6 @@ _THEME_LIGHT = ":root{--bg:#F5F6FA;--bg2:#FFFFFF;--bg3:#F8F9FB;--bg4:#EEF1F7;--b
 _THEME_DARK  = ":root{--bg:#0d1117;--bg2:#161b27;--bg3:#1a2035;--bg4:#1e2740;--border:rgba(41,52,85,.7);--border2:rgba(58,70,97,.8);--t1:#e2e8f0;--t2:#94a3b8;--t3:#8b95ad;--t4:#6b7a99;--green:#34d399;--gd:rgba(52,211,153,.18);--red:#fb7185;--rd:rgba(251,113,133,.18);--blue:#60a5fa;--bd:rgba(96,165,250,.18);--purple:#c4b5fd;--pd:rgba(196,181,253,.18);--amber:#fcd34d;--teal:#5eead4;--pink:#f9a8d4;}"
 
 
-
 def _split_at(at: str | None) -> tuple[str, str]:
     if not at:
         return "—", "—"
@@ -237,7 +236,11 @@ def _build_album_rows(sp_df: pd.DataFrame, it_df: pd.DataFrame, dates: list[date
             "spRanks": sp_ranks,
             "itScores": it_scores,
             "itRanks": it_ranks,
-            "bestRank": best_sp_rank or (best_it_rank or 0),
+            "bestRank": best_sp_rank or best_it_rank,
+            "bestSpRank": best_sp_rank,
+            "bestItRank": best_it_rank,
+            "hasSp": has_sp,
+            "hasIt": has_it,
             "latestPoints": latest_sp,
             "firstPoints": first_sp,
             "momentum": momentum,
@@ -700,11 +703,25 @@ let itTrajChartInst = null;
 
 // Acq Score
 function _jsAcqScore(latestPoints, bestRank, momentum, bestItRank) {
-    const rankScore = Math.max(0, 20 - (bestRank || 100) * 0.2);
-    const streamScore = Math.min(30, Math.floor(latestPoints / 300000));
-    const momentumScore = Math.max(-20, Math.min(40, Math.floor(momentum * 2)));
-    const itunesBonus = bestItRank && bestItRank <= 25 ? 10 : (bestItRank && bestItRank <= 60 ? 5 : 0);
+    const safeRank = Number.isFinite(Number(bestRank)) && Number(bestRank) > 0 ? Number(bestRank) : null;
+    const safeItRank = Number.isFinite(Number(bestItRank)) && Number(bestItRank) > 0 ? Number(bestItRank) : null;
+    const safePoints = Number.isFinite(Number(latestPoints)) ? Number(latestPoints) : 0;
+    const safeMomentum = Number.isFinite(Number(momentum)) ? Number(momentum) : 0;
+    const rankScore = Math.max(0, 20 - (safeRank || 100) * 0.2);
+    const streamScore = Math.min(30, Math.floor(safePoints / 300000));
+    const momentumScore = Math.max(-20, Math.min(40, Math.floor(safeMomentum * 2)));
+    const itunesBonus = safeItRank && safeItRank <= 25 ? 10 : (safeItRank && safeItRank <= 60 ? 5 : 0);
     return Math.max(0, Math.min(100, Math.floor(rankScore + streamScore + momentumScore + itunesBonus)));
+}
+
+function bestRankFrom(ranks) {
+    const values = (ranks || []).map(Number).filter(v => Number.isFinite(v) && v > 0);
+    return values.length ? Math.min(...values) : null;
+}
+
+function displayRank(rank) {
+    const value = Number(rank);
+    return Number.isFinite(value) && value > 0 ? Math.round(value).toString() : '—';
 }
 
 // Signals
@@ -759,8 +776,8 @@ function recalculateAlbumMetrics(album, windowDays, fullDates, regionLabel) {
     const latestSp = [...slicedSpPoints].reverse().find(v => v > 0) || 0;
     const firstRank = slicedSpRanks.find(r => r !== null) || null;
     const latestRank = [...slicedSpRanks].reverse().find(r => r !== null) || null;
-    const bestSpRank = slicedSpRanks.filter(r => r !== null).reduce((min, r) => Math.min(min, r), Infinity) || null;
-    const bestItRank = slicedItRanks.filter(r => r !== null).reduce((min, r) => Math.min(min, r), Infinity) || null;
+    const bestSpRank = bestRankFrom(slicedSpRanks);
+    const bestItRank = bestRankFrom(slicedItRanks);
 
     const growth = firstSp ? Number(((latestSp - firstSp) / firstSp * 100).toFixed(1)) : 0.0;
     const rankDelta = (firstRank !== null && latestRank !== null) ? (firstRank - latestRank) : 0;
@@ -773,7 +790,9 @@ function recalculateAlbumMetrics(album, windowDays, fullDates, regionLabel) {
     recalculatedAlbum.spRanks = slicedSpRanks;
     recalculatedAlbum.itScores = slicedItScores;
     recalculatedAlbum.itRanks = slicedItRanks;
-    recalculatedAlbum.bestRank = bestSpRank || (bestItRank || 0);
+    recalculatedAlbum.bestRank = bestSpRank || bestItRank;
+    recalculatedAlbum.bestSpRank = bestSpRank;
+    recalculatedAlbum.bestItRank = bestItRank;
     recalculatedAlbum.latestPoints = latestSp;
     recalculatedAlbum.firstPoints = firstSp;
     recalculatedAlbum.momentum = momentum;
@@ -861,6 +880,7 @@ function applyFilters(){
   });
 
   filteredAlbums = filteredAlbums.map(album => recalculateAlbumMetrics(album, currentTimeWindowDays, ORIGINAL_DATES, PAYLOAD.regionLabel));
+  filteredAlbums = filteredAlbums.filter(t => Number(t.acqScore) > 0);
 
   const q = document.getElementById('searchInput').value.toLowerCase();
   
@@ -877,6 +897,11 @@ function applyFilters(){
   ALBUMS.sort((a,b)=>{
     if (key === 'title') {
         return a.title.localeCompare(b.title);
+    }
+    if (key === 'bestRank') {
+        const ar = Number.isFinite(Number(a[key])) && Number(a[key]) > 0 ? Number(a[key]) : Number.POSITIVE_INFINITY;
+        const br = Number.isFinite(Number(b[key])) && Number(b[key]) > 0 ? Number(b[key]) : Number.POSITIVE_INFINITY;
+        return ar - br;
     }
     return asc ? a[key]-b[key] : b[key]-a[key];
   });
@@ -901,7 +926,7 @@ function renderTable() {
                 <div class="album-name">${t.title}</div>
                 <div class="album-artist">${t.artist}</div>
             </div>
-            <div class="col-r points-val">${t.bestRank || '—'}</div>
+            <div class="col-r points-val">${displayRank(t.bestRank)}</div>
             <div class="col-r points-val">${fmtN(t.latestPoints)}</div>
             <div class="col-r momentum-val ${momColor}">${t.momentum > 0 ? '+' : ''}${t.momentum}%</div>
             <div class="col-r"><span class="acq-pill ${acqClass}">${t.acqScore}</span></div>
@@ -982,7 +1007,7 @@ function selectAlbum(id) {
   const rank = sortedByAcq.findIndex(x => x.id === id) + 1;
   document.getElementById('d-rank').textContent = `#${rank} of ${ALBUMS.length}`;
   
-  document.getElementById('d-rank-val').textContent = t.bestRank || '—';
+  document.getElementById('d-rank-val').textContent = displayRank(t.bestRank);
   document.getElementById('d-rank-sub').textContent = PAYLOAD.regionLabel;
   
   document.getElementById('d-points').textContent = fmtN(t.latestPoints);
