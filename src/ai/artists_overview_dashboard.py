@@ -1176,7 +1176,7 @@ function openArtistDetail(position) {{
   const table = document.getElementById('artistLeaderboardTableView');
   const back = document.getElementById('artistLeaderboardBack');
   document.getElementById('artistLeaderboardTitle').textContent = row.name;
-  document.getElementById('artistLeaderboardSub').textContent = `Full artist detail · Latest snapshot: ${{ARTIST_LEADERBOARD.latestLabel || 'n/a'}}`;
+  document.getElementById('artistLeaderboardSub').textContent = `Artist Details · Latest snapshot: ${{ARTIST_LEADERBOARD.latestLabel || 'n/a'}}`;
   const songs = parseDetailList(row.topSongs);
   const albums = parseDetailList(row.topAlbums);
   const countries = parseDetailList(row.topCountries);
@@ -1266,7 +1266,7 @@ function openSongsDetail(position) {{
   const table = document.getElementById('songsLeaderboardTableView');
   const back = document.getElementById('songsLeaderboardBack');
   document.getElementById('songsLeaderboardTitle').textContent = row.title;
-  document.getElementById('songsLeaderboardSub').textContent = `Song detail · ${{row.artist || 'Unknown artist'}}`;
+  document.getElementById('songsLeaderboardSub').textContent = `Artist Name · ${{row.artist || 'Unknown artist'}}`;
   const songs = parseDetailList(row.topSongs);
   const albums = parseDetailList(row.topAlbums);
   const countries = parseDetailList(row.topCountries);
@@ -1348,7 +1348,7 @@ function openAlbumsDetail(position) {{
   const table = document.getElementById('albumsLeaderboardTableView');
   const back = document.getElementById('albumsLeaderboardBack');
   document.getElementById('albumsLeaderboardTitle').textContent = row.title;
-  document.getElementById('albumsLeaderboardSub').textContent = `Album detail · ${{row.artist || 'Unknown artist'}}`;
+  document.getElementById('albumsLeaderboardSub').textContent = `Artist Name · ${{row.artist || 'Unknown artist'}}`;
   const songs = parseDetailList(row.topSongs);
   const albums = parseDetailList(row.topAlbums);
   const countries = parseDetailList(row.topCountries);
