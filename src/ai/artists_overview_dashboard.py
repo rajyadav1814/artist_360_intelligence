@@ -324,6 +324,80 @@ def _load_track_dashboard(days: int = WINDOW_DAYS) -> tuple[pd.DataFrame, pd.Dat
 
 
 @st.cache_data(ttl=300, show_spinner=False)
+def _load_songs_rank_leaderboard(days: int = WINDOW_DAYS) -> pd.DataFrame:
+    query = """
+        WITH sp_bounds AS (SELECT MAX(date) AS max_d FROM spotify_daily WHERE country = 'global'),
+        it_bounds AS (SELECT MAX(date) AS max_d FROM itunes_daily WHERE country = 'ww'),
+        raw_rows AS (
+            SELECT
+                'Spotify'::text AS platform,
+                d.artist_title,
+                d.rank,
+                d.days,
+                d.streams::numeric AS metric,
+                d.date
+            FROM spotify_daily d, sp_bounds b
+            WHERE d.country = 'global'
+              AND d.date > (b.max_d - %s::int)
+              AND d.date <= b.max_d
+            UNION ALL
+            SELECT
+                'iTunes'::text AS platform,
+                d.artist_title,
+                d.rank,
+                d.days,
+                d.points::numeric AS metric,
+                d.date
+            FROM itunes_daily d, it_bounds b
+            WHERE d.country = 'ww'
+              AND d.date > (b.max_d - %s::int)
+              AND d.date <= b.max_d
+        ),
+        parsed AS MATERIALIZED (
+            SELECT
+                platform,
+                CASE
+                    WHEN position(' - ' in artist_title) > 0 THEN split_part(artist_title, ' - ', 1)
+                    ELSE COALESCE(NULLIF(artist_title, ''), 'Unknown')
+                END AS artist,
+                CASE
+                    WHEN position(' - ' in artist_title) > 0 THEN substring(artist_title from position(' - ' in artist_title) + 3)
+                    ELSE COALESCE(NULLIF(artist_title, ''), 'Unknown')
+                END AS title,
+                rank,
+                COALESCE(days, 0) AS days,
+                COALESCE(metric, 0) AS metric,
+                date
+            FROM raw_rows
+        )
+        SELECT
+            platform,
+            artist,
+            title,
+            MIN(rank) AS best_rank,
+            SUM(metric) AS metric,
+            MAX(days) AS chart_days,
+            COUNT(*) AS entries,
+            MAX(date) AS latest_date
+        FROM parsed
+        WHERE btrim(artist) <> ''
+          AND lower(btrim(artist)) NOT IN ('null', 'none', 'nan', 'unknown')
+          AND btrim(title) <> ''
+          AND lower(btrim(title)) NOT IN ('null', 'none', 'nan', 'unknown')
+        GROUP BY platform, artist, title
+        ORDER BY best_rank ASC, metric DESC, chart_days DESC
+        LIMIT 250
+    """
+    rows = _run_query(query, (days, days))
+    if not rows:
+        return pd.DataFrame(columns=["platform", "artist", "title", "best_rank", "metric", "chart_days", "entries", "latest_date"])
+    df = pd.DataFrame(rows)
+    for col in ["best_rank", "metric", "chart_days", "entries"]:
+        df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
+    return df
+
+
+@st.cache_data(ttl=300, show_spinner=False)
 def _load_chart_days_leaderboard(days: int = WINDOW_DAYS) -> pd.DataFrame:
     query = """
         WITH sp_bounds AS (SELECT MAX(date) AS max_d FROM spotify_daily WHERE country = 'global'),
@@ -469,6 +543,58 @@ def _load_popular_songs_leaderboard(days: int = WINDOW_DAYS) -> pd.DataFrame:
         return pd.DataFrame(columns=["platform", "artist", "title", "best_rank", "metric", "chart_days", "top10_entries", "latest_date"])
     df = pd.DataFrame(rows)
     for col in ["best_rank", "metric", "chart_days", "top10_entries"]:
+        df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
+    return df
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def _load_albums_rank_leaderboard(days: int = WINDOW_DAYS) -> pd.DataFrame:
+    query = """
+        WITH bounds AS (
+            SELECT MAX(date) AS max_d FROM itunes_artist_album WHERE country = 'ww'
+        ),
+        parsed AS MATERIALIZED (
+            SELECT
+                CASE
+                    WHEN position(' - ' in d.artist_title) > 0 THEN split_part(d.artist_title, ' - ', 1)
+                    ELSE COALESCE(NULLIF(d.artist_title, ''), 'Unknown')
+                END AS artist,
+                CASE
+                    WHEN position(' - ' in d.artist_title) > 0 THEN substring(d.artist_title from position(' - ' in d.artist_title) + 3)
+                    ELSE COALESCE(NULLIF(d.artist_title, ''), 'Unknown')
+                END AS title,
+                d.rank,
+                COALESCE(d.days, 0) AS days,
+                COALESCE(d.points::numeric, 0) AS metric,
+                d.date
+            FROM itunes_artist_album d, bounds b
+            WHERE d.country = 'ww'
+              AND d.date > (b.max_d - %s::int)
+              AND d.date <= b.max_d
+        )
+        SELECT
+            'iTunes'::text AS platform,
+            artist,
+            title,
+            MIN(rank) AS best_rank,
+            SUM(metric) AS metric,
+            MAX(days) AS chart_days,
+            COUNT(*) AS entries,
+            MAX(date) AS latest_date
+        FROM parsed
+        WHERE btrim(artist) <> ''
+          AND lower(btrim(artist)) NOT IN ('null', 'none', 'nan', 'unknown')
+          AND btrim(title) <> ''
+          AND lower(btrim(title)) NOT IN ('null', 'none', 'nan', 'unknown')
+        GROUP BY artist, title
+        ORDER BY best_rank ASC, metric DESC, chart_days DESC
+        LIMIT 250
+    """
+    rows = _run_query(query, (days,))
+    if not rows:
+        return pd.DataFrame(columns=["platform", "artist", "title", "best_rank", "metric", "chart_days", "entries", "latest_date"])
+    df = pd.DataFrame(rows)
+    for col in ["best_rank", "metric", "chart_days", "entries"]:
         df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
     return df
 
@@ -668,12 +794,16 @@ def _load_artists_overview_data(days: int = WINDOW_DAYS) -> tuple[
     pd.DataFrame,
     pd.DataFrame,
     pd.DataFrame,
+    pd.DataFrame,
+    pd.DataFrame,
 ]:
     latest_artists = _load_artist_rank_history(days)
     spotify_df = _load_spotify_artist_latest()
     details_df = _load_artist_details_latest()
     track_artist_stats, top_tracks, track_kpis = _load_track_dashboard(days)
+    songs_rank_df = _load_songs_rank_leaderboard(days)
     album_artist_stats, top_albums, album_kpis = _load_album_dashboard(days)
+    albums_rank_df = _load_albums_rank_leaderboard(days)
     chart_days_df = _load_chart_days_leaderboard(days)
     popular_songs_df = _load_popular_songs_leaderboard(days)
     filtered = _build_artist_table(latest_artists, spotify_df, details_df, track_artist_stats, album_artist_stats)
@@ -684,9 +814,11 @@ def _load_artists_overview_data(days: int = WINDOW_DAYS) -> tuple[
         track_artist_stats,
         top_tracks,
         track_kpis,
+        songs_rank_df,
         album_artist_stats,
         top_albums,
         album_kpis,
+        albums_rank_df,
         chart_days_df,
         popular_songs_df,
         filtered,
@@ -719,9 +851,11 @@ def render_artists_overview(last_run_label: str = "n/a") -> None:
         _track_artist_stats,
         top_tracks,
         track_kpis,
+        songs_rank_df,
         _album_artist_stats,
         top_albums,
         album_kpis,
+        albums_rank_df,
         chart_days_df,
         popular_songs_df,
         filtered,
@@ -862,52 +996,28 @@ def render_artists_overview(last_run_label: str = "n/a") -> None:
     ).replace("</", "<\\/")
 
     song_rows: list[dict[str, Any]] = []
-    if not details_df.empty:
-        song_cols = [col for col in [
-            "name",
-            "songs_count",
-            "albums_count",
-            "countries_count",
-            "top_songs",
-            "top_albums",
-            "top_countries",
-            "scrape_date",
-        ] if col in details_df.columns]
-        song_df = details_df[song_cols].copy()
-        for col in ["songs_count", "albums_count", "countries_count"]:
-            if col in song_df.columns:
-                song_df[col] = pd.to_numeric(song_df[col], errors="coerce").fillna(0)
-        song_df = song_df.sort_values(["songs_count", "albums_count"], ascending=[False, False]).reset_index(drop=True)
-        for idx, row in song_df.iterrows():
-            artist_name = _modal_text(row, "name").strip()
-            if not _is_valid_artist_name(artist_name):
+    if not songs_rank_df.empty:
+        for _, row in songs_rank_df.reset_index(drop=True).iterrows():
+            artist_name = _modal_text(row, "artist").strip()
+            title = _modal_text(row, "title").strip()
+            if not _is_valid_artist_name(artist_name) or not title or title.lower() in {"null", "none", "nan", "unknown"}:
                 continue
-            fallback_image = get_fallback_avatar_url(artist_name)
-            artist_image = get_artist_image_url(artist_name) if idx < ARTIST_IMAGE_LOOKUP_LIMIT else None
-            top_songs = [
-                item.strip()
-                for item in _modal_text(row, "top_songs").replace(";", "\n").splitlines()
-                if item.strip()
-            ]
-            for song_title in top_songs:
-                song_rows.append({
-                    "position": len(song_rows) + 1,
-                    "title": song_title,
-                    "artist": artist_name,
-                    "imageUrl": artist_image or fallback_image,
-                    "artistSongs": _modal_num(row, "songs_count"),
-                    "albums": _modal_num(row, "albums_count"),
-                    "markets": _modal_num(row, "countries_count"),
-                    "topSongs": _modal_text(row, "top_songs"),
-                    "topAlbums": _modal_text(row, "top_albums"),
-                    "topCountries": _modal_text(row, "top_countries"),
-                    "scrapeDate": _modal_text(row, "scrape_date", "n/a"),
-                })
+            song_rows.append({
+                "position": len(song_rows) + 1,
+                "title": title,
+                "artist": artist_name,
+                "platform": _modal_text(row, "platform", "n/a"),
+                "bestRank": _modal_num(row, "best_rank"),
+                "metric": _modal_num(row, "metric"),
+                "days": _modal_num(row, "chart_days"),
+                "entries": _modal_num(row, "entries"),
+                "latestDate": _modal_text(row, "latest_date", "n/a"),
+            })
     songs_json = json.dumps(
         {
+            "windowDays": WINDOW_DAYS,
             "latestLabel": latest_label,
             "total": int(song_total),
-            "artistRows": int(len(details_df)),
             "listedRows": int(len(song_rows)),
             "rows": song_rows,
         },
@@ -915,52 +1025,28 @@ def render_artists_overview(last_run_label: str = "n/a") -> None:
     ).replace("</", "<\\/")
 
     album_rows: list[dict[str, Any]] = []
-    if not details_df.empty:
-        album_cols = [col for col in [
-            "name",
-            "songs_count",
-            "albums_count",
-            "countries_count",
-            "top_songs",
-            "top_albums",
-            "top_countries",
-            "scrape_date",
-        ] if col in details_df.columns]
-        album_df = details_df[album_cols].copy()
-        for col in ["songs_count", "albums_count", "countries_count"]:
-            if col in album_df.columns:
-                album_df[col] = pd.to_numeric(album_df[col], errors="coerce").fillna(0)
-        album_df = album_df.sort_values(["albums_count", "songs_count"], ascending=[False, False]).reset_index(drop=True)
-        for idx, row in album_df.iterrows():
-            artist_name = _modal_text(row, "name").strip()
-            if not _is_valid_artist_name(artist_name):
+    if not albums_rank_df.empty:
+        for _, row in albums_rank_df.reset_index(drop=True).iterrows():
+            artist_name = _modal_text(row, "artist").strip()
+            title = _modal_text(row, "title").strip()
+            if not _is_valid_artist_name(artist_name) or not title or title.lower() in {"null", "none", "nan", "unknown"}:
                 continue
-            fallback_image = get_fallback_avatar_url(artist_name)
-            artist_image = get_artist_image_url(artist_name) if idx < ARTIST_IMAGE_LOOKUP_LIMIT else None
-            top_album_items = [
-                item.strip()
-                for item in _modal_text(row, "top_albums").replace(";", "\n").splitlines()
-                if item.strip()
-            ]
-            for album_title in top_album_items:
-                album_rows.append({
-                    "position": len(album_rows) + 1,
-                    "title": album_title,
-                    "artist": artist_name,
-                    "imageUrl": artist_image or fallback_image,
-                    "artistSongs": _modal_num(row, "songs_count"),
-                    "artistAlbums": _modal_num(row, "albums_count"),
-                    "markets": _modal_num(row, "countries_count"),
-                    "topSongs": _modal_text(row, "top_songs"),
-                    "topAlbums": _modal_text(row, "top_albums"),
-                    "topCountries": _modal_text(row, "top_countries"),
-                    "scrapeDate": _modal_text(row, "scrape_date", "n/a"),
-                })
+            album_rows.append({
+                "position": len(album_rows) + 1,
+                "title": title,
+                "artist": artist_name,
+                "platform": _modal_text(row, "platform", "iTunes"),
+                "bestRank": _modal_num(row, "best_rank"),
+                "metric": _modal_num(row, "metric"),
+                "days": _modal_num(row, "chart_days"),
+                "entries": _modal_num(row, "entries"),
+                "latestDate": _modal_text(row, "latest_date", "n/a"),
+            })
     albums_json = json.dumps(
         {
+            "windowDays": WINDOW_DAYS,
             "latestLabel": latest_label,
             "total": int(album_total),
-            "artistRows": int(len(details_df)),
             "listedRows": int(len(album_rows)),
             "rows": album_rows,
         },
@@ -1238,7 +1324,7 @@ def render_artists_overview(last_run_label: str = "n/a") -> None:
   <section class="leader-modal" role="dialog" aria-modal="true" aria-labelledby="songsLeaderboardTitle" onclick="event.stopPropagation()">
     <div class="leader-head">
       <div>
-        <div class="leader-title" id="songsLeaderboardTitle">Songs Catalog Snapshot</div>
+        <div class="leader-title" id="songsLeaderboardTitle">Songs Rank Snapshot</div>
         <div class="leader-sub" id="songsLeaderboardSub"></div>
       </div>
       <div class="leader-actions">
@@ -1253,9 +1339,10 @@ def render_artists_overview(last_run_label: str = "n/a") -> None:
             <th style="width:58px">#</th>
             <th style="width:280px">Song</th>
             <th style="width:220px">Artist</th>
-            <th style="width:96px" class="num">Artist songs</th>
-            <th style="width:96px" class="num">Albums</th>
-            <th style="width:106px" class="num">Countries</th>
+            <th style="width:96px">Platform</th>
+            <th style="width:92px" class="num">Rank</th>
+            <th style="width:92px" class="num">Days</th>
+            <th style="width:112px" class="num">Metric</th>
           </tr>
         </thead>
         <tbody id="songsLeaderboardBody"></tbody>
@@ -1268,7 +1355,7 @@ def render_artists_overview(last_run_label: str = "n/a") -> None:
   <section class="leader-modal" role="dialog" aria-modal="true" aria-labelledby="albumsLeaderboardTitle" onclick="event.stopPropagation()">
     <div class="leader-head">
       <div>
-        <div class="leader-title" id="albumsLeaderboardTitle">Albums Catalog Snapshot</div>
+        <div class="leader-title" id="albumsLeaderboardTitle">Albums Rank Snapshot</div>
         <div class="leader-sub" id="albumsLeaderboardSub"></div>
       </div>
       <div class="leader-actions">
@@ -1283,9 +1370,10 @@ def render_artists_overview(last_run_label: str = "n/a") -> None:
             <th style="width:58px">#</th>
             <th style="width:280px">Album</th>
             <th style="width:220px">Artist</th>
-            <th style="width:96px" class="num">Artist albums</th>
-            <th style="width:96px" class="num">Songs</th>
-            <th style="width:106px" class="num">Countries</th>
+            <th style="width:96px">Platform</th>
+            <th style="width:92px" class="num">Rank</th>
+            <th style="width:92px" class="num">Days</th>
+            <th style="width:112px" class="num">Metric</th>
           </tr>
         </thead>
         <tbody id="albumsLeaderboardBody"></tbody>
@@ -1513,9 +1601,9 @@ function renderSongsLeaderboard() {{
   const sub = document.getElementById('songsLeaderboardSub');
   if (!body || !sub) return;
   const rows = SONGS_LEADERBOARD.rows || [];
-  sub.textContent = `${{fmtLeaderNumber(SONGS_LEADERBOARD.total || 0)}} catalog songs · ${{fmtLeaderNumber(SONGS_LEADERBOARD.listedRows || rows.length)}} listed top songs`;
+  sub.textContent = `${{fmtLeaderNumber(SONGS_LEADERBOARD.total || 0)}} catalog songs · ${{fmtLeaderNumber(SONGS_LEADERBOARD.listedRows || rows.length)}} ranked tracks in last ${{SONGS_LEADERBOARD.windowDays || 30}} days`;
   if (!rows.length) {{
-    body.innerHTML = '<tr><td colspan="6"><div class="leader-empty">No song catalog rows available.</div></td></tr>';
+    body.innerHTML = '<tr><td colspan="7"><div class="leader-empty">No ranked song rows available.</div></td></tr>';
     return;
   }}
   body.innerHTML = rows.map(row => `
@@ -1523,9 +1611,10 @@ function renderSongsLeaderboard() {{
       <td class="leader-pos">${{row.position}}</td>
       <td><button class="leader-name" type="button" onclick="openSongsDetail(${{row.position}})" title="${{escLeader(row.title)}}">${{escLeader(row.title)}}</button></td>
       <td><div class="leader-artist"><div class="leader-avatar">${{escLeader(initials(row.artist))}}</div><span class="country-cell" title="${{escLeader(row.artist)}}">${{escLeader(row.artist)}}</span></div></td>
-      <td class="num leader-rank-cell">${{fmtLeaderNumber(row.artistSongs)}}</td>
-      <td class="num">${{fmtLeaderNumber(row.albums)}}</td>
-      <td class="num">${{fmtLeaderNumber(row.markets)}}</td>
+      <td><span class="detail-pill">${{escLeader(row.platform)}}</span></td>
+      <td class="num leader-rank-cell">${{compactRank(row.bestRank)}}</td>
+      <td class="num">${{fmtLeaderNumber(row.days)}}</td>
+      <td class="num">${{fmtLeaderNumber(row.metric)}}</td>
     </tr>
   `).join('');
 }}
@@ -1533,9 +1622,9 @@ function showSongsLeaderboardTable() {{
   document.getElementById('songsLeaderboardTableView')?.classList.remove('hide');
   document.getElementById('songsDetailView')?.classList.remove('show');
   document.getElementById('songsLeaderboardBack')?.classList.remove('show');
-  document.getElementById('songsLeaderboardTitle').textContent = 'Songs Catalog Snapshot';
+  document.getElementById('songsLeaderboardTitle').textContent = 'Songs Rank Snapshot';
   const rows = SONGS_LEADERBOARD.rows || [];
-  document.getElementById('songsLeaderboardSub').textContent = `${{fmtLeaderNumber(SONGS_LEADERBOARD.total || 0)}} catalog songs · ${{fmtLeaderNumber(SONGS_LEADERBOARD.listedRows || rows.length)}} listed top songs`;
+  document.getElementById('songsLeaderboardSub').textContent = `${{fmtLeaderNumber(SONGS_LEADERBOARD.total || 0)}} catalog songs · ${{fmtLeaderNumber(SONGS_LEADERBOARD.listedRows || rows.length)}} ranked tracks in last ${{SONGS_LEADERBOARD.windowDays || 30}} days`;
 }}
 function openSongsDetail(position) {{
   const row = (SONGS_LEADERBOARD.rows || []).find(item => Number(item.position) === Number(position));
@@ -1544,34 +1633,28 @@ function openSongsDetail(position) {{
   const table = document.getElementById('songsLeaderboardTableView');
   const back = document.getElementById('songsLeaderboardBack');
   document.getElementById('songsLeaderboardTitle').textContent = row.title;
-  document.getElementById('songsLeaderboardSub').textContent = `Artist Name · ${{row.artist || 'Unknown artist'}}`;
-  const songs = parseDetailList(row.topSongs);
-  const albums = parseDetailList(row.topAlbums);
-  const countries = parseDetailList(row.topCountries);
+  document.getElementById('songsLeaderboardSub').textContent = `Rank detail · ${{row.artist || 'Unknown artist'}}`;
   view.innerHTML = `
     <div class="detail-hero">
       <div>
         <div class="detail-name">${{escLeader(row.title)}}</div>
         <div class="detail-meta">
           <span class="detail-pill">${{escLeader(row.artist || 'Unknown artist')}}</span>
-          <span class="detail-pill">${{fmtLeaderNumber(row.artistSongs)}} artist songs</span>
-          <span class="detail-pill">${{fmtLeaderNumber(row.albums)}} albums</span>
-          <span class="detail-pill">${{fmtLeaderNumber(row.markets)}} countries</span>
+          <span class="detail-pill">${{escLeader(row.platform || 'n/a')}}</span>
+          <span class="detail-pill">Rank ${{compactRank(row.bestRank)}}</span>
+          <span class="detail-pill">${{fmtLeaderNumber(row.days)}} chart days</span>
         </div>
       </div>
-      <img class="detail-photo" src="${{escLeader(row.imageUrl)}}" alt="${{escLeader(row.artist || row.title)}}" loading="lazy">
     </div>
     <div class="detail-grid">
       <div class="detail-card"><div class="detail-label">Song</div><div class="detail-val" title="${{escLeader(row.title)}}">${{escLeader(row.title)}}</div></div>
       <div class="detail-card"><div class="detail-label">Artist</div><div class="detail-val" title="${{escLeader(row.artist)}}">${{escLeader(row.artist)}}</div></div>
-      <div class="detail-card"><div class="detail-label">Artist songs</div><div class="detail-val">${{fmtLeaderNumber(row.artistSongs)}}</div></div>
-      <div class="detail-card"><div class="detail-label">Albums</div><div class="detail-val">${{fmtLeaderNumber(row.albums)}}</div></div>
-      <div class="detail-card"><div class="detail-label">Countries</div><div class="detail-val">${{fmtLeaderNumber(row.markets)}}</div></div>
-    </div>
-    <div class="detail-sections">
-      <section class="detail-section"><h4>Artist top songs</h4><div class="detail-list">${{detailListHtml(songs, 'No top songs available')}}</div></section>
-      <section class="detail-section"><h4>Artist top albums</h4><div class="detail-list">${{detailListHtml(albums, 'No top albums available')}}</div></section>
-      <section class="detail-section"><h4>Artist top countries</h4><div class="detail-list">${{detailListHtml(countries, 'No top countries available')}}</div></section>
+      <div class="detail-card"><div class="detail-label">Platform</div><div class="detail-val">${{escLeader(row.platform || 'n/a')}}</div></div>
+      <div class="detail-card"><div class="detail-label">Best rank</div><div class="detail-val">${{compactRank(row.bestRank)}}</div></div>
+      <div class="detail-card"><div class="detail-label">Chart days</div><div class="detail-val">${{fmtLeaderNumber(row.days)}}</div></div>
+      <div class="detail-card"><div class="detail-label">Metric</div><div class="detail-val">${{fmtLeaderNumber(row.metric)}}</div></div>
+      <div class="detail-card"><div class="detail-label">Entries</div><div class="detail-val">${{fmtLeaderNumber(row.entries)}}</div></div>
+      <div class="detail-card"><div class="detail-label">Latest seen</div><div class="detail-val">${{escLeader(row.latestDate || 'n/a')}}</div></div>
     </div>
   `;
   table?.classList.add('hide');
@@ -1595,9 +1678,9 @@ function renderAlbumsLeaderboard() {{
   const sub = document.getElementById('albumsLeaderboardSub');
   if (!body || !sub) return;
   const rows = ALBUMS_LEADERBOARD.rows || [];
-  sub.textContent = `${{fmtLeaderNumber(ALBUMS_LEADERBOARD.total || 0)}} catalog albums · ${{fmtLeaderNumber(ALBUMS_LEADERBOARD.listedRows || rows.length)}} listed top albums`;
+  sub.textContent = `${{fmtLeaderNumber(ALBUMS_LEADERBOARD.total || 0)}} catalog albums · ${{fmtLeaderNumber(ALBUMS_LEADERBOARD.listedRows || rows.length)}} ranked albums in last ${{ALBUMS_LEADERBOARD.windowDays || 30}} days`;
   if (!rows.length) {{
-    body.innerHTML = '<tr><td colspan="6"><div class="leader-empty">No album catalog rows available.</div></td></tr>';
+    body.innerHTML = '<tr><td colspan="7"><div class="leader-empty">No ranked album rows available.</div></td></tr>';
     return;
   }}
   body.innerHTML = rows.map(row => `
@@ -1605,9 +1688,10 @@ function renderAlbumsLeaderboard() {{
       <td class="leader-pos">${{row.position}}</td>
       <td><button class="leader-name" type="button" onclick="openAlbumsDetail(${{row.position}})" title="${{escLeader(row.title)}}">${{escLeader(row.title)}}</button></td>
       <td><div class="leader-artist"><div class="leader-avatar">${{escLeader(initials(row.artist))}}</div><span class="country-cell" title="${{escLeader(row.artist)}}">${{escLeader(row.artist)}}</span></div></td>
-      <td class="num leader-rank-cell">${{fmtLeaderNumber(row.artistAlbums)}}</td>
-      <td class="num">${{fmtLeaderNumber(row.artistSongs)}}</td>
-      <td class="num">${{fmtLeaderNumber(row.markets)}}</td>
+      <td><span class="detail-pill">${{escLeader(row.platform)}}</span></td>
+      <td class="num leader-rank-cell">${{compactRank(row.bestRank)}}</td>
+      <td class="num">${{fmtLeaderNumber(row.days)}}</td>
+      <td class="num">${{fmtLeaderNumber(row.metric)}}</td>
     </tr>
   `).join('');
 }}
@@ -1615,9 +1699,9 @@ function showAlbumsLeaderboardTable() {{
   document.getElementById('albumsLeaderboardTableView')?.classList.remove('hide');
   document.getElementById('albumsDetailView')?.classList.remove('show');
   document.getElementById('albumsLeaderboardBack')?.classList.remove('show');
-  document.getElementById('albumsLeaderboardTitle').textContent = 'Albums Catalog Snapshot';
+  document.getElementById('albumsLeaderboardTitle').textContent = 'Albums Rank Snapshot';
   const rows = ALBUMS_LEADERBOARD.rows || [];
-  document.getElementById('albumsLeaderboardSub').textContent = `${{fmtLeaderNumber(ALBUMS_LEADERBOARD.total || 0)}} catalog albums · ${{fmtLeaderNumber(ALBUMS_LEADERBOARD.listedRows || rows.length)}} listed top albums`;
+  document.getElementById('albumsLeaderboardSub').textContent = `${{fmtLeaderNumber(ALBUMS_LEADERBOARD.total || 0)}} catalog albums · ${{fmtLeaderNumber(ALBUMS_LEADERBOARD.listedRows || rows.length)}} ranked albums in last ${{ALBUMS_LEADERBOARD.windowDays || 30}} days`;
 }}
 function openAlbumsDetail(position) {{
   const row = (ALBUMS_LEADERBOARD.rows || []).find(item => Number(item.position) === Number(position));
@@ -1626,34 +1710,28 @@ function openAlbumsDetail(position) {{
   const table = document.getElementById('albumsLeaderboardTableView');
   const back = document.getElementById('albumsLeaderboardBack');
   document.getElementById('albumsLeaderboardTitle').textContent = row.title;
-  document.getElementById('albumsLeaderboardSub').textContent = `Artist Name · ${{row.artist || 'Unknown artist'}}`;
-  const songs = parseDetailList(row.topSongs);
-  const albums = parseDetailList(row.topAlbums);
-  const countries = parseDetailList(row.topCountries);
+  document.getElementById('albumsLeaderboardSub').textContent = `Rank detail · ${{row.artist || 'Unknown artist'}}`;
   view.innerHTML = `
     <div class="detail-hero">
       <div>
         <div class="detail-name">${{escLeader(row.title)}}</div>
         <div class="detail-meta">
           <span class="detail-pill">${{escLeader(row.artist || 'Unknown artist')}}</span>
-          <span class="detail-pill">${{fmtLeaderNumber(row.artistAlbums)}} artist albums</span>
-          <span class="detail-pill">${{fmtLeaderNumber(row.artistSongs)}} songs</span>
-          <span class="detail-pill">${{fmtLeaderNumber(row.markets)}} countries</span>
+          <span class="detail-pill">${{escLeader(row.platform || 'iTunes')}}</span>
+          <span class="detail-pill">Rank ${{compactRank(row.bestRank)}}</span>
+          <span class="detail-pill">${{fmtLeaderNumber(row.days)}} chart days</span>
         </div>
       </div>
-      <img class="detail-photo" src="${{escLeader(row.imageUrl)}}" alt="${{escLeader(row.artist || row.title)}}" loading="lazy">
     </div>
     <div class="detail-grid">
       <div class="detail-card"><div class="detail-label">Album</div><div class="detail-val" title="${{escLeader(row.title)}}">${{escLeader(row.title)}}</div></div>
       <div class="detail-card"><div class="detail-label">Artist</div><div class="detail-val" title="${{escLeader(row.artist)}}">${{escLeader(row.artist)}}</div></div>
-      <div class="detail-card"><div class="detail-label">Artist albums</div><div class="detail-val">${{fmtLeaderNumber(row.artistAlbums)}}</div></div>
-      <div class="detail-card"><div class="detail-label">Artist songs</div><div class="detail-val">${{fmtLeaderNumber(row.artistSongs)}}</div></div>
-      <div class="detail-card"><div class="detail-label">Countries</div><div class="detail-val">${{fmtLeaderNumber(row.markets)}}</div></div>
-    </div>
-    <div class="detail-sections">
-      <section class="detail-section"><h4>Artist top albums</h4><div class="detail-list">${{detailListHtml(albums, 'No top albums available')}}</div></section>
-      <section class="detail-section"><h4>Artist top songs</h4><div class="detail-list">${{detailListHtml(songs, 'No top songs available')}}</div></section>
-      <section class="detail-section"><h4>Artist top countries</h4><div class="detail-list">${{detailListHtml(countries, 'No top countries available')}}</div></section>
+      <div class="detail-card"><div class="detail-label">Platform</div><div class="detail-val">${{escLeader(row.platform || 'iTunes')}}</div></div>
+      <div class="detail-card"><div class="detail-label">Best rank</div><div class="detail-val">${{compactRank(row.bestRank)}}</div></div>
+      <div class="detail-card"><div class="detail-label">Chart days</div><div class="detail-val">${{fmtLeaderNumber(row.days)}}</div></div>
+      <div class="detail-card"><div class="detail-label">Metric</div><div class="detail-val">${{fmtLeaderNumber(row.metric)}}</div></div>
+      <div class="detail-card"><div class="detail-label">Entries</div><div class="detail-val">${{fmtLeaderNumber(row.entries)}}</div></div>
+      <div class="detail-card"><div class="detail-label">Latest seen</div><div class="detail-val">${{escLeader(row.latestDate || 'n/a')}}</div></div>
     </div>
   `;
   table?.classList.add('hide');
