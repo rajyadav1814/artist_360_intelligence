@@ -1282,7 +1282,7 @@ def render_artists_overview(last_run_label: str = "n/a") -> None:
         if not filtered.empty and "monthly_listeners" in filtered.columns
         else pd.DataFrame()
     )
-    theme = "dark" if st.session_state.get("dark_mode", True) else "light"
+    theme = "dark" if st.session_state.get("dark_mode", False) else "light"
     html = """
 <!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
