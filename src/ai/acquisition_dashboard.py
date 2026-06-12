@@ -479,7 +479,7 @@ def _fmt_n(n: float | int | None) -> str:
 
 def render_acquisition() -> None:
     st.markdown(
-      "<div style='font-size: 0.92rem; color: var(--text2); margin: 0 0 14px; line-height: 1.5; font-weight: 500;'>"
+      "<div style='font-size: 0.92rem; color: var(--t2); margin: 0 0 14px; line-height: 1.5; font-weight: 500;'>"
       "🎤 Artist-level acquisition recommendations driven by peak Spotify monthly listeners, iTunes Worldwide performance, "
       "and recent audience momentum."
       "</div>",
