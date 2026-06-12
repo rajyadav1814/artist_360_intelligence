@@ -47,6 +47,22 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+# Hide the Streamlit chrome so the live app doesn't show the top-right toolbar.
+st.markdown(
+    """
+    <style>
+        [data-testid="stToolbar"],
+        [data-testid="stDecoration"],
+        header[data-testid="stHeader"],
+        #MainMenu,
+        footer {
+            display: none !important;
+        }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 # Initialize session state for interactivity
 if "auto_refresh" not in st.session_state:
     st.session_state.auto_refresh = False
