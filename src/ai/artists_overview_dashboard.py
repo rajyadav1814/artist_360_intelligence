@@ -1301,7 +1301,7 @@ def render_artists_overview(last_run_label: str = "n/a") -> None:
 @media(max-width:1050px){.kpis{grid-template-columns:repeat(2,1fr)}.grid,.insight-grid,.artist-story-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.detail-grid,.detail-sections{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:640px){.kpis{grid-template-columns:1fr}.dash{padding:10px}.kpi{min-height:100px}.artist-story-grid{grid-template-columns:1fr}.donut-layout{grid-template-columns:1fr}.bar-row{grid-template-columns:18px minmax(84px,34%) minmax(0,1fr)}.modal-backdrop{padding:10px;align-items:flex-start}.leader-head{padding:14px}.leader-title{font-size:17px}.detail-grid,.detail-sections{grid-template-columns:1fr}.detail-hero{display:block}.platform-row{grid-template-columns:78px 1fr 48px}}
 </style></head><body>
 """ + f"<main class='dash {theme}'>" + "<div class='kpis'>" + kpi_html("Artists", _fmt_n(artist_total), "&#127908;", f"Latest rank snapshot", "openArtistLeaderboard()") + kpi_html("Songs", _fmt_n(song_total), "&#9835;", details_label, "openSongsLeaderboard()") + kpi_html("Albums", _fmt_n(album_total), "&#9673;", album_rows_label, "openAlbumsLeaderboard()") + kpi_html("Chart Days", _fmt_n(chart_days), "&#9719;", f"Max track streak in last {WINDOW_DAYS} days", "openChartDaysLeaderboard()") + kpi_html("Popular Songs", _fmt_n(popular_songs), "&#9679;", f"Top 10 ranked tracks · {track_rows_label}", "openPopularSongsLeaderboard()") + "</div><div class='grid'>" + bars_html(top_artists, "name", "total_points", "Top Artist", "Highest scoring artists in the latest ranking snapshot.", 10) + bars_html(top_tracks, "title", "metric", "Top Track", "Tracks with the strongest combined chart metric.", 10) + bars_html(top_albums, "album", "metric", "Top Album", "Albums with the strongest album chart metric.", 10) + "</div><div class='grid insight-grid'>" + donut_html(filtered) + radar_html(filtered) + bars_html(top_listeners, "name", "monthly_listeners", "Spotify Listener Leaders", "Artists with the highest latest monthly listener counts.", 10) + "</div>" + artist_story_html(filtered) + f"""
-<div class="modal-backdrop" id="artistLeaderboardModal" onclick="closeArtistLeaderboard(event)">
+<div class="modal-backdrop" id="artistLeaderboardModal">
   <section class="leader-modal" role="dialog" aria-modal="true" aria-labelledby="artistLeaderboardTitle" onclick="event.stopPropagation()">
     <div class="leader-head">
       <div>
@@ -1334,7 +1334,7 @@ def render_artists_overview(last_run_label: str = "n/a") -> None:
     <div class="artist-detail" id="artistDetailView"></div>
   </section>
 </div>
-<div class="modal-backdrop" id="songsLeaderboardModal" onclick="closeSongsLeaderboard(event)">
+<div class="modal-backdrop" id="songsLeaderboardModal">
   <section class="leader-modal" role="dialog" aria-modal="true" aria-labelledby="songsLeaderboardTitle" onclick="event.stopPropagation()">
     <div class="leader-head">
       <div>
@@ -1364,7 +1364,7 @@ def render_artists_overview(last_run_label: str = "n/a") -> None:
     <div class="artist-detail" id="songsDetailView"></div>
   </section>
 </div>
-<div class="modal-backdrop" id="albumsLeaderboardModal" onclick="closeAlbumsLeaderboard(event)">
+<div class="modal-backdrop" id="albumsLeaderboardModal">
   <section class="leader-modal" role="dialog" aria-modal="true" aria-labelledby="albumsLeaderboardTitle" onclick="event.stopPropagation()">
     <div class="leader-head">
       <div>
@@ -1394,7 +1394,7 @@ def render_artists_overview(last_run_label: str = "n/a") -> None:
     <div class="artist-detail" id="albumsDetailView"></div>
   </section>
 </div>
-<div class="modal-backdrop" id="chartDaysLeaderboardModal" onclick="closeChartDaysLeaderboard(event)">
+<div class="modal-backdrop" id="chartDaysLeaderboardModal">
   <section class="leader-modal" role="dialog" aria-modal="true" aria-labelledby="chartDaysLeaderboardTitle" onclick="event.stopPropagation()">
     <div class="leader-head">
       <div>
@@ -1425,7 +1425,7 @@ def render_artists_overview(last_run_label: str = "n/a") -> None:
     <div class="artist-detail" id="chartDaysDetailView"></div>
   </section>
 </div>
-<div class="modal-backdrop" id="popularSongsLeaderboardModal" onclick="closePopularSongsLeaderboard(event)">
+<div class="modal-backdrop" id="popularSongsLeaderboardModal">
   <section class="leader-modal" role="dialog" aria-modal="true" aria-labelledby="popularSongsLeaderboardTitle" onclick="event.stopPropagation()">
     <div class="leader-head">
       <div>
@@ -1603,7 +1603,7 @@ function openArtistLeaderboard() {{
 }}
 function closeArtistLeaderboard(event) {{
   const modal = document.getElementById('artistLeaderboardModal');
-  if (!event || event.target === modal) {{
+  if (!event) {{
     modal?.classList.remove('open');
     showArtistLeaderboardTable();
   }}
@@ -1677,7 +1677,7 @@ function openSongsLeaderboard() {{
 }}
 function closeSongsLeaderboard(event) {{
   const modal = document.getElementById('songsLeaderboardModal');
-  if (!event || event.target === modal) {{
+  if (!event) {{
     modal?.classList.remove('open');
     showSongsLeaderboardTable();
   }}
@@ -1751,7 +1751,7 @@ function openAlbumsLeaderboard() {{
 }}
 function closeAlbumsLeaderboard(event) {{
   const modal = document.getElementById('albumsLeaderboardModal');
-  if (!event || event.target === modal) {{
+  if (!event) {{
     modal?.classList.remove('open');
     showAlbumsLeaderboardTable();
   }}
@@ -1828,7 +1828,7 @@ function openChartDaysLeaderboard() {{
 }}
 function closeChartDaysLeaderboard(event) {{
   const modal = document.getElementById('chartDaysLeaderboardModal');
-  if (!event || event.target === modal) {{
+  if (!event) {{
     modal?.classList.remove('open');
     showChartDaysLeaderboardTable();
   }}
@@ -1904,7 +1904,7 @@ function openPopularSongsLeaderboard() {{
 }}
 function closePopularSongsLeaderboard(event) {{
   const modal = document.getElementById('popularSongsLeaderboardModal');
-  if (!event || event.target === modal) {{
+  if (!event) {{
     modal?.classList.remove('open');
     showPopularSongsLeaderboardTable();
   }}
