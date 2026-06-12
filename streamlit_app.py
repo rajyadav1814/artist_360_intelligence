@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from html import escape
 from urllib.parse import quote
 
@@ -17,6 +18,9 @@ import threading
 from streamlit.runtime.scriptrunner import add_script_run_ctx
 from src.ai.track_movement_dashboard import render_track_movement
 from src.ai.album_movement_dashboard import render_album_movement
+from src.ai.artist_spotlight_dashboard import render_debut_artist_chart
+from src.ai.artist_movement_dashboard import render_chart_tracker
+from src.ai.artists_overview_dashboard import render_artists_overview, prefetch_artists_overview_data
 from src.ai.acquisition_dashboard import (
     render_acquisition,
     _load_daily,
@@ -27,6 +31,7 @@ from src.ai.acquisition_dashboard import (
     _fmt_n as acq_fmt_n,
     WINDOW_DAYS,
 )
+from src.ai.redesign_dashboard import render_redesign_dashboard
 from src.ai.track_acquisition_dashboard import render_track_acquisition
 from src.ai.album_acquisition_dashboard import render_album_acquisition
 from src.database.connection import get_connection
@@ -40,6 +45,22 @@ st.set_page_config(
     page_icon="🎵",
     layout="wide",
     initial_sidebar_state="expanded",
+)
+
+# Hide the Streamlit chrome so the live app doesn't show the top-right toolbar.
+st.markdown(
+    """
+    <style>
+        [data-testid="stToolbar"],
+        [data-testid="stDecoration"],
+        header[data-testid="stHeader"],
+        #MainMenu,
+        footer {
+            display: none !important;
+        }
+    </style>
+    """,
+    unsafe_allow_html=True,
 )
 
 # Initialize session state for interactivity
@@ -98,6 +119,14 @@ PAGE_META = {
     "Leaderboard": (
         "🏆 Artist 360° Leaderboard",
         "Top Latin artists ranked by iTunes performance, Spotify reach, and global footprint",
+    ),
+    "Artists Overview": (
+        "🎤 Artists Overview",
+        "Catalog, chart activity, listeners, and top artist table from your stored artist data",
+    ),
+    "Redesign Lab": (
+        "🧪 Redesign Lab",
+        "Story-first acquisition, fatigue, and roster health prototype inspired by the redesign deck",
     ),
     "Artist Spotlight": (
         "🎤 Artist Spotlight",
@@ -385,7 +414,7 @@ def apply_theme(dark_mode: bool = True) -> None:
             padding-right: clamp(0.85rem, 1.8vw, 1.6rem);
             padding-left: clamp(0.85rem, 1.8vw, 1.6rem);
             padding-bottom: 6rem;
-            margin-top: -1.0rem;
+            margin-top: -4.0rem;
         }
         div[data-testid="stHorizontalBlock"] {
             gap: clamp(0.75rem, 1.4vw, 1.1rem);
@@ -1655,7 +1684,7 @@ def show_artist_details_dialog(row: pd.Series) -> None:
         with acq_content_slot.container():
             sp_df = _load_daily("spotify_daily", "global", WINDOW_DAYS)
             it_df = _load_daily("itunes_daily", "ww", WINDOW_DAYS)
-            universe_df = _load_artist_universe()
+            universe_df = _load_artist_universe(WINDOW_DAYS)
             sp_artist_df = _load_spotify_artist_series(WINDOW_DAYS)
             it_artist_df = _load_itunes_artist_series(WINDOW_DAYS)
 
@@ -1823,19 +1852,22 @@ def load_dashboard_data() -> dict[str, pd.DataFrame]:
             LIMIT 100
         """,
         "history": f"""
-            WITH latest_run AS (
-                SELECT MAX(scraped_at) AS ts FROM itunes_artist_rankings
+            WITH bounds AS (
+                SELECT MAX(scraped_at) AS ts, MAX(scrape_date) AS max_d
+                FROM itunes_artist_rankings
             ),
             top_artists AS (
                 SELECT artist_id
                 FROM itunes_artist_rankings r
-                JOIN latest_run lr ON r.scraped_at = lr.ts
+                JOIN bounds b ON r.scraped_at = b.ts
                 WHERE r.rank <= 300
             )
             SELECT a.name, r.rank, r.scraped_at
             FROM itunes_artist_rankings r
             JOIN artists a ON a.id = r.artist_id
+            CROSS JOIN bounds b
             WHERE r.artist_id IN (SELECT artist_id FROM top_artists)
+              AND r.scrape_date >= (b.max_d - 35::int)
             ORDER BY r.scraped_at ASC, r.rank ASC
         """,
         "longevity": """
@@ -1936,6 +1968,8 @@ def load_dashboard_data() -> dict[str, pd.DataFrame]:
     leaderboard["display_country"] = leaderboard["display_country"].replace("", "—")
     frames["leaderboard"] = leaderboard.sort_values("rank")
     return frames
+
+
 
 
 def latest_source_rows(runs: pd.DataFrame) -> pd.DataFrame:
@@ -2492,587 +2526,6 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
         else:
             st.info("No monthly listener data is available for the current leaderboard selection.")
 
-def resample_tracker_pattern(pattern: list[int], days: int) -> list[int]:
-    if not pattern:
-        return [1] * max(days, 1)
-    if days <= 1:
-        return [int(pattern[-1])]
-    if len(pattern) == days:
-        return [int(value) for value in pattern]
-
-    resampled: list[int] = []
-    last_index = len(pattern) - 1
-    for step in range(days):
-        scaled_index = (step / (days - 1)) * last_index
-        lower = int(scaled_index)
-        upper = min(lower + 1, last_index)
-        blend = scaled_index - lower
-        interpolated = pattern[lower] + (pattern[upper] - pattern[lower]) * blend
-        resampled.append(int(round(interpolated)))
-    return resampled
-
-
-def build_tracker_demo_data(leaderboard: pd.DataFrame, days: int = 14) -> tuple[pd.DataFrame, pd.DataFrame]:
-    if "rank" in leaderboard.columns and leaderboard["rank"].notna().any():
-        top = leaderboard.dropna(subset=["rank"]).sort_values("rank").head(TRACKER_TOP_ARTISTS).copy()
-    else:
-        top = leaderboard.dropna(subset=["monthly_listeners"]).nlargest(TRACKER_TOP_ARTISTS, "monthly_listeners").copy()
-
-    if top.empty:
-        top = leaderboard.head(TRACKER_TOP_ARTISTS).copy()
-
-    top = top.reset_index(drop=True)
-    date_range = pd.date_range(end=pd.Timestamp.today().normalize(), periods=days)
-    date_labels = date_range.strftime("%b %-d").tolist()
-    base_patterns = [
-        [3, 2, 2, 1, 1, 2, 3, 2, 1, 1, 2, 1, 1, 1],
-        [5, 4, 3, 3, 2, 2, 1, 2, 3, 2, 2, 3, 2, 2],
-        [8, 7, 6, 5, 4, 3, 4, 3, 3, 4, 3, 3, 3, 3],
-        [10, 9, 8, 7, 6, 5, 6, 5, 4, 5, 4, 4, 4, 4],
-        [15, 12, 10, 9, 8, 7, 8, 7, 6, 5, 5, 5, 5, 5],
-    ]
-
-    max_rank = int(top["rank"].max()) if "rank" in top.columns and top["rank"].notna().any() else TRACKER_TOP_ARTISTS + 8
-    max_rank = max(TRACKER_TOP_ARTISTS + 2, max_rank)
-
-    records = []
-    best_rows = []
-    for idx, row in top.iterrows():
-        pattern = resample_tracker_pattern(base_patterns[idx % len(base_patterns)], days)
-        current_rank = int(row["rank"]) if pd.notna(row.get("rank")) else idx + 1
-        current_rank = max(1, min(max_rank, current_rank))
-        shift = current_rank - pattern[-1]
-        series = [max(1, min(max_rank, point + shift)) for point in pattern]
-
-        for day_label, plot_date, pos in zip(date_labels, date_range, series):
-            records.append({"day": day_label, "date": plot_date, "artist": row["name"], "position": pos})
-
-        best_rows.append({
-            "artist": row["name"],
-            "best_position": min(series),
-        })
-
-    return pd.DataFrame(records), pd.DataFrame(best_rows).sort_values("best_position")
-
-
-def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> None:
-    if history.empty and leaderboard.empty:
-        st.warning("Not enough ranking data available yet.")
-        return
-
-    # ── Inject Chart Tracker styles (scoped) ─────────────────────────
-    st.markdown(
-        """
-        <style>
-        .ct-hero{
-            background:linear-gradient(135deg,var(--surface2) 0%,var(--surface) 100%);
-            border:1px solid var(--border);border-radius:14px;padding:22px 26px;
-            position:relative;overflow:hidden;margin-bottom:18px;
-            box-shadow:0 4px 24px rgba(0,0,0,.12);
-        }
-        .ct-hero::before{
-            content:'';position:absolute;top:0;left:0;right:0;height:3px;
-            background:linear-gradient(90deg,#34d399,#60a5fa,#c4b5fd);
-        }
-        .ct-tag{
-            font-size:11px;color:var(--text2);letter-spacing:1.4px;text-transform:uppercase;
-            font-weight:700;display:flex;align-items:center;gap:8px;margin-bottom:8px;
-        }
-        .ct-live{
-            width:8px;height:8px;border-radius:50%;background:#34d399;
-            box-shadow:0 0 8px #34d399;animation:ctblink 2s infinite;
-        }
-        @keyframes ctblink{0%,100%{opacity:1}50%{opacity:.4}}
-        .ct-title{font-size:26px;font-weight:700;letter-spacing:-.5px;color:var(--text);margin-bottom:4px}
-        .ct-sub{font-size:13px;color:var(--text2);font-weight:500}
-
-        .ct-kpi-row{
-            display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px;
-        }
-        .ct-kpi{
-            background:var(--surface);border:1px solid var(--border);border-radius:12px;
-            padding:16px 18px;transition:.15s;position:relative;overflow:hidden;
-            box-shadow:0 2px 8px rgba(0,0,0,.06);
-        }
-        .ct-kpi:hover{transform:translateY(-2px);border-color:var(--accent);
-            box-shadow:0 6px 18px rgba(251,113,133,.15)}
-        .ct-kpi::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%;
-            background:var(--accent,#60a5fa)}
-        .ct-kpi-lbl{font-size:10px;color:var(--text2);text-transform:uppercase;
-            letter-spacing:.7px;font-weight:600;margin-bottom:6px}
-        .ct-kpi-val{font-size:24px;font-weight:700;color:var(--text);
-            letter-spacing:-.4px;line-height:1.15;font-variant-numeric:tabular-nums}
-        .ct-kpi-sub{font-size:11px;color:var(--text2);margin-top:4px;font-weight:500}
-        .ct-kpi.up{--accent:#34d399}.ct-kpi.up .ct-kpi-val{color:#059669}
-        .ct-kpi.down{--accent:#fb7185}.ct-kpi.down .ct-kpi-val{color:#e11d48}
-        .ct-kpi.purple{--accent:#c4b5fd}.ct-kpi.purple .ct-kpi-val{color:#7c3aed}
-        .ct-kpi.amber{--accent:#fcd34d}.ct-kpi.amber .ct-kpi-val{color:#d97706}
-
-        .ct-section{
-            background:var(--surface);border:1px solid var(--border);border-radius:12px;
-            padding:8px 8px 4px;margin-bottom:18px;
-        }
-        .ct-section-ttl{
-            font-size:13px;color:var(--text);font-weight:600;text-transform:uppercase;
-            letter-spacing:.6px;padding:10px 14px 8px;border-bottom:1px solid var(--border);
-            display:flex;align-items:center;gap:8px;margin-bottom:6px;
-        }
-
-        /* Movement table */
-        .ct-mv-tbl{width:100%;border-collapse:collapse;font-size:13px}
-        .ct-mv-tbl thead th{
-            font-size:10px;color:var(--text2);text-transform:uppercase;letter-spacing:.6px;
-            font-weight:600;padding:10px 14px;border-bottom:1px solid var(--border);text-align:left;
-        }
-        .ct-mv-tbl tbody td{
-            padding:12px 14px;border-bottom:1px solid var(--border);color:var(--text);
-        }
-        .ct-mv-tbl tbody tr:hover{background:var(--surface2)}
-        .ct-mv-tbl tbody tr:last-child td{border-bottom:none}
-        .ct-rank-cell{font-weight:600;font-variant-numeric:tabular-nums;color:var(--text2)}
-        .ct-artist{font-weight:600;color:var(--text)}
-        .ct-pill{display:inline-flex;align-items:center;gap:4px;
-            font-size:11px;font-weight:700;padding:4px 10px;border-radius:5px;
-            font-variant-numeric:tabular-nums}
-        .ct-pill-up{background:rgba(52,211,153,.15);color:#059669;border:1px solid rgba(52,211,153,.4)}
-        .ct-pill-down{background:rgba(251,113,133,.15);color:#e11d48;border:1px solid rgba(251,113,133,.4)}
-        .ct-pill-flat{background:var(--surface2);color:var(--text2);border:1px solid var(--border)}
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    unique_runs = int(history["scraped_at"].nunique()) if not history.empty else 0
-
-    col1, col2 = st.columns([1, 1])
-    with col1:
-        time_range = custom_selectbox("📅 Time Range", ["7 days", "14 days", "30 days"], index=0, key="ct_range")
-    with col2:
-        view_mode = custom_selectbox("👁️ View Mode", ["Line Chart", "Area Chart"], index=0, key="ct_view")
-
-    time_window_days = int(time_range.split()[0])
-    using_demo = unique_runs < 3
-    if using_demo:
-        line_df, best_df = build_tracker_demo_data(leaderboard, days=time_window_days)
-    else:
-        history = history.copy()
-        history["scraped_at"] = pd.to_datetime(history["scraped_at"], errors="coerce")
-        history = history.dropna(subset=["scraped_at", "rank", "name"]).sort_values(["scraped_at", "rank"])
-
-        latest_scraped_at = None
-        window_start = None
-        if not history.empty:
-            latest_scraped_at = history["scraped_at"].max().normalize()
-            window_start = latest_scraped_at - pd.Timedelta(days=time_window_days - 1)
-            history = history[history["scraped_at"] >= window_start]
-
-        if history.empty:
-            st.info("📊 Limited long-range history is available. Showing an interpolated top-artist trend instead.", icon="ℹ️")
-            line_df, best_df = build_tracker_demo_data(leaderboard, days=time_window_days)
-            using_demo = True
-        else:
-            history["day"] = history["scraped_at"].dt.strftime("%b %-d")
-            line_df = history.rename(columns={"name": "artist", "rank": "position", "scraped_at": "date"})[
-                ["day", "date", "artist", "position"]
-            ]
-
-            if latest_scraped_at is not None and window_start is not None:
-                target_dates = pd.date_range(start=window_start.normalize(), end=latest_scraped_at.normalize(), freq="D")
-                has_sparse_days = line_df["date"].dt.normalize().nunique() < len(target_dates)
-                if has_sparse_days:
-                    daily_parts = []
-                    for artist_name, artist_rows in line_df.groupby("artist", sort=False):
-                        artist_daily = artist_rows.copy()
-                        artist_daily["date"] = artist_daily["date"].dt.normalize()
-                        artist_daily = (
-                            artist_daily.sort_values("date")
-                            .drop_duplicates(subset=["date"], keep="last")
-                            .set_index("date")
-                            .reindex(target_dates)
-                        )
-                        artist_daily["artist"] = artist_name
-                        artist_daily["position"] = pd.to_numeric(artist_daily["position"], errors="coerce")
-                        artist_daily["position"] = artist_daily["position"].interpolate(method="linear").ffill().bfill()
-                        artist_daily = artist_daily.reset_index().rename(columns={"index": "date"})
-                        artist_daily["day"] = artist_daily["date"].dt.strftime("%b %-d")
-                        daily_parts.append(artist_daily[["day", "date", "artist", "position"]])
-
-                    if daily_parts:
-                        line_df = pd.concat(daily_parts, ignore_index=True) 
-
-            best_df = (
-                history.groupby("name", as_index=False)["rank"]
-                .min()
-                .rename(columns={"name": "artist", "rank": "best_position"})
-                .sort_values("best_position")
-            )
-
-    if using_demo and "rank" in leaderboard.columns and leaderboard["rank"].notna().any():
-        artists_tracked = leaderboard.dropna(subset=["rank"]).sort_values("rank")["name"].head(TRACKER_TOP_ARTISTS).tolist()
-    else:
-        artists_tracked = (
-            line_df.sort_values(["position", "artist"])["artist"].drop_duplicates().tolist()[:TRACKER_TOP_ARTISTS]
-        )
-
-    line_df = line_df[line_df["artist"].isin(artists_tracked)]
-    best_df = best_df[best_df["artist"].isin(artists_tracked)].sort_values("best_position", ascending=False)
-
-    # ── Build movement insights & KPIs ───────────────────────────────
-    movement_rows: list[dict] = []
-    for artist in artists_tracked:
-        sub = line_df[line_df["artist"] == artist].sort_values("date")
-        if len(sub) >= 2:
-            first_pos = int(sub.iloc[0]["position"])
-            last_pos = int(sub.iloc[-1]["position"])
-            change = first_pos - last_pos
-            best_pos = int(sub["position"].min())
-            movement_rows.append({
-                "artist": artist,
-                "start": first_pos,
-                "current": last_pos,
-                "best": best_pos,
-                "change": change,
-            })
-
-    if movement_rows:
-        big_riser = max(movement_rows, key=lambda r: r["change"])
-        big_faller = min(movement_rows, key=lambda r: r["change"])
-        avg_pos = sum(r["current"] for r in movement_rows) / len(movement_rows)
-        leader = min(movement_rows, key=lambda r: r["current"])
-
-        kpi_html = f"""
-        <div class='ct-kpi-row'>
-          <div class='ct-kpi purple'>
-            <div class='ct-kpi-lbl'>Current</div>
-            <div class='ct-kpi-val' style='font-size:18px'>{escape(leader['artist'])}</div>
-            <div class='ct-kpi-sub'>Position {leader['current']} · best {leader['best']}</div>
-          </div>
-          <div class='ct-kpi up'>
-            <div class='ct-kpi-lbl'>Biggest riser</div>
-            <div class='ct-kpi-val'>{'+' if big_riser['change']>0 else ''}{big_riser['change']}</div>
-            <div class='ct-kpi-sub'>{escape(big_riser['artist'])} · {big_riser['start']} → {big_riser['current']}</div>
-          </div>
-          <div class='ct-kpi down'>
-            <div class='ct-kpi-lbl'>Biggest faller</div>
-            <div class='ct-kpi-val'>{big_faller['change']}</div>
-            <div class='ct-kpi-sub'>{escape(big_faller['artist'])} · {big_faller['start']} → {big_faller['current']}</div>
-          </div>
-          <div class='ct-kpi amber'>
-            <div class='ct-kpi-lbl'>Avg position</div>
-            <div class='ct-kpi-val'>{avg_pos:.1f}</div>
-            <div class='ct-kpi-sub'>across {len(movement_rows)} tracked artists · {time_range}</div>
-          </div>
-        </div>
-        """
-        st.markdown(kpi_html, unsafe_allow_html=True)
-
-
-    # Brighter palette for charts matching screenshot style more closely
-    BRIGHT_PALETTE = ["#3b82f6", "#8b5cf6", "#ef4444", "#ec4899", "#10b981",
-                      "#d97706", "#65a30d", "#737373", "#e11d48", "#0f766e"]
-
-    is_dark = st.session_state.get("dark_mode", True)
-    
-    import json
-    unique_dates = line_df["date"].dt.strftime("%b %d").unique().tolist()
-    start_date_str = unique_dates[0] if unique_dates else ""
-    end_date_str = unique_dates[-1] if unique_dates else ""
-    datasets = []
-    
-    for idx, artist in enumerate(artists_tracked):
-        sub = line_df[line_df["artist"] == artist]
-        date_pos = dict(zip(sub["date"].dt.strftime("%b %d"), sub["position"]))
-        data_points = [date_pos.get(d, None) for d in unique_dates]
-        color = BRIGHT_PALETTE[idx % len(BRIGHT_PALETTE)]
-        datasets.append({
-            "label": artist,
-            "data": data_points,
-            "borderColor": color,
-            "backgroundColor": color,
-            "pointBackgroundColor": color,
-            "pointBorderColor": "#1c1c1c" if is_dark else "#ffffff",
-            "pointRadius": 4,
-            "pointHoverRadius": 6,
-            "borderWidth": 2.5,
-            "tension": 0.4 if view_mode != "Area Chart" else 0.0,
-            "fill": "origin" if view_mode == "Area Chart" else False,
-            "spanGaps": True
-        })
-
-    chart_payload = {
-        "labels": unique_dates,
-        "datasets": datasets,
-        "title": f"📈 Top {TRACKER_TOP_ARTISTS} artist position trend",
-        "theme": "dark" if is_dark else "light",
-    }
-    
-    chart_payload_json = json.dumps(chart_payload)
-    
-    html_template = f"""
-    <!DOCTYPE html><html><head><meta charset='utf-8'>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-    <style>
-      body {{ margin: 0; font-family: 'Inter', system-ui, sans-serif; background: transparent; }}
-      .chart-card {{
-        background: {'#1c1c1c' if is_dark else '#ffffff'};
-        border: 1px solid {'rgba(255,255,255,0.08)' if is_dark else 'rgba(0,0,0,0.1)'};
-        border-radius: 12px;
-        padding: 24px 28px;
-        color: {'#ffffff' if is_dark else '#1f2328'};
-        box-shadow: 0 8px 30px rgba(0,0,0,0.15);
-      }}
-      .hdr {{ display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; flex-wrap: wrap; gap: 12px; }}
-      .title {{ font-size: 19px; font-weight: 600; margin-bottom: 6px; letter-spacing: -0.2px; }}
-      .subtitle {{ font-size: 13.5px; color: {'#9B9EAA' if is_dark else '#656d76'}; font-weight: 400; }}
-      .btn {{
-        background: transparent;
-        border: 1px solid {'rgba(255,255,255,0.2)' if is_dark else 'rgba(0,0,0,0.2)'};
-        color: {'#e2e8f0' if is_dark else '#24292f'};
-        padding: 7px 16px;
-        border-radius: 8px;
-        font-size: 13px;
-        font-weight: 500;
-        cursor: pointer;
-        transition: 0.2s;
-      }}
-      .btn:hover {{ background: {'rgba(255,255,255,0.08)' if is_dark else 'rgba(0,0,0,0.05)'}; }}
-      .legend-container {{ display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 28px; }}
-      .leg-btn {{
-        background: transparent;
-        border: 1px solid {'rgba(255,255,255,0.2)' if is_dark else 'rgba(0,0,0,0.2)'};
-        color: {'#e2e8f0' if is_dark else '#24292f'};
-        border-radius: 999px;
-        padding: 5px 14px;
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        font-size: 12.5px;
-        font-weight: 500;
-        cursor: pointer;
-        transition: 0.2s;
-      }}
-      .leg-btn:hover {{ border-color: {'rgba(255,255,255,0.4)' if is_dark else 'rgba(0,0,0,0.4)'}; background: {'rgba(255,255,255,0.04)' if is_dark else 'rgba(0,0,0,0.02)'}; }}
-      .leg-btn.hidden {{ opacity: 0.4; border-color: transparent; }}
-      .dot {{ width: 9px; height: 9px; border-radius: 50%; display: inline-block; }}
-      .chart-wrap {{ position: relative; height: 420px; width: 100%; }}
-    </style>
-    </head><body>
-      <div class="chart-card">
-        <div class="hdr">
-          <div>
-            <div class="title" id="d-title"></div>
-            <div class="subtitle" id="d-subtitle"></div>
-          </div>
-        </div>
-        <div class="legend-container" id="legend"></div>
-        <div class="chart-wrap">
-          <canvas id="myChart"></canvas>
-        </div>
-      </div>
-      <script>
-        const payload = {chart_payload_json};
-        document.getElementById('d-title').innerText = payload.title;
-        document.getElementById('d-subtitle').innerText = "Visual tracking of daily rank movement and chart stability for the top-performing artists in the selected window.";
-        
-        const isDark = payload.theme === 'dark';
-        const gridColor = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
-        const tickColor = isDark ? '#8b949e' : '#656d76';
-        
-        const ctx = document.getElementById('myChart').getContext('2d');
-        const myChart = new Chart(ctx, {{
-          type: 'line',
-          data: {{
-            labels: payload.labels,
-            datasets: payload.datasets
-          }},
-          options: {{
-            responsive: true,
-            maintainAspectRatio: false,
-            interaction: {{ mode: 'index', intersect: false }},
-            plugins: {{
-              legend: {{ display: false }},
-              tooltip: {{
-                backgroundColor: isDark ? 'rgba(28,28,30,0.95)' : 'rgba(255,255,255,0.95)',
-                titleColor: isDark ? '#fff' : '#24292f',
-                bodyColor: isDark ? '#e2e8f0' : '#475569',
-                borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
-                borderWidth: 1,
-                padding: 12,
-                titleFont: {{ size: 13, weight: 'bold' }},
-                bodyFont: {{ size: 13 }},
-                boxPadding: 6,
-                callbacks: {{
-                  label: function(context) {{
-                    return context.dataset.label + ': #' + context.parsed.y;
-                  }}
-                }}
-              }}
-            }},
-            scales: {{
-              y: {{
-                reverse: true,
-                grid: {{ color: gridColor, drawBorder: false }},
-                ticks: {{
-                  color: tickColor,
-                  callback: function(val) {{ return val === 0 ? '' : '' + val; }},
-                  stepSize: 1,
-                  font: {{ size: 11.5 }}
-                }},
-                title: {{
-                  display: true,
-                  text: 'Movement Chart for the Artist',
-                  color: tickColor,
-                  font: {{ size: 12.5, weight: '500' }},
-                  padding: {{ bottom: 10 }}
-                }},
-                min: 0
-              }},
-              x: {{
-                grid: {{ color: gridColor, drawBorder: false }},
-                ticks: {{ color: tickColor, font: {{ size: 11.5 }} }}
-              }}
-            }}
-          }}
-        }});
-
-        function renderLegend() {{
-          const leg = document.getElementById('legend');
-          leg.innerHTML = '';
-          myChart.data.datasets.forEach((ds, i) => {{
-            const meta = myChart.getDatasetMeta(i);
-            const isHidden = meta.hidden === true;
-            const btn = document.createElement('button');
-            btn.className = 'leg-btn' + (isHidden ? ' hidden' : '');
-            btn.onclick = () => {{
-              meta.hidden = meta.hidden === null ? !myChart.data.datasets[i].hidden : null;
-              myChart.update();
-              renderLegend();
-            }};
-            btn.innerHTML = `<span class="dot" style="background: ${{ds.borderColor}}"></span> ${{ds.label}}`;
-            leg.appendChild(btn);
-          }});
-        }}
-        
-        let allHidden = false;
-        function toggleAll() {{
-          allHidden = !allHidden;
-          myChart.data.datasets.forEach((ds, i) => {{
-            const meta = myChart.getDatasetMeta(i);
-            meta.hidden = allHidden;
-          }});
-          myChart.update();
-          renderLegend();
-        }}
-
-        renderLegend();
-      </script>
-    </body></html>
-    """
-    st_components.html(html_template, height=650)
-    st.markdown("</div>", unsafe_allow_html=True)
-
-    text_color = "#fff" if is_dark else "#1A1A1A"
-    tick_color = "#cdd6e4" if is_dark else "#4A5568"
-
-    if not best_df.empty:
-        best_df_plot = best_df.copy()
-        max_best_position = int(best_df_plot["best_position"].max())
-        best_df_plot["position_score"] = max_best_position + 1 - best_df_plot["best_position"]
-        best_df_plot = best_df_plot.sort_values("best_position", ascending=True)
-
-        bar_colors = [BRIGHT_PALETTE[idx % len(BRIGHT_PALETTE)] for idx in range(len(best_df_plot))]
-        text_color_chart = "#e2e8f0" if is_dark else "#1A1A1A"
-        fig_best = go.Figure(
-            data=[
-                go.Bar(
-                    x=best_df_plot["position_score"],
-                    y=best_df_plot["artist"],
-                    orientation="h",
-                    marker=dict(color=bar_colors, line=dict(width=0)),
-                    text=[f"{int(v)}" for v in best_df_plot["best_position"]],
-                    textposition="outside",
-                    textfont=dict(color=text_color_chart, size=12),
-                    cliponaxis=False,
-                    customdata=best_df_plot[["best_position"]].to_numpy(),
-                    hovertemplate="<b>%{y}</b><br>Score: %{x:.0f}<br>Best position: %{customdata[0]}<extra></extra>",
-                )
-            ]
-        )
-        style_figure(fig_best, max(380, 34 * len(best_df) + 80), dark_mode=is_dark)
-        fig_best.update_layout(
-            title=dict(text="🏆 Best Recent Positions", x=0.03, xanchor="left", font=dict(size=18, color=text_color)),
-            showlegend=False,
-            yaxis_title="",
-            margin=dict(l=70, r=20, t=70, b=40),
-            bargap=0.35,
-        )
-        fig_best.update_xaxes(dtick=1, showgrid=False, range=[0, max_best_position + 1.3],
-                              showticklabels=False, title="")
-        fig_best.update_yaxes(
-            autorange="reversed",
-            categoryorder="array",
-            categoryarray=best_df_plot["artist"].tolist(),
-            ticklabelstandoff=18,
-            tickfont=dict(color=text_color, size=12),
-        )
-        render_plotly_html(fig_best)
-        st.markdown("</div>", unsafe_allow_html=True)
-
-    # ── Styled HTML movement table (replaces st.dataframe) ───────────
-        if movement_rows:
-            # Sort by 'current' position ascending (best rank first)
-            movement_rows_sorted = sorted(movement_rows, key=lambda r: r["current"])
-            rows_html = []
-            for r in movement_rows_sorted:
-                ch = r["change"]
-                if ch > 0:
-                    pill = f"<span class='ct-pill ct-pill-up'>▲ +{ch}</span>"
-                    trend = "<span style='color:#34d399;font-weight:600'>📈 Rising</span>"
-                elif ch < 0:
-                    pill = f"<span class='ct-pill ct-pill-down'>▼ {abs(ch)}</span>"
-                    trend = "<span style='color:#fb7185;font-weight:600'>📉 Falling</span>"
-                else:
-                    pill = "<span class='ct-pill ct-pill-flat'>—</span>"
-                    trend = "<span style='color:var(--text2);font-weight:600'>➡️ Stable</span>"
-                rows_html.append(
-                    f"<tr><td class='ct-artist'>{escape(r['artist'])}</td>"
-                    f"<td class='ct-rank-cell'>{r['start']}</td>"
-                    f"<td class='ct-rank-cell'>{r['current']}</td>"
-                    f"<td class='ct-rank-cell'>{r['best']}</td>"
-                    f"<td>{pill}</td>"
-                    f"<td>{trend}</td></tr>"
-                )
-            table_html = (
-                 "<div class='ct-section'>"
-                 "<div class='ct-section-ttl'>📊 Detailed Movement Analysis</div>"
-                 "<div class='ct-section-desc'>This table shows tracks with significant movement in their chart positions, displaying starting position, current position, best position achieved, change in rank, and movement trend (rising/falling/stable).</div>"
-                 "<table class='ct-mv-tbl'><thead><tr>"
-                "<th>Artist</th><th>Start</th><th>Current</th><th>Best</th><th>Change</th><th>Trend</th>"
-                "</tr></thead><tbody>"
-                + "".join(rows_html)
-                + "</tbody></table></div>"
-            )
-            st.markdown(table_html, unsafe_allow_html=True)
-
-            movement_df = pd.DataFrame([
-                {
-                    "Artist": r["artist"],
-                    "Starting Position": r["start"],
-                    "Current Position": r["current"],
-                    "Best Position": r["best"],
-                    "Change": (f"+{r['change']}" if r["change"] > 0 else str(r["change"])),
-                    "Trend": ("Rising" if r["change"] > 0 else "Falling" if r["change"] < 0 else "Stable"),
-                }
-                for r in movement_rows_sorted
-            ])
-            st.download_button(
-                "⬇️ Download Detailed Movement Analysis",
-                data=movement_df.to_csv(index=False).encode("utf-8"),
-                file_name="detailed_movement_analysis.csv",
-                mime="text/csv",
-                key="download_detailed_movement_analysis",
-            )
-
 
 
 def render_stream_trends(top_spotify: pd.DataFrame, leaderboard: pd.DataFrame, top_history: pd.DataFrame, history: pd.DataFrame = pd.DataFrame()) -> None:
@@ -3430,417 +2883,6 @@ def render_stream_trends(top_spotify: pd.DataFrame, leaderboard: pd.DataFrame, t
     # Detailed Data Table removed as requested
 
 
-def render_debut_artist_chart(leaderboard: pd.DataFrame) -> None:
-    if leaderboard.empty:
-        st.warning("No artist data available yet.")
-        return
-
-    sorted_artists = leaderboard.sort_values("rank").dropna(subset=["name", "rank"]).copy()
-    sorted_artists["rank"] = sorted_artists["rank"].astype(int)
-    sorted_artists["display_label"] = sorted_artists["name"]
-    artist_options = sorted_artists["display_label"].tolist()
-    total_available = len(sorted_artists)
-
-    st.markdown(
-        f"""
-        <style>
-        .artist-spotlight-hero {{
-            position: relative;
-            background: linear-gradient(135deg, var(--surface2) 0%, var(--surface) 50%, var(--surface3) 100%);
-            border: 1px solid var(--border);
-            border-radius: 20px;
-            padding: 24px 28px;
-            margin-bottom: 1.4rem;
-            box-shadow: 0 24px 60px rgba(0,0,0,.15);
-            overflow: hidden;
-        }}
-        .artist-spotlight-hero::after {{
-            content: "";
-            position: absolute;
-            right: -120px;
-            top: -120px;
-            width: 320px;
-            height: 320px;
-            background: radial-gradient(circle, rgba(96,165,250,.18), transparent 60%);
-            pointer-events: none;
-        }}
-        .artist-spotlight-eyebrow {{
-            display: inline-flex;
-            align-items: center;
-            gap: 10px;
-            font-size: 12px;
-            font-weight: 800;
-            letter-spacing: .18em;
-            text-transform: uppercase;
-            color: var(--text2);
-            margin-bottom: 12px;
-        }}
-        .artist-spotlight-dot {{
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            background: #34d399;
-            box-shadow: 0 0 0 4px rgba(52,211,153,.18), 0 0 14px rgba(52,211,153,.55);
-            animation: lb-pulse 2s ease-in-out infinite;
-        }}
-        .artist-spotlight-title {{
-            font-size: 2.2rem;
-            font-weight: 900;
-            letter-spacing: -.02em;
-            color: var(--text);
-            margin-bottom: 6px;
-            line-height: 1.1;
-        }}
-        .artist-spotlight-sub {{
-            font-size: 0.95rem;
-            color: var(--text2);
-            font-weight: 500;
-        }}
-        .artist-spotlight-sub b {{
-            color: var(--text);
-            font-weight: 700;
-        }}
-        .spotlight-kpi-grid {{
-            display: grid;
-            grid-template-columns: repeat(4, minmax(0, 1fr));
-            gap: 12px;
-            margin-top: 1.0rem;
-            margin-bottom: 1rem;
-        }}
-        .spotlight-kpi {{
-            background: linear-gradient(180deg, var(--surface2) 0%, var(--surface) 100%);
-            border: 1px solid var(--border);
-            border-radius: 14px;
-            padding: 16px;
-            box-shadow: 0 12px 24px rgba(0,0,0,.08);
-            min-height: 100px;
-        }}
-        .spotlight-kpi-label {{
-            color: var(--text2);
-            font-size: .72rem;
-            text-transform: uppercase;
-            letter-spacing: .08em;
-            font-weight: 800;
-            margin-bottom: 6px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }}
-        .spotlight-kpi-label span {{
-            font-size: 1.1rem;
-            opacity: 0.9;
-        }}
-        .spotlight-kpi-value {{
-            color: var(--text);
-            font-size: 1.45rem;
-            font-weight: 900;
-            line-height: 1.1;
-            margin-bottom: 4px;
-        }}
-        .spotlight-kpi-note {{
-            color: var(--text2);
-            font-size: .82rem;
-        }}
-        .spotlight-panel {{
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: 14px;
-            box-shadow: 0 12px 24px rgba(0,0,0,.08);
-            margin-bottom: 14px;
-        }}
-        .spotlight-panel-header {{
-            padding: 12px 14px;
-            border-bottom: 1px solid var(--border);
-            color: var(--text);
-            font-size: .92rem;
-            font-weight: 800;
-            letter-spacing: .04em;
-            text-transform: uppercase;
-        }}
-        .spotlight-panel-body {{
-            padding: 14px;
-        }}
-        .spotlight-meta-grid {{
-            display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 12px;
-        }}
-        .spotlight-lists-grid {{
-            display: grid;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: 14px;
-        }}
-        .spotlight-list-title {{
-            color: var(--text);
-            font-size: .86rem;
-            font-weight: 800;
-            margin-bottom: 8px;
-        }}
-        .spotlight-list {{
-            margin: 0;
-            padding-left: 18px;
-            color: var(--text);
-            line-height: 1.65;
-            font-size: .9rem;
-        }}
-        .spotlight-list-empty {{
-            color: var(--text2);
-            font-size: .88rem;
-        }}
-        .spotlight-summary-table {{
-            width: 100%;
-            border-collapse: collapse;
-            font-size: .9rem;
-        }}
-        .spotlight-summary-table th {{
-            text-align: left;
-            color: var(--text2);
-            font-size: .72rem;
-            text-transform: uppercase;
-            letter-spacing: .08em;
-            padding: .65rem .75rem;
-            border-bottom: 1px solid var(--border);
-        }}
-        .spotlight-summary-table td {{
-            padding: .65rem .75rem;
-            border-bottom: 1px solid var(--border);
-            color: var(--text);
-        }}
-        .spotlight-artist-hero {{
-            display: grid;
-            grid-template-columns: minmax(120px, 180px) 1fr;
-            gap: 18px;
-            align-items: center;
-            margin-top: 1.0rem;
-            margin-bottom: 1rem;
-        }}
-        .spotlight-artist-image {{
-            width: 100%;
-            max-width: 180px;
-            border-radius: 24px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
-            border: 2px solid var(--border);
-        }}
-        .spotlight-artist-name {{
-            margin: 0 0 4px 0;
-            color: var(--text);
-            font-size: 2rem;
-            font-weight: 900;
-            letter-spacing: -.01em;
-        }}
-        .spotlight-artist-sub {{
-            margin: 0;
-            color: var(--text2);
-            font-size: 1.02rem;
-        }}
-        .spotlight-badges {{
-            display: flex;
-            gap: 10px;
-            margin-top: 12px;
-            flex-wrap: wrap;
-        }}
-        @media (max-width: 980px) {{
-            .spotlight-kpi-grid {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }}
-            .spotlight-lists-grid {{ grid-template-columns: 1fr; }}
-            .spotlight-artist-hero {{ grid-template-columns: 1fr; }}
-        }}
-        </style>
-        <div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    default_artist = st.session_state.get("global_selected_artist", "All artists")
-    if default_artist == "All artists" and artist_options:
-        default_artist = artist_options[0]
-
-    try:
-        if default_artist in artist_options:
-            default_idx = artist_options.index(default_artist)
-        else:
-            matches = [i for i, opt in enumerate(artist_options) if default_artist in opt]
-            default_idx = matches[0] if matches else 0
-    except (ValueError, IndexError):
-        default_idx = 0
-
-    st.markdown(
-        "<div style='font-size: 0.95rem; color: var(--text2); margin: 0 0 16px; line-height: 1.5; font-weight: 500;'>"
-        "Primary entry point for deep-dive analysis. Select an artist to initialize a comprehensive profile "
-        "mapping global performance, audience density, and commercial momentum."
-        "</div>",
-        unsafe_allow_html=True
-    )
-
-    selected_label = custom_selectbox(
-        "🎤 Select an Artist",
-        artist_options,
-        index=default_idx if artist_options else 0,
-        key="debut_artist_select",
-    )
-
-    if selected_label != st.session_state.get("global_selected_artist"):
-        st.session_state.global_selected_artist = selected_label
-        st.rerun()
-
-    if not selected_label:
-        st.info("Please select an artist from the dropdown above.")
-        return
-
-    selected_artist = selected_label.split(" - ", 1)[1] if " - " in selected_label else selected_label
-    artist_data = leaderboard[leaderboard["name"] == selected_artist]
-
-    if artist_data.empty:
-        st.warning(f"No data found for {selected_artist}.")
-        return
-
-    row = artist_data.iloc[0]
-    real_img_url = get_artist_image_url(row["name"])
-    display_img = real_img_url if real_img_url else get_fallback_avatar_url(row["name"])
-
-    rank_val = int(row.get("rank")) if pd.notna(row.get("rank")) else 0
-    songs_val = int(row.get("songs_count")) if pd.notna(row.get("songs_count")) else 0
-    albums_val = int(row.get("albums_count")) if pd.notna(row.get("albums_count")) else 0
-    countries_val = int(row.get("countries_count")) if pd.notna(row.get("countries_count")) else 0
-    monthly_val = fmt_short(row.get("monthly_listeners")) if pd.notna(row.get("monthly_listeners")) else "—"
-    peak_val = fmt_short(row.get("peak_listeners")) if pd.notna(row.get("peak_listeners")) else "—"
-    points_val = fmt_short(row.get("total_points")) if pd.notna(row.get("total_points")) else "—"
-    trend_change = str(row.get("rank_change") or "=").strip()
-
-    songs_items = [item.strip() for item in str(row.get("top_songs") or "").split("\n") if item.strip()]
-    albums_items = [item.strip() for item in str(row.get("top_albums") or "").split("\n") if item.strip()]
-    countries_items = [item.strip() for item in str(row.get("top_countries") or "").split("\n") if item.strip()]
-
-    songs_html = "".join(f"<li>{escape(item)}</li>" for item in songs_items) if songs_items else "<div class='spotlight-list-empty'>No songs available.</div>"
-    albums_html = "".join(f"<li>{escape(item)}</li>" for item in albums_items) if albums_items else "<div class='spotlight-list-empty'>No albums available.</div>"
-    countries_html = "".join(f"<li>{escape(item)}</li>" for item in countries_items) if countries_items else "<div class='spotlight-list-empty'>No countries available.</div>"
-
-    artist_name = escape(str(row.get("name") or "—"))
-    page_title_val = escape(str(row.get("page_title") or ""))
-    display_country = escape(str(row.get("display_country") or "Global"))
-
-    st.markdown(
-        f"""
-        <div class="spotlight-artist-hero">
-            <div><img src="{escape(display_img)}" class="spotlight-artist-image" alt="{artist_name}"></div>
-            <div>
-                <h2 class="spotlight-artist-name">{artist_name}</h2>
-                <p class="spotlight-artist-sub">{page_title_val}</p>
-                <div class="spotlight-badges">
-                    <span class="badge badge-new" style="padding: 5px 12px; font-size: .85rem;">🏆 #{rank_val}</span>
-                    <span class="badge badge-up" style="padding: 5px 12px; font-size: .85rem;">🌎 {display_country}</span>
-                    <span class="badge badge-same" style="padding: 5px 12px; font-size: .85rem;">🎧 {monthly_val} Monthly</span>
-                </div>
-            </div>
-        </div>
-        <div class="spotlight-intro" style="margin-top: 1.5rem; margin-bottom: 0.8rem; padding: 0 4px;">
-            <div style="font-size: 1.1rem; font-weight: 800; color: var(--text); margin-bottom: 4px;">📊 Performance Intelligence Overview</div>
-            <div style="font-size: 0.88rem; color: var(--text2); line-height: 1.5; font-weight: 500;">
-                Consolidated artist performance metrics across Latin American markets and global streaming platforms. 
-                These KPIs track chart momentum, catalog depth, and audience reach in real-time.
-            </div>
-        </div>
-        <div class="spotlight-kpi-grid">
-            <div class="spotlight-kpi">
-                <div class="spotlight-kpi-label"><span>🏆</span> Current Rank</div>
-                <div class="spotlight-kpi-value">{rank_val}</div>
-                <div class="spotlight-kpi-note">Latest chart position</div>
-            </div>
-            <div class="spotlight-kpi">
-                <div class="spotlight-kpi-label"><span>🎵</span> Songs</div>
-                <div class="spotlight-kpi-value">{songs_val}</div>
-                <div class="spotlight-kpi-note">Catalog tracks</div>
-            </div>
-            <div class="spotlight-kpi">
-                <div class="spotlight-kpi-label"><span>💽</span> Albums</div>
-                <div class="spotlight-kpi-value">{albums_val}</div>
-                <div class="spotlight-kpi-note">Catalog albums</div>
-            </div>
-            <div class="spotlight-kpi">
-                <div class="spotlight-kpi-label"><span>🌎</span> LATAM Countries</div>
-                <div class="spotlight-kpi-value">{countries_val}</div>
-                <div class="spotlight-kpi-note">Market presence</div>
-            </div>
-            <div class="spotlight-kpi">
-                <div class="spotlight-kpi-label"><span>🎧</span> Monthly Listeners</div>
-                <div class="spotlight-kpi-value">{monthly_val}</div>
-                <div class="spotlight-kpi-note">Current audience</div>
-            </div>
-            <div class="spotlight-kpi">
-                <div class="spotlight-kpi-label"><span>📈</span> Peak Listeners</div>
-                <div class="spotlight-kpi-value">{peak_val}</div>
-                <div class="spotlight-kpi-note">Historical high</div>
-            </div>
-            <div class="spotlight-kpi">
-                <div class="spotlight-kpi-label"><span>⭐</span> Total Points</div>
-                <div class="spotlight-kpi-value">{points_val}</div>
-                <div class="spotlight-kpi-note">Cross-platform score</div>
-            </div>
-            <div class="spotlight-kpi">
-                <div class="spotlight-kpi-label"><span>📊</span> Trend</div>
-                <div class="spotlight-kpi-value">{escape(trend_change)}</div>
-                <div class="spotlight-kpi-note">Rank momentum</div>
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    st.markdown(f"""
-        <div class="spotlight-panel">
-            <div class="spotlight-panel-header">📊 Top Tracks, Albums and Countries</div>
-            <div class="spotlight-panel-body">
-                <div style="font-size: 0.88rem; color: var(--text2); margin: 0 0 14px; line-height: 1.5; font-weight: 500;">
-                    🗺️ Consolidated catalog distribution tracking lead track velocity, project performance, and regional chart footprint.
-                </div>
-                <div class="spotlight-lists-grid">
-                    <div>
-                        <div class="spotlight-list-title">Top Tracks</div>
-                        <div style="font-size: .8rem; color: var(--text2); margin-bottom: 8px;">High-velocity tracks driving the majority of recent stream volume.</div>
-                        <ol class="spotlight-list">{songs_html}</ol>
-                    </div>
-                    <div>
-                        <div class="spotlight-list-title">Top Albums</div>
-                        <div style="font-size: .8rem; color: var(--text2); margin-bottom: 8px;">Top-performing projects across global digital storefronts.</div>
-                        <ol class="spotlight-list">{albums_html}</ol>
-                    </div>
-                    <div>
-                        <div class="spotlight-list-title">Top Countries</div>
-                        <div style="font-size: .8rem; color: var(--text2); margin-bottom: 8px;">Markets with the strongest relative chart presence for the artist.</div>
-                        <ol class="spotlight-list">{countries_html}</ol>
-                    </div>
-                </div>
-            </div>
-        </div>
-    """, unsafe_allow_html=True)
-
-    st.markdown(
-        f"""
-        <div class="spotlight-panel">
-            <div class="spotlight-panel-header">📋 Performance Summary</div>
-            <div class="spotlight-panel-body">
-                <div style="font-size: 0.88rem; color: var(--text2); margin: 0 0 14px; line-height: 1.5; font-weight: 500;">
-                    📈 Key performance aggregates providing a definitive baseline of artist market share and audience reach.
-                </div>
-                <table class="spotlight-summary-table">
-                    <thead>
-                        <tr><th>Metric</th><th>Value</th></tr>
-                    </thead>
-                    <tbody>
-                        <tr><td>Rank</td><td>{rank_val}</td></tr>
-                        <tr><td>Monthly Listeners</td><td>{monthly_val}</td></tr>
-                        <tr><td>Peak Listeners</td><td>{peak_val}</td></tr>
-                        <tr><td>Songs</td><td>{songs_val}</td></tr>
-                        <tr><td>Albums</td><td>{albums_val}</td></tr>
-                        <tr><td>LATAM Countries</td><td>{countries_val}</td></tr>
-                        <tr><td>Total Points</td><td>{points_val}</td></tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
 
 
 def render_ops_monitor(runs: pd.DataFrame) -> None:
@@ -4420,6 +3462,7 @@ try:
         def run_prefetch():
             try:
                 prefetch_debut_data()
+                prefetch_artists_overview_data()
                 prefetch_label_data()
                 prefetch_acquisition_data()
             except Exception as e:
@@ -4470,13 +3513,6 @@ def show_leaderboard_page() -> None:
 
 
 def show_compare_page() -> None:
-    st.markdown(
-        "<div style='font-size: 0.95rem; color: var(--text2); margin: 0 0 16px; line-height: 1.5; font-weight: 500;'>"
-        "Side-by-side performance benchmarking for head-to-head artist analysis. Compare multiple acts across "
-        "primary metrics including audience scale, catalog depth, and global market penetration."
-        "</div>",
-        unsafe_allow_html=True
-    )
     st.markdown(
         """
         <style>
@@ -4580,7 +3616,9 @@ def show_compare_page() -> None:
             font-weight: 600;
         }
         </style>
-        <div class='cmp-note'>Select 2-5 artists to compare their leaderboard metrics.</div>
+        <div class='cmp-note'>Select 2-5 artists to compare their leaderboard metrics.
+        <div >Side-by-side performance benchmarking for head-to-head artist analysis. Compare multiple acts across primary metrics including audience scale, catalog depth, and global market penetration.</div>
+        </div>
         """,
         unsafe_allow_html=True,
     )
@@ -4851,13 +3889,46 @@ def show_debut_artist_page() -> None:
     st.markdown("""
         <style>
         /* Forcefully remove the massive empty space above the Artist Spotlight dashboard */
-        .stMainBlockContainer {
+        .stMainBlockContainer, .block-container {
             padding-top: 0rem !important;
+            padding-bottom: 0rem !important;
+        }
+        /* Tighten vertical gaps between elements on this page */
+        div[data-testid="stVerticalBlock"] {
+            gap: 0.5rem !important;
         }
         </style>
     """, unsafe_allow_html=True)
     # Use global_filtered to allow changing artists in the dropdown
     render_debut_artist_chart(global_filtered)
+
+
+def show_artists_overview_page() -> None:
+    st.markdown(
+        """
+        <style>
+        .stMainBlockContainer, .block-container {
+            padding-top: 0.1rem !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+    render_artists_overview(last_run_label)
+
+
+def show_redesign_dashboard_page() -> None:
+    st.markdown(
+        """
+        <style>
+        .stMainBlockContainer, .block-container {
+            padding-top: 0.1rem !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+    render_redesign_dashboard(filtered, history, last_run_label)
 
 
 def show_ai_analyst_page() -> None:
@@ -4963,6 +4034,38 @@ def show_debut_report_page() -> None:
 
 def show_movement_page() -> None:
     """Wrapper function for Movement page"""
+    st.markdown(
+        """
+        <style>
+        div[data-testid="stTabs"] div[role="tablist"] {
+            gap: 10px;
+        }
+        div[data-testid="stTabs"] button[role="tab"] {
+            border: 1px solid var(--border) !important;
+            border-radius: 10px !important;
+            background: var(--surface) !important;
+            color: var(--text2) !important;
+            font-weight: 700 !important;
+            min-height: 44px !important;
+            transition: background .15s ease, border-color .15s ease, color .15s ease, box-shadow .15s ease;
+        }
+        div[data-testid="stTabs"] button[role="tab"]:hover {
+            border-color: rgba(251,113,133,.5) !important;
+            color: var(--text) !important;
+        }
+        div[data-testid="stTabs"] button[role="tab"][aria-selected="true"] {
+            background: rgba(251,113,133,.14) !important;
+            border-color: #fb7185 !important;
+            color: var(--text) !important;
+            box-shadow: inset 0 0 0 1px rgba(251,113,133,.18), 0 6px 16px rgba(251,113,133,.10) !important;
+        }
+        div[data-testid="stTabs"] div[data-baseweb="tab-highlight"] {
+            display: none !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
     tab1, tab2, tab3 = st.tabs(["🎵 Track Movement", "💿 Album Movement", "🎤 Artist Movement"])
     with tab1:
         render_track_movement()
@@ -4980,6 +4083,39 @@ def show_movement_page() -> None:
 
 def show_acquisition_page() -> None:
     """Wrapper function for Acquisition Recommendation page"""
+    st.markdown(
+        """
+        <style>
+        div[data-testid="stTabs"] div[role="tablist"] {
+            gap: 10px;
+        }
+        div[data-testid="stTabs"] button[role="tab"] {
+            border: 1px solid var(--border) !important;
+            border-radius: 10px !important;
+            background: var(--surface) !important;
+            color: var(--text2) !important;
+            font-weight: 700 !important;
+            min-height: 44px !important;
+            transition: background .15s ease, border-color .15s ease, color .15s ease, box-shadow .15s ease, transform .15s ease;
+        }
+        div[data-testid="stTabs"] button[role="tab"]:hover {
+            border-color: #e31b23 !important;
+            color: var(--text) !important;
+            transform: translateY(-1px);
+        }
+        div[data-testid="stTabs"] button[role="tab"][aria-selected="true"] {
+            background: linear-gradient(135deg, rgba(255,255,255,.98), rgba(255,232,234,.96)) !important;
+            border-color: #e31b23 !important;
+            color: #8f0f1c !important;
+            box-shadow: inset 0 0 0 1px rgba(227,27,35,.18), 0 6px 16px rgba(227,27,35,.12) !important;
+        }
+        div[data-testid="stTabs"] div[data-baseweb="tab-highlight"] {
+            display: none !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
     tab1, tab2, tab3 = st.tabs(["🎵 Track Acquisition", "💿 Album Acquisition", "🎤 Artist Acquisition"])
     with tab1:
         render_track_acquisition()
@@ -4990,24 +4126,36 @@ def show_acquisition_page() -> None:
 
 
 app_pages = [
-    st.Page(
-        show_leaderboard_page,
-        title="Leaderboard",
-        icon=":material/trending_up:",
-        url_path="leaderboard",
+        st.Page(
+        show_artists_overview_page,
+        title="Overview",
+        icon=":material/dashboard:",
+        url_path="artists-overview",
         default=True,
     ),
+    st.Page(
+        show_redesign_dashboard_page,
+        title="LATAM Signals",
+        icon=":material/auto_awesome:",
+        url_path="redesign-lab",
+    ),
+    # st.Page(
+    #     show_leaderboard_page,
+    #     title="Leaderboard",
+    #     icon=":material/trending_up:",
+    #     url_path="leaderboard",
+    # ),
      st.Page(
         show_movement_page,
-        title="Movement",
+        title="Movement Trends",
         icon=":material/show_chart:",
-        url_path="movement",
+        url_path="movement-trends",
     ),
       st.Page(
         show_acquisition_page,
-        title="Acquisition",
+        title="Acquisition Analysis",
         icon=":material/handshake:",
-        url_path="acquisition",
+        url_path="acquisition-Analysis",
     ),
 
     # st.Page(
@@ -5064,6 +4212,21 @@ with st.sidebar:
     
     # Proper sidebar routing for all dashboard views
     current_page = st.navigation(app_pages, position="sidebar", expanded=True)
+
+    st.markdown(
+        "<div style='margin:.25rem 0 .35rem; color: var(--text2); font-size:.78rem; font-weight:800; letter-spacing:.08em; text-transform:uppercase;'>Appearance</div>",
+        unsafe_allow_html=True,
+    )
+    is_dark = st.session_state.get("dark_mode", True)
+    toggle_label = "☀️ Light Mode" if is_dark else "🌙 Dark Mode"
+    if st.button(
+        toggle_label,
+        key="theme_toggle_btn",
+        use_container_width=True,
+    ):
+        st.session_state.dark_mode = not is_dark
+        st.query_params["theme"] = "dark" if st.session_state.dark_mode else "light"
+        st.rerun()
     
     # Collapsible advanced settings
     with st.expander("🔍 Search & Filter", expanded=True):
@@ -5106,18 +4269,6 @@ with st.sidebar:
     
     with st.expander("🎛️ Display Options", expanded=True):
         max_rows = st.slider("📊 Table rows", min_value=15, max_value=300, value=15, step=5)
-        
-        # ── Dark / Light mode toggle ───────────────────────────────
-        is_dark = st.session_state.get("dark_mode", True)
-        toggle_label = "☀️ Light Mode" if is_dark else "🌙 Dark Mode"
-        if st.button(
-            toggle_label,
-            key="theme_toggle_btn",
-            use_container_width=True,
-        ):
-            st.session_state.dark_mode = not is_dark
-            st.query_params["theme"] = "dark" if st.session_state.dark_mode else "light"
-            st.rerun()
     
     # Apply global filters (Latam, Countries)
     global_filtered = leaderboard.copy()

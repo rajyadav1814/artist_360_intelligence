@@ -53,7 +53,7 @@ def _run_query(query: str, params: tuple) -> list[dict[str, Any]]:
                 pass
 
 
-@st.cache_data(ttl=300, show_spinner=False)
+@st.cache_data(ttl=299, show_spinner=False)
 def _load_window(table: str, country: str, days: int) -> pd.DataFrame:
     metric_col = "streams" if table == "spotify_daily" else "points"
     query = f"""
@@ -81,7 +81,7 @@ def _load_window(table: str, country: str, days: int) -> pd.DataFrame:
     return df
 
 
-@st.cache_data(ttl=300, show_spinner=False)
+@st.cache_data(ttl=299, show_spinner=False)
 def _load_window_multi(table: str, countries: list[str], days: int) -> pd.DataFrame:
     metric_col = "streams" if table == "spotify_daily" else "points"
     placeholders = ", ".join(["%s"] * len(countries))
@@ -112,7 +112,7 @@ def _load_window_multi(table: str, countries: list[str], days: int) -> pd.DataFr
     return df
 
 
-@st.cache_data(ttl=300, show_spinner=False)
+@st.cache_data(ttl=299, show_spinner=False)
 def get_processed_track_rows(sp_df: pd.DataFrame, it_df: pd.DataFrame, dates: list[date], region: str = "Global") -> list[dict[str, Any]]:
     """
     Cached wrapper for building track rows.
@@ -143,9 +143,9 @@ def _signal_style(acq_score: int, momentum: float, best_rank: int | None) -> tup
 
 
 def _acq_score(latest_streams: int, best_rank: int | None, momentum: float, best_it_rank: int | None) -> int:
-    rank_score = max(0, 40 - (best_rank or 100) * 0.4) if best_rank else 0
+    rank_score = max(0, 20 - (best_rank or 100) * 0.2) if best_rank else 0
     stream_score = min(30, int(latest_streams / 300_000))
-    momentum_score = max(-10, min(20, int(momentum)))
+    momentum_score = max(-20, min(40, int(momentum * 2)))
     itunes_bonus = 10 if best_it_rank and best_it_rank <= 25 else 5 if best_it_rank and best_it_rank <= 60 else 0
     return max(0, min(100, int(rank_score + stream_score + momentum_score + itunes_bonus)))
 
@@ -315,7 +315,7 @@ def _build_payload(tracks: list[dict[str, Any]], dates: list[date], limit: int =
 
 def render_track_acquisition() -> None:
     st.markdown(
-        "<div style='font-size:1.1rem;color:#97a3c5;margin:0.2rem 0 0.75rem 0;line-height:1.5;'>"
+        "<div style='font-size: 0.92rem; color: var(--t2); margin: 0 0 14px; line-height: 1.5; font-weight: 500;'>"
         "🎵 Evaluate track-level acquisition potential by analyzing cross-platform performance metrics. "
         "This dashboard combines daily streaming data from Spotify (Global, US, and LATAM markets) "
         "with iTunes Worldwide chart movements to compute an overall Acquisition Score. "
@@ -382,8 +382,8 @@ def render_track_acquisition() -> None:
         st.markdown(
             "The **Acquisition Score (0-100)** is a composite metric evaluating a track's market potential. It is calculated using:\n"
             "- **Latest Streams (30%)**: Scaled based on daily volume.\n"
-            "- **Best Rank (40%)**: Spotify Global/US chart peak.\n"
-            "- **Momentum (20%)**: Trajectory of stream growth and rank delta.\n"
+            "- **Best Rank (20%)**: Spotify Global/US chart peak.\n"
+            "- **Momentum (40%)**: Trajectory of stream growth and rank delta.\n"
             "- **iTunes Bonus (10%)**: Cross-platform validation from iTunes WW charts.\n\n"
             "👉 **Interactive Analysis**: Select any track from the leaderboard to instantly load its detailed acquisition profile, including stream trajectories and specific market signals."
         )
@@ -459,6 +459,10 @@ body { background: var(--bg); font-family: var(--font-sans); color: var(--t1); -
 .filter-btn.active { background: #185FA5; color: #E6F1FB; border-color: #185FA5; }
 .filter-tag { display: flex; align-items: center; font-size: 14px; padding: 8px 16px; border-radius: 999px; background: var(--color-background-secondary); color: var(--color-text-secondary); border: 1px solid var(--color-border-tertiary); cursor: pointer; }
 .filter-tag select { background: transparent; border: none; color: inherit; font-size: inherit; font-family: inherit; outline: none; cursor: pointer; }
+.window-chip-group { display: flex; gap: 8px; flex-wrap: nowrap; align-items: center; }
+.window-chip { border: 1px solid var(--color-border-tertiary); background: var(--color-background-primary); color: var(--color-text-secondary); font: inherit; font-size: 13px; line-height: 1; padding: 9px 14px; min-height: 38px; border-radius: 999px; cursor: pointer; transition: all .15s ease; white-space: nowrap; flex: 0 0 auto; }
+.window-chip:hover { border-color: #185FA5; color: #185FA5; }
+.window-chip.active { background: #185FA5; border-color: #185FA5; color: #E6F1FB; }
 
 .track-table { background: var(--color-background-primary); border: 2px solid var(--color-border-secondary); border-radius: var(--border-radius-lg); overflow: hidden; display: flex; flex-direction: column; flex: 1; min-height: 0; transition: border-color 0.2s; }
 .track-table:hover { border-color: #E24B4A; }
@@ -574,15 +578,11 @@ body { background: var(--bg); font-family: var(--font-sans); color: var(--t1); -
             </optgroup>
           </select>
         </span>
-        <span class="filter-tag">
-          <select id="windowSel" onchange="setTimeWindow(this.value)">
-            <option value="All">All Time</option>
-            <option value="7">7 Days</option>
-            <option value="14">14 Days</option>
-            <option value="30">30 Days</option>
-          </select>
+        <span class="window-chip-group" role="tablist" aria-label="Time window">
+          <button type="button" class="window-chip" data-window="7" onclick="setTimeWindow(7, this)">Last Week</button>
+          <button type="button" class="window-chip" data-window="14" onclick="setTimeWindow(14, this)">Last 2 Weeks</button>
+          <button type="button" class="window-chip active" data-window="30" onclick="setTimeWindow(30, this)">Last Month</button>
         </span>
-        <span class="filter-tag" id="count-badge">0 tracks</span>
       </span>
   </div>
 
@@ -633,7 +633,7 @@ body { background: var(--bg); font-family: var(--font-sans); color: var(--t1); -
         <div class="stat-box">
           <div class="stat-label">Momentum</div>
           <div class="stat-value" id="d-momentum">—</div>
-          <div class="stat-sub">Window change</div>
+          <div class="stat-sub" id="d-momentum-sub">Window change</div>
         </div>
         <div class="stat-box">
           <div class="stat-label">Days in Chart</div>
@@ -702,9 +702,9 @@ let itTrajChartInst = null;
 
 // Acq Score
 function _jsAcqScore(latestStreams, bestRank, momentum, bestItRank) {
-    const rankScore = Math.max(0, 40 - (bestRank || 100) * 0.4);
+    const rankScore = Math.max(0, 20 - (bestRank || 100) * 0.2);
     const streamScore = Math.min(30, Math.floor(latestStreams / 300000));
-    const momentumScore = Math.max(-10, Math.min(20, Math.floor(momentum)));
+    const momentumScore = Math.max(-20, Math.min(40, Math.floor(momentum * 2)));
     const itunesBonus = bestItRank && bestItRank <= 25 ? 10 : (bestItRank && bestItRank <= 60 ? 5 : 0);
     return Math.max(0, Math.min(100, Math.floor(rankScore + streamScore + momentumScore + itunesBonus)));
 }
@@ -819,12 +819,19 @@ function changeRegion() {
 }
 
 function setTimeWindow(val) {
-    currentTimeWindowDays = val === 'All' ? ORIGINAL_PAYLOAD.maxWindowDays : parseInt(val);
+    currentTimeWindowDays = Number.parseInt(val, 10) || ORIGINAL_PAYLOAD.maxWindowDays;
+    document.querySelectorAll('.window-chip').forEach(btn => btn.classList.toggle('active', btn.dataset.window === String(currentTimeWindowDays)));
     applyFilters();
     if (selectedId) selectTrack(selectedId); 
 }
 
 function fmtN(n){if(!n&&n!==0)return'—';const a=Math.abs(n);if(a>=1e6)return(n/1e6).toFixed(1)+'M';if(a>=1e3)return(n/1e3).toFixed(0)+'K';return Math.round(n).toString();}
+
+function windowLabel(days) {
+  if (days <= 7) return 'Last week';
+  if (days <= 14) return 'Last 2 weeks';
+  return 'Last month';
+}
 
 function setSort(s){
   currentSort = s;
@@ -880,7 +887,6 @@ function applyFilters(){
 }
 
 function renderTable() {
-    document.getElementById('count-badge').textContent = `${TRACKS.length} tracks`;
     const el = document.getElementById('track-table');
     let htmlStr = '';
 
@@ -982,13 +988,14 @@ function selectTrack(id) {
   document.getElementById('d-rank-sub').textContent = PAYLOAD.regionLabel;
   
   document.getElementById('d-streams').textContent = fmtN(t.latestStreams);
-  document.getElementById('d-streams-sub').textContent = `${t.growth > 0 ? '+' : ''}${t.growth}% growth`;
+  document.getElementById('d-streams-sub').textContent = `${windowLabel(currentTimeWindowDays)} · ${t.growth > 0 ? '+' : ''}${t.growth}% growth`;
   document.getElementById('d-streams-sub').style.color = t.growth > 0 ? '#1D9E75' : t.growth < 0 ? '#E24B4A' : 'var(--color-text-secondary)';
   
   const mEl = document.getElementById('d-momentum');
   mEl.textContent = `${t.momentum > 0 ? '+' : ''}${t.momentum}%`;
   mEl.className = 'stat-value ' + (t.momentum > 5 ? 'pos' : t.momentum < -5 ? 'neg' : '');
-  
+  document.getElementById('d-momentum-sub').textContent = `${windowLabel(currentTimeWindowDays)} window`;
+
   document.getElementById('d-days').textContent = t.days;
 
   const badgesEl = document.getElementById('d-badges');
