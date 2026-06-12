@@ -398,6 +398,82 @@ def _load_chart_days_leaderboard(days: int = WINDOW_DAYS) -> pd.DataFrame:
 
 
 @st.cache_data(ttl=300, show_spinner=False)
+def _load_popular_songs_leaderboard(days: int = WINDOW_DAYS) -> pd.DataFrame:
+    query = """
+        WITH sp_bounds AS (SELECT MAX(date) AS max_d FROM spotify_daily WHERE country = 'global'),
+        it_bounds AS (SELECT MAX(date) AS max_d FROM itunes_daily WHERE country = 'ww'),
+        raw_rows AS (
+            SELECT
+                'Spotify'::text AS platform,
+                d.artist_title,
+                d.rank,
+                d.days,
+                d.streams::numeric AS metric,
+                d.date
+            FROM spotify_daily d, sp_bounds b
+            WHERE d.country = 'global'
+              AND d.rank <= 10
+              AND d.date > (b.max_d - %s::int)
+              AND d.date <= b.max_d
+            UNION ALL
+            SELECT
+                'iTunes'::text AS platform,
+                d.artist_title,
+                d.rank,
+                d.days,
+                d.points::numeric AS metric,
+                d.date
+            FROM itunes_daily d, it_bounds b
+            WHERE d.country = 'ww'
+              AND d.rank <= 10
+              AND d.date > (b.max_d - %s::int)
+              AND d.date <= b.max_d
+        ),
+        parsed AS MATERIALIZED (
+            SELECT
+                platform,
+                CASE
+                    WHEN position(' - ' in artist_title) > 0 THEN split_part(artist_title, ' - ', 1)
+                    ELSE COALESCE(NULLIF(artist_title, ''), 'Unknown')
+                END AS artist,
+                CASE
+                    WHEN position(' - ' in artist_title) > 0 THEN substring(artist_title from position(' - ' in artist_title) + 3)
+                    ELSE COALESCE(NULLIF(artist_title, ''), 'Unknown')
+                END AS title,
+                rank,
+                COALESCE(days, 0) AS days,
+                COALESCE(metric, 0) AS metric,
+                date
+            FROM raw_rows
+        )
+        SELECT
+            platform,
+            artist,
+            title,
+            MIN(rank) AS best_rank,
+            SUM(metric) AS metric,
+            MAX(days) AS chart_days,
+            COUNT(*) AS top10_entries,
+            MAX(date) AS latest_date
+        FROM parsed
+        WHERE btrim(artist) <> ''
+          AND lower(btrim(artist)) NOT IN ('null', 'none', 'nan', 'unknown')
+          AND btrim(title) <> ''
+          AND lower(btrim(title)) NOT IN ('null', 'none', 'nan', 'unknown')
+        GROUP BY platform, artist, title
+        ORDER BY metric DESC, best_rank ASC, top10_entries DESC
+        LIMIT 250
+    """
+    rows = _run_query(query, (days, days))
+    if not rows:
+        return pd.DataFrame(columns=["platform", "artist", "title", "best_rank", "metric", "chart_days", "top10_entries", "latest_date"])
+    df = pd.DataFrame(rows)
+    for col in ["best_rank", "metric", "chart_days", "top10_entries"]:
+        df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
+    return df
+
+
+@st.cache_data(ttl=300, show_spinner=False)
 def _load_album_dashboard(days: int = WINDOW_DAYS) -> tuple[pd.DataFrame, pd.DataFrame, dict[str, float]]:
     query = """
         WITH bounds AS (
@@ -591,6 +667,7 @@ def _load_artists_overview_data(days: int = WINDOW_DAYS) -> tuple[
     dict[str, float],
     pd.DataFrame,
     pd.DataFrame,
+    pd.DataFrame,
 ]:
     latest_artists = _load_artist_rank_history(days)
     spotify_df = _load_spotify_artist_latest()
@@ -598,6 +675,7 @@ def _load_artists_overview_data(days: int = WINDOW_DAYS) -> tuple[
     track_artist_stats, top_tracks, track_kpis = _load_track_dashboard(days)
     album_artist_stats, top_albums, album_kpis = _load_album_dashboard(days)
     chart_days_df = _load_chart_days_leaderboard(days)
+    popular_songs_df = _load_popular_songs_leaderboard(days)
     filtered = _build_artist_table(latest_artists, spotify_df, details_df, track_artist_stats, album_artist_stats)
     return (
         latest_artists,
@@ -610,6 +688,7 @@ def _load_artists_overview_data(days: int = WINDOW_DAYS) -> tuple[
         top_albums,
         album_kpis,
         chart_days_df,
+        popular_songs_df,
         filtered,
     )
 
@@ -644,6 +723,7 @@ def render_artists_overview(last_run_label: str = "n/a") -> None:
         top_albums,
         album_kpis,
         chart_days_df,
+        popular_songs_df,
         filtered,
     ) = _load_artists_overview_data(WINDOW_DAYS)
 
@@ -915,6 +995,34 @@ def render_artists_overview(last_run_label: str = "n/a") -> None:
         default=str,
     ).replace("</", "<\\/")
 
+    popular_song_rows: list[dict[str, Any]] = []
+    if not popular_songs_df.empty:
+        for _, row in popular_songs_df.reset_index(drop=True).iterrows():
+            artist_name = _modal_text(row, "artist").strip()
+            title = _modal_text(row, "title").strip()
+            if not _is_valid_artist_name(artist_name) or not title or title.lower() in {"null", "none", "nan", "unknown"}:
+                continue
+            popular_song_rows.append({
+                "position": len(popular_song_rows) + 1,
+                "title": title,
+                "artist": artist_name,
+                "platform": _modal_text(row, "platform", "n/a"),
+                "bestRank": _modal_num(row, "best_rank"),
+                "metric": _modal_num(row, "metric"),
+                "days": _modal_num(row, "chart_days"),
+                "top10Entries": _modal_num(row, "top10_entries"),
+                "latestDate": _modal_text(row, "latest_date", "n/a"),
+            })
+    popular_songs_json = json.dumps(
+        {
+            "windowDays": WINDOW_DAYS,
+            "total": int(popular_songs),
+            "listedRows": int(len(popular_song_rows)),
+            "rows": popular_song_rows,
+        },
+        default=str,
+    ).replace("</", "<\\/")
+
     def bars_html(df: pd.DataFrame, label_col: str, value_col: str, title: str, desc: str, limit: int = 7) -> str:
         if df.empty:
             return f"<section class='panel'><div class='panel-head'><div><h3>{escape(title)}</h3><p>{escape(desc)}</p></div></div><div class='empty'>No rows available.</div></section>"
@@ -1092,7 +1200,7 @@ def render_artists_overview(last_run_label: str = "n/a") -> None:
 .modal-backdrop{position:fixed;inset:0;z-index:40;display:none;align-items:flex-start;justify-content:center;background:rgba(2,6,23,.62);padding:22px 18px}.modal-backdrop.open{display:flex}.leader-modal{width:min(1040px,100%);max-height:calc(100vh - 44px);display:flex;flex-direction:column;background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--border);border-radius:14px;box-shadow:0 28px 88px rgba(0,0,0,.42);overflow:hidden}.leader-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:18px 20px;border-bottom:1px solid var(--border)}.leader-kicker{color:var(--rose);font-size:11px;text-transform:uppercase;letter-spacing:.08em;font-weight:900}.leader-title{margin-top:4px;color:var(--text);font-size:20px;font-weight:900}.leader-sub{margin-top:5px;color:var(--muted);font-size:12px;font-weight:650}.leader-close,.leader-back{height:34px;border-radius:8px;border:1px solid var(--border);background:var(--panel3);color:var(--text);cursor:pointer}.leader-close{width:34px;font-size:20px;line-height:1}.leader-back{display:none;padding:0 12px;font-size:12px;font-weight:900}.leader-back.show{display:inline-flex;align-items:center}.leader-actions{display:flex;gap:8px;align-items:center}.leader-close:hover,.leader-back:hover{border-color:rgba(251,113,133,.55);color:var(--rose)}.leader-table-wrap{overflow:auto;padding:0 0 8px}.leader-table-wrap.hide{display:none}.leader-table{width:100%;border-collapse:collapse;min-width:880px;table-layout:fixed}.leader-table th{position:sticky;top:0;z-index:1;background:var(--panel2);color:var(--soft);font-size:10px;text-align:left;text-transform:uppercase;letter-spacing:.06em;font-weight:900;padding:10px 12px;border-bottom:1px solid var(--border)}.leader-table td{padding:11px 12px;border-bottom:1px solid var(--border);color:var(--muted);font-size:12px;font-weight:650;vertical-align:middle}.leader-table tbody tr:hover td{background:var(--panel3)}.leader-pos{color:var(--soft);font-weight:900}.leader-artist{display:flex;align-items:center;gap:9px;min-width:0}.leader-avatar{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;color:#fff;background:linear-gradient(135deg,var(--rose),var(--blue));font-size:11px;font-weight:900;flex:0 0 auto}.leader-name{border:0;background:transparent;padding:0;color:var(--text);font:inherit;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;text-align:left}.leader-name:hover{text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:3px;color:var(--rose)}.leader-rank-cell{color:var(--text);font-size:13px;font-weight:900}.leader-change{display:inline-flex;align-items:center;justify-content:center;min-width:54px;border-radius:999px;padding:3px 8px;font-size:10px;font-weight:900;border:1px solid var(--border);background:var(--panel3)}.leader-change.up{color:#86efac;background:rgba(52,211,153,.14);border-color:rgba(52,211,153,.25)}.leader-change.down{color:#fda4af;background:rgba(251,113,133,.14);border-color:rgba(251,113,133,.25)}.leader-change.flat{color:var(--muted)}.leader-empty{padding:26px;color:var(--muted);font-size:13px;text-align:center}.num{text-align:center;font-variant-numeric:tabular-nums}.leader-table th.num{text-align:center}.country-cell{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.artist-detail{display:none;overflow:auto;padding:18px 20px 22px}.artist-detail.show{display:block}.detail-hero{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:14px}.detail-name{font-size:24px;font-weight:950;color:var(--text);line-height:1}.detail-photo{width:96px;height:96px;border-radius:14px;object-fit:cover;border:1px solid var(--border);background:var(--panel3);box-shadow:0 12px 28px rgba(15,23,42,.18);flex:0 0 auto}.detail-meta{margin-top:8px;display:flex;flex-wrap:wrap;gap:7px}.detail-pill{display:inline-flex;align-items:center;border:1px solid var(--border);border-radius:999px;background:var(--panel3);padding:4px 9px;color:var(--muted);font-size:11px;font-weight:850}.detail-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:14px}.detail-card{background:var(--panel3);border:1px solid var(--border);border-radius:10px;padding:11px 12px;min-height:70px}.detail-label{color:var(--soft);font-size:10px;text-transform:uppercase;letter-spacing:.06em;font-weight:900}.detail-val{margin-top:7px;color:var(--text);font-size:18px;font-weight:950;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.detail-sections{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.detail-section{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:12px;min-height:150px}.detail-section h4{margin:0 0 9px;color:var(--text);font-size:13px;font-weight:950}.detail-list{display:flex;flex-direction:column;gap:7px}.detail-item{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:12px;font-weight:750;min-width:0}.detail-dot{width:7px;height:7px;border-radius:50%;background:linear-gradient(135deg,var(--rose),var(--blue));flex:0 0 auto}.detail-item span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.platform-bars{display:flex;flex-direction:column;gap:8px}.platform-row{display:grid;grid-template-columns:88px 1fr 58px;gap:8px;align-items:center;color:var(--muted);font-size:11px;font-weight:850}.platform-track{height:8px;border-radius:999px;background:var(--track);overflow:hidden}.platform-fill{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,var(--rose),var(--blue))}
 @media(max-width:1050px){.kpis{grid-template-columns:repeat(2,1fr)}.grid,.insight-grid,.artist-story-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.detail-grid,.detail-sections{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:640px){.kpis{grid-template-columns:1fr}.dash{padding:10px}.kpi{min-height:100px}.artist-story-grid{grid-template-columns:1fr}.modal-backdrop{padding:10px;align-items:flex-start}.leader-head{padding:14px}.leader-title{font-size:17px}.detail-grid,.detail-sections{grid-template-columns:1fr}.detail-hero{display:block}.platform-row{grid-template-columns:78px 1fr 48px}}
 </style></head><body>
-""" + f"<main class='dash {theme}'>" + "<div class='kpis'>" + kpi_html("Artists", _fmt_n(artist_total), "&#127908;", f"Latest rank snapshot", "openArtistLeaderboard()") + kpi_html("Songs", _fmt_n(song_total), "&#9835;", details_label, "openSongsLeaderboard()") + kpi_html("Albums", _fmt_n(album_total), "&#9673;", album_rows_label, "openAlbumsLeaderboard()") + kpi_html("Chart Days", _fmt_n(chart_days), "&#9719;", f"Max track streak in last {WINDOW_DAYS} days", "openChartDaysLeaderboard()") + kpi_html("Popular Songs", _fmt_n(popular_songs), "&#9679;", f"Top 10 ranked tracks · {track_rows_label}") + "</div><div class='grid'>" + bars_html(top_artists, "name", "total_points", "Top Artist", "Highest scoring artists in the latest ranking snapshot.", 10) + bars_html(top_tracks, "title", "metric", "Top Track", "Tracks with the strongest combined chart metric.", 10) + bars_html(top_albums, "album", "metric", "Top Album", "Albums with the strongest album chart metric.", 10) + "</div><div class='grid insight-grid'>" + donut_html(filtered) + radar_html(filtered) + bars_html(top_listeners, "name", "monthly_listeners", "Spotify Listener Leaders", "Artists with the highest latest monthly listener counts.", 10) + "</div>" + artist_story_html(filtered) + f"""
+""" + f"<main class='dash {theme}'>" + "<div class='kpis'>" + kpi_html("Artists", _fmt_n(artist_total), "&#127908;", f"Latest rank snapshot", "openArtistLeaderboard()") + kpi_html("Songs", _fmt_n(song_total), "&#9835;", details_label, "openSongsLeaderboard()") + kpi_html("Albums", _fmt_n(album_total), "&#9673;", album_rows_label, "openAlbumsLeaderboard()") + kpi_html("Chart Days", _fmt_n(chart_days), "&#9719;", f"Max track streak in last {WINDOW_DAYS} days", "openChartDaysLeaderboard()") + kpi_html("Popular Songs", _fmt_n(popular_songs), "&#9679;", f"Top 10 ranked tracks · {track_rows_label}", "openPopularSongsLeaderboard()") + "</div><div class='grid'>" + bars_html(top_artists, "name", "total_points", "Top Artist", "Highest scoring artists in the latest ranking snapshot.", 10) + bars_html(top_tracks, "title", "metric", "Top Track", "Tracks with the strongest combined chart metric.", 10) + bars_html(top_albums, "album", "metric", "Top Album", "Albums with the strongest album chart metric.", 10) + "</div><div class='grid insight-grid'>" + donut_html(filtered) + radar_html(filtered) + bars_html(top_listeners, "name", "monthly_listeners", "Spotify Listener Leaders", "Artists with the highest latest monthly listener counts.", 10) + "</div>" + artist_story_html(filtered) + f"""
 <div class="modal-backdrop" id="artistLeaderboardModal" onclick="closeArtistLeaderboard(event)">
   <section class="leader-modal" role="dialog" aria-modal="true" aria-labelledby="artistLeaderboardTitle" onclick="event.stopPropagation()">
     <div class="leader-head">
@@ -1217,12 +1325,44 @@ def render_artists_overview(last_run_label: str = "n/a") -> None:
     <div class="artist-detail" id="chartDaysDetailView"></div>
   </section>
 </div>
+<div class="modal-backdrop" id="popularSongsLeaderboardModal" onclick="closePopularSongsLeaderboard(event)">
+  <section class="leader-modal" role="dialog" aria-modal="true" aria-labelledby="popularSongsLeaderboardTitle" onclick="event.stopPropagation()">
+    <div class="leader-head">
+      <div>
+        <div class="leader-title" id="popularSongsLeaderboardTitle">Popular Songs Snapshot</div>
+        <div class="leader-sub" id="popularSongsLeaderboardSub"></div>
+      </div>
+      <div class="leader-actions">
+        <button class="leader-back" id="popularSongsLeaderboardBack" type="button" onclick="showPopularSongsLeaderboardTable()">Back</button>
+        <button class="leader-close" type="button" onclick="closePopularSongsLeaderboard()" aria-label="Close">&times;</button>
+      </div>
+    </div>
+    <div class="leader-table-wrap" id="popularSongsLeaderboardTableView">
+      <table class="leader-table">
+        <thead>
+          <tr>
+            <th style="width:58px">#</th>
+            <th style="width:280px">Song</th>
+            <th style="width:210px">Artist</th>
+            <th style="width:96px">Platform</th>
+            <th style="width:92px" class="num">Best rank</th>
+            <th style="width:116px" class="num">Top 10 entries</th>
+            <th style="width:112px" class="num">Metric</th>
+          </tr>
+        </thead>
+        <tbody id="popularSongsLeaderboardBody"></tbody>
+      </table>
+    </div>
+    <div class="artist-detail" id="popularSongsDetailView"></div>
+  </section>
+</div>
 </main>
 <script>
 const ARTIST_LEADERBOARD = {leaderboard_json};
 const SONGS_LEADERBOARD = {songs_json};
 const ALBUMS_LEADERBOARD = {albums_json};
 const CHART_DAYS_LEADERBOARD = {chart_days_json};
+const POPULAR_SONGS_LEADERBOARD = {popular_songs_json};
 function fmtLeaderNumber(n) {{
   const v = Number(n || 0);
   const a = Math.abs(v);
@@ -1569,7 +1709,7 @@ function openChartDaysDetail(position) {{
   const table = document.getElementById('chartDaysLeaderboardTableView');
   const back = document.getElementById('chartDaysLeaderboardBack');
   document.getElementById('chartDaysLeaderboardTitle').textContent = row.title;
-  document.getElementById('chartDaysLeaderboardSub').textContent = `Chart streak detail · ${{row.artist || 'Unknown artist'}}`;
+  document.getElementById('chartDaysLeaderboardSub').textContent = `Artist Name · ${{row.artist || 'Unknown artist'}}`;
   view.innerHTML = `
     <div class="detail-hero">
       <div>
@@ -1609,12 +1749,90 @@ function closeChartDaysLeaderboard(event) {{
     showChartDaysLeaderboardTable();
   }}
 }}
+function renderPopularSongsLeaderboard() {{
+  const body = document.getElementById('popularSongsLeaderboardBody');
+  const sub = document.getElementById('popularSongsLeaderboardSub');
+  if (!body || !sub) return;
+  const rows = POPULAR_SONGS_LEADERBOARD.rows || [];
+  sub.textContent = `${{fmtLeaderNumber(POPULAR_SONGS_LEADERBOARD.total || 0)}} top-10 songs · ${{fmtLeaderNumber(POPULAR_SONGS_LEADERBOARD.listedRows || rows.length)}} ranked tracks in last ${{POPULAR_SONGS_LEADERBOARD.windowDays || 30}} days`;
+  if (!rows.length) {{
+    body.innerHTML = '<tr><td colspan="7"><div class="leader-empty">No popular-song rows available.</div></td></tr>';
+    return;
+  }}
+  body.innerHTML = rows.map(row => `
+    <tr>
+      <td class="leader-pos">${{row.position}}</td>
+      <td><button class="leader-name" type="button" onclick="openPopularSongsDetail(${{row.position}})" title="${{escLeader(row.title)}}">${{escLeader(row.title)}}</button></td>
+      <td><div class="leader-artist"><div class="leader-avatar">${{escLeader(initials(row.artist))}}</div><span class="country-cell" title="${{escLeader(row.artist)}}">${{escLeader(row.artist)}}</span></div></td>
+      <td><span class="detail-pill">${{escLeader(row.platform)}}</span></td>
+      <td class="num leader-rank-cell">${{compactRank(row.bestRank)}}</td>
+      <td class="num">${{fmtLeaderNumber(row.top10Entries)}}</td>
+      <td class="num">${{fmtLeaderNumber(row.metric)}}</td>
+    </tr>
+  `).join('');
+}}
+function showPopularSongsLeaderboardTable() {{
+  document.getElementById('popularSongsLeaderboardTableView')?.classList.remove('hide');
+  document.getElementById('popularSongsDetailView')?.classList.remove('show');
+  document.getElementById('popularSongsLeaderboardBack')?.classList.remove('show');
+  document.getElementById('popularSongsLeaderboardTitle').textContent = 'Popular Songs Snapshot';
+  const rows = POPULAR_SONGS_LEADERBOARD.rows || [];
+  document.getElementById('popularSongsLeaderboardSub').textContent = `${{fmtLeaderNumber(POPULAR_SONGS_LEADERBOARD.total || 0)}} top-10 songs · ${{fmtLeaderNumber(POPULAR_SONGS_LEADERBOARD.listedRows || rows.length)}} ranked tracks in last ${{POPULAR_SONGS_LEADERBOARD.windowDays || 30}} days`;
+}}
+function openPopularSongsDetail(position) {{
+  const row = (POPULAR_SONGS_LEADERBOARD.rows || []).find(item => Number(item.position) === Number(position));
+  if (!row) return;
+  const view = document.getElementById('popularSongsDetailView');
+  const table = document.getElementById('popularSongsLeaderboardTableView');
+  const back = document.getElementById('popularSongsLeaderboardBack');
+  document.getElementById('popularSongsLeaderboardTitle').textContent = row.title;
+  document.getElementById('popularSongsLeaderboardSub').textContent = `Artist Name · ${{row.artist || 'Unknown artist'}}`;
+  view.innerHTML = `
+    <div class="detail-hero">
+      <div>
+        <div class="detail-name">${{escLeader(row.title)}}</div>
+        <div class="detail-meta">
+          <span class="detail-pill">${{escLeader(row.artist || 'Unknown artist')}}</span>
+          <span class="detail-pill">${{escLeader(row.platform || 'n/a')}}</span>
+          <span class="detail-pill">Best rank ${{compactRank(row.bestRank)}}</span>
+          <span class="detail-pill">${{fmtLeaderNumber(row.top10Entries)}} top-10 entries</span>
+        </div>
+      </div>
+    </div>
+    <div class="detail-grid">
+      <div class="detail-card"><div class="detail-label">Song</div><div class="detail-val" title="${{escLeader(row.title)}}">${{escLeader(row.title)}}</div></div>
+      <div class="detail-card"><div class="detail-label">Artist</div><div class="detail-val" title="${{escLeader(row.artist)}}">${{escLeader(row.artist)}}</div></div>
+      <div class="detail-card"><div class="detail-label">Platform</div><div class="detail-val">${{escLeader(row.platform || 'n/a')}}</div></div>
+      <div class="detail-card"><div class="detail-label">Best rank</div><div class="detail-val">${{compactRank(row.bestRank)}}</div></div>
+      <div class="detail-card"><div class="detail-label">Top 10 entries</div><div class="detail-val">${{fmtLeaderNumber(row.top10Entries)}}</div></div>
+      <div class="detail-card"><div class="detail-label">Metric</div><div class="detail-val">${{fmtLeaderNumber(row.metric)}}</div></div>
+      <div class="detail-card"><div class="detail-label">Chart days</div><div class="detail-val">${{fmtLeaderNumber(row.days)}}</div></div>
+      <div class="detail-card"><div class="detail-label">Latest seen</div><div class="detail-val">${{escLeader(row.latestDate || 'n/a')}}</div></div>
+    </div>
+  `;
+  table?.classList.add('hide');
+  view?.classList.add('show');
+  back?.classList.add('show');
+}}
+function openPopularSongsLeaderboard() {{
+  renderPopularSongsLeaderboard();
+  showPopularSongsLeaderboardTable();
+  document.getElementById('popularSongsLeaderboardModal')?.classList.add('open');
+}}
+function closePopularSongsLeaderboard(event) {{
+  const modal = document.getElementById('popularSongsLeaderboardModal');
+  if (!event || event.target === modal) {{
+    modal?.classList.remove('open');
+    showPopularSongsLeaderboardTable();
+  }}
+}}
 document.addEventListener('keydown', event => {{
   if (event.key === 'Escape') {{
     closeArtistLeaderboard();
     closeSongsLeaderboard();
     closeAlbumsLeaderboard();
     closeChartDaysLeaderboard();
+    closePopularSongsLeaderboard();
   }}
 }});
 </script>
