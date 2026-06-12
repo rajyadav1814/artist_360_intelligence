@@ -580,7 +580,6 @@ body { background: var(--bg); font-family: var(--font-sans); color: var(--t1); -
             <option value="30">30 Days</option>
           </select>
         </span>
-        <span class="filter-tag" id="count-badge">0 albums</span>
       </span>
   </div>
 
@@ -878,7 +877,6 @@ function applyFilters(){
 }
 
 function renderTable() {
-    document.getElementById('count-badge').textContent = `${ALBUMS.length} albums`;
     const el = document.getElementById('album-table');
     let htmlStr = '';
 

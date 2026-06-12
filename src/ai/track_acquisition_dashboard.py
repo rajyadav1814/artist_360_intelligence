@@ -315,7 +315,7 @@ def _build_payload(tracks: list[dict[str, Any]], dates: list[date], limit: int =
 
 def render_track_acquisition() -> None:
     st.markdown(
-        "<div style='font-size:1.1rem;color:#97a3c5;margin:0.2rem 0 0.75rem 0;line-height:1.5;'>"
+        "<div style='font-size: 0.92rem; color: var(--t2); margin: 0 0 14px; line-height: 1.5; font-weight: 500;'>"
         "🎵 Evaluate track-level acquisition potential by analyzing cross-platform performance metrics. "
         "This dashboard combines daily streaming data from Spotify (Global, US, and LATAM markets) "
         "with iTunes Worldwide chart movements to compute an overall Acquisition Score. "
@@ -582,7 +582,6 @@ body { background: var(--bg); font-family: var(--font-sans); color: var(--t1); -
             <option value="30">30 Days</option>
           </select>
         </span>
-        <span class="filter-tag" id="count-badge">0 tracks</span>
       </span>
   </div>
 
@@ -880,7 +879,6 @@ function applyFilters(){
 }
 
 function renderTable() {
-    document.getElementById('count-badge').textContent = `${TRACKS.length} tracks`;
     const el = document.getElementById('track-table');
     let htmlStr = '';
 
