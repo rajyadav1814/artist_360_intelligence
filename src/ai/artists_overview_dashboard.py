@@ -1018,7 +1018,7 @@ function openArtistDetail(position) {{
       <div class="detail-card"><div class="detail-label">Songs</div><div class="detail-val">${{fmtLeaderNumber(row.songs)}}</div></div>
       <div class="detail-card"><div class="detail-label">Albums</div><div class="detail-val">${{fmtLeaderNumber(row.albums)}}</div></div>
       <div class="detail-card"><div class="detail-label">Countries</div><div class="detail-val">${{fmtLeaderNumber(row.markets || row.numCountries)}}</div></div>
-      <div class="detail-card"><div class="detail-label">Peak date</div><div class="detail-val">${{escLeader(row.peakDate || 'n/a')}}</div></div>
+      
       <div class="detail-card"><div class="detail-label">Chart tracks</div><div class="detail-val">${{fmtLeaderNumber(row.chartTracks)}}</div></div>
       <div class="detail-card"><div class="detail-label">Chart albums</div><div class="detail-val">${{fmtLeaderNumber(row.chartAlbums)}}</div></div>
       <div class="detail-card"><div class="detail-label">Track metric</div><div class="detail-val">${{fmtLeaderNumber(row.trackMetric)}}</div></div>
