@@ -4147,9 +4147,9 @@ app_pages = [
     ),
      st.Page(
         show_movement_page,
-        title="Trends",
+        title="Movement Trends",
         icon=":material/show_chart:",
-        url_path="trends",
+        url_path="movement-trends",
     ),
       st.Page(
         show_acquisition_page,

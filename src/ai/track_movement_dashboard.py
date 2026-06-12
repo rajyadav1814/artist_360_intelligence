@@ -374,16 +374,16 @@ def _build_html(payload: dict, dark_mode: bool = False) -> str:
 *{box-sizing:border-box;margin:0;padding:0}
 __THEME__
 body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t1);font-size:14px;line-height:1.45}
-.dash{padding:14px 4px 18px}
-.top{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:12px}
+.dash{padding:12px 4px 14px}
+.top{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:12px}
 .title{font-size:18px;font-weight:600;color:var(--t1)}
 .sub{font-size:12px;color:var(--t2);margin-top:2px}
 .tags{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
 .tag{font-size:10px;padding:2px 7px;border-radius:4px;font-weight:700;border:1px solid var(--border)}
 .pt-it{background:rgba(252,211,77,.16);color:var(--amber)}
 .pt-sp{background:rgba(52,211,153,.16);color:var(--green)}
-.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:18px}
-.kpi{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:14px 16px}
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-bottom:14px}
+.kpi{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:12px 14px}
 .kpi-head{display:flex;align-items:center;gap:8px;margin-bottom:6px}
 .kpi-icon{width:22px;height:22px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;background:var(--bg3);border:1px solid var(--border);color:var(--blue);flex:0 0 auto}
 .kpi-icon svg{width:14px;height:14px;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}
@@ -393,14 +393,14 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
 .kpi-label{font-size:12px;color:var(--t2)}
 .kpi-value{font-size:22px;font-weight:600;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .kpi-sub{font-size:11px;color:var(--t3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.tab-bar{display:flex;gap:18px;justify-content:flex-start;margin-bottom:16px;border-bottom:1px solid var(--border);padding:8px 0 14px;overflow-x:auto}
-.tab{min-width:158px;padding:10px 22px;font-size:13px;font-weight:600;background:rgba(251,113,133,.10);border:1px solid rgba(251,113,133,.28);border-radius:12px;cursor:pointer;color:var(--t1);white-space:nowrap;text-align:center;transition:background .15s,border-color .15s,box-shadow .15s}
+.tab-bar{display:flex;gap:10px;justify-content:flex-start;margin-bottom:12px;border-bottom:1px solid var(--border);padding:4px 0 10px;overflow-x:auto}
+.tab{min-width:132px;padding:8px 14px;font-size:12px;font-weight:700;background:rgba(251,113,133,.10);border:1px solid rgba(251,113,133,.28);border-radius:10px;cursor:pointer;color:var(--t1);white-space:nowrap;text-align:center;transition:background .15s,border-color .15s,box-shadow .15s}
 .tab:hover{background:rgba(251,113,133,.14);border-color:rgba(251,113,133,.42)}
 .tab.active{background:rgba(251,113,133,.18);border-color:rgba(251,113,133,.55);box-shadow:0 0 0 2px rgba(251,113,133,.08)}
 .panel{display:none}.panel.active{display:block}
-.tab-desc{font-size:12px;color:var(--t2);line-height:1.45;margin:0 0 12px;max-width:920px}
-.two-col{display:grid;grid-template-columns:1fr 1fr;gap:14px}
-.card{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:15px 16px}
+.tab-desc{font-size:12px;color:var(--t2);line-height:1.45;margin:0 0 10px;max-width:920px}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:14px 14px}
 .section-label{font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;display:flex;align-items:center;gap:7px}
 .rank-table{width:100%;border-collapse:collapse;font-size:13px}
 .rank-table th{text-align:left;font-size:11px;font-weight:700;color:var(--t2);padding:6px 8px;border-bottom:1px solid var(--border)}
@@ -439,7 +439,7 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
 .legend-dot{width:10px;height:10px;border-radius:2px;flex:0 0 auto}
 .empty{color:var(--t3);font-size:12px;padding:12px 0}
 .hide{display:none!important}
-@media(max-width:720px){.top{align-items:flex-start;flex-direction:column}.two-col{grid-template-columns:1fr}.kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:720px){.top{align-items:flex-start;flex-direction:column}.two-col{grid-template-columns:1fr}.kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.tab{min-width:118px;padding:8px 12px}}
 </style></head><body>
 <div class='dash'>
   <div class='kpi-grid'>
@@ -450,10 +450,10 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
   </div>
 
   <div class='tab-bar'>
-    <button class='tab active' onclick="showTab(event,'consistency')">Consistency</button>
-    <button class='tab' onclick="showTab(event,'movement')">Biggest movement</button>
-    <button class='tab' onclick="showTab(event,'live')">New Tracks</button>
-    <button class='tab' onclick="showTab(event,'trend')">Rank trend</button>
+    <button class='tab active' onclick="showTab(event,'live')">Top Tracks</button>
+    <button class='tab' onclick="showTab(event,'movement')">Top Movement</button>
+    <button class='tab' onclick="showTab(event,'trend')">Rank Trend</button>
+    <button class='tab' onclick="showTab(event,'consistency')">Consistency</button>
   </div>
 
   <div class='panel active' id='panel-consistency'>
