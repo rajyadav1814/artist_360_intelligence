@@ -80,7 +80,7 @@ elif "dark_mode" not in st.session_state:
         st.session_state.dark_mode = st.context.cookies["theme"] == "dark"
     # 3. Fallback to default
     else:
-        st.session_state.dark_mode = True
+        st.session_state.dark_mode = False
 
 if "active_artist_profile" not in st.session_state:
     st.session_state.active_artist_profile = None
@@ -181,7 +181,7 @@ LOAD_TIMEOUT_MS = 20000
 
 def render_plotly_html(fig: go.Figure, *, height: int | None = None, dark_mode: bool | None = None) -> None:
     if dark_mode is None:
-        dark_mode = st.session_state.get("dark_mode", True)
+        dark_mode = st.session_state.get("dark_mode", False)
 
     chart_height = height or (int(fig.layout.height) if fig.layout.height else 520)
     fig.update_layout(
@@ -1295,7 +1295,7 @@ def show_artist_details_dialog(row: pd.Series) -> None:
     countries_html = "".join(f"<li>{escape(item)}</li>" for item in countries_items) if countries_items else "<div style='color:#8b95ad;font-size:.88rem;'>No countries available.</div>"
 
     # Scoped styles for the dialog
-    is_dark = st.session_state.get("dark_mode", True)
+    is_dark = st.session_state.get("dark_mode", False)
     
     if is_dark:
         dlg_bg = "linear-gradient(180deg, #0f172a 0%, #020617 100%)"
@@ -1981,7 +1981,7 @@ def latest_source_rows(runs: pd.DataFrame) -> pd.DataFrame:
 
 def style_figure(fig, height: int, dark_mode: bool | None = None) -> None:
     if dark_mode is None:
-        dark_mode = st.session_state.get("dark_mode", True)
+        dark_mode = st.session_state.get("dark_mode", False)
 
     text_color = "#cdd6e4" if dark_mode else "#1A1A1A"
     grid_color = "rgba(255,255,255,0.06)" if dark_mode else "rgba(0,0,0,0.06)"
@@ -2181,7 +2181,7 @@ def prepare_leaderboard_table(leaderboard: pd.DataFrame, max_rows: int) -> pd.Da
 def render_leaderboard_table_html(leaderboard: pd.DataFrame, max_rows: int, date_label: str = "n/a") -> None:
     table_df = leaderboard.head(max_rows).copy()
     rows_html = []
-    current_theme = "dark" if st.session_state.get("dark_mode", True) else "light"
+    current_theme = "dark" if st.session_state.get("dark_mode", False) else "light"
     for _, row in table_df.iterrows():
         rank = int(row["rank"]) if pd.notna(row["rank"]) else "—"
         rank_change = trend_badge_html(str(row.get("rank_change") or ""))
@@ -2261,7 +2261,7 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
     top_artist_row = leaderboard.sort_values("rank").head(1)
     top_artist_name = str(top_artist_row.iloc[0]["name"]) if not top_artist_row.empty else "—"
 
-    is_dark = st.session_state.get("dark_mode", True)
+    is_dark = st.session_state.get("dark_mode", False)
     
     # Python-level dynamic CSS to ensure no variable inheritance issues
     lb_bg2 = "#161b26" if is_dark else "#FFFFFF"
@@ -3390,10 +3390,10 @@ def render_chatbot_widget() -> None:
         
 
 
-apply_theme(dark_mode=st.session_state.get("dark_mode", True))
+apply_theme(dark_mode=st.session_state.get("dark_mode", False))
 
 _loader_slot = st.empty()
-is_dark = st.session_state.get("dark_mode", True)
+is_dark = st.session_state.get("dark_mode", False)
 l_bg = "#0d1117" if is_dark else "#FFFFFF"
 l_title = "#e2e8f0" if is_dark else "#1A1A1A"
 l_sub = "#5a7ab5" if is_dark else "#8A8FA3"
@@ -3740,7 +3740,7 @@ def show_compare_page() -> None:
 
         with comp_col1:
             fig_comp_listeners = go.Figure()
-            is_dark = st.session_state.get("dark_mode", True)
+            is_dark = st.session_state.get("dark_mode", False)
             text_color = "#fff" if is_dark else "#1A1A1A"
             for idx_a, aname in enumerate(selected_for_comparison):
                 sl = comparison_data[comparison_data["name"] == aname]
@@ -3952,7 +3952,7 @@ def show_ai_analyst_page() -> None:
         """,
         unsafe_allow_html=True
     )
-    is_dark = st.session_state.get("dark_mode", True)
+    is_dark = st.session_state.get("dark_mode", False)
     bot_url = "https://artist360-chatbot.vercel.app/" if is_dark else "https://artist360-chatbot.vercel.app/white"
     st_components.iframe(bot_url, height=1000, scrolling=False)
 
@@ -4217,7 +4217,7 @@ with st.sidebar:
         "<div style='margin:.25rem 0 .35rem; color: var(--text2); font-size:.78rem; font-weight:800; letter-spacing:.08em; text-transform:uppercase;'>Appearance</div>",
         unsafe_allow_html=True,
     )
-    is_dark = st.session_state.get("dark_mode", True)
+    is_dark = st.session_state.get("dark_mode", False)
     toggle_label = "☀️ Light Mode" if is_dark else "🌙 Dark Mode"
     if st.button(
         toggle_label,

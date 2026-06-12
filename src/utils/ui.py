@@ -2,7 +2,7 @@ import streamlit as st
 
 def custom_selectbox(label: str, options: list, index: int = 0, key: str = None) -> str:
     """Render a selectbox using standard Streamlit that works with Python backend."""
-    is_dark = st.session_state.get("dark_mode", True)
+    is_dark = st.session_state.get("dark_mode", False)
     
     # Colors based on theme for injection
     bg_color = "#FFFFFF" if not is_dark else "#161b27"
@@ -76,7 +76,7 @@ def custom_selectbox(label: str, options: list, index: int = 0, key: str = None)
 
 def custom_multiselect(label: str, options: list, default: list = None, key: str = None, **kwargs) -> list:
     """Render a multiselect using standard Streamlit with custom theme injection."""
-    is_dark = st.session_state.get("dark_mode", True)
+    is_dark = st.session_state.get("dark_mode", False)
     
     # Colors based on theme for injection
     bg_color = "#FFFFFF" if not is_dark else "#161b27"
@@ -153,4 +153,3 @@ def custom_multiselect(label: str, options: list, default: list = None, key: str
         """, unsafe_allow_html=True)
         
     return st.multiselect(label, options, default=default, key=key, **kwargs)
-
