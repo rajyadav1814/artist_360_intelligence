@@ -1341,7 +1341,6 @@ def render_artists_overview(last_run_label: str = "n/a") -> None:
             <th style="width:220px">Artist</th>
             <th style="width:96px">Platform</th>
             <th style="width:92px" class="num">Rank</th>
-            <th style="width:92px" class="num">Days</th>
             <th style="width:112px" class="num">Metric</th>
           </tr>
         </thead>
@@ -1372,7 +1371,6 @@ def render_artists_overview(last_run_label: str = "n/a") -> None:
             <th style="width:220px">Artist</th>
             <th style="width:96px">Platform</th>
             <th style="width:92px" class="num">Rank</th>
-            <th style="width:92px" class="num">Days</th>
             <th style="width:112px" class="num">Metric</th>
           </tr>
         </thead>
@@ -1603,7 +1601,7 @@ function renderSongsLeaderboard() {{
   const rows = SONGS_LEADERBOARD.rows || [];
   sub.textContent = `${{fmtLeaderNumber(SONGS_LEADERBOARD.total || 0)}} catalog songs · ${{fmtLeaderNumber(SONGS_LEADERBOARD.listedRows || rows.length)}} ranked tracks in last ${{SONGS_LEADERBOARD.windowDays || 30}} days`;
   if (!rows.length) {{
-    body.innerHTML = '<tr><td colspan="7"><div class="leader-empty">No ranked song rows available.</div></td></tr>';
+    body.innerHTML = '<tr><td colspan="6"><div class="leader-empty">No ranked song rows available.</div></td></tr>';
     return;
   }}
   body.innerHTML = rows.map(row => `
@@ -1613,7 +1611,6 @@ function renderSongsLeaderboard() {{
       <td><div class="leader-artist"><div class="leader-avatar">${{escLeader(initials(row.artist))}}</div><span class="country-cell" title="${{escLeader(row.artist)}}">${{escLeader(row.artist)}}</span></div></td>
       <td><span class="detail-pill">${{escLeader(row.platform)}}</span></td>
       <td class="num leader-rank-cell">${{compactRank(row.bestRank)}}</td>
-      <td class="num">${{fmtLeaderNumber(row.days)}}</td>
       <td class="num">${{fmtLeaderNumber(row.metric)}}</td>
     </tr>
   `).join('');
@@ -1642,7 +1639,6 @@ function openSongsDetail(position) {{
           <span class="detail-pill">${{escLeader(row.artist || 'Unknown artist')}}</span>
           <span class="detail-pill">${{escLeader(row.platform || 'n/a')}}</span>
           <span class="detail-pill">Rank ${{compactRank(row.bestRank)}}</span>
-          <span class="detail-pill">${{fmtLeaderNumber(row.days)}} chart days</span>
         </div>
       </div>
     </div>
@@ -1651,7 +1647,6 @@ function openSongsDetail(position) {{
       <div class="detail-card"><div class="detail-label">Artist</div><div class="detail-val" title="${{escLeader(row.artist)}}">${{escLeader(row.artist)}}</div></div>
       <div class="detail-card"><div class="detail-label">Platform</div><div class="detail-val">${{escLeader(row.platform || 'n/a')}}</div></div>
       <div class="detail-card"><div class="detail-label">Best rank</div><div class="detail-val">${{compactRank(row.bestRank)}}</div></div>
-      <div class="detail-card"><div class="detail-label">Chart days</div><div class="detail-val">${{fmtLeaderNumber(row.days)}}</div></div>
       <div class="detail-card"><div class="detail-label">Metric</div><div class="detail-val">${{fmtLeaderNumber(row.metric)}}</div></div>
       <div class="detail-card"><div class="detail-label">Entries</div><div class="detail-val">${{fmtLeaderNumber(row.entries)}}</div></div>
       <div class="detail-card"><div class="detail-label">Latest seen</div><div class="detail-val">${{escLeader(row.latestDate || 'n/a')}}</div></div>
@@ -1680,7 +1675,7 @@ function renderAlbumsLeaderboard() {{
   const rows = ALBUMS_LEADERBOARD.rows || [];
   sub.textContent = `${{fmtLeaderNumber(ALBUMS_LEADERBOARD.total || 0)}} catalog albums · ${{fmtLeaderNumber(ALBUMS_LEADERBOARD.listedRows || rows.length)}} ranked albums in last ${{ALBUMS_LEADERBOARD.windowDays || 30}} days`;
   if (!rows.length) {{
-    body.innerHTML = '<tr><td colspan="7"><div class="leader-empty">No ranked album rows available.</div></td></tr>';
+    body.innerHTML = '<tr><td colspan="6"><div class="leader-empty">No ranked album rows available.</div></td></tr>';
     return;
   }}
   body.innerHTML = rows.map(row => `
@@ -1690,7 +1685,6 @@ function renderAlbumsLeaderboard() {{
       <td><div class="leader-artist"><div class="leader-avatar">${{escLeader(initials(row.artist))}}</div><span class="country-cell" title="${{escLeader(row.artist)}}">${{escLeader(row.artist)}}</span></div></td>
       <td><span class="detail-pill">${{escLeader(row.platform)}}</span></td>
       <td class="num leader-rank-cell">${{compactRank(row.bestRank)}}</td>
-      <td class="num">${{fmtLeaderNumber(row.days)}}</td>
       <td class="num">${{fmtLeaderNumber(row.metric)}}</td>
     </tr>
   `).join('');
@@ -1719,7 +1713,6 @@ function openAlbumsDetail(position) {{
           <span class="detail-pill">${{escLeader(row.artist || 'Unknown artist')}}</span>
           <span class="detail-pill">${{escLeader(row.platform || 'iTunes')}}</span>
           <span class="detail-pill">Rank ${{compactRank(row.bestRank)}}</span>
-          <span class="detail-pill">${{fmtLeaderNumber(row.days)}} chart days</span>
         </div>
       </div>
     </div>
@@ -1728,7 +1721,6 @@ function openAlbumsDetail(position) {{
       <div class="detail-card"><div class="detail-label">Artist</div><div class="detail-val" title="${{escLeader(row.artist)}}">${{escLeader(row.artist)}}</div></div>
       <div class="detail-card"><div class="detail-label">Platform</div><div class="detail-val">${{escLeader(row.platform || 'iTunes')}}</div></div>
       <div class="detail-card"><div class="detail-label">Best rank</div><div class="detail-val">${{compactRank(row.bestRank)}}</div></div>
-      <div class="detail-card"><div class="detail-label">Chart days</div><div class="detail-val">${{fmtLeaderNumber(row.days)}}</div></div>
       <div class="detail-card"><div class="detail-label">Metric</div><div class="detail-val">${{fmtLeaderNumber(row.metric)}}</div></div>
       <div class="detail-card"><div class="detail-label">Entries</div><div class="detail-val">${{fmtLeaderNumber(row.entries)}}</div></div>
       <div class="detail-card"><div class="detail-label">Latest seen</div><div class="detail-val">${{escLeader(row.latestDate || 'n/a')}}</div></div>
@@ -1884,7 +1876,6 @@ function openPopularSongsDetail(position) {{
       <div class="detail-card"><div class="detail-label">Best rank</div><div class="detail-val">${{compactRank(row.bestRank)}}</div></div>
       <div class="detail-card"><div class="detail-label">Top 10 entries</div><div class="detail-val">${{fmtLeaderNumber(row.top10Entries)}}</div></div>
       <div class="detail-card"><div class="detail-label">Metric</div><div class="detail-val">${{fmtLeaderNumber(row.metric)}}</div></div>
-      <div class="detail-card"><div class="detail-label">Chart days</div><div class="detail-val">${{fmtLeaderNumber(row.days)}}</div></div>
       <div class="detail-card"><div class="detail-label">Latest seen</div><div class="detail-val">${{escLeader(row.latestDate || 'n/a')}}</div></div>
     </div>
   `;
