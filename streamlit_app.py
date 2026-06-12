@@ -414,7 +414,7 @@ def apply_theme(dark_mode: bool = True) -> None:
             padding-right: clamp(0.85rem, 1.8vw, 1.6rem);
             padding-left: clamp(0.85rem, 1.8vw, 1.6rem);
             padding-bottom: 6rem;
-            margin-top: -1.0rem;
+            margin-top: -4.0rem;
         }
         div[data-testid="stHorizontalBlock"] {
             gap: clamp(0.75rem, 1.4vw, 1.1rem);
@@ -3514,13 +3514,6 @@ def show_leaderboard_page() -> None:
 
 def show_compare_page() -> None:
     st.markdown(
-        "<div style='font-size: 0.95rem; color: var(--text2); margin: 0 0 16px; line-height: 1.5; font-weight: 500;'>"
-        "Side-by-side performance benchmarking for head-to-head artist analysis. Compare multiple acts across "
-        "primary metrics including audience scale, catalog depth, and global market penetration."
-        "</div>",
-        unsafe_allow_html=True
-    )
-    st.markdown(
         """
         <style>
         .cmp-note {
@@ -3623,7 +3616,9 @@ def show_compare_page() -> None:
             font-weight: 600;
         }
         </style>
-        <div class='cmp-note'>Select 2-5 artists to compare their leaderboard metrics.</div>
+        <div class='cmp-note'>Select 2-5 artists to compare their leaderboard metrics.
+        <div >Side-by-side performance benchmarking for head-to-head artist analysis. Compare multiple acts across primary metrics including audience scale, catalog depth, and global market penetration.</div>
+        </div>
         """,
         unsafe_allow_html=True,
     )
@@ -3913,7 +3908,7 @@ def show_artists_overview_page() -> None:
         """
         <style>
         .stMainBlockContainer, .block-container {
-            padding-top: 0.8rem !important;
+            padding-top: 0.1rem !important;
         }
         </style>
         """,
@@ -3927,7 +3922,7 @@ def show_redesign_dashboard_page() -> None:
         """
         <style>
         .stMainBlockContainer, .block-container {
-            padding-top: 0.8rem !important;
+            padding-top: 0.1rem !important;
         }
         </style>
         """,
