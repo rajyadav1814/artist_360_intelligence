@@ -64,6 +64,11 @@ def _short_label(value: str, limit: int = 20) -> str:
     return value if len(value) <= limit else value[: max(0, limit - 3)] + "..."
 
 
+def _is_valid_artist_name(value: Any) -> bool:
+    name = str(value or "").strip()
+    return bool(name) and name.lower() not in {"null", "none", "nan"}
+
+
 def _format_rank_change(value: Any) -> tuple[str, str]:
     raw = str(value or "").strip()
     if not raw or raw in {"0", "=", "-", "—"}:
@@ -175,6 +180,9 @@ def _load_artist_details_latest() -> pd.DataFrame:
             ad.scrape_date
         FROM artist_details ad
         JOIN artists a ON a.id = ad.artist_id
+        WHERE a.name IS NOT NULL
+          AND btrim(a.name) <> ''
+          AND lower(btrim(a.name)) NOT IN ('null', 'none', 'nan')
         ORDER BY a.name, ad.scraped_at DESC
     """
     rows = _run_query(query)
@@ -713,7 +721,9 @@ def render_artists_overview(last_run_label: str = "n/a") -> None:
                 song_df[col] = pd.to_numeric(song_df[col], errors="coerce").fillna(0)
         song_df = song_df.sort_values(["songs_count", "albums_count"], ascending=[False, False]).reset_index(drop=True)
         for idx, row in song_df.iterrows():
-            artist_name = str(row.get("name") or "Unknown")
+            artist_name = _modal_text(row, "name").strip()
+            if not _is_valid_artist_name(artist_name):
+                continue
             fallback_image = get_fallback_avatar_url(artist_name)
             artist_image = get_artist_image_url(artist_name) if idx < ARTIST_IMAGE_LOOKUP_LIMIT else None
             top_songs = [
@@ -742,6 +752,59 @@ def render_artists_overview(last_run_label: str = "n/a") -> None:
             "artistRows": int(len(details_df)),
             "listedRows": int(len(song_rows)),
             "rows": song_rows,
+        },
+        default=str,
+    ).replace("</", "<\\/")
+
+    album_rows: list[dict[str, Any]] = []
+    if not details_df.empty:
+        album_cols = [col for col in [
+            "name",
+            "songs_count",
+            "albums_count",
+            "countries_count",
+            "top_songs",
+            "top_albums",
+            "top_countries",
+            "scrape_date",
+        ] if col in details_df.columns]
+        album_df = details_df[album_cols].copy()
+        for col in ["songs_count", "albums_count", "countries_count"]:
+            if col in album_df.columns:
+                album_df[col] = pd.to_numeric(album_df[col], errors="coerce").fillna(0)
+        album_df = album_df.sort_values(["albums_count", "songs_count"], ascending=[False, False]).reset_index(drop=True)
+        for idx, row in album_df.iterrows():
+            artist_name = _modal_text(row, "name").strip()
+            if not _is_valid_artist_name(artist_name):
+                continue
+            fallback_image = get_fallback_avatar_url(artist_name)
+            artist_image = get_artist_image_url(artist_name) if idx < ARTIST_IMAGE_LOOKUP_LIMIT else None
+            top_album_items = [
+                item.strip()
+                for item in _modal_text(row, "top_albums").replace(";", "\n").splitlines()
+                if item.strip()
+            ]
+            for album_title in top_album_items:
+                album_rows.append({
+                    "position": len(album_rows) + 1,
+                    "title": album_title,
+                    "artist": artist_name,
+                    "imageUrl": artist_image or fallback_image,
+                    "artistSongs": _modal_num(row, "songs_count"),
+                    "artistAlbums": _modal_num(row, "albums_count"),
+                    "markets": _modal_num(row, "countries_count"),
+                    "topSongs": _modal_text(row, "top_songs"),
+                    "topAlbums": _modal_text(row, "top_albums"),
+                    "topCountries": _modal_text(row, "top_countries"),
+                    "scrapeDate": _modal_text(row, "scrape_date", "n/a"),
+                })
+    albums_json = json.dumps(
+        {
+            "latestLabel": latest_label,
+            "total": int(album_total),
+            "artistRows": int(len(details_df)),
+            "listedRows": int(len(album_rows)),
+            "rows": album_rows,
         },
         default=str,
     ).replace("</", "<\\/")
@@ -920,10 +983,10 @@ def render_artists_overview(last_run_label: str = "n/a") -> None:
 .donut{width:132px;height:132px;border-radius:50%;margin:8px auto 12px;display:grid;place-items:center;position:relative}.donut:after{content:"";position:absolute;width:72px;height:72px;border-radius:50%;background:var(--panel)}.donut span{position:relative;z-index:1;color:var(--text);font-weight:900}.legend{display:grid;gap:6px}.legend-row{display:grid;grid-template-columns:12px 1fr auto;gap:7px;align-items:center;color:var(--muted);font-size:11px}.legend-row span{width:10px;height:10px;border-radius:50%}.legend-row b{color:var(--text);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.legend-row i{font-style:normal}
 .treemap{height:224px;display:flex;flex-wrap:wrap;gap:2px}.tile{min-width:72px;min-height:52px;padding:7px;color:#fff;display:flex;flex-direction:column;justify-content:space-between;font-size:11px;font-weight:800;text-shadow:0 1px 2px rgba(0,0,0,.28)}.tile b{font-size:13px}.top-chip{font-size:11px;color:var(--muted);background:var(--panel3);border:1px solid var(--border);padding:3px 7px;border-radius:4px}.artist-story-panel{min-height:488px;padding:14px 14px 18px}.artist-story-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}.artist-card{position:relative;overflow:hidden;background:linear-gradient(180deg,var(--panel2),var(--panel3));border:1px solid var(--border);border-radius:14px;padding:10px 12px;display:flex;flex-direction:column;gap:8px;min-height:202px;box-shadow:0 8px 20px rgba(0,0,0,.06)}.artist-card:before{content:"";position:absolute;inset:0 auto 0 0;width:4px;background:linear-gradient(180deg,var(--accent),var(--accent2))}.artist-card-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}.artist-rank{color:var(--soft);font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase}.artist-name{color:var(--text);font-size:16px;font-weight:900;line-height:1.05;margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.artist-badge{font-size:10px;font-weight:900;padding:4px 8px;border-radius:999px;white-space:nowrap;background:var(--panel3);border:1px solid var(--border);color:var(--muted)}.artist-badge.up{color:#86efac;background:rgba(52,211,153,.14);border-color:rgba(52,211,153,.22)}.artist-badge.down{color:#fda4af;background:rgba(251,113,133,.14);border-color:rgba(251,113,133,.22)}.artist-badge.flat{color:var(--muted);background:var(--panel3);border-color:var(--border)}.artist-bar{height:8px;background:var(--track);border-radius:999px;overflow:hidden}.artist-bar span{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,var(--accent),var(--accent2))}.artist-metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.metric{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:7px 8px}.metric span{display:block;font-size:9px;color:var(--soft);text-transform:uppercase;letter-spacing:.06em;font-weight:800}.metric b{display:block;margin-top:4px;color:var(--text);font-size:12px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.artist-footer{display:flex;justify-content:space-between;gap:8px;align-items:center;color:var(--muted);font-size:11px;font-weight:650}.artist-country{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.perf-graph{width:100%;height:132px;margin-top:14px;display:block;border-radius:12px;background:linear-gradient(180deg,rgba(96,165,250,.10),rgba(251,113,133,.05))}.perf-grid{stroke:var(--border);stroke-width:1;stroke-dasharray:4 5}.perf-axis{stroke:var(--soft);stroke-width:1.5}.perf-area{fill:rgba(96,165,250,.24)}.perf-line{fill:none;stroke:var(--rose);stroke-width:5;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 0 8px rgba(251,113,133,.42))}.perf-bar{opacity:.72}.perf-dot{stroke:var(--panel);stroke-width:3;filter:drop-shadow(0 0 5px rgba(255,255,255,.22))}.perf-graph text{fill:var(--soft);font-size:11px;font-weight:900}.perf-title{fill:var(--text)!important;font-size:13px!important}.perf-name{font-size:10px!important}.tone-fill-0{fill:var(--rose)}.tone-fill-1{fill:var(--blue)}.tone-fill-2{fill:var(--green)}.tone-fill-3{fill:var(--purple)}.tone-fill-4{fill:var(--amber)}
 .empty{color:var(--muted);font-size:12px;padding:24px 4px}
-.modal-backdrop{position:fixed;inset:0;z-index:40;display:none;align-items:flex-start;justify-content:center;background:rgba(2,6,23,.62);padding:22px 18px}.modal-backdrop.open{display:flex}.leader-modal{width:min(1040px,100%);max-height:calc(100vh - 44px);display:flex;flex-direction:column;background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--border);border-radius:14px;box-shadow:0 28px 88px rgba(0,0,0,.42);overflow:hidden}.leader-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:18px 20px;border-bottom:1px solid var(--border)}.leader-kicker{color:var(--rose);font-size:11px;text-transform:uppercase;letter-spacing:.08em;font-weight:900}.leader-title{margin-top:4px;color:var(--text);font-size:20px;font-weight:900}.leader-sub{margin-top:5px;color:var(--muted);font-size:12px;font-weight:650}.leader-close,.leader-back{height:34px;border-radius:8px;border:1px solid var(--border);background:var(--panel3);color:var(--text);cursor:pointer}.leader-close{width:34px;font-size:20px;line-height:1}.leader-back{display:none;padding:0 12px;font-size:12px;font-weight:900}.leader-back.show{display:inline-flex;align-items:center}.leader-actions{display:flex;gap:8px;align-items:center}.leader-close:hover,.leader-back:hover{border-color:rgba(251,113,133,.55);color:var(--rose)}.leader-table-wrap{overflow:auto;padding:0 0 8px}.leader-table-wrap.hide{display:none}.leader-table{width:100%;border-collapse:collapse;min-width:880px;table-layout:fixed}.leader-table th{position:sticky;top:0;z-index:1;background:var(--panel2);color:var(--soft);font-size:10px;text-align:left;text-transform:uppercase;letter-spacing:.06em;font-weight:900;padding:10px 12px;border-bottom:1px solid var(--border)}.leader-table td{padding:11px 12px;border-bottom:1px solid var(--border);color:var(--muted);font-size:12px;font-weight:650;vertical-align:middle}.leader-table tbody tr:hover td{background:var(--panel3)}.leader-pos{color:var(--soft);font-weight:900}.leader-artist{display:flex;align-items:center;gap:9px;min-width:0}.leader-avatar{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;color:#fff;background:linear-gradient(135deg,var(--rose),var(--blue));font-size:11px;font-weight:900;flex:0 0 auto}.leader-name{border:0;background:transparent;padding:0;color:var(--text);font:inherit;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;text-align:left}.leader-name:hover{text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:3px;color:var(--rose)}.leader-rank-cell{color:var(--text);font-size:13px;font-weight:900}.leader-change{display:inline-flex;align-items:center;justify-content:center;min-width:54px;border-radius:999px;padding:3px 8px;font-size:10px;font-weight:900;border:1px solid var(--border);background:var(--panel3)}.leader-change.up{color:#86efac;background:rgba(52,211,153,.14);border-color:rgba(52,211,153,.25)}.leader-change.down{color:#fda4af;background:rgba(251,113,133,.14);border-color:rgba(251,113,133,.25)}.leader-change.flat{color:var(--muted)}.leader-empty{padding:26px;color:var(--muted);font-size:13px;text-align:center}.num{text-align:right;font-variant-numeric:tabular-nums}.country-cell{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.artist-detail{display:none;overflow:auto;padding:18px 20px 22px}.artist-detail.show{display:block}.detail-hero{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:14px}.detail-name{font-size:24px;font-weight:950;color:var(--text);line-height:1}.detail-photo{width:96px;height:96px;border-radius:14px;object-fit:cover;border:1px solid var(--border);background:var(--panel3);box-shadow:0 12px 28px rgba(15,23,42,.18);flex:0 0 auto}.detail-meta{margin-top:8px;display:flex;flex-wrap:wrap;gap:7px}.detail-pill{display:inline-flex;align-items:center;border:1px solid var(--border);border-radius:999px;background:var(--panel3);padding:4px 9px;color:var(--muted);font-size:11px;font-weight:850}.detail-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:14px}.detail-card{background:var(--panel3);border:1px solid var(--border);border-radius:10px;padding:11px 12px;min-height:70px}.detail-label{color:var(--soft);font-size:10px;text-transform:uppercase;letter-spacing:.06em;font-weight:900}.detail-val{margin-top:7px;color:var(--text);font-size:18px;font-weight:950;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.detail-sections{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.detail-section{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:12px;min-height:150px}.detail-section h4{margin:0 0 9px;color:var(--text);font-size:13px;font-weight:950}.detail-list{display:flex;flex-direction:column;gap:7px}.detail-item{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:12px;font-weight:750;min-width:0}.detail-dot{width:7px;height:7px;border-radius:50%;background:linear-gradient(135deg,var(--rose),var(--blue));flex:0 0 auto}.detail-item span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.platform-bars{display:flex;flex-direction:column;gap:8px}.platform-row{display:grid;grid-template-columns:88px 1fr 58px;gap:8px;align-items:center;color:var(--muted);font-size:11px;font-weight:850}.platform-track{height:8px;border-radius:999px;background:var(--track);overflow:hidden}.platform-fill{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,var(--rose),var(--blue))}
+.modal-backdrop{position:fixed;inset:0;z-index:40;display:none;align-items:flex-start;justify-content:center;background:rgba(2,6,23,.62);padding:22px 18px}.modal-backdrop.open{display:flex}.leader-modal{width:min(1040px,100%);max-height:calc(100vh - 44px);display:flex;flex-direction:column;background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--border);border-radius:14px;box-shadow:0 28px 88px rgba(0,0,0,.42);overflow:hidden}.leader-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:18px 20px;border-bottom:1px solid var(--border)}.leader-kicker{color:var(--rose);font-size:11px;text-transform:uppercase;letter-spacing:.08em;font-weight:900}.leader-title{margin-top:4px;color:var(--text);font-size:20px;font-weight:900}.leader-sub{margin-top:5px;color:var(--muted);font-size:12px;font-weight:650}.leader-close,.leader-back{height:34px;border-radius:8px;border:1px solid var(--border);background:var(--panel3);color:var(--text);cursor:pointer}.leader-close{width:34px;font-size:20px;line-height:1}.leader-back{display:none;padding:0 12px;font-size:12px;font-weight:900}.leader-back.show{display:inline-flex;align-items:center}.leader-actions{display:flex;gap:8px;align-items:center}.leader-close:hover,.leader-back:hover{border-color:rgba(251,113,133,.55);color:var(--rose)}.leader-table-wrap{overflow:auto;padding:0 0 8px}.leader-table-wrap.hide{display:none}.leader-table{width:100%;border-collapse:collapse;min-width:880px;table-layout:fixed}.leader-table th{position:sticky;top:0;z-index:1;background:var(--panel2);color:var(--soft);font-size:10px;text-align:left;text-transform:uppercase;letter-spacing:.06em;font-weight:900;padding:10px 12px;border-bottom:1px solid var(--border)}.leader-table td{padding:11px 12px;border-bottom:1px solid var(--border);color:var(--muted);font-size:12px;font-weight:650;vertical-align:middle}.leader-table tbody tr:hover td{background:var(--panel3)}.leader-pos{color:var(--soft);font-weight:900}.leader-artist{display:flex;align-items:center;gap:9px;min-width:0}.leader-avatar{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;color:#fff;background:linear-gradient(135deg,var(--rose),var(--blue));font-size:11px;font-weight:900;flex:0 0 auto}.leader-name{border:0;background:transparent;padding:0;color:var(--text);font:inherit;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;text-align:left}.leader-name:hover{text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:3px;color:var(--rose)}.leader-rank-cell{color:var(--text);font-size:13px;font-weight:900}.leader-change{display:inline-flex;align-items:center;justify-content:center;min-width:54px;border-radius:999px;padding:3px 8px;font-size:10px;font-weight:900;border:1px solid var(--border);background:var(--panel3)}.leader-change.up{color:#86efac;background:rgba(52,211,153,.14);border-color:rgba(52,211,153,.25)}.leader-change.down{color:#fda4af;background:rgba(251,113,133,.14);border-color:rgba(251,113,133,.25)}.leader-change.flat{color:var(--muted)}.leader-empty{padding:26px;color:var(--muted);font-size:13px;text-align:center}.num{text-align:center;font-variant-numeric:tabular-nums}.leader-table th.num{text-align:center}.country-cell{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.artist-detail{display:none;overflow:auto;padding:18px 20px 22px}.artist-detail.show{display:block}.detail-hero{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:14px}.detail-name{font-size:24px;font-weight:950;color:var(--text);line-height:1}.detail-photo{width:96px;height:96px;border-radius:14px;object-fit:cover;border:1px solid var(--border);background:var(--panel3);box-shadow:0 12px 28px rgba(15,23,42,.18);flex:0 0 auto}.detail-meta{margin-top:8px;display:flex;flex-wrap:wrap;gap:7px}.detail-pill{display:inline-flex;align-items:center;border:1px solid var(--border);border-radius:999px;background:var(--panel3);padding:4px 9px;color:var(--muted);font-size:11px;font-weight:850}.detail-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:14px}.detail-card{background:var(--panel3);border:1px solid var(--border);border-radius:10px;padding:11px 12px;min-height:70px}.detail-label{color:var(--soft);font-size:10px;text-transform:uppercase;letter-spacing:.06em;font-weight:900}.detail-val{margin-top:7px;color:var(--text);font-size:18px;font-weight:950;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.detail-sections{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.detail-section{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:12px;min-height:150px}.detail-section h4{margin:0 0 9px;color:var(--text);font-size:13px;font-weight:950}.detail-list{display:flex;flex-direction:column;gap:7px}.detail-item{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:12px;font-weight:750;min-width:0}.detail-dot{width:7px;height:7px;border-radius:50%;background:linear-gradient(135deg,var(--rose),var(--blue));flex:0 0 auto}.detail-item span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.platform-bars{display:flex;flex-direction:column;gap:8px}.platform-row{display:grid;grid-template-columns:88px 1fr 58px;gap:8px;align-items:center;color:var(--muted);font-size:11px;font-weight:850}.platform-track{height:8px;border-radius:999px;background:var(--track);overflow:hidden}.platform-fill{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,var(--rose),var(--blue))}
 @media(max-width:1050px){.kpis{grid-template-columns:repeat(2,1fr)}.grid,.insight-grid,.artist-story-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.detail-grid,.detail-sections{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:640px){.kpis{grid-template-columns:1fr}.dash{padding:10px}.kpi{min-height:100px}.artist-story-grid{grid-template-columns:1fr}.modal-backdrop{padding:10px;align-items:flex-start}.leader-head{padding:14px}.leader-title{font-size:17px}.detail-grid,.detail-sections{grid-template-columns:1fr}.detail-hero{display:block}.platform-row{grid-template-columns:78px 1fr 48px}}
 </style></head><body>
-""" + f"<main class='dash {theme}'>" + "<div class='kpis'>" + kpi_html("Artists", _fmt_n(artist_total), "&#127908;", f"Latest rank snapshot", "openArtistLeaderboard()") + kpi_html("Songs", _fmt_n(song_total), "&#9835;", details_label, "openSongsLeaderboard()") + kpi_html("Albums", _fmt_n(album_total), "&#9673;", album_rows_label) + kpi_html("Chart Days", _fmt_n(chart_days), "&#9719;", f"Max track streak in last {WINDOW_DAYS} days") + kpi_html("Popular Songs", _fmt_n(popular_songs), "&#9679;", f"Top 10 ranked tracks · {track_rows_label}") + "</div><div class='grid'>" + bars_html(top_artists, "name", "total_points", "Top Artist", "Highest scoring artists in the latest ranking snapshot.", 10) + bars_html(top_tracks, "title", "metric", "Top Track", "Tracks with the strongest combined chart metric.", 10) + bars_html(top_albums, "album", "metric", "Top Album", "Albums with the strongest album chart metric.", 10) + "</div><div class='grid insight-grid'>" + donut_html(filtered) + radar_html(filtered) + bars_html(top_listeners, "name", "monthly_listeners", "Spotify Listener Leaders", "Artists with the highest latest monthly listener counts.", 10) + "</div>" + artist_story_html(filtered) + f"""
+""" + f"<main class='dash {theme}'>" + "<div class='kpis'>" + kpi_html("Artists", _fmt_n(artist_total), "&#127908;", f"Latest rank snapshot", "openArtistLeaderboard()") + kpi_html("Songs", _fmt_n(song_total), "&#9835;", details_label, "openSongsLeaderboard()") + kpi_html("Albums", _fmt_n(album_total), "&#9673;", album_rows_label, "openAlbumsLeaderboard()") + kpi_html("Chart Days", _fmt_n(chart_days), "&#9719;", f"Max track streak in last {WINDOW_DAYS} days") + kpi_html("Popular Songs", _fmt_n(popular_songs), "&#9679;", f"Top 10 ranked tracks · {track_rows_label}") + "</div><div class='grid'>" + bars_html(top_artists, "name", "total_points", "Top Artist", "Highest scoring artists in the latest ranking snapshot.", 10) + bars_html(top_tracks, "title", "metric", "Top Track", "Tracks with the strongest combined chart metric.", 10) + bars_html(top_albums, "album", "metric", "Top Album", "Albums with the strongest album chart metric.", 10) + "</div><div class='grid insight-grid'>" + donut_html(filtered) + radar_html(filtered) + bars_html(top_listeners, "name", "monthly_listeners", "Spotify Listener Leaders", "Artists with the highest latest monthly listener counts.", 10) + "</div>" + artist_story_html(filtered) + f"""
 <div class="modal-backdrop" id="artistLeaderboardModal" onclick="closeArtistLeaderboard(event)">
   <section class="leader-modal" role="dialog" aria-modal="true" aria-labelledby="artistLeaderboardTitle" onclick="event.stopPropagation()">
     <div class="leader-head">
@@ -987,10 +1050,41 @@ def render_artists_overview(last_run_label: str = "n/a") -> None:
     <div class="artist-detail" id="songsDetailView"></div>
   </section>
 </div>
+<div class="modal-backdrop" id="albumsLeaderboardModal" onclick="closeAlbumsLeaderboard(event)">
+  <section class="leader-modal" role="dialog" aria-modal="true" aria-labelledby="albumsLeaderboardTitle" onclick="event.stopPropagation()">
+    <div class="leader-head">
+      <div>
+        <div class="leader-title" id="albumsLeaderboardTitle">Albums Catalog Snapshot</div>
+        <div class="leader-sub" id="albumsLeaderboardSub"></div>
+      </div>
+      <div class="leader-actions">
+        <button class="leader-back" id="albumsLeaderboardBack" type="button" onclick="showAlbumsLeaderboardTable()">Back</button>
+        <button class="leader-close" type="button" onclick="closeAlbumsLeaderboard()" aria-label="Close">&times;</button>
+      </div>
+    </div>
+    <div class="leader-table-wrap" id="albumsLeaderboardTableView">
+      <table class="leader-table">
+        <thead>
+          <tr>
+            <th style="width:58px">#</th>
+            <th style="width:280px">Album</th>
+            <th style="width:220px">Artist</th>
+            <th style="width:96px" class="num">Artist albums</th>
+            <th style="width:96px" class="num">Songs</th>
+            <th style="width:106px" class="num">Countries</th>
+          </tr>
+        </thead>
+        <tbody id="albumsLeaderboardBody"></tbody>
+      </table>
+    </div>
+    <div class="artist-detail" id="albumsDetailView"></div>
+  </section>
+</div>
 </main>
 <script>
 const ARTIST_LEADERBOARD = {leaderboard_json};
 const SONGS_LEADERBOARD = {songs_json};
+const ALBUMS_LEADERBOARD = {albums_json};
 function fmtLeaderNumber(n) {{
   const v = Number(n || 0);
   const a = Math.abs(v);
@@ -1143,7 +1237,7 @@ function renderSongsLeaderboard() {{
   const rows = SONGS_LEADERBOARD.rows || [];
   sub.textContent = `${{fmtLeaderNumber(SONGS_LEADERBOARD.total || 0)}} catalog songs · ${{fmtLeaderNumber(SONGS_LEADERBOARD.listedRows || rows.length)}} listed top songs`;
   if (!rows.length) {{
-    body.innerHTML = '<tr><td colspan="7"><div class="leader-empty">No song catalog rows available.</div></td></tr>';
+    body.innerHTML = '<tr><td colspan="6"><div class="leader-empty">No song catalog rows available.</div></td></tr>';
     return;
   }}
   body.innerHTML = rows.map(row => `
@@ -1218,10 +1312,93 @@ function closeSongsLeaderboard(event) {{
     showSongsLeaderboardTable();
   }}
 }}
+function renderAlbumsLeaderboard() {{
+  const body = document.getElementById('albumsLeaderboardBody');
+  const sub = document.getElementById('albumsLeaderboardSub');
+  if (!body || !sub) return;
+  const rows = ALBUMS_LEADERBOARD.rows || [];
+  sub.textContent = `${{fmtLeaderNumber(ALBUMS_LEADERBOARD.total || 0)}} catalog albums · ${{fmtLeaderNumber(ALBUMS_LEADERBOARD.listedRows || rows.length)}} listed top albums`;
+  if (!rows.length) {{
+    body.innerHTML = '<tr><td colspan="6"><div class="leader-empty">No album catalog rows available.</div></td></tr>';
+    return;
+  }}
+  body.innerHTML = rows.map(row => `
+    <tr>
+      <td class="leader-pos">${{row.position}}</td>
+      <td><button class="leader-name" type="button" onclick="openAlbumsDetail(${{row.position}})" title="${{escLeader(row.title)}}">${{escLeader(row.title)}}</button></td>
+      <td><div class="leader-artist"><div class="leader-avatar">${{escLeader(initials(row.artist))}}</div><span class="country-cell" title="${{escLeader(row.artist)}}">${{escLeader(row.artist)}}</span></div></td>
+      <td class="num leader-rank-cell">${{fmtLeaderNumber(row.artistAlbums)}}</td>
+      <td class="num">${{fmtLeaderNumber(row.artistSongs)}}</td>
+      <td class="num">${{fmtLeaderNumber(row.markets)}}</td>
+    </tr>
+  `).join('');
+}}
+function showAlbumsLeaderboardTable() {{
+  document.getElementById('albumsLeaderboardTableView')?.classList.remove('hide');
+  document.getElementById('albumsDetailView')?.classList.remove('show');
+  document.getElementById('albumsLeaderboardBack')?.classList.remove('show');
+  document.getElementById('albumsLeaderboardTitle').textContent = 'Albums Catalog Snapshot';
+  const rows = ALBUMS_LEADERBOARD.rows || [];
+  document.getElementById('albumsLeaderboardSub').textContent = `${{fmtLeaderNumber(ALBUMS_LEADERBOARD.total || 0)}} catalog albums · ${{fmtLeaderNumber(ALBUMS_LEADERBOARD.listedRows || rows.length)}} listed top albums`;
+}}
+function openAlbumsDetail(position) {{
+  const row = (ALBUMS_LEADERBOARD.rows || []).find(item => Number(item.position) === Number(position));
+  if (!row) return;
+  const view = document.getElementById('albumsDetailView');
+  const table = document.getElementById('albumsLeaderboardTableView');
+  const back = document.getElementById('albumsLeaderboardBack');
+  document.getElementById('albumsLeaderboardTitle').textContent = row.title;
+  document.getElementById('albumsLeaderboardSub').textContent = `Album detail · ${{row.artist || 'Unknown artist'}}`;
+  const songs = parseDetailList(row.topSongs);
+  const albums = parseDetailList(row.topAlbums);
+  const countries = parseDetailList(row.topCountries);
+  view.innerHTML = `
+    <div class="detail-hero">
+      <div>
+        <div class="detail-name">${{escLeader(row.title)}}</div>
+        <div class="detail-meta">
+          <span class="detail-pill">${{escLeader(row.artist || 'Unknown artist')}}</span>
+          <span class="detail-pill">${{fmtLeaderNumber(row.artistAlbums)}} artist albums</span>
+          <span class="detail-pill">${{fmtLeaderNumber(row.artistSongs)}} songs</span>
+          <span class="detail-pill">${{fmtLeaderNumber(row.markets)}} countries</span>
+        </div>
+      </div>
+      <img class="detail-photo" src="${{escLeader(row.imageUrl)}}" alt="${{escLeader(row.artist || row.title)}}" loading="lazy">
+    </div>
+    <div class="detail-grid">
+      <div class="detail-card"><div class="detail-label">Album</div><div class="detail-val" title="${{escLeader(row.title)}}">${{escLeader(row.title)}}</div></div>
+      <div class="detail-card"><div class="detail-label">Artist</div><div class="detail-val" title="${{escLeader(row.artist)}}">${{escLeader(row.artist)}}</div></div>
+      <div class="detail-card"><div class="detail-label">Artist albums</div><div class="detail-val">${{fmtLeaderNumber(row.artistAlbums)}}</div></div>
+      <div class="detail-card"><div class="detail-label">Artist songs</div><div class="detail-val">${{fmtLeaderNumber(row.artistSongs)}}</div></div>
+      <div class="detail-card"><div class="detail-label">Countries</div><div class="detail-val">${{fmtLeaderNumber(row.markets)}}</div></div>
+    </div>
+    <div class="detail-sections">
+      <section class="detail-section"><h4>Artist top albums</h4><div class="detail-list">${{detailListHtml(albums, 'No top albums available')}}</div></section>
+      <section class="detail-section"><h4>Artist top songs</h4><div class="detail-list">${{detailListHtml(songs, 'No top songs available')}}</div></section>
+      <section class="detail-section"><h4>Artist top countries</h4><div class="detail-list">${{detailListHtml(countries, 'No top countries available')}}</div></section>
+    </div>
+  `;
+  table?.classList.add('hide');
+  view?.classList.add('show');
+  back?.classList.add('show');
+}}
+function openAlbumsLeaderboard() {{
+  renderAlbumsLeaderboard();
+  showAlbumsLeaderboardTable();
+  document.getElementById('albumsLeaderboardModal')?.classList.add('open');
+}}
+function closeAlbumsLeaderboard(event) {{
+  const modal = document.getElementById('albumsLeaderboardModal');
+  if (!event || event.target === modal) {{
+    modal?.classList.remove('open');
+    showAlbumsLeaderboardTable();
+  }}
+}}
 document.addEventListener('keydown', event => {{
   if (event.key === 'Escape') {{
     closeArtistLeaderboard();
     closeSongsLeaderboard();
+    closeAlbumsLeaderboard();
   }}
 }});
 </script>
