@@ -459,6 +459,10 @@ body { background: var(--bg); font-family: var(--font-sans); color: var(--t1); -
 .filter-btn.active { background: #185FA5; color: #E6F1FB; border-color: #185FA5; }
 .filter-tag { display: flex; align-items: center; font-size: 14px; padding: 8px 16px; border-radius: 999px; background: var(--color-background-secondary); color: var(--color-text-secondary); border: 1px solid var(--color-border-tertiary); cursor: pointer; }
 .filter-tag select { background: transparent; border: none; color: inherit; font-size: inherit; font-family: inherit; outline: none; cursor: pointer; }
+.window-chip-group { display: flex; gap: 8px; flex-wrap: nowrap; align-items: center; }
+.window-chip { border: 1px solid var(--color-border-tertiary); background: var(--color-background-primary); color: var(--color-text-secondary); font: inherit; font-size: 13px; line-height: 1; padding: 9px 14px; min-height: 38px; border-radius: 999px; cursor: pointer; transition: all .15s ease; white-space: nowrap; flex: 0 0 auto; }
+.window-chip:hover { border-color: #185FA5; color: #185FA5; }
+.window-chip.active { background: #185FA5; border-color: #185FA5; color: #E6F1FB; }
 
 .track-table { background: var(--color-background-primary); border: 2px solid var(--color-border-secondary); border-radius: var(--border-radius-lg); overflow: hidden; display: flex; flex-direction: column; flex: 1; min-height: 0; transition: border-color 0.2s; }
 .track-table:hover { border-color: #E24B4A; }
@@ -574,13 +578,10 @@ body { background: var(--bg); font-family: var(--font-sans); color: var(--t1); -
             </optgroup>
           </select>
         </span>
-        <span class="filter-tag">
-          <select id="windowSel" onchange="setTimeWindow(this.value)">
-            <option value="All">All Time</option>
-            <option value="7">7 Days</option>
-            <option value="14">14 Days</option>
-            <option value="30">30 Days</option>
-          </select>
+        <span class="window-chip-group" role="tablist" aria-label="Time window">
+          <button type="button" class="window-chip" data-window="7" onclick="setTimeWindow(7, this)">Last Week</button>
+          <button type="button" class="window-chip" data-window="14" onclick="setTimeWindow(14, this)">Last 2 Weeks</button>
+          <button type="button" class="window-chip active" data-window="30" onclick="setTimeWindow(30, this)">Last Month</button>
         </span>
       </span>
   </div>
@@ -632,7 +633,7 @@ body { background: var(--bg); font-family: var(--font-sans); color: var(--t1); -
         <div class="stat-box">
           <div class="stat-label">Momentum</div>
           <div class="stat-value" id="d-momentum">—</div>
-          <div class="stat-sub">Window change</div>
+          <div class="stat-sub" id="d-momentum-sub">Window change</div>
         </div>
         <div class="stat-box">
           <div class="stat-label">Days in Chart</div>
@@ -818,12 +819,19 @@ function changeRegion() {
 }
 
 function setTimeWindow(val) {
-    currentTimeWindowDays = val === 'All' ? ORIGINAL_PAYLOAD.maxWindowDays : parseInt(val);
+    currentTimeWindowDays = Number.parseInt(val, 10) || ORIGINAL_PAYLOAD.maxWindowDays;
+    document.querySelectorAll('.window-chip').forEach(btn => btn.classList.toggle('active', btn.dataset.window === String(currentTimeWindowDays)));
     applyFilters();
     if (selectedId) selectTrack(selectedId); 
 }
 
 function fmtN(n){if(!n&&n!==0)return'—';const a=Math.abs(n);if(a>=1e6)return(n/1e6).toFixed(1)+'M';if(a>=1e3)return(n/1e3).toFixed(0)+'K';return Math.round(n).toString();}
+
+function windowLabel(days) {
+  if (days <= 7) return 'Last week';
+  if (days <= 14) return 'Last 2 weeks';
+  return 'Last month';
+}
 
 function setSort(s){
   currentSort = s;
@@ -980,13 +988,14 @@ function selectTrack(id) {
   document.getElementById('d-rank-sub').textContent = PAYLOAD.regionLabel;
   
   document.getElementById('d-streams').textContent = fmtN(t.latestStreams);
-  document.getElementById('d-streams-sub').textContent = `${t.growth > 0 ? '+' : ''}${t.growth}% growth`;
+  document.getElementById('d-streams-sub').textContent = `${windowLabel(currentTimeWindowDays)} · ${t.growth > 0 ? '+' : ''}${t.growth}% growth`;
   document.getElementById('d-streams-sub').style.color = t.growth > 0 ? '#1D9E75' : t.growth < 0 ? '#E24B4A' : 'var(--color-text-secondary)';
   
   const mEl = document.getElementById('d-momentum');
   mEl.textContent = `${t.momentum > 0 ? '+' : ''}${t.momentum}%`;
   mEl.className = 'stat-value ' + (t.momentum > 5 ? 'pos' : t.momentum < -5 ? 'neg' : '');
-  
+  document.getElementById('d-momentum-sub').textContent = `${windowLabel(currentTimeWindowDays)} window`;
+
   document.getElementById('d-days').textContent = t.days;
 
   const badgesEl = document.getElementById('d-badges');
