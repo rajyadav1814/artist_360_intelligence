@@ -563,6 +563,8 @@ def _make_fatigue_figure(df: pd.DataFrame, *, dark_mode: bool) -> go.Figure:
     plot_df = df.dropna(subset=["monthly_listeners"]).copy()
     if plot_df.empty:
         return go.Figure()
+    # Limit to top 20 records
+    plot_df = plot_df.sort_values("monthly_listeners", ascending=False).head(20)
     plot_df["fatigue_state"] = np.select(
         [plot_df["rank_delta_45d"] <= -5, plot_df["rank_delta_45d"] >= 5],
         ["fatigue", "climbing"], default="stable",
@@ -588,20 +590,22 @@ def _make_fatigue_figure(df: pd.DataFrame, *, dark_mode: bool) -> go.Figure:
             "State: %{customdata[5]}<extra></extra>"
         ),
     )
-    x_abs = max(8.0, float(plot_df["rank_delta_45d"].fillna(0).abs().max() or 0))
-    y_med = float(plot_df["monthly_listeners"].median())
+    x_abs = max(8.0, float(plot_df["rank_delta_45d"].fillna(0).abs().max() or 0)) * 1.15
+    y_min = float(plot_df["monthly_listeners"].min()) * 0.85
     y_max = float(plot_df["monthly_listeners"].max()) * 1.08
-    fig.add_shape(type="rect", x0=-x_abs, x1=0, y0=y_med, y1=y_max, fillcolor="rgba(251,113,133,.10)", line=dict(width=0), layer="below")
-    fig.add_shape(type="rect", x0=0, x1=x_abs, y0=y_med, y1=y_max, fillcolor="rgba(52,211,153,.08)", line=dict(width=0), layer="below")
-    fig.add_annotation(x=-x_abs * 0.72, y=y_max * 0.96, text="Fatigue — big & declining", showarrow=False, font=dict(size=12, color="#fb7185"))
-    fig.add_annotation(x=x_abs * 0.72, y=y_max * 0.96, text="Rising", showarrow=False, font=dict(size=12, color="#34d399"))
-    fig.add_annotation(x=x_abs * 0.85, y=y_med * 0.55, text="Stable / small", showarrow=False, font=dict(size=11, color="#94a3b8"))
+
+    fig.add_shape(type="rect", xref="x", yref="paper", x0=-x_abs, x1=0, y0=0, y1=1, fillcolor="rgba(251,113,133,.10)", line=dict(width=0), layer="below")
+    fig.add_shape(type="rect", xref="x", yref="paper", x0=0, x1=x_abs, y0=0, y1=1, fillcolor="rgba(52,211,153,.08)", line=dict(width=0), layer="below")
+    
+    fig.add_annotation(x=-x_abs * 0.72, y=0.96, yref="paper", text="Fatigue — big & declining", showarrow=False, font=dict(size=12, color="#fb7185"))
+    fig.add_annotation(x=x_abs * 0.72, y=0.96, yref="paper", text="Rising", showarrow=False, font=dict(size=12, color="#34d399"))
+    
     fig.update_layout(
         height=440, margin=dict(l=6, r=8, t=24, b=6),
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0, title_text=""),
         xaxis_title="7-day momentum (%)", yaxis_title="Monthly listeners (M)",
-        xaxis=dict(gridcolor="rgba(148,163,184,.12)" if dark_mode else "rgba(148,163,184,.18)"),
-        yaxis=dict(tickformat="~s", gridcolor="rgba(148,163,184,.12)" if dark_mode else "rgba(148,163,184,.18)"),
+        xaxis=dict(range=[-x_abs, x_abs], gridcolor="rgba(148,163,184,.12)" if dark_mode else "rgba(148,163,184,.18)"),
+        yaxis=dict(range=[y_min, y_max], tickformat="~s", gridcolor="rgba(148,163,184,.12)" if dark_mode else "rgba(148,163,184,.18)"),
     )
     return fig
 
@@ -657,6 +661,9 @@ def render_redesign_dashboard(
 # ── Big HTML template ────────────────────────────────────────────────────────
 _HTML_TEMPLATE = """
 <!DOCTYPE html><html><head><meta charset='utf-8'>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 __THEME__

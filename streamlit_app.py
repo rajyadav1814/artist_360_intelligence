@@ -4135,16 +4135,16 @@ app_pages = [
     ),
     st.Page(
         show_redesign_dashboard_page,
-        title="Redesign Lab",
+        title="LATAM Signals",
         icon=":material/auto_awesome:",
         url_path="redesign-lab",
     ),
-    st.Page(
-        show_leaderboard_page,
-        title="Leaderboard",
-        icon=":material/trending_up:",
-        url_path="leaderboard",
-    ),
+    # st.Page(
+    #     show_leaderboard_page,
+    #     title="Leaderboard",
+    #     icon=":material/trending_up:",
+    #     url_path="leaderboard",
+    # ),
      st.Page(
         show_movement_page,
         title="Movement Trends",
