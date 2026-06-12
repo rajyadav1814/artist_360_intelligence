@@ -53,7 +53,7 @@ def _run_query(query: str, params: tuple) -> list[dict[str, Any]]:
                 pass
 
 
-@st.cache_data(ttl=300, show_spinner=False)
+@st.cache_data(ttl=299, show_spinner=False)
 def _load_window(table: str, country: str, days: int) -> pd.DataFrame:
     metric_col = "points" if table == "spotify_daily" else "points"
     query = f"""
@@ -80,7 +80,7 @@ def _load_window(table: str, country: str, days: int) -> pd.DataFrame:
     df["date"] = pd.to_datetime(df["date"]).dt.date
     return df
 
-@st.cache_data(ttl=300, show_spinner=False)
+@st.cache_data(ttl=299, show_spinner=False)
 def _load_window_multi(table: str, countries: list[str], days: int) -> pd.DataFrame:
     metric_col = "points" if table == "spotify_daily" else "points"
     placeholders = ", ".join(["%s"] * len(countries))
@@ -134,9 +134,9 @@ def _signal_style(acq_score: int, momentum: float, best_rank: int | None) -> tup
 
 
 def _acq_score(latest_points: int, best_rank: int | None, momentum: float, best_it_rank: int | None) -> int:
-    rank_score = max(0, 40 - (best_rank or 100) * 0.4) if best_rank else 0
+    rank_score = max(0, 20 - (best_rank or 100) * 0.2) if best_rank else 0
     stream_score = min(30, int(latest_points / 300_000))
-    momentum_score = max(-10, min(20, int(momentum)))
+    momentum_score = max(-20, min(40, int(momentum * 2)))
     itunes_bonus = 10 if best_it_rank and best_it_rank <= 25 else 5 if best_it_rank and best_it_rank <= 60 else 0
     return max(0, min(100, int(rank_score + stream_score + momentum_score + itunes_bonus)))
 
@@ -254,7 +254,7 @@ def _build_album_rows(sp_df: pd.DataFrame, it_df: pd.DataFrame, dates: list[date
     return albums
 
 
-@st.cache_data(ttl=300, show_spinner=False)
+@st.cache_data(ttl=299, show_spinner=False)
 def get_processed_album_rows(sp_df: pd.DataFrame, it_df: pd.DataFrame, dates: list[date], region: str = "Global") -> list[dict[str, Any]]:
     """
     Cached wrapper for building album rows.
@@ -380,8 +380,8 @@ def render_album_acquisition() -> None:
         st.markdown(
             "The **Acquisition Score (0-100)** is a composite metric evaluating an album's market potential. It is calculated using:\n"
             "- **Latest Points (30%)**: Scaled based on daily volume.\n"
-            "- **Best Rank (40%)**: iTunes WW chart peak.\n"
-            "- **Momentum (20%)**: Trajectory of points growth and rank delta.\n"
+            "- **Best Rank (20%)**: iTunes WW chart peak.\n"
+            "- **Momentum (40%)**: Trajectory of points growth and rank delta.\n"
             "- **Platform Bonus (10%)**: Cross-platform validation signals.\n\n"
             "👉 **Interactive Analysis**: Select any album from the leaderboard to instantly load its detailed acquisition profile, including point trajectories and specific market signals."
         )
@@ -700,9 +700,9 @@ let itTrajChartInst = null;
 
 // Acq Score
 function _jsAcqScore(latestPoints, bestRank, momentum, bestItRank) {
-    const rankScore = Math.max(0, 40 - (bestRank || 100) * 0.4);
+    const rankScore = Math.max(0, 20 - (bestRank || 100) * 0.2);
     const streamScore = Math.min(30, Math.floor(latestPoints / 300000));
-    const momentumScore = Math.max(-10, Math.min(20, Math.floor(momentum)));
+    const momentumScore = Math.max(-20, Math.min(40, Math.floor(momentum * 2)));
     const itunesBonus = bestItRank && bestItRank <= 25 ? 10 : (bestItRank && bestItRank <= 60 ? 5 : 0);
     return Math.max(0, Math.min(100, Math.floor(rankScore + streamScore + momentumScore + itunesBonus)));
 }
