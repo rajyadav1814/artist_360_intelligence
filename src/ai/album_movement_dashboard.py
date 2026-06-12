@@ -322,6 +322,9 @@ def _build_html(payload: dict, dark_mode: bool = False) -> str:
     theme_css = _THEME_DARK if dark_mode else _THEME_LIGHT
     return """
 <!DOCTYPE html><html><head><meta charset='utf-8'>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 __THEME__
