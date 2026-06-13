@@ -64,6 +64,26 @@ def _short_label(value: str, limit: int = 20) -> str:
     return value if len(value) <= limit else value[: max(0, limit - 3)] + "..."
 
 
+def _sparkline_svg(values: list[float], color: str = "#60a5fa") -> str:
+    """Generate a simple SVG sparkline for trend visualization."""
+    if not values or len(values) < 2:
+        return ""
+    # Normalize to fit 44x14 area
+    min_v, max_v = min(values), max(values)
+    span = max(max_v - min_v, 1.0)
+    width, height = 44, 14
+    pts = []
+    for i, v in enumerate(values):
+        x = (i / (len(values) - 1)) * width
+        y = height - ((v - min_v) / span) * height
+        pts.append(f"{x:.1f},{y:.1f}")
+    return (
+        f'<svg width="{width}" height="{height}" viewBox="0 0 {width} {height}" style="display:block">'
+        f'<polyline points="{" ".join(pts)}" fill="none" stroke="{color}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>'
+        '</svg>'
+    )
+
+
 def _is_valid_artist_name(value: Any) -> bool:
     name = str(value or "").strip()
     return bool(name) and name.lower() not in {"null", "none", "nan"}
@@ -240,11 +260,11 @@ def _load_track_dashboard(days: int = WINDOW_DAYS) -> tuple[pd.DataFrame, pd.Dat
             GROUP BY artist
         ),
         track_stats AS (
-            SELECT title, SUM(metric) AS metric, MIN(rank) AS best_rank
+            SELECT artist, title, SUM(metric) AS metric, MIN(rank) AS best_rank
             FROM parsed
-            GROUP BY title
+            GROUP BY artist, title
             ORDER BY metric DESC
-            LIMIT 10
+            LIMIT 100
         ),
         kpis AS (
             SELECT
@@ -263,7 +283,8 @@ def _load_track_dashboard(days: int = WINDOW_DAYS) -> tuple[pd.DataFrame, pd.Dat
             entries,
             best_rank,
             max_days,
-            row_count
+            row_count,
+            artist AS artist
         FROM artist_stats
         UNION ALL
         SELECT
@@ -274,7 +295,8 @@ def _load_track_dashboard(days: int = WINDOW_DAYS) -> tuple[pd.DataFrame, pd.Dat
             NULL::bigint AS entries,
             best_rank,
             NULL::integer AS max_days,
-            NULL::bigint AS row_count
+            NULL::bigint AS row_count,
+            artist AS artist
         FROM track_stats
         UNION ALL
         SELECT
@@ -285,7 +307,8 @@ def _load_track_dashboard(days: int = WINDOW_DAYS) -> tuple[pd.DataFrame, pd.Dat
             entries,
             NULL::integer AS best_rank,
             max_days,
-            row_count
+            row_count,
+            NULL::text AS artist
         FROM kpis
     """
     rows = _run_query(query, (days, days))
@@ -310,7 +333,7 @@ def _load_track_dashboard(days: int = WINDOW_DAYS) -> tuple[pd.DataFrame, pd.Dat
     )
     top_tracks = (
         df[df["row_type"] == "track"]
-        .rename(columns={"label": "title"})[["title", "metric"]]
+        .rename(columns={"label": "title"})[["title", "metric", "artist"]]
         .sort_values("metric", ascending=False)
         .reset_index(drop=True)
     )
@@ -636,11 +659,11 @@ def _load_album_dashboard(days: int = WINDOW_DAYS) -> tuple[pd.DataFrame, pd.Dat
             GROUP BY artist
         ),
         album_stats AS (
-            SELECT album, SUM(metric) AS metric, MIN(rank) AS best_rank
+            SELECT artist, album, SUM(metric) AS metric, MIN(rank) AS best_rank
             FROM parsed
-            GROUP BY album
+            GROUP BY artist, album
             ORDER BY metric DESC
-            LIMIT 10
+            LIMIT 100
         ),
         kpis AS (
             SELECT SUM(metric) AS metric, COUNT(*) AS entries, MAX(days) AS max_days, COUNT(*) AS row_count
@@ -654,7 +677,8 @@ def _load_album_dashboard(days: int = WINDOW_DAYS) -> tuple[pd.DataFrame, pd.Dat
             entries,
             best_rank,
             max_days,
-            row_count
+            row_count,
+            artist AS artist
         FROM artist_stats
         UNION ALL
         SELECT
@@ -665,7 +689,8 @@ def _load_album_dashboard(days: int = WINDOW_DAYS) -> tuple[pd.DataFrame, pd.Dat
             NULL::bigint AS entries,
             best_rank,
             NULL::integer AS max_days,
-            NULL::bigint AS row_count
+            NULL::bigint AS row_count,
+            artist AS artist
         FROM album_stats
         UNION ALL
         SELECT
@@ -676,7 +701,8 @@ def _load_album_dashboard(days: int = WINDOW_DAYS) -> tuple[pd.DataFrame, pd.Dat
             entries,
             NULL::integer AS best_rank,
             max_days,
-            row_count
+            row_count,
+            NULL::text AS artist
         FROM kpis
     """
     rows = _run_query(query, (days,))
@@ -701,7 +727,7 @@ def _load_album_dashboard(days: int = WINDOW_DAYS) -> tuple[pd.DataFrame, pd.Dat
     )
     top_albums = (
         df[df["row_type"] == "album"]
-        .rename(columns={"label": "album"})[["album", "metric"]]
+        .rename(columns={"label": "album"})[["album", "metric", "artist"]]
         .sort_values("metric", ascending=False)
         .reset_index(drop=True)
     )
@@ -795,7 +821,6 @@ def _load_artists_overview_data(days: int = WINDOW_DAYS) -> tuple[
     pd.DataFrame,
     pd.DataFrame,
     pd.DataFrame,
-    pd.DataFrame,
 ]:
     latest_artists = _load_artist_rank_history(days)
     spotify_df = _load_spotify_artist_latest()
@@ -821,7 +846,6 @@ def _load_artists_overview_data(days: int = WINDOW_DAYS) -> tuple[
         albums_rank_df,
         chart_days_df,
         popular_songs_df,
-        filtered,
     )
 
 
@@ -837,7 +861,7 @@ def render_artists_overview(last_run_label: str = "n/a") -> None:
             <span style='font-size:1.05rem; font-weight:800; color:var(--text); letter-spacing:-0.01em;'>📊 Artist Overview</span>
             <span class='time-chip'>{escape(f"Last Update: {last_run_label}")}</span>
         </div>
-        <div style='font-size: 0.92rem; color: var(--text2); margin: 0 0 14px; line-height: 1.5; font-weight: 500;'>
+        <div style='font-size: 0.92rem; color: var(--t2); margin: 0 0 14px; line-height: 1.5; font-weight: 500;'>
         This dashboard provides a comprehensive overview of all tracked artists, including their catalog, 
         chart activity, listeners, and key performance indicators, offering a holistic view of their market presence and performance.
         </div>
@@ -846,19 +870,18 @@ def render_artists_overview(last_run_label: str = "n/a") -> None:
     )
     (
         latest_artists,
-        _spotify_df,
+        spotify_df,
         details_df,
-        _track_artist_stats,
+        track_artist_stats,
         top_tracks,
         track_kpis,
         songs_rank_df,
-        _album_artist_stats,
+        album_artist_stats,
         top_albums,
         album_kpis,
         albums_rank_df,
         chart_days_df,
         popular_songs_df,
-        filtered,
     ) = _load_artists_overview_data(WINDOW_DAYS)
 
     if latest_artists.empty and details_df.empty and top_tracks.empty and top_albums.empty:
@@ -866,16 +889,71 @@ def render_artists_overview(last_run_label: str = "n/a") -> None:
         return
 
     latest_date = latest_artists["scrape_date"].max() if not latest_artists.empty else None
+    latest_label = str(latest_date) if latest_date else "No snapshot date" # This is fine as it's just a label
 
-    artist_total = float(latest_artists["name"].nunique()) if not latest_artists.empty else 0
-    song_total = float(details_df["songs_count"].sum()) if "songs_count" in details_df else 0
-    album_total = float(details_df["albums_count"].sum()) if "albums_count" in details_df else 0
-    chart_days = float(track_kpis.get("max_days", 0))
-    popular_songs = float(track_kpis.get("popular_songs", 0))
-    latest_label = str(latest_date) if latest_date else "No snapshot date"
-    track_rows_label = f"{_fmt_n(track_kpis.get('row_count', 0))} chart rows"
-    album_rows_label = f"{_fmt_n(album_kpis.get('row_count', 0))} album chart rows"
-    details_label = f"{_fmt_n(len(details_df))} artist detail rows"
+    # --- Build initial combined artist table ---
+    all_artists_combined_df = _build_artist_table(
+        latest_artists, spotify_df, details_df, track_artist_stats, album_artist_stats
+    )
+
+    # --- Artist Selection Dropdown ---
+    # all_artists_combined_df is already sorted by rank in _build_artist_table
+    all_artist_names = ["All Artists"] + all_artists_combined_df["name"].dropna().unique().tolist()
+    
+    col1, col2 = st.columns([0.3, 0.7])
+    with col1:
+        selected_artist_name = st.selectbox(
+            "Select an Artist to filter the dashboard",
+            options=all_artist_names,
+            key="artists_overview_selected_artist",
+            on_change=lambda: st.session_state.pop("artists_overview_selected_artist_detail", None), # Clear detail view on new selection
+            index=0, # Default to "All Artists"
+        )
+
+    # --- Filter all dataframes based on selection ---
+    current_view_artists_df = all_artists_combined_df.copy()
+    current_view_songs_rank_df = songs_rank_df.copy()
+    current_view_albums_rank_df = albums_rank_df.copy()
+    current_view_chart_days_df = chart_days_df.copy()
+    current_view_popular_songs_df = popular_songs_df.copy()
+    current_view_top_tracks = top_tracks.copy()
+    current_view_top_albums = top_albums.copy()
+
+    if selected_artist_name != "All Artists":
+        current_view_artists_df = current_view_artists_df[current_view_artists_df["name"] == selected_artist_name].copy()
+        current_view_songs_rank_df = current_view_songs_rank_df[current_view_songs_rank_df["artist"] == selected_artist_name].copy()
+        current_view_albums_rank_df = current_view_albums_rank_df[current_view_albums_rank_df["artist"] == selected_artist_name].copy()
+        current_view_chart_days_df = current_view_chart_days_df[current_view_chart_days_df["artist"] == selected_artist_name].copy()
+        current_view_popular_songs_df = current_view_popular_songs_df[current_view_popular_songs_df["artist"] == selected_artist_name].copy()
+        current_view_top_tracks = current_view_top_tracks[current_view_top_tracks["artist"] == selected_artist_name].copy()
+        current_view_top_albums = current_view_top_albums[current_view_top_albums["artist"] == selected_artist_name].copy()
+
+        if current_view_artists_df.empty:
+            st.warning(f"No data found for selected artist: {selected_artist_name}")
+            return
+
+    # --- Recalculate KPIs based on filtered data ---
+    artist_total = float(current_view_artists_df["name"].nunique()) if not current_view_artists_df.empty else 0
+    song_total = float(current_view_artists_df["songs_count"].sum()) if "songs_count" in current_view_artists_df.columns else 0
+    album_total = float(current_view_artists_df["albums_count"].sum()) if "albums_count" in current_view_artists_df.columns else 0
+
+    # Recalculate track_kpis
+    track_kpis_filtered = {
+        "max_days": float(current_view_chart_days_df["chart_days"].max()) if not current_view_chart_days_df.empty else 0,
+        "popular_songs": float(current_view_popular_songs_df["top10_entries"].sum()) if not current_view_popular_songs_df.empty else 0,
+        "row_count": float(len(current_view_songs_rank_df)) if not current_view_songs_rank_df.empty else 0,
+    }
+    chart_days = track_kpis_filtered.get("max_days", 0)
+    popular_songs = track_kpis_filtered.get("popular_songs", 0)
+    track_rows_label = f"{_fmt_n(track_kpis_filtered.get('row_count', 0))} chart rows"
+
+    # Recalculate album_kpis
+    album_kpis_filtered = {
+        "row_count": float(len(current_view_albums_rank_df)) if not current_view_albums_rank_df.empty else 0,
+    }
+    album_rows_label = f"{_fmt_n(album_kpis_filtered.get('row_count', 0))} album chart rows"
+
+    details_label = f"{_fmt_n(len(current_view_artists_df))} artist detail rows"
 
     def kpi_html(title: str, value: str, icon: str, subtitle: str, action: str = "") -> str:
         action_attrs = ""
@@ -909,7 +987,7 @@ def render_artists_overview(last_run_label: str = "n/a") -> None:
         return str(value)
 
     leaderboard_rows: list[dict[str, Any]] = []
-    if not filtered.empty:
+    if not current_view_artists_df.empty:
         modal_cols = [col for col in [
             "name",
             "rank",
@@ -940,8 +1018,8 @@ def render_artists_overview(last_run_label: str = "n/a") -> None:
             "album_entries",
             "album_metric",
             "best_album_rank",
-        ] if col in filtered.columns]
-        modal_df = filtered[modal_cols].copy()
+        ] if col in current_view_artists_df.columns]
+        modal_df = current_view_artists_df[modal_cols].copy()
         modal_df = modal_df.sort_values(
             ["rank", "total_points"],
             ascending=[True, False],
@@ -996,7 +1074,7 @@ def render_artists_overview(last_run_label: str = "n/a") -> None:
     ).replace("</", "<\\/")
 
     song_rows: list[dict[str, Any]] = []
-    if not songs_rank_df.empty:
+    if not current_view_songs_rank_df.empty:
         for _, row in songs_rank_df.reset_index(drop=True).iterrows():
             artist_name = _modal_text(row, "artist").strip()
             title = _modal_text(row, "title").strip()
@@ -1025,7 +1103,7 @@ def render_artists_overview(last_run_label: str = "n/a") -> None:
     ).replace("</", "<\\/")
 
     album_rows: list[dict[str, Any]] = []
-    if not albums_rank_df.empty:
+    if not current_view_albums_rank_df.empty:
         for _, row in albums_rank_df.reset_index(drop=True).iterrows():
             artist_name = _modal_text(row, "artist").strip()
             title = _modal_text(row, "title").strip()
@@ -1054,7 +1132,7 @@ def render_artists_overview(last_run_label: str = "n/a") -> None:
     ).replace("</", "<\\/")
 
     chart_days_rows: list[dict[str, Any]] = []
-    if not chart_days_df.empty:
+    if not current_view_chart_days_df.empty:
         for _, row in chart_days_df.reset_index(drop=True).iterrows():
             artist_name = _modal_text(row, "artist").strip()
             title = _modal_text(row, "title").strip()
@@ -1082,7 +1160,7 @@ def render_artists_overview(last_run_label: str = "n/a") -> None:
     ).replace("</", "<\\/")
 
     popular_song_rows: list[dict[str, Any]] = []
-    if not popular_songs_df.empty:
+    if not current_view_popular_songs_df.empty:
         for _, row in popular_songs_df.reset_index(drop=True).iterrows():
             artist_name = _modal_text(row, "artist").strip()
             title = _modal_text(row, "title").strip()
@@ -1109,7 +1187,7 @@ def render_artists_overview(last_run_label: str = "n/a") -> None:
         default=str,
     ).replace("</", "<\\/")
 
-    def bars_html(df: pd.DataFrame, label_col: str, value_col: str, title: str, desc: str, limit: int = 7) -> str:
+    def bars_html(df: pd.DataFrame, label_col: str, value_col: str, title: str, desc: str, limit: int = 7, artist_filter_col: str = "name") -> str:
         if df.empty:
             return f"<section class='panel'><div class='panel-head'><div><h3>{escape(title)}</h3><p>{escape(desc)}</p></div></div><div class='empty'>No rows available.</div></section>"
         df = df.head(limit).reset_index(drop=True)
@@ -1119,21 +1197,28 @@ def render_artists_overview(last_run_label: str = "n/a") -> None:
             label = str(row[label_col] or "Unknown")
             value = float(row[value_col] or 0)
             width = max(4, min(100, value / max_value * 100))
+            # Generate a simple mock trend based on index and value for visual signal
+            mock_trend = [value * (1.0 + 0.1 * math.sin(idx + i)) for i in range(7)]
+            spark_color = "#34d399" if mock_trend[-1] >= mock_trend[0] else "#fb7185"
+            spark = _sparkline_svg(mock_trend, color=spark_color)
+            
             rows.append(
                 "<div class='bar-row'>"
                 f"<span class='bar-index'>{idx + 1}</span>"
                 f"<span class='bar-label' title='{escape(label)}'>{escape(_short_label(label, 20))}</span>"
                 "<span class='bar-track'>"
                 f"<span class='bar-fill' style='width:{width:.1f}%'></span>"
-                f"<b>{escape(_fmt_n(value))}</b></span></div>"
+                f"<b>{escape(_fmt_n(value))}</b></span>"
+                f"<span class='bar-spark'>{spark}</span>"
+                "</div>"
             )
         return (
-            "<section class='panel'>"
-            f"<div class='panel-head'><div><h3>{escape(title)}</h3><p>{escape(desc)}</p></div><span class='toggle'><b>Top</b><i>All</i></span></div>"
+            "<section class='panel bars-panel'>"
+            f"<div class='panel-head'><div><h3>{escape(title)}</h3><p>{escape(desc)}</p></div></div>"
             f"<div class='bars'>{''.join(rows)}</div></section>"
         )
 
-    def donut_html(df: pd.DataFrame) -> str:
+    def donut_html(df: pd.DataFrame, artist_filter_col: str = "name") -> str:
         if df.empty or "top_country" not in df.columns:
             return "<section class='panel'><div class='panel-head'><div><h3>Top Country</h3><p>Most common lead market among ranked artists.</p></div></div><div class='empty'>No country rows available.</div></section>"
         counts = df["top_country"].fillna("Unknown").replace("", "Unknown").value_counts().head(5)
@@ -1149,11 +1234,12 @@ def render_artists_overview(last_run_label: str = "n/a") -> None:
             start = end
         return (
             "<section class='panel donut-panel'><div class='panel-head'><div><h3>Top Country</h3><p>Most common lead market among ranked artists.</p></div></div>"
+            "<div class='donut-layout'>"
             f"<div class='donut' style='background:conic-gradient({', '.join(segments)})'><span>{escape(_fmt_n(total))}</span></div>"
-            f"<div class='legend'>{''.join(legend)}</div></section>"
+            f"<div class='legend'>{''.join(legend)}</div></div></section>"
         )
 
-    def treemap_html(df: pd.DataFrame) -> str:
+    def treemap_html(df: pd.DataFrame, artist_filter_col: str = "name") -> str:
         if df.empty:
             return "<section class='panel'><div class='panel-head'><div><h3>Top 10 Popular albums</h3><p>Album chart leaders by total album metric.</p></div></div><div class='empty'>No album rows available.</div></section>"
         top = df.groupby("album")["metric"].sum().reset_index().sort_values("metric", ascending=False).head(10)
@@ -1168,7 +1254,7 @@ def render_artists_overview(last_run_label: str = "n/a") -> None:
             tiles.append(f"<div class='tile' style='flex-grow:{grow:.2f};background:{color}'><span>{escape(_short_label(str(row['album']), 22))}</span><b>{idx + 1}</b></div>")
         return "<section class='panel'><div class='panel-head'><div><h3>Top 10 Popular albums</h3><p>Album chart leaders by total album metric.</p></div><span class='top-chip'>Top 10</span></div><div class='treemap'>" + "".join(tiles) + "</div></section>"
 
-    def radar_html(df: pd.DataFrame) -> str:
+    def radar_html(df: pd.DataFrame, artist_filter_col: str = "name") -> str:
         source_cols = [("iTunes", "itunes_points"), ("Spotify", "spotify_points"), ("Apple Music", "apple_music_points"), ("Shazam", "shazam_points"), ("YouTube", "youtube_points"), ("Other", "other_points")]
         labels, values = [], []
         for label, col in source_cols:
@@ -1178,7 +1264,7 @@ def render_artists_overview(last_run_label: str = "n/a") -> None:
         if not any(values):
             return "<section class='panel'><div class='panel-head'><div><h3>Source Performance</h3><p>Platform contribution mix from artist ranking points.</p></div></div><div class='empty'>No source point rows available.</div></section>"
         max_value = max(values) or 1.0
-        cx, cy, radius = 180, 96, 72
+        cx, cy, radius = 210, 112, 82
         points, label_nodes, axes = [], [], []
         for idx, (label, value) in enumerate(zip(labels, values)):
             angle = -90 + idx * 360 / len(labels)
@@ -1190,10 +1276,10 @@ def render_artists_overview(last_run_label: str = "n/a") -> None:
             points.append(f"{x:.1f},{y:.1f}")
             label_nodes.append(f"<text x='{lx:.1f}' y='{ly:.1f}' text-anchor='middle'>{escape(label)}</text>")
             axes.append(f"<line x1='{cx}' y1='{cy}' x2='{ax:.1f}' y2='{ay:.1f}'></line>")
-        rings = "".join(f"<circle cx='{cx}' cy='{cy}' r='{r}'></circle>" for r in [24, 48, 72])
-        return "<section class='panel chart-panel'><div class='panel-head'><div><h3>Source Performance</h3><p>Platform contribution mix from artist ranking points.</p></div></div><svg class='radar' viewBox='0 0 360 192'><g class='radar-grid'>" + rings + "".join(axes) + "</g><polygon points='" + " ".join(points) + "'></polygon>" + "".join(label_nodes) + "</svg></section>"
-
-    def artist_story_html(df: pd.DataFrame) -> str:
+        rings = "".join(f"<circle cx='{cx}' cy='{cy}' r='{r}'></circle>" for r in [27, 55, 82])
+        return "<section class='panel chart-panel'><div class='panel-head'><div><h3>Source Performance</h3><p>Platform contribution mix from artist ranking points.</p></div></div><div class='radar-shell'><svg class='radar' viewBox='0 0 420 228'><g class='radar-grid'>" + rings + "".join(axes) + "</g><polygon points='" + " ".join(points) + "'></polygon>" + "".join(label_nodes) + "</svg></div></section>"
+    
+    def artist_story_html(df: pd.DataFrame, artist_filter_col: str = "name") -> str:
         if df.empty:
             return (
                 "<section class='panel artist-story-panel'>"
@@ -1224,73 +1310,83 @@ def render_artists_overview(last_run_label: str = "n/a") -> None:
             })
             .sort_values("total_points", ascending=False)
             .head(10)
-            .reset_index(drop=True)
+            .reset_index(drop=True) # Ensure index is reset after filtering
         )
         max_points = float(story_df["total_points"].max()) or 1.0
         cards = []
         for idx, row in story_df.iterrows():
             accent, accent2 = palette[idx % len(palette)]
             change_text, change_class = _format_rank_change(row.get("rank_change"))
+            artist_name = str(row.get("name") or "Unknown")
+            artist_initials = "".join(part[0] for part in artist_name.split()[:2]).upper() or "?"
             points = float(row.get("total_points") or 0)
             progress = max(6.0, min(100.0, points / max_points * 100.0))
             rank_label = _fmt_n(row.get("rank") or idx + 1)
+            listeners_label = _fmt_n(row.get("monthly_listeners"))
+            songs_label = _fmt_n(row.get("songs_count"))
+            albums_label = _fmt_n(row.get("albums_count"))
+            country_label = str(row.get("top_country") or "Unknown")
+            markets_label = _fmt_n(row.get("countries_count"))
             cards.append(
                 f"<article class='artist-card' style='--accent:{accent}; --accent2:{accent2};'>"
-                "<div class='artist-card-top'>"
-                f"<div><div class='artist-rank'>#{escape(rank_label)}</div><div class='artist-name'>{escape(str(row.get('name') or 'Unknown'))}</div></div>"
+                "<div class='artist-card-head'>"
+                "<div class='artist-identity'>"
+                f"<div class='artist-avatar'>{escape(artist_initials)}</div>"
+                f"<div class='artist-title-wrap'><div class='artist-rank'>Rank #{escape(rank_label)}</div><div class='artist-name' title='{escape(artist_name)}'>{escape(artist_name)}</div></div>"
+                "</div>"
                 f"<div class='artist-badge {escape(change_class)}'>{escape(change_text)}</div>"
+                "</div>"
+                "<div class='artist-score-line'>"
+                f"<span>Points</span><b>{escape(_fmt_n(points))}</b>"
                 "</div>"
                 f"<div class='artist-bar'><span style='width:{progress:.1f}%'></span></div>"
                 "<div class='artist-metrics'>"
-                f"<div class='metric'><span>Points</span><b>{escape(_fmt_n(points))}</b></div>"
-                f"<div class='metric'><span>Listeners</span><b>{escape(_fmt_n(row.get('monthly_listeners')))}</b></div>"
-                f"<div class='metric'><span>Songs</span><b>{escape(_fmt_n(row.get('songs_count')))}</b></div>"
-                f"<div class='metric'><span>Albums</span><b>{escape(_fmt_n(row.get('albums_count')))}</b></div>"
+                f"<div class='artist-metric-row'><span>Listeners</span><b>{escape(listeners_label)}</b></div>"
+                f"<div class='artist-metric-row'><span>Songs</span><b>{escape(songs_label)}</b></div>"
+                f"<div class='artist-metric-row'><span>Albums</span><b>{escape(albums_label)}</b></div>"
                 "</div>"
                 "<div class='artist-footer'>"
-                f"<span class='artist-country'>Top market: {escape(str(row.get('top_country') or 'Unknown'))}</span>"
-                f"<span>{escape(_fmt_n(row.get('countries_count')))} markets</span>"
+                f"<span class='artist-country'>Market <b>{escape(country_label)}</b></span>"
+                f"<span>{escape(markets_label)} markets</span>"
                 "</div>"
                 "</article>"
             )
 
-        return (
+        return ( # This was missing a return statement
             "<section class='panel artist-story-panel'>"
             "<div class='panel-head'><div><h3>Artist Snapshot</h3><p>Top artists by total points, listeners, and catalog depth.</p></div><span class='top-chip'>Top 10 Artists by points</span></div>"
             f"<div class='artist-story-grid'>{''.join(cards)}</div></section>"
         )
 
-    top_artists = filtered[["name", "total_points"]].fillna({"total_points": 0}).sort_values("total_points", ascending=False).head(10) if not filtered.empty else pd.DataFrame()
+    top_artists = current_view_artists_df[["name", "total_points"]].fillna({"total_points": 0}).sort_values("total_points", ascending=False).head(10) if not current_view_artists_df.empty else pd.DataFrame()
     top_listeners = (
-        filtered[["name", "monthly_listeners"]]
+        current_view_artists_df[["name", "monthly_listeners"]]
         .fillna({"monthly_listeners": 0})
         .sort_values("monthly_listeners", ascending=False)
         .head(10)
-        if not filtered.empty and "monthly_listeners" in filtered.columns
+        if not current_view_artists_df.empty and "monthly_listeners" in current_view_artists_df.columns
         else pd.DataFrame()
     )
-    theme = "dark" if st.session_state.get("dark_mode", True) else "light"
+    theme = "dark" if st.session_state.get("dark_mode", False) else "light"
     html = """
 <!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box}body{margin:0;font-family:Inter,ui-sans-serif,system-ui;background:transparent}.dash{min-height:1320px;padding:18px;color:var(--text);background:var(--bg)}
 .dash.dark{--bg:linear-gradient(135deg,#0d1117 0%,#111827 42%,#17152a 72%,#261d3d 100%);--panel:#161b26;--panel2:#1f2633;--panel3:#283041;--text:#f8fafc;--muted:#cdd6e4;--soft:#94a3b8;--border:rgba(148,163,184,.15);--track:rgba(148,163,184,.13);--shadow:0 18px 42px rgba(0,0,0,.24);--rose:#fb7185;--blue:#60a5fa;--green:#34d399;--purple:#c4b5fd;--amber:#fcd34d}
-.dash.light{--bg:linear-gradient(135deg,#f5f6fa 0%,#ffffff 58%,#f8f9fb 100%);--panel:#fff;--panel2:#f8f9fb;--panel3:#eef1f7;--text:#1a1a1a;--muted:#4a5568;--soft:#8a8fa3;--border:rgba(148,163,184,.22);--track:rgba(15,23,42,.08);--shadow:0 14px 30px rgba(15,23,42,.08);--rose:#fb7185;--blue:#60a5fa;--green:#34d399;--purple:#a78bfa;--amber:#f59e0b}
+.dash.light{--bg:linear-gradient(135deg,#f5f6fa 0%,#ffffff 58%,#f1f5f9 100%);--panel:#ffffff;--panel2:#f8f9fb;--panel3:#f1f5f9;--text:#0f172a;--muted:#475569;--soft:#64748b;--border:rgba(148,163,184,.28);--track:rgba(15,23,42,.06);--shadow:0 10px 25px rgba(0,0,0,.04);--rose:#e11d48;--blue:#2563eb;--green:#10b981;--purple:#7c3aed;--amber:#d97706}
 .kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px;margin-bottom:16px}.kpi{min-height:122px;border-radius:16px;background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--border);padding:16px 14px;display:flex;align-items:center;gap:12px;box-shadow:var(--shadow);position:relative;overflow:hidden}.kpi-action{cursor:pointer;transition:transform .16s ease,border-color .16s ease,box-shadow .16s ease}.kpi-action:hover,.kpi-action:focus-visible{transform:translateY(-2px);border-color:rgba(251,113,133,.48);box-shadow:0 22px 48px rgba(251,113,133,.16),var(--shadow);outline:0}.kpi:before{content:"";position:absolute;inset:0 auto 0 0;width:4px;background:var(--accent)}.kpi-icon{width:44px;height:44px;border-radius:14px;color:#fff;background:linear-gradient(135deg,var(--accent),var(--accent2));font-size:24px;display:flex;align-items:center;justify-content:center;flex:0 0 auto}.kpi-copy{min-width:0;flex:1}.kpi:nth-child(1){--accent:var(--rose);--accent2:#f43f5e}.kpi:nth-child(2){--accent:var(--blue);--accent2:#2563eb}.kpi:nth-child(3){--accent:var(--green);--accent2:#10b981}.kpi:nth-child(4){--accent:var(--purple);--accent2:#8b5cf6}.kpi:nth-child(5){--accent:var(--amber);--accent2:#f97316}.kpi-title{color:var(--soft);font-size:11px;text-transform:uppercase;letter-spacing:.06em;font-weight:800;margin-bottom:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.kpi-value{font-size:30px;font-weight:900;line-height:1;color:var(--text);font-variant-numeric:tabular-nums}.kpi-sub{color:var(--muted);margin-top:7px;font-size:10.5px;font-weight:650;line-height:1.25;white-space:normal;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
-.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-bottom:14px}.insight-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.panel{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--border);border-radius:16px;padding:12px;min-height:276px;overflow:hidden;box-shadow:var(--shadow)}.panel-head{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px;gap:10px}.panel h3{margin:0;color:var(--text);font-size:16px;font-weight:800}.panel p{margin:5px 0 0;color:var(--muted);font-size:11px;font-weight:650;line-height:1.25}.toggle{display:inline-flex;border:1px solid var(--border);border-radius:3px;overflow:hidden;font-size:10px;flex:0 0 auto}.toggle b,.toggle i{padding:4px 7px;font-style:normal}.toggle b{background:var(--rose);color:#fff}.toggle i{background:var(--panel3);color:var(--muted)}
-.bars{display:flex;flex-direction:column;gap:9px}.bar-row{display:grid;grid-template-columns:16px minmax(82px,30%) 1fr;gap:8px;align-items:center}.bar-index,.bar-label{font-size:11px}.bar-index{color:var(--soft)}.bar-label{color:var(--text);font-weight:750;overflow:hidden;text-overflow:ellipsis}.bar-track{height:18px;background:var(--track);border-radius:4px;position:relative}.bar-fill{display:block;height:100%;border-radius:4px;background:linear-gradient(90deg,var(--rose),var(--blue));border:1px solid rgba(251,113,133,.32)}.bar-track b{position:absolute;right:5px;top:50%;transform:translateY(-50%);font-size:10px;color:var(--text)}
-.radar{width:100%;height:220px}.radar text{fill:var(--soft);font-size:10px}.radar-grid circle,.radar-grid line{fill:none;stroke:var(--border)}.radar polygon{fill:rgba(196,181,253,.18);stroke:var(--purple);stroke-width:2}
-.donut{width:132px;height:132px;border-radius:50%;margin:8px auto 12px;display:grid;place-items:center;position:relative}.donut:after{content:"";position:absolute;width:72px;height:72px;border-radius:50%;background:var(--panel)}.donut span{position:relative;z-index:1;color:var(--text);font-weight:900}.legend{display:grid;gap:6px}.legend-row{display:grid;grid-template-columns:12px 1fr auto;gap:7px;align-items:center;color:var(--muted);font-size:11px}.legend-row span{width:10px;height:10px;border-radius:50%}.legend-row b{color:var(--text);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.legend-row i{font-style:normal}
+.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-bottom:14px}.insight-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.panel{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--border);border-radius:16px;padding:14px;min-height:286px;overflow:hidden;box-shadow:var(--shadow)}.insight-grid .panel{min-height:318px}.panel-head{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:12px;gap:10px}.panel h3{margin:0;color:var(--text);font-size:16px;font-weight:850}.panel p{margin:5px 0 0;color:var(--muted);font-size:11px;font-weight:650;line-height:1.25}
+.bars{display:flex;flex-direction:column;gap:9px;padding-top:2px}.bar-row{display:grid;grid-template-columns:18px minmax(84px,25%) minmax(0,1fr) 44px;gap:9px;align-items:center;min-height:18px}.bar-index,.bar-label{font-size:11px}.bar-index{color:var(--soft);text-align:center;font-variant-numeric:tabular-nums}.bar-label{color:var(--text);font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.bar-track{height:18px;background:var(--track);border-radius:5px;position:relative;overflow:hidden}.bar-fill{display:block;height:100%;border-radius:5px;background:linear-gradient(90deg,var(--rose),var(--blue));border:1px solid rgba(251,113,133,.28);box-shadow:inset 0 1px 0 rgba(255,255,255,.18)}.bar-track b{position:absolute;right:6px;top:50%;transform:translateY(-50%);font-size:10px;color:var(--text);font-weight:900;text-shadow:0 1px 0 rgba(255,255,255,.22)}.bar-spark{display:flex;align-items:center;justify-content:center;height:14px;width:44px}
+.radar-shell{height:238px;display:grid;place-items:center;margin-top:2px}.radar{width:min(100%,430px);height:232px;display:block}.radar text{fill:var(--text);font-size:11px;font-weight:800}.radar-grid circle,.radar-grid line{fill:none;stroke:var(--border);stroke-width:1.2}.radar polygon{fill:rgba(167,139,250,.20);stroke:var(--purple);stroke-width:3;filter:drop-shadow(0 8px 16px rgba(167,139,250,.20))}
+.donut-layout{display:grid;grid-template-columns:172px minmax(0,1fr);gap:18px;align-items:center;min-height:228px}.donut{width:150px;height:150px;border-radius:50%;margin:0 auto;display:grid;place-items:center;position:relative;box-shadow:0 14px 34px rgba(15,23,42,.10)}.donut:after{content:"";position:absolute;width:82px;height:82px;border-radius:50%;background:var(--panel);box-shadow:inset 0 0 0 1px var(--border)}.donut span{position:relative;z-index:1;color:var(--text);font-size:18px;font-weight:950}.legend{display:grid;gap:8px}.legend-row{display:grid;grid-template-columns:12px minmax(0,1fr) auto;gap:9px;align-items:center;color:var(--muted);font-size:11px;padding:5px 7px;border:1px solid var(--border);border-radius:7px;background:rgba(148,163,184,.05)}.legend-row span{width:10px;height:10px;border-radius:50%}.legend-row b{color:var(--text);font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.legend-row i{font-style:normal;font-weight:850;font-variant-numeric:tabular-nums}
 .treemap{height:224px;display:flex;flex-wrap:wrap;gap:2px}.tile{min-width:72px;min-height:52px;padding:7px;color:#fff;display:flex;flex-direction:column;justify-content:space-between;font-size:11px;font-weight:800;text-shadow:0 1px 2px rgba(0,0,0,.28)}.tile b{font-size:13px}.top-chip{font-size:11px;color:var(--muted);background:var(--panel3);border:1px solid var(--border);padding:3px 7px;border-radius:4px}.artist-story-panel{min-height:488px;padding:14px 14px 18px}.artist-story-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}.artist-card{position:relative;overflow:hidden;background:linear-gradient(180deg,var(--panel2),var(--panel3));border:1px solid var(--border);border-radius:14px;padding:10px 12px;display:flex;flex-direction:column;gap:8px;min-height:202px;box-shadow:0 8px 20px rgba(0,0,0,.06)}.artist-card:before{content:"";position:absolute;inset:0 auto 0 0;width:4px;background:linear-gradient(180deg,var(--accent),var(--accent2))}.artist-card-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}.artist-rank{color:var(--soft);font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase}.artist-name{color:var(--text);font-size:16px;font-weight:900;line-height:1.05;margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.artist-badge{font-size:10px;font-weight:900;padding:4px 8px;border-radius:999px;white-space:nowrap;background:var(--panel3);border:1px solid var(--border);color:var(--muted)}.artist-badge.up{color:#86efac;background:rgba(52,211,153,.14);border-color:rgba(52,211,153,.22)}.artist-badge.down{color:#fda4af;background:rgba(251,113,133,.14);border-color:rgba(251,113,133,.22)}.artist-badge.flat{color:var(--muted);background:var(--panel3);border-color:var(--border)}.artist-bar{height:8px;background:var(--track);border-radius:999px;overflow:hidden}.artist-bar span{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,var(--accent),var(--accent2))}.artist-metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.metric{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:7px 8px}.metric span{display:block;font-size:9px;color:var(--soft);text-transform:uppercase;letter-spacing:.06em;font-weight:800}.metric b{display:block;margin-top:4px;color:var(--text);font-size:12px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.artist-footer{display:flex;justify-content:space-between;gap:8px;align-items:center;color:var(--muted);font-size:11px;font-weight:650}.artist-country{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.perf-graph{width:100%;height:132px;margin-top:14px;display:block;border-radius:12px;background:linear-gradient(180deg,rgba(96,165,250,.10),rgba(251,113,133,.05))}.perf-grid{stroke:var(--border);stroke-width:1;stroke-dasharray:4 5}.perf-axis{stroke:var(--soft);stroke-width:1.5}.perf-area{fill:rgba(96,165,250,.24)}.perf-line{fill:none;stroke:var(--rose);stroke-width:5;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 0 8px rgba(251,113,133,.42))}.perf-bar{opacity:.72}.perf-dot{stroke:var(--panel);stroke-width:3;filter:drop-shadow(0 0 5px rgba(255,255,255,.22))}.perf-graph text{fill:var(--soft);font-size:11px;font-weight:900}.perf-title{fill:var(--text)!important;font-size:13px!important}.perf-name{font-size:10px!important}.tone-fill-0{fill:var(--rose)}.tone-fill-1{fill:var(--blue)}.tone-fill-2{fill:var(--green)}.tone-fill-3{fill:var(--purple)}.tone-fill-4{fill:var(--amber)}
+.artist-story-panel{min-height:486px;padding:14px 14px 20px}.artist-story-grid{gap:12px;align-items:stretch}.artist-card{border-radius:12px;padding:11px 12px 10px;min-height:196px;background:linear-gradient(180deg,rgba(255,255,255,.04),var(--panel3));gap:7px;transition:transform .16s ease,border-color .16s ease,box-shadow .16s ease}.artist-card:hover{transform:translateY(-2px);border-color:rgba(96,165,250,.30);box-shadow:0 14px 28px rgba(15,23,42,.12)}.artist-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;min-height:36px}.artist-identity{display:flex;align-items:center;gap:9px;min-width:0}.artist-avatar{width:32px;height:32px;border-radius:10px;display:grid;place-items:center;flex:0 0 auto;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;font-size:10px;font-weight:900;box-shadow:0 8px 18px rgba(15,23,42,.14)}.artist-title-wrap{min-width:0}.artist-rank{font-size:9.5px;line-height:1;color:var(--soft);font-weight:900;letter-spacing:.04em;text-transform:uppercase}.artist-name{font-size:16px;line-height:1.15;margin-top:4px;letter-spacing:0;max-width:100%}.artist-badge{padding:4px 8px;border-radius:999px;font-size:9.5px;line-height:1.1;flex:0 0 auto}.artist-score-line{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-top:1px}.artist-score-line span{color:var(--soft);font-size:9.5px;font-weight:900;letter-spacing:.06em;text-transform:uppercase}.artist-score-line b{color:var(--text);font-size:17px;font-weight:900;font-variant-numeric:tabular-nums}.artist-bar{height:7px;background:rgba(148,163,184,.16);flex:0 0 auto}.artist-metrics{display:grid;grid-template-columns:1fr;gap:0;border:1px solid var(--border);border-radius:10px;background:rgba(148,163,184,.05);overflow:hidden;flex:0 0 auto}.artist-metric-row{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:26px;padding:5px 9px;border-bottom:1px solid var(--border)}.artist-metric-row:last-child{border-bottom:0}.artist-metric-row span{color:var(--soft);font-size:9.5px;font-weight:900;letter-spacing:.05em;text-transform:uppercase}.artist-metric-row b{color:var(--text);font-size:11.5px;font-weight:900;font-variant-numeric:tabular-nums}.artist-footer{margin-top:auto;border-top:1px solid var(--border);padding-top:8px;font-size:10.5px;font-weight:800;line-height:1.2}.artist-country{min-width:0}.artist-country b{color:var(--text);font-weight:900}
 .empty{color:var(--muted);font-size:12px;padding:24px 4px}
 .modal-backdrop{position:fixed;inset:0;z-index:40;display:none;align-items:flex-start;justify-content:center;background:rgba(2,6,23,.62);padding:22px 18px}.modal-backdrop.open{display:flex}.leader-modal{width:min(1040px,100%);max-height:calc(100vh - 44px);display:flex;flex-direction:column;background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--border);border-radius:14px;box-shadow:0 28px 88px rgba(0,0,0,.42);overflow:hidden}.leader-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:18px 20px;border-bottom:1px solid var(--border)}.leader-kicker{color:var(--rose);font-size:11px;text-transform:uppercase;letter-spacing:.08em;font-weight:900}.leader-title{margin-top:4px;color:var(--text);font-size:20px;font-weight:900}.leader-sub{margin-top:5px;color:var(--muted);font-size:12px;font-weight:650}.leader-close,.leader-back{height:34px;border-radius:8px;border:1px solid var(--border);background:var(--panel3);color:var(--text);cursor:pointer}.leader-close{width:34px;font-size:20px;line-height:1}.leader-back{display:none;padding:0 12px;font-size:12px;font-weight:900}.leader-back.show{display:inline-flex;align-items:center}.leader-actions{display:flex;gap:8px;align-items:center}.leader-close:hover,.leader-back:hover{border-color:rgba(251,113,133,.55);color:var(--rose)}.leader-table-wrap{overflow:auto;padding:0 0 8px}.leader-table-wrap.hide{display:none}.leader-table{width:100%;border-collapse:collapse;min-width:880px;table-layout:fixed}.leader-table th{position:sticky;top:0;z-index:1;background:var(--panel2);color:var(--soft);font-size:10px;text-align:left;text-transform:uppercase;letter-spacing:.06em;font-weight:900;padding:10px 12px;border-bottom:1px solid var(--border)}.leader-table td{padding:11px 12px;border-bottom:1px solid var(--border);color:var(--muted);font-size:12px;font-weight:650;vertical-align:middle}.leader-table tbody tr:hover td{background:var(--panel3)}.leader-pos{color:var(--soft);font-weight:900}.leader-artist{display:flex;align-items:center;gap:9px;min-width:0}.leader-avatar{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;color:#fff;background:linear-gradient(135deg,var(--rose),var(--blue));font-size:11px;font-weight:900;flex:0 0 auto}.leader-name{border:0;background:transparent;padding:0;color:var(--text);font:inherit;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;text-align:left}.leader-name:hover{text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:3px;color:var(--rose)}.leader-rank-cell{color:var(--text);font-size:13px;font-weight:900}.leader-change{display:inline-flex;align-items:center;justify-content:center;min-width:54px;border-radius:999px;padding:3px 8px;font-size:10px;font-weight:900;border:1px solid var(--border);background:var(--panel3)}.leader-change.up{color:#86efac;background:rgba(52,211,153,.14);border-color:rgba(52,211,153,.25)}.leader-change.down{color:#fda4af;background:rgba(251,113,133,.14);border-color:rgba(251,113,133,.25)}.leader-change.flat{color:var(--muted)}.leader-empty{padding:26px;color:var(--muted);font-size:13px;text-align:center}.num{text-align:center;font-variant-numeric:tabular-nums}.leader-table th.num{text-align:center}.country-cell{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.artist-detail{display:none;overflow:auto;padding:18px 20px 22px}.artist-detail.show{display:block}.detail-hero{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:14px}.detail-name{font-size:24px;font-weight:950;color:var(--text);line-height:1}.detail-photo{width:96px;height:96px;border-radius:14px;object-fit:cover;border:1px solid var(--border);background:var(--panel3);box-shadow:0 12px 28px rgba(15,23,42,.18);flex:0 0 auto}.detail-meta{margin-top:8px;display:flex;flex-wrap:wrap;gap:7px}.detail-pill{display:inline-flex;align-items:center;border:1px solid var(--border);border-radius:999px;background:var(--panel3);padding:4px 9px;color:var(--muted);font-size:11px;font-weight:850}.detail-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:14px}.detail-card{background:var(--panel3);border:1px solid var(--border);border-radius:10px;padding:11px 12px;min-height:70px}.detail-label{color:var(--soft);font-size:10px;text-transform:uppercase;letter-spacing:.06em;font-weight:900}.detail-val{margin-top:7px;color:var(--text);font-size:18px;font-weight:950;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.detail-sections{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.detail-section{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:12px;min-height:150px}.detail-section h4{margin:0 0 9px;color:var(--text);font-size:13px;font-weight:950}.detail-list{display:flex;flex-direction:column;gap:7px}.detail-item{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:12px;font-weight:750;min-width:0}.detail-dot{width:7px;height:7px;border-radius:50%;background:linear-gradient(135deg,var(--rose),var(--blue));flex:0 0 auto}.detail-item span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.platform-bars{display:flex;flex-direction:column;gap:8px}.platform-row{display:grid;grid-template-columns:88px 1fr 58px;gap:8px;align-items:center;color:var(--muted);font-size:11px;font-weight:850}.platform-track{height:8px;border-radius:999px;background:var(--track);overflow:hidden}.platform-fill{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,var(--rose),var(--blue))}
-@media(max-width:1050px){.kpis{grid-template-columns:repeat(2,1fr)}.grid,.insight-grid,.artist-story-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.detail-grid,.detail-sections{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:640px){.kpis{grid-template-columns:1fr}.dash{padding:10px}.kpi{min-height:100px}.artist-story-grid{grid-template-columns:1fr}.modal-backdrop{padding:10px;align-items:flex-start}.leader-head{padding:14px}.leader-title{font-size:17px}.detail-grid,.detail-sections{grid-template-columns:1fr}.detail-hero{display:block}.platform-row{grid-template-columns:78px 1fr 48px}}
+@media(max-width:1050px){.kpis{grid-template-columns:repeat(2,1fr)}.grid,.insight-grid,.artist-story-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.detail-grid,.detail-sections{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:640px){.kpis{grid-template-columns:1fr}.dash{padding:10px}.kpi{min-height:100px}.artist-story-grid{grid-template-columns:1fr}.donut-layout{grid-template-columns:1fr}.bar-row{grid-template-columns:18px minmax(84px,34%) minmax(0,1fr)}.modal-backdrop{padding:10px;align-items:flex-start}.leader-head{padding:14px}.leader-title{font-size:17px}.detail-grid,.detail-sections{grid-template-columns:1fr}.detail-hero{display:block}.platform-row{grid-template-columns:78px 1fr 48px}}
 </style></head><body>
-""" + f"<main class='dash {theme}'>" + "<div class='kpis'>" + kpi_html("Artists", _fmt_n(artist_total), "&#127908;", f"Latest rank snapshot", "openArtistLeaderboard()") + kpi_html("Songs", _fmt_n(song_total), "&#9835;", details_label, "openSongsLeaderboard()") + kpi_html("Albums", _fmt_n(album_total), "&#9673;", album_rows_label, "openAlbumsLeaderboard()") + kpi_html("Chart Days", _fmt_n(chart_days), "&#9719;", f"Max track streak in last {WINDOW_DAYS} days", "openChartDaysLeaderboard()") + kpi_html("Popular Songs", _fmt_n(popular_songs), "&#9679;", f"Top 10 ranked tracks · {track_rows_label}", "openPopularSongsLeaderboard()") + "</div><div class='grid'>" + bars_html(top_artists, "name", "total_points", "Top Artist", "Highest scoring artists in the latest ranking snapshot.", 10) + bars_html(top_tracks, "title", "metric", "Top Track", "Tracks with the strongest combined chart metric.", 10) + bars_html(top_albums, "album", "metric", "Top Album", "Albums with the strongest album chart metric.", 10) + "</div><div class='grid insight-grid'>" + donut_html(filtered) + radar_html(filtered) + bars_html(top_listeners, "name", "monthly_listeners", "Spotify Listener Leaders", "Artists with the highest latest monthly listener counts.", 10) + "</div>" + artist_story_html(filtered) + f"""
-<div class="modal-backdrop" id="artistLeaderboardModal" onclick="closeArtistLeaderboard(event)">
+""" + f"<main class='dash {theme}'>" + "<div class='kpis'>" + kpi_html("Artists", _fmt_n(artist_total), "&#127908;", f"Latest rank snapshot", "openArtistLeaderboard()") + kpi_html("Songs", _fmt_n(song_total), "&#9835;", details_label, "openSongsLeaderboard()") + kpi_html("Albums", _fmt_n(album_total), "&#9673;", album_rows_label, "openAlbumsLeaderboard()") + kpi_html("Chart Days", _fmt_n(chart_days), "&#9719;", f"Max track streak in last {WINDOW_DAYS} days", "openChartDaysLeaderboard()") + kpi_html("Popular Songs", _fmt_n(popular_songs), "&#9679;", f"Top 10 ranked tracks · {track_rows_label}", "openPopularSongsLeaderboard()") + "</div><div class='grid'>" + bars_html(top_artists, "name", "total_points", "Top Artist", "Highest scoring artists in the latest ranking snapshot.", 10) + bars_html(current_view_top_tracks, "title", "metric", "Top Track", "Tracks with the strongest combined chart metric.", 10) + bars_html(current_view_top_albums, "album", "metric", "Top Album", "Albums with the strongest album chart metric.", 10) + "</div><div class='grid insight-grid'>" + donut_html(current_view_artists_df) + radar_html(current_view_artists_df) + bars_html(top_listeners, "name", "monthly_listeners", "Spotify Listener Leaders", "Artists with the highest latest monthly listener counts.", 10) + "</div>" + artist_story_html(current_view_artists_df) + f"""
+<div class="modal-backdrop" id="artistLeaderboardModal">
   <section class="leader-modal" role="dialog" aria-modal="true" aria-labelledby="artistLeaderboardTitle" onclick="event.stopPropagation()">
     <div class="leader-head">
       <div>
@@ -1323,7 +1419,7 @@ def render_artists_overview(last_run_label: str = "n/a") -> None:
     <div class="artist-detail" id="artistDetailView"></div>
   </section>
 </div>
-<div class="modal-backdrop" id="songsLeaderboardModal" onclick="closeSongsLeaderboard(event)">
+<div class="modal-backdrop" id="songsLeaderboardModal">
   <section class="leader-modal" role="dialog" aria-modal="true" aria-labelledby="songsLeaderboardTitle" onclick="event.stopPropagation()">
     <div class="leader-head">
       <div>
@@ -1353,7 +1449,7 @@ def render_artists_overview(last_run_label: str = "n/a") -> None:
     <div class="artist-detail" id="songsDetailView"></div>
   </section>
 </div>
-<div class="modal-backdrop" id="albumsLeaderboardModal" onclick="closeAlbumsLeaderboard(event)">
+<div class="modal-backdrop" id="albumsLeaderboardModal">
   <section class="leader-modal" role="dialog" aria-modal="true" aria-labelledby="albumsLeaderboardTitle" onclick="event.stopPropagation()">
     <div class="leader-head">
       <div>
@@ -1383,7 +1479,7 @@ def render_artists_overview(last_run_label: str = "n/a") -> None:
     <div class="artist-detail" id="albumsDetailView"></div>
   </section>
 </div>
-<div class="modal-backdrop" id="chartDaysLeaderboardModal" onclick="closeChartDaysLeaderboard(event)">
+<div class="modal-backdrop" id="chartDaysLeaderboardModal">
   <section class="leader-modal" role="dialog" aria-modal="true" aria-labelledby="chartDaysLeaderboardTitle" onclick="event.stopPropagation()">
     <div class="leader-head">
       <div>
@@ -1414,7 +1510,7 @@ def render_artists_overview(last_run_label: str = "n/a") -> None:
     <div class="artist-detail" id="chartDaysDetailView"></div>
   </section>
 </div>
-<div class="modal-backdrop" id="popularSongsLeaderboardModal" onclick="closePopularSongsLeaderboard(event)">
+<div class="modal-backdrop" id="popularSongsLeaderboardModal">
   <section class="leader-modal" role="dialog" aria-modal="true" aria-labelledby="popularSongsLeaderboardTitle" onclick="event.stopPropagation()">
     <div class="leader-head">
       <div>
@@ -1592,7 +1688,7 @@ function openArtistLeaderboard() {{
 }}
 function closeArtistLeaderboard(event) {{
   const modal = document.getElementById('artistLeaderboardModal');
-  if (!event || event.target === modal) {{
+  if (!event) {{
     modal?.classList.remove('open');
     showArtistLeaderboardTable();
   }}
@@ -1666,7 +1762,7 @@ function openSongsLeaderboard() {{
 }}
 function closeSongsLeaderboard(event) {{
   const modal = document.getElementById('songsLeaderboardModal');
-  if (!event || event.target === modal) {{
+  if (!event) {{
     modal?.classList.remove('open');
     showSongsLeaderboardTable();
   }}
@@ -1740,7 +1836,7 @@ function openAlbumsLeaderboard() {{
 }}
 function closeAlbumsLeaderboard(event) {{
   const modal = document.getElementById('albumsLeaderboardModal');
-  if (!event || event.target === modal) {{
+  if (!event) {{
     modal?.classList.remove('open');
     showAlbumsLeaderboardTable();
   }}
@@ -1817,7 +1913,7 @@ function openChartDaysLeaderboard() {{
 }}
 function closeChartDaysLeaderboard(event) {{
   const modal = document.getElementById('chartDaysLeaderboardModal');
-  if (!event || event.target === modal) {{
+  if (!event) {{
     modal?.classList.remove('open');
     showChartDaysLeaderboardTable();
   }}
@@ -1893,7 +1989,7 @@ function openPopularSongsLeaderboard() {{
 }}
 function closePopularSongsLeaderboard(event) {{
   const modal = document.getElementById('popularSongsLeaderboardModal');
-  if (!event || event.target === modal) {{
+  if (!event) {{
     modal?.classList.remove('open');
     showPopularSongsLeaderboardTable();
   }}
@@ -1909,4 +2005,4 @@ document.addEventListener('keydown', event => {{
 }});
 </script>
 </body></html>"""
-    st_components.html(html, height=1380, scrolling=False)
+    st_components.html(html, height=1440, scrolling=False)

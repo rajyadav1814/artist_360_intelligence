@@ -34,6 +34,7 @@ from src.ai.acquisition_dashboard import (
 from src.ai.redesign_dashboard import render_redesign_dashboard
 from src.ai.track_acquisition_dashboard import render_track_acquisition
 from src.ai.album_acquisition_dashboard import render_album_acquisition
+from src.ai.label_analysis_dashboard import LABEL_NORM
 from src.database.connection import get_connection
 from src.scrapers.artist_details_scraper import LATIN_AMERICAN_COUNTRIES
 from src.utils.image_utils import get_artist_image_url, get_fallback_avatar_url
@@ -54,6 +55,10 @@ st.markdown(
         [data-testid="stToolbar"],
         [data-testid="stDecoration"],
         header[data-testid="stHeader"],
+        [data-testid="stStatusWidget"],
+        [data-testid="viewerBadge"],
+        .viewerBadge_container,
+        .stDeployButton,
         #MainMenu,
         footer {
             display: none !important;
@@ -80,7 +85,7 @@ elif "dark_mode" not in st.session_state:
         st.session_state.dark_mode = st.context.cookies["theme"] == "dark"
     # 3. Fallback to default
     else:
-        st.session_state.dark_mode = True
+        st.session_state.dark_mode = False
 
 if "active_artist_profile" not in st.session_state:
     st.session_state.active_artist_profile = None
@@ -181,7 +186,7 @@ LOAD_TIMEOUT_MS = 20000
 
 def render_plotly_html(fig: go.Figure, *, height: int | None = None, dark_mode: bool | None = None) -> None:
     if dark_mode is None:
-        dark_mode = st.session_state.get("dark_mode", True)
+        dark_mode = st.session_state.get("dark_mode", False)
 
     chart_height = height or (int(fig.layout.height) if fig.layout.height else 520)
     fig.update_layout(
@@ -410,11 +415,11 @@ def apply_theme(dark_mode: bool = True) -> None:
         .block-container {
             width: min(100%, 1680px);
             max-width: 1680px;
-            padding-top: 3.5rem; /* Balanced gap for tooltips */
+            padding-top: 3.5rem;
             padding-right: clamp(0.85rem, 1.8vw, 1.6rem);
             padding-left: clamp(0.85rem, 1.8vw, 1.6rem);
             padding-bottom: 6rem;
-            margin-top: -4.0rem;
+            margin-top: -6.5rem;
         }
         div[data-testid="stHorizontalBlock"] {
             gap: clamp(0.75rem, 1.4vw, 1.1rem);
@@ -427,8 +432,9 @@ def apply_theme(dark_mode: bool = True) -> None:
         [data-testid="stSidebar"] {
             background: var(--surface);
             border-right: 1px solid var(--border);
-            animation: slideIn 0.4s ease-out;
+            transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
+
         [data-testid="stSidebarHeader"] {
             position: sticky;
             top: 0;
@@ -470,7 +476,7 @@ def apply_theme(dark_mode: bool = True) -> None:
             transition: all 0.2s ease !important;
         }
         [data-testid="stSidebarNav"] a:hover {
-            background: rgba(251, 113, 133, 0.15) !important;
+            background: transparent !important;
             color: var(--primary-light) !important;
         }
         [data-testid="stSidebarNav"] a[aria-current="page"] {
@@ -886,9 +892,27 @@ def apply_theme(dark_mode: bool = True) -> None:
             background: rgba(251, 113, 133, 0.4);
             border-radius: 10px;
         }
-        textarea, input, [data-baseweb="select"] > div {
+        textarea, input, [data-baseweb="select"] > div, [data-baseweb="select"] span {
             background:var(--surface2) !important; color:var(--text) !important; border-color:var(--border) !important;
         }
+        
+        /* Selectbox Popover (The dropdown list) */
+        div[data-baseweb="popover"] ul {
+            background-color: var(--surface) !important;
+            border: 1px solid var(--border) !important;
+        }
+        div[data-baseweb="popover"] li {
+            color: var(--text) !important;
+            background-color: transparent !important;
+        }
+        div[data-baseweb="popover"] li:hover {
+            background-color: var(--surface2) !important;
+        }
+        /* Fix for selected value visibility */
+        div[data-baseweb="select"] div[child-pv-id] {
+            color: var(--text) !important;
+        }
+
         div[data-testid="stMetric"] {
             background:transparent; border:none; padding:0; box-shadow:none;
         }
@@ -1159,10 +1183,11 @@ def apply_theme(dark_mode: bool = True) -> None:
         }
         
         /* Toggle labels and sidebar text visibility */
-        [data-testid="stSidebar"] [data-testid="stWidgetLabel"] p,
-        [data-testid="stSidebar"] .stMarkdown p,
-        [data-testid="stSidebar"] .stToggle label,
-        [data-testid="stSidebar"] .stExpander p {
+        [data-testid="stWidgetLabel"] p,
+        .stMarkdown p,
+        .stToggle label,
+        [data-testid="stExpander"] p,
+        .streamlit-expanderHeader p {
             color: var(--text) !important;
         }
         
@@ -1247,8 +1272,225 @@ def apply_theme(dark_mode: bool = True) -> None:
             letter-spacing: 0;
             white-space: nowrap;
         }
+
+        /* JS-driven Mini Sidebar Functionality */
+        button[data-testid="baseButton-headerNoPadding"],
+        button[data-testid="collapsedControl"] {
+            display: none !important;
+        }
+        
+        [data-testid="stSidebar"] {
+            transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+            overflow: visible !important;
+        }
+        
+        [data-testid="stSidebarUserContent"] {
+            overflow-x: hidden !important;
+        }
+        
+        [data-testid="stSidebar"].is-mini {
+            width: 82px !important;
+            min-width: 82px !important;
+        }
+        
+        [data-testid="stSidebar"].is-mini + section[data-testid="stMain"] {
+            margin-left: 82px !important;
+        }
+        
+        [data-testid="stSidebar"].is-mini [data-testid="stSidebarHeader"]::after,
+        [data-testid="stSidebar"].is-mini .sidebar-logo,
+        [data-testid="stSidebar"].is-mini .appearance-title,
+        [data-testid="stSidebar"].is-mini .stButton,
+        [data-testid="stSidebar"].is-mini [data-testid="stExpander"] {
+            display: none !important;
+            opacity: 0 !important;
+        }
+        
+        [data-testid="stSidebar"].is-mini [data-testid="stSidebarNav"] a {
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            width: 46px !important;
+            height: 46px !important;
+            padding: 0 !important;
+            margin: 0 auto 6px auto !important;
+            border-radius: 12px !important;
+            overflow: visible !important;
+            position: relative !important;
+            background: transparent !important;
+            box-shadow: none !important;
+        }
+        
+        /* Make text invisible without forcing 0x0 dimensions that trigger clip bugs */
+        [data-testid="stSidebar"].is-mini [data-testid="stSidebarNav"] a * {
+            color: transparent !important;
+            font-size: 0 !important;
+            line-height: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+        }
+        
+        [data-testid="stSidebar"].is-mini [data-testid="stSidebarNav"] a span.material-symbols-rounded,
+        [data-testid="stSidebar"].is-mini [data-testid="stSidebarNav"] a [data-testid="stIconMaterial"],
+        [data-testid="stSidebar"].is-mini [data-testid="stSidebarNav"] a svg,
+        [data-testid="stSidebar"].is-mini [data-testid="stSidebarNav"] a i {
+            display: block !important;
+            position: absolute !important;
+            left: 50% !important;
+            top: 50% !important;
+            transform: translate(-50%, -50%) !important;
+            width: auto !important;
+            height: auto !important;
+            color: var(--text2) !important;
+            font-size: 22px !important;
+            line-height: 22px !important;
+            text-align: center !important;
+            white-space: nowrap !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            z-index: 2 !important;
+            opacity: 0.60;
+        }
+        
+
+        [data-testid="stSidebar"].is-mini [data-testid="stSidebarNav"] a[aria-current="page"] {
+            background: linear-gradient(135deg, #fb7185 0%, #f472b6 100%) !important;
+            box-shadow: 0 4px 16px rgba(251, 113, 133, 0.5) !important;
+            border: none !important;
+        }
+        
+        [data-testid="stSidebar"].is-mini [data-testid="stSidebarNav"] a[aria-current="page"] span.material-symbols-rounded,
+        [data-testid="stSidebar"].is-mini [data-testid="stSidebarNav"] a[aria-current="page"] [data-testid="stIconMaterial"],
+        [data-testid="stSidebar"].is-mini [data-testid="stSidebarNav"] a[aria-current="page"] svg,
+        [data-testid="stSidebar"].is-mini [data-testid="stSidebarNav"] a[aria-current="page"] i {
+            color: #ffffff !important;
+            opacity: 1 !important;
+            filter: drop-shadow(0 1px 3px rgba(0,0,0,0.2));
+        }
+        
+        [data-testid="stSidebar"].is-mini .status-good,
+        [data-testid="stSidebar"].is-mini .muted,
+        [data-testid="stSidebar"].is-mini .small-note {
+            display: none !important;
+        }
+        
+        [data-testid="stSidebar"].is-mini [data-testid="stSidebarHeader"] {
+            padding-left: 0 !important;
+            padding-right: 0 !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+        }
+
+        /* Force nav container and list to full width centered column */
+        [data-testid="stSidebar"].is-mini [data-testid="stSidebarNav"] {
+            padding-top: 0.5rem !important;
+            width: 100% !important;
+        }
+        [data-testid="stSidebar"].is-mini [data-testid="stSidebarNav"] ul {
+            width: 100% !important;
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: center !important;
+            padding: 0 !important;
+            margin: 0 !important;
+        }
+        [data-testid="stSidebar"].is-mini [data-testid="stSidebarNav"] li {
+            width: 100% !important;
+            display: flex !important;
+            justify-content: center !important;
+            list-style: none !important;
+            padding: 0 !important;
+            margin: 0 0 2px 0 !important;
+        }
+
         """ + theme_extra + "</style>",
         unsafe_allow_html=True,
+    )
+    
+    # Inject Javascript to create the custom toggle button and handle state
+    st_components.html(
+        """
+        <script>
+            setInterval(() => {
+                const doc = window.parent.document;
+                const sidebar = doc.querySelector('[data-testid="stSidebar"]');
+                
+                if (sidebar && !doc.getElementById('custom-collapse-btn')) {
+                    const btn = doc.createElement('div');
+                    btn.id = 'custom-collapse-btn';
+                    
+                    const isMiniInit = localStorage.getItem('sidebar_mini') === 'true';
+                    btn.innerHTML = isMiniInit 
+                        ? `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>` 
+                        : `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>`;
+                    
+                    btn.style.cssText = `
+                        position: absolute; right: -14px; top: 42px; width: 28px; height: 28px; 
+                        display: flex; align-items: center; justify-content: center;
+                        cursor: pointer; color: var(--text); border-radius: 50%;
+                        background: var(--surface); border: 1px solid var(--border);
+                        box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+                        transition: all 0.2s; z-index: 999999;
+                    `;
+                    btn.onmouseover = () => { btn.style.transform = 'scale(1.08)'; }
+                    btn.onmouseout = () => { btn.style.transform = 'scale(1)'; }
+                    
+                    btn.onclick = () => {
+                        const isMini = sidebar.classList.toggle('is-mini');
+                        btn.innerHTML = isMini 
+                            ? `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>` 
+                            : `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>`;
+                        localStorage.setItem('sidebar_mini', isMini);
+                        applyMiniNavStyles(sidebar);
+                    };
+                    
+                    if (isMiniInit) {
+                        sidebar.classList.add('is-mini');
+                    }
+                    
+                    sidebar.appendChild(btn);
+                }
+
+                // Always apply active nav styles when in mini mode
+                if (sidebar && sidebar.classList.contains('is-mini')) {
+                    applyMiniNavStyles(sidebar);
+                }
+            }, 300);
+
+            function applyMiniNavStyles(sidebar) {
+                const navLinks = sidebar.querySelectorAll('[data-testid="stSidebarNav"] a');
+                navLinks.forEach(link => {
+                    const isActive = link.getAttribute('aria-current') === 'page';
+                    if (isActive) {
+                        // Bold pink gradient on active link
+                        link.style.setProperty('background', 'linear-gradient(135deg, #fb7185 0%, #f472b6 100%)', 'important');
+                        link.style.setProperty('box-shadow', '0 4px 16px rgba(251,113,133,0.5)', 'important');
+                        link.style.setProperty('border', 'none', 'important');
+                        // White icon inside active link
+                        const icons = link.querySelectorAll('span, svg, i, [data-testid="stIconMaterial"]');
+                        icons.forEach(icon => {
+                            icon.style.setProperty('color', '#ffffff', 'important');
+                            icon.style.setProperty('opacity', '1', 'important');
+                        });
+                    } else {
+                        // Reset non-active links
+                        link.style.removeProperty('background');
+                        link.style.removeProperty('box-shadow');
+                        link.style.removeProperty('border');
+                        const icons = link.querySelectorAll('span, svg, i, [data-testid="stIconMaterial"]');
+                        icons.forEach(icon => {
+                            icon.style.removeProperty('color');
+                            icon.style.removeProperty('opacity');
+                        });
+                    }
+                });
+            }
+        </script>
+        
+        """,
+        height=0,
+        width=0
     )
 
 
@@ -1295,7 +1537,7 @@ def show_artist_details_dialog(row: pd.Series) -> None:
     countries_html = "".join(f"<li>{escape(item)}</li>" for item in countries_items) if countries_items else "<div style='color:#8b95ad;font-size:.88rem;'>No countries available.</div>"
 
     # Scoped styles for the dialog
-    is_dark = st.session_state.get("dark_mode", True)
+    is_dark = st.session_state.get("dark_mode", False)
     
     if is_dark:
         dlg_bg = "linear-gradient(180deg, #0f172a 0%, #020617 100%)"
@@ -1889,6 +2131,19 @@ def load_dashboard_data() -> dict[str, pd.DataFrame]:
             JOIN artists a ON a.id = r.artist_id
             WHERE r.rank = 1
             ORDER BY r.scrape_date DESC
+        """,
+        "artist_labels": """
+            WITH split_artists AS (
+                SELECT TRIM(SPLIT_PART(artist_title, ' - ', 1)) as name, label, date
+                FROM spotify_daily
+                WHERE label IS NOT NULL AND label != '' AND label != 'Independent'
+            ),
+            latest_labels AS (
+                SELECT name, label,
+                       ROW_NUMBER() OVER(PARTITION BY name ORDER BY date DESC) as rn
+                FROM split_artists
+            )
+            SELECT name, label FROM latest_labels WHERE rn = 1
         """
     }
 
@@ -1918,6 +2173,10 @@ def load_dashboard_data() -> dict[str, pd.DataFrame]:
         how="left",
     ).merge(
         frames["longevity"][["name", "times_on_chart", "weeks_on_chart", "times_at_top", "last_day_at_top", "max_countries", "best_rank"]],
+        on="name",
+        how="left"
+    ).merge(
+        frames["artist_labels"][["name", "label"]] if not frames["artist_labels"].empty else pd.DataFrame(columns=["name", "label"]),
         on="name",
         how="left"
     )
@@ -1981,7 +2240,7 @@ def latest_source_rows(runs: pd.DataFrame) -> pd.DataFrame:
 
 def style_figure(fig, height: int, dark_mode: bool | None = None) -> None:
     if dark_mode is None:
-        dark_mode = st.session_state.get("dark_mode", True)
+        dark_mode = st.session_state.get("dark_mode", False)
 
     text_color = "#cdd6e4" if dark_mode else "#1A1A1A"
     grid_color = "rgba(255,255,255,0.06)" if dark_mode else "rgba(0,0,0,0.06)"
@@ -2181,7 +2440,7 @@ def prepare_leaderboard_table(leaderboard: pd.DataFrame, max_rows: int) -> pd.Da
 def render_leaderboard_table_html(leaderboard: pd.DataFrame, max_rows: int, date_label: str = "n/a") -> None:
     table_df = leaderboard.head(max_rows).copy()
     rows_html = []
-    current_theme = "dark" if st.session_state.get("dark_mode", True) else "light"
+    current_theme = "dark" if st.session_state.get("dark_mode", False) else "light"
     for _, row in table_df.iterrows():
         rank = int(row["rank"]) if pd.notna(row["rank"]) else "—"
         rank_change = trend_badge_html(str(row.get("rank_change") or ""))
@@ -2261,7 +2520,7 @@ def render_leaderboard(leaderboard: pd.DataFrame, runs: pd.DataFrame, max_rows: 
     top_artist_row = leaderboard.sort_values("rank").head(1)
     top_artist_name = str(top_artist_row.iloc[0]["name"]) if not top_artist_row.empty else "—"
 
-    is_dark = st.session_state.get("dark_mode", True)
+    is_dark = st.session_state.get("dark_mode", False)
     
     # Python-level dynamic CSS to ensure no variable inheritance issues
     lb_bg2 = "#161b26" if is_dark else "#FFFFFF"
@@ -3390,10 +3649,10 @@ def render_chatbot_widget() -> None:
         
 
 
-apply_theme(dark_mode=st.session_state.get("dark_mode", True))
+apply_theme(dark_mode=st.session_state.get("dark_mode", False))
 
 _loader_slot = st.empty()
-is_dark = st.session_state.get("dark_mode", True)
+is_dark = st.session_state.get("dark_mode", False)
 l_bg = "#0d1117" if is_dark else "#FFFFFF"
 l_title = "#e2e8f0" if is_dark else "#1A1A1A"
 l_sub = "#5a7ab5" if is_dark else "#8A8FA3"
@@ -3517,6 +3776,7 @@ def show_compare_page() -> None:
         """
         <style>
         .cmp-note {
+            margin-top: -20px;
             margin-bottom: 0.9rem;
             padding: 0.75rem 0.9rem;
             border-radius: 12px;
@@ -3740,7 +4000,7 @@ def show_compare_page() -> None:
 
         with comp_col1:
             fig_comp_listeners = go.Figure()
-            is_dark = st.session_state.get("dark_mode", True)
+            is_dark = st.session_state.get("dark_mode", False)
             text_color = "#fff" if is_dark else "#1A1A1A"
             for idx_a, aname in enumerate(selected_for_comparison):
                 sl = comparison_data[comparison_data["name"] == aname]
@@ -3952,7 +4212,7 @@ def show_ai_analyst_page() -> None:
         """,
         unsafe_allow_html=True
     )
-    is_dark = st.session_state.get("dark_mode", True)
+    is_dark = st.session_state.get("dark_mode", False)
     bot_url = "https://artist360-chatbot.vercel.app/" if is_dark else "https://artist360-chatbot.vercel.app/white"
     st_components.iframe(bot_url, height=1000, scrolling=False)
 
@@ -4067,10 +4327,13 @@ def show_movement_page() -> None:
         unsafe_allow_html=True,
     )
     tab1, tab2, tab3 = st.tabs(["🎵 Track Movement", "💿 Album Movement", "🎤 Artist Movement"])
+    
+    labels_to_filter = selected_sony_labels if sony_music_only else None
+    
     with tab1:
-        render_track_movement()
+        render_track_movement(labels_to_filter)
     with tab2:
-        render_album_movement()
+        render_album_movement(labels_to_filter)
     with tab3:
         st.markdown(
             "<div style='font-size:0.85rem;color:var(--text2);margin:-0.5rem 0 0.75rem 0'>"
@@ -4117,12 +4380,15 @@ def show_acquisition_page() -> None:
         unsafe_allow_html=True,
     )
     tab1, tab2, tab3 = st.tabs(["🎵 Track Acquisition", "💿 Album Acquisition", "🎤 Artist Acquisition"])
+    
+    labels_to_filter = selected_sony_labels if sony_music_only else None
+    
     with tab1:
-        render_track_acquisition()
+        render_track_acquisition(labels_to_filter)
     with tab2:
-        render_album_acquisition()
+        render_album_acquisition(labels_to_filter)
     with tab3:
-        render_acquisition()
+        render_acquisition(labels_to_filter)
 
 
 app_pages = [
@@ -4201,7 +4467,7 @@ with st.sidebar:
     st.markdown(
         """
         <div class='brand-row'>
-            <div class='brand-logo'>🎵</div>
+            <div class='brand-logo'></div>
             <div>
                 <div class='sidebar-logo'>Artist 360° Intelligence</div>
             </div>
@@ -4214,10 +4480,10 @@ with st.sidebar:
     current_page = st.navigation(app_pages, position="sidebar", expanded=True)
 
     st.markdown(
-        "<div style='margin:.25rem 0 .35rem; color: var(--text2); font-size:.78rem; font-weight:800; letter-spacing:.08em; text-transform:uppercase;'>Appearance</div>",
+        "<div class='appearance-title' style='margin:.25rem 0 .35rem; color: var(--text2); font-size:.78rem; font-weight:800; letter-spacing:.08em; text-transform:uppercase;'>Appearance</div>",
         unsafe_allow_html=True,
     )
-    is_dark = st.session_state.get("dark_mode", True)
+    is_dark = st.session_state.get("dark_mode", False)
     toggle_label = "☀️ Light Mode" if is_dark else "🌙 Dark Mode"
     if st.button(
         toggle_label,
@@ -4262,21 +4528,75 @@ with st.sidebar:
                 options=options,
                 default=default_selection,
                 format_func=lambda x: latam_country_mapping.get(x, x),
-                on_change=clear_active_profile,
+                on_change=clear_active_profile if 'clear_active_profile' in locals() else None,
                 key="sidebar_countries_filter"
             )
 
+        sony_music_only = st.toggle("🎵 Sony Music", value=False, on_change=clear_active_profile if 'clear_active_profile' in locals() else None, key="sidebar_sony_music_filter")
+        
+        selected_sony_labels = []
+        if sony_music_only:
+            selected_sony_labels = [
+                "Sony Music",
+                "Sony Music Argentina",
+                "Sony Music Associated Records",
+                "Sony Music Australia",
+                "Sony Music Brasil",
+                "Sony Music Brazil",
+                "Sony Music Colombia",
+                "Sony Music Entertainment Australia",
+                "Sony Music Entertainment Indonesia",
+                "Sony Music Entertainment Japan",
+                "Sony Music India",
+                "Sony Music Japan",
+                "Sony Music Labels",
+                "Sony Music Latin",
+                "Sony Music Nashville",
+                "Sony Music Records",
+                "Sony Music Spain",
+                "SonyMusic Nashville",
+                "Stuffed Monkey / Sony Music",
+                "Stuffed Monkey/Sony Music",
+                "Two Sides/Sony Music",
+                "Columbia/Sony Music",
+                "Grupo Frontera / Sony Music Latin",
+                "Grupo Frontera LLC / Sony Music Latin",
+                "Grupo Frontera LLC/Sony Music Latin",
+                "Grupo Frontera Records / Sony Music Latin",
+                "Grupo Frontera Records/Sony Music Latin",
+                "Grupo Frontera/Sony Music Latin",
+                "Mango Music / Sony Music Latin",
+                "Palm Tree Records/Sony Music",
+                "Premium Latin Music/Sony Music Latin",
+                "Rancho Humilde / Sony Music Latin",
+                "Rancho Humilde/Sony Music Latin",
+                "River House Artists/Sony Music Nashville",
+                "River House/Sony Music Nashville",
+                "SAW Entertainment / Sony Music Nashville",
+                "SAW Entertainment/Sony Music Nashville",
+                "Street Mob Records/Sony Music Latin",
+                "White Star/Sony Music Latin",
+                "White World/Sony Music Latin"
+            ]
+
     
-    with st.expander("🎛️ Display Options", expanded=True):
-        max_rows = st.slider("📊 Table rows", min_value=15, max_value=300, value=15, step=5)
-    
-    # Apply global filters (Latam, Countries)
+
+    # Apply global filters (Latam, Countries, Labels)
     global_filtered = leaderboard.copy()
+    
+    if "label" in global_filtered.columns:
+        global_filtered["canonical_label"] = global_filtered["label"].apply(
+            lambda x: LABEL_NORM.get(str(x).strip(), str(x).strip()) if pd.notna(x) else ""
+        )
+    
     if latam_only:
         # options is only defined inside the sidebar, so we use LATAM_COUNTRIES or re-define
         global_filtered = global_filtered[global_filtered["top_country"].isin(latam_country_mapping.keys() if 'latam_country_mapping' in locals() else LATAM_COUNTRIES)]
         if selected_countries:
             global_filtered = global_filtered[global_filtered["top_country"].isin(selected_countries)]
+            
+    if sony_music_only and "label" in global_filtered.columns:
+        global_filtered = global_filtered[global_filtered["label"].isin(selected_sony_labels)]
     
     # Apply global sorting for Leaderboard list
     filtered = global_filtered.copy()
