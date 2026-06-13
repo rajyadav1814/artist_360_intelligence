@@ -900,13 +900,15 @@ def render_artists_overview(last_run_label: str = "n/a") -> None:
     # all_artists_combined_df is already sorted by rank in _build_artist_table
     all_artist_names = ["All Artists"] + all_artists_combined_df["name"].dropna().unique().tolist()
     
-    selected_artist_name = st.selectbox(
-        "Select an Artist to filter the dashboard",
-        options=all_artist_names,
-        key="artists_overview_selected_artist",
-        on_change=lambda: st.session_state.pop("artists_overview_selected_artist_detail", None), # Clear detail view on new selection
-        index=0, # Default to "All Artists"
-    )
+    col1, col2 = st.columns([0.3, 0.7])
+    with col1:
+        selected_artist_name = st.selectbox(
+            "Select an Artist to filter the dashboard",
+            options=all_artist_names,
+            key="artists_overview_selected_artist",
+            on_change=lambda: st.session_state.pop("artists_overview_selected_artist_detail", None), # Clear detail view on new selection
+            index=0, # Default to "All Artists"
+        )
 
     # --- Filter all dataframes based on selection ---
     current_view_artists_df = all_artists_combined_df.copy()
