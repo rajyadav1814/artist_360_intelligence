@@ -890,9 +890,27 @@ def apply_theme(dark_mode: bool = True) -> None:
             background: rgba(251, 113, 133, 0.4);
             border-radius: 10px;
         }
-        textarea, input, [data-baseweb="select"] > div {
+        textarea, input, [data-baseweb="select"] > div, [data-baseweb="select"] span {
             background:var(--surface2) !important; color:var(--text) !important; border-color:var(--border) !important;
         }
+        
+        /* Selectbox Popover (The dropdown list) */
+        div[data-baseweb="popover"] ul {
+            background-color: var(--surface) !important;
+            border: 1px solid var(--border) !important;
+        }
+        div[data-baseweb="popover"] li {
+            color: var(--text) !important;
+            background-color: transparent !important;
+        }
+        div[data-baseweb="popover"] li:hover {
+            background-color: var(--surface2) !important;
+        }
+        /* Fix for selected value visibility */
+        div[data-baseweb="select"] div[child-pv-id] {
+            color: var(--text) !important;
+        }
+
         div[data-testid="stMetric"] {
             background:transparent; border:none; padding:0; box-shadow:none;
         }
@@ -1163,10 +1181,11 @@ def apply_theme(dark_mode: bool = True) -> None:
         }
         
         /* Toggle labels and sidebar text visibility */
-        [data-testid="stSidebar"] [data-testid="stWidgetLabel"] p,
-        [data-testid="stSidebar"] .stMarkdown p,
-        [data-testid="stSidebar"] .stToggle label,
-        [data-testid="stSidebar"] .stExpander p {
+        [data-testid="stWidgetLabel"] p,
+        .stMarkdown p,
+        .stToggle label,
+        [data-testid="stExpander"] p,
+        .streamlit-expanderHeader p {
             color: var(--text) !important;
         }
         
@@ -4205,7 +4224,7 @@ with st.sidebar:
     st.markdown(
         """
         <div class='brand-row'>
-            <div class='brand-logo'>🎵</div>
+            <div class='brand-logo'></div>
             <div>
                 <div class='sidebar-logo'>Artist 360° Intelligence</div>
             </div>
