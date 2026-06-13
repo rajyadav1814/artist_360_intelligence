@@ -3768,7 +3768,7 @@ def show_leaderboard_page() -> None:
     # Create update label showing only the scraper execution time
     last_update_label = f"Last Update: {last_run_label}"
 
-    render_leaderboard(filtered, runs, max_rows=max_rows, date_label=last_update_label)
+    render_leaderboard(filtered, runs, max_rows=100, date_label=last_update_label)
 
 
 def show_compare_page() -> None:
