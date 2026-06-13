@@ -340,10 +340,8 @@ def _build_dashboard_html(
     snapshot_total = len(focus_pool)
     snapshot_risers = int((focus_pool["verdict"] == "rising").sum())
     snapshot_fatigue_count = int((focus_pool["verdict"] == "slipping").sum())
-    snapshot_avg = _fmt_n(
-        focus_pool["monthly_listeners"].dropna().mean()
-        if focus_pool["monthly_listeners"].notna().any() else 0
-    )
+    highest_rising_name = str(brief_acq.iloc[0]["name"]) if not brief_acq.empty else "—"
+    highest_fatigue_name = str(brief_fatigue.iloc[0]["name"]) if not brief_fatigue.empty else "—"
 
     # Generate the fatigue plot HTML block
     fatigue_fig = _make_fatigue_figure(focus_pool, dark_mode=dark_mode)
@@ -370,7 +368,8 @@ def _build_dashboard_html(
             "total": snapshot_total,
             "risers": snapshot_risers,
             "fatigue": snapshot_fatigue_count,
-            "avg_listeners": snapshot_avg,
+            "highest_rising": highest_rising_name,
+            "highest_fatigue": highest_fatigue_name,
             "last_run": last_run_label,
         },
         "window_label": window_label,
@@ -426,7 +425,9 @@ def _acq_rows_to_json(rows: pd.DataFrame, *, score_col: str, mode: str) -> list[
         elif mode == "Artist":
             display_name = str(row.get("name") or "Unknown")
         else:
-            display_name = str(row.get("top_song") or row.get("name") or "Unknown")
+            artist_name = str(row.get("name") or "Unknown")
+            track_name = str(row.get("top_song") or "Unknown")
+            display_name = f"{artist_name} - {track_name}"
 
         market = str(row.get("display_country") or row.get("top_country") or "—")
         mom = float(row.get("rank_delta_45d") or 0.0)
@@ -563,8 +564,8 @@ def _make_fatigue_figure(df: pd.DataFrame, *, dark_mode: bool) -> go.Figure:
     plot_df = df.dropna(subset=["monthly_listeners"]).copy()
     if plot_df.empty:
         return go.Figure()
-    # Limit to top 20 records
-    plot_df = plot_df.sort_values("monthly_listeners", ascending=False).head(20)
+    # Limit to top 30 records
+    plot_df = plot_df.sort_values("monthly_listeners", ascending=False).head(30)
     plot_df["fatigue_state"] = np.select(
         [plot_df["rank_delta_45d"] <= -5, plot_df["rank_delta_45d"] >= 5],
         ["fatigue", "climbing"], default="stable",
@@ -576,11 +577,13 @@ def _make_fatigue_figure(df: pd.DataFrame, *, dark_mode: bool) -> go.Figure:
         color="fatigue_state",
         color_discrete_map={"fatigue": "#fb7185", "stable": "#94a3b8", "climbing": "#34d399"},
         hover_name="name",
+        text="name",
         custom_data=["rank", "total_points", "countries_count", "display_country", "rank_delta_45d", "fatigue_state"],
-        size_max=44,
+        size_max=24,
         title=None,
     )
     fig.update_traces(
+        textposition="top center",
         marker=dict(opacity=0.88, line=dict(width=1.1, color="rgba(255,255,255,.28)" if dark_mode else "rgba(0,0,0,.12)")),
         hovertemplate=(
             "<b>%{hovertext}</b><br>"
@@ -726,7 +729,7 @@ body {
 /* KPI strip */
 .kpi-strip {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 12px;
   margin-bottom: 24px;
 }
@@ -1028,7 +1031,8 @@ body {
   background: var(--a-bg2);
   border: 1px solid var(--a-border);
   border-radius: 16px;
-  overflow: hidden;
+  max-height: 560px;
+  overflow-y: auto;
   box-shadow: 0 4px 20px rgba(0,0,0,0.06);
 }
 .acq-thead, .acq-row {
@@ -1038,6 +1042,9 @@ body {
   align-items: center;
 }
 .acq-thead {
+  position: sticky;
+  top: 0;
+  z-index: 10;
   padding: 12px 16px;
   color: var(--a-t3);
   font-size: .7rem;
@@ -1045,7 +1052,7 @@ body {
   text-transform: uppercase;
   letter-spacing: .15em;
   border-bottom: 1px solid var(--a-border);
-  background: rgba(0,0,0,0.02);
+  background: var(--a-bg2);
 }
 .acq-row {
   padding: 12px 16px;
@@ -1374,7 +1381,8 @@ function showTab(evt, id){
     {label:'Artists scored', value: k.total,        icon:'✦', tone:'neutral'},
     {label:'Rising now',     value: k.risers,      cls:'up', icon:'↗', tone:'up'},
     {label:'Fatigue watch',  value: k.fatigue,     cls:'dn', icon:'↘', tone:'dn'},
-    {label:'Avg listeners',  value: k.avg_listeners,           icon:'◔', tone:'neutral'},
+    {label:'Highest rising', value: k.highest_rising,        cls:'up', icon:'🔥', tone:'up'},
+    {label:'Highest fatigue',value: k.highest_fatigue,       cls:'dn', icon:'🧊', tone:'dn'},
     {label:'Last run',       value: k.last_run,               icon:'⏱', tone:'neutral'},
   ];
   strip.innerHTML = kpis.map(k=>`<div class='kpi'><div class='kpi-head'><div class='kpi-label'>${k.label}</div><span class='kpi-icon ${k.tone||'neutral'}' aria-hidden='true'>${k.icon}</span></div><div class='kpi-value ${k.cls||''}'>${k.value}</div></div>`).join('');
@@ -1390,12 +1398,12 @@ function briefArtistRow(r){
   const momCls = r.mom>0?'up':r.mom<0?'dn':'';
   const momText = Math.abs(r.mom)>=0.1?(r.mom>0?'+':'')+r.mom.toFixed(1)+'% streams':'flat';
   const listenersHtml = r.band==='fatigue' ? `<span class='ar-listeners'>${r.listeners} streams</span>` : '';
+  const trackAndLabel = [r.genre, r.label_str].filter(x => x && x !== '—').join(' - ');
   return `<div class='artist-row'>
-    <div class='ar-left'><span class='ar-name'>${r.name}</span>${r.genre?`<span class='ar-genre'>${r.genre}</span>`:''}</div>
+    <div class='ar-left'><span class='ar-name'>${r.name}</span>${trackAndLabel?`<span class='ar-genre'>${trackAndLabel}</span>`:''}</div>
     <span class='ar-mom ${momCls}'>${momText}</span>
     <span class='ar-market'>@ ${r.market}</span>
     ${listenersHtml}
-    ${labelBadge(r.label_type, r.label_str)}
   </div>`;
 }
 function briefBand(rows, title, icon, chip, chipCls, sub, drillLabel, drillScreen){
@@ -1436,7 +1444,7 @@ function showTabById(id){
 
 // ── Acquisition radar ──────────────────────────────────────────
 (function(){
-  document.getElementById('acq-sub-text').textContent = 'Verdict: rising + acquirable + in a market we want. '+D.score_formula;
+  document.getElementById('acq-sub-text').textContent = 'Acquisition Radar identifies rising, acquirable artists demonstrating significant cross-platform commercial momentum. The Score (0-100) is calculated from: 30% Spotify streams, 30% iTunes points, 20% Spotify chart entries, and 20% iTunes chart entries.';
   const modeLabel = {Track:'Artist / Track', Album:'Artist / Album', Artist:'Artist'}[D.active_mode] || 'Artist / Track';
   document.getElementById('entity-col-label').textContent = modeLabel;
 
@@ -1449,7 +1457,7 @@ function showTabById(id){
                   r.label_type==='small'?`<span class='lbl-badge lbl-small'>${r.label_str}</span>`:'';
       return `<div class='acq-row${i===selectedIdx?' selected':''}' onclick='selectAcq(${i})'>
         <div class='acq-pos'>${i+1}</div>
-        <div><div class='acq-name-row'><span class='acq-name'>${r.display_name}</span>${lbl}</div><div class='acq-sub-text'>${r.sub}</div></div>
+        <div><div class='acq-name-row'><span class='acq-name'>${r.display_name}</span></div><div class='acq-sub-text'>${r.sub}</div></div>
         <div class='acq-mkt'>${r.market}</div>
         <div class='acq-mom${momCls}'>${momText}</div>
         <div class='acq-score'>${r.score}</div>
