@@ -861,7 +861,7 @@ def render_artists_overview(last_run_label: str = "n/a") -> None:
             <span style='font-size:1.05rem; font-weight:800; color:var(--text); letter-spacing:-0.01em;'>📊 Artist Overview</span>
             <span class='time-chip'>{escape(f"Last Update: {last_run_label}")}</span>
         </div>
-        <div style='font-size: 0.92rem; color: var(--text2); margin: 0 0 14px; line-height: 1.5; font-weight: 500;'>
+        <div style='font-size: 0.92rem; color: var(--t2); margin: 0 0 14px; line-height: 1.5; font-weight: 500;'>
         This dashboard provides a comprehensive overview of all tracked artists, including their catalog, 
         chart activity, listeners, and key performance indicators, offering a holistic view of their market presence and performance.
         </div>
