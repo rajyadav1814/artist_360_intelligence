@@ -317,7 +317,7 @@ def _build_payload(tracks: list[dict[str, Any]], dates: list[date], limit: int =
     }
 
 
-def render_track_acquisition() -> None:
+def render_track_acquisition(labels_filter: list[str] | None = None) -> None:
     st.markdown(
         "<div style='font-size: 0.92rem; color: var(--t2); margin: 0 0 14px; line-height: 1.5; font-weight: 500;'>"
         "🎵 Evaluate track-level acquisition potential by analyzing cross-platform performance metrics. "
@@ -334,19 +334,27 @@ def render_track_acquisition() -> None:
     all_codes = ["global", "us"] + latam_codes
 
     sp_all_df = _load_window_multi("spotify_daily", all_codes, window_days)
+    if labels_filter and not sp_all_df.empty and "label" in sp_all_df.columns:
+        sp_all_df = sp_all_df[sp_all_df["label"].isin(labels_filter)]
     
-    sp_global_df = sp_all_df[sp_all_df["country"] == "global"] if not sp_all_df.empty else pd.DataFrame()
+    sp_global_df = sp_all_df if not sp_all_df.empty else pd.DataFrame()
     sp_us_df = sp_all_df[sp_all_df["country"] == "us"] if not sp_all_df.empty else pd.DataFrame()
     latam_dfs = {code: sp_all_df[sp_all_df["country"] == code] if not sp_all_df.empty else pd.DataFrame() for code in latam_codes}
 
-    it_df = _load_window("itunes_daily", "ww", window_days)
+    it_all_codes = ["ww", "us"]
+    it_all_df = _load_window_multi("itunes_daily", it_all_codes, window_days)
+    if labels_filter and not it_all_df.empty and "label" in it_all_df.columns:
+        it_all_df = it_all_df[it_all_df["label"].isin(labels_filter)]
+        
+    it_global_df = it_all_df if not it_all_df.empty else pd.DataFrame()
+    it_ww_df = it_all_df[it_all_df["country"] == "ww"] if not it_all_df.empty else pd.DataFrame()
 
-    if sp_global_df.empty and sp_us_df.empty and it_df.empty and all(df.empty for df in latam_dfs.values()):
+    if sp_global_df.empty and sp_us_df.empty and it_global_df.empty and all(df.empty for df in latam_dfs.values()):
         st.warning("No daily chart data available to build the track acquisition view.")
         return
 
     date_set = set()
-    for df in [sp_global_df, sp_us_df, it_df] + list(latam_dfs.values()):
+    for df in [sp_global_df, sp_us_df, it_global_df, it_ww_df] + list(latam_dfs.values()):
         if not df.empty:
             date_set.update(df["date"].tolist())
 
@@ -355,9 +363,9 @@ def render_track_acquisition() -> None:
         return
 
     dates = sorted(date_set)
-    global_tracks = get_processed_track_rows(sp_global_df, it_df, dates, region="Global")[:100]
-    us_tracks = get_processed_track_rows(sp_us_df, it_df, dates, region="US")[:100]
-    latam_tracks = {code: get_processed_track_rows(df, it_df, dates, region=code.upper())[:100] for code, df in latam_dfs.items()}
+    global_tracks = get_processed_track_rows(sp_global_df, it_global_df, dates, region="Global")[:100]
+    us_tracks = get_processed_track_rows(sp_us_df, it_ww_df, dates, region="US")[:100]
+    latam_tracks = {code: get_processed_track_rows(df, it_ww_df, dates, region=code.upper())[:100] for code, df in latam_dfs.items()}
 
     if not global_tracks and not us_tracks and not any(latam_tracks.values()):
         st.warning("No track acquisition rows could be built from the available chart data.")
@@ -927,7 +935,7 @@ function renderTable() {
             <div class="sr-num">${i + 1}</div>
             <div class="track-info">
                 <div class="track-name">${t.title}</div>
-                <div class="track-artist">${t.artist}</div>
+                <div class="track-artist">${t.artist}${t.label && t.label !== '—' ? ' - ' + t.label : ''}</div>
             </div>
             <div class="col-r streams-val">${displayRank(t.bestRank)}</div>
             <div class="col-r streams-val">${fmtN(t.latestStreams)}</div>

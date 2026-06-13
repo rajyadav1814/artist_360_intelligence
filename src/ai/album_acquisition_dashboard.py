@@ -316,7 +316,7 @@ def _build_payload(albums: list[dict[str, Any]], dates: list[date], limit: int =
     }
 
 
-def render_album_acquisition() -> None:
+def render_album_acquisition(labels_filter: list[str] | None = None) -> None:
     st.markdown(
         "<div style='font-size: 0.92rem; color: var(--t2); margin: 0 0 14px; line-height: 1.5; font-weight: 500;'>"
         "💿 Album-level acquisition intelligence tracking project velocity across iTunes Worldwide and regional markets. "
@@ -331,8 +331,10 @@ def render_album_acquisition() -> None:
     all_codes = ["ww", "us"] + latam_codes
 
     sp_all_df = _load_window_multi("itunes_artist_album", all_codes, window_days)
+    if labels_filter and not sp_all_df.empty and "label" in sp_all_df.columns:
+        sp_all_df = sp_all_df[sp_all_df["label"].isin(labels_filter)]
     
-    sp_global_df = sp_all_df[sp_all_df["country"] == "ww"] if not sp_all_df.empty else pd.DataFrame()
+    sp_global_df = sp_all_df if not sp_all_df.empty else pd.DataFrame()
     sp_us_df = sp_all_df[sp_all_df["country"] == "us"] if not sp_all_df.empty else pd.DataFrame()
     latam_dfs = {code: sp_all_df[sp_all_df["country"] == code] if not sp_all_df.empty else pd.DataFrame() for code in latam_codes}
     
@@ -924,7 +926,7 @@ function renderTable() {
             <div class="sr-num">${i + 1}</div>
             <div class="album-info">
                 <div class="album-name">${t.title}</div>
-                <div class="album-artist">${t.artist}</div>
+                <div class="album-artist">${t.artist}${t.label && t.label !== '—' ? ' - ' + t.label : ''}</div>
             </div>
             <div class="col-r points-val">${displayRank(t.bestRank)}</div>
             <div class="col-r points-val">${fmtN(t.latestPoints)}</div>

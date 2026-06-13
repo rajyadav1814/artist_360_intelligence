@@ -476,7 +476,7 @@ def apply_theme(dark_mode: bool = True) -> None:
             transition: all 0.2s ease !important;
         }
         [data-testid="stSidebarNav"] a:hover {
-            background: rgba(251, 113, 133, 0.15) !important;
+            background: transparent !important;
             color: var(--primary-light) !important;
         }
         [data-testid="stSidebarNav"] a[aria-current="page"] {
@@ -1333,18 +1333,6 @@ def apply_theme(dark_mode: bool = True) -> None:
             opacity: 0.60;
         }
         
-        [data-testid="stSidebar"].is-mini [data-testid="stSidebarNav"] a:hover {
-            background: rgba(251, 113, 133, 0.12) !important;
-            box-shadow: none !important;
-        }
-
-        [data-testid="stSidebar"].is-mini [data-testid="stSidebarNav"] a:hover span.material-symbols-rounded,
-        [data-testid="stSidebar"].is-mini [data-testid="stSidebarNav"] a:hover [data-testid="stIconMaterial"],
-        [data-testid="stSidebar"].is-mini [data-testid="stSidebarNav"] a:hover svg,
-        [data-testid="stSidebar"].is-mini [data-testid="stSidebarNav"] a:hover i {
-            color: var(--primary) !important;
-            opacity: 1;
-        }
 
         [data-testid="stSidebar"].is-mini [data-testid="stSidebarNav"] a[aria-current="page"] {
             background: linear-gradient(135deg, #fb7185 0%, #f472b6 100%) !important;
@@ -4319,10 +4307,13 @@ def show_movement_page() -> None:
         unsafe_allow_html=True,
     )
     tab1, tab2, tab3 = st.tabs(["🎵 Track Movement", "💿 Album Movement", "🎤 Artist Movement"])
+    
+    labels_to_filter = selected_sony_labels if sony_music_only else None
+    
     with tab1:
-        render_track_movement()
+        render_track_movement(labels_to_filter)
     with tab2:
-        render_album_movement()
+        render_album_movement(labels_to_filter)
     with tab3:
         st.markdown(
             "<div style='font-size:0.85rem;color:var(--text2);margin:-0.5rem 0 0.75rem 0'>"
@@ -4369,12 +4360,15 @@ def show_acquisition_page() -> None:
         unsafe_allow_html=True,
     )
     tab1, tab2, tab3 = st.tabs(["🎵 Track Acquisition", "💿 Album Acquisition", "🎤 Artist Acquisition"])
+    
+    labels_to_filter = selected_sony_labels if sony_music_only else None
+    
     with tab1:
-        render_track_acquisition()
+        render_track_acquisition(labels_to_filter)
     with tab2:
-        render_album_acquisition()
+        render_album_acquisition(labels_to_filter)
     with tab3:
-        render_acquisition()
+        render_acquisition(labels_to_filter)
 
 
 app_pages = [
@@ -4566,9 +4560,7 @@ with st.sidebar:
             ]
 
     
-    with st.expander("🎛️ Display Options", expanded=True):
-        max_rows = st.slider("📊 Table rows", min_value=15, max_value=300, value=15, step=5)
-    
+
     # Apply global filters (Latam, Countries, Labels)
     global_filtered = leaderboard.copy()
     
