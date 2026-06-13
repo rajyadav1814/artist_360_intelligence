@@ -210,6 +210,7 @@ def _top20_today(df: pd.DataFrame, latest: date) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
     for _, row in today.iterrows():
         artist, title = _split_at(row["artist_title"])
+        label = str(row["label"]) if "label" in row and pd.notna(row["label"]) else "—"
         s = int(row["metric"]) if pd.notna(row["metric"]) else 0
         prev_v = prev_metric_map.get(row["artist_title"])
         c = int(s - prev_v) if prev_v is not None and pd.notna(prev_v) else 0
@@ -225,13 +226,14 @@ def _top20_today(df: pd.DataFrame, latest: date) -> list[dict[str, Any]]:
             "s": s,
             "c": c,
             "m": movement,
+            "lbl": label,
         })
     return out
 
 
 # ─────────────────────────── render ───────────────────────────────
 
-def render_album_movement() -> None:
+def render_album_movement(labels_filter: list[str] | None = None) -> None:
     # ── Filter bar ────────────────────────────────────────────────
     c0, c1, c2 = st.columns([1.7, 1.2, 1.2])
     with c0:
@@ -250,6 +252,10 @@ def render_album_movement() -> None:
     days = PERIOD_DAYS[period_label]
 
     it_df = _load_window("itunes_artist_album", it_country, days)
+
+    if labels_filter:
+        if not it_df.empty and "label" in it_df.columns:
+            it_df = it_df[it_df["label"].isin(labels_filter)]
 
     if it_df.empty:
         st.warning("No daily chart data available for the selected window.")
@@ -488,6 +494,7 @@ function movementRow(d){
         <span class='metric-pill'>#${startRank(d)||'-'} to #${latestRank(d)||'-'}</span>
         <span class='metric-pill'>latest ${fmtNum(latestPoints(d))} points</span>
       </div>
+      ${d.lbl && d.lbl !== '—' ? `<div style='margin-top:4px;'><span style='display:inline-block;padding:2px 6px;border-radius:4px;font-size:9px;font-weight:700;background:var(--bg3);color:var(--t2);border:1px solid var(--border);'>${d.lbl}</span></div>` : ''}
     </div>
     <div class='mv-val ${up?'up':'dn'}'>${up?'+':'-'}${fmtNum(Math.abs(d.sg))} points</div>
     ${rankBadge(d.rg)}
@@ -501,7 +508,11 @@ function renderList(id, data){
 function liveRow(r){
   return `<div class='live-row'>
     <div class='live-rank'>${r.rank || '-'}</div>
-    <div class='live-info'><div class='live-title'>${r.t}</div><div class='live-meta'>${r.a}</div></div>
+    <div class='live-info'>
+      <div class='live-title'>${r.t}</div>
+      <div class='live-meta'>${r.a}</div>
+      ${r.lbl && r.lbl !== '—' ? `<div style='margin-top:4px;'><span style='display:inline-block;padding:2px 6px;border-radius:4px;font-size:9px;font-weight:700;background:var(--bg3);color:var(--t2);border:1px solid var(--border);'>${r.lbl}</span></div>` : ''}
+    </div>
     <div style='display:flex;align-items:center;gap:6px'><div class='live-score'>${fmtNum(r.s)} points</div>${rankBadge(r.m)}</div>
   </div>`;
 }
@@ -525,6 +536,7 @@ function renderConsistency(id, data){
       <td>
         <div class='item-name'>${d.t}</div>
         <div class='item-sub'>${d.n}</div>
+        ${d.lbl && d.lbl !== '—' ? `<div style='margin-top:4px;margin-bottom:2px;'><span style='display:inline-block;padding:2px 6px;border-radius:4px;font-size:9px;font-weight:700;background:var(--bg3);color:var(--t2);border:1px solid var(--border);'>${d.lbl}</span></div>` : ''}
         <div class='bar-wrap'><div class='bar-bg'><div class='bar-fill' style='width:${pct}%;background:#3266ad'></div></div><span style='font-size:10px;color:var(--t3)'>${pct}%</span></div>
       </td>
       <td>#${d.best}</td>
