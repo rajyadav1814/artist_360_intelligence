@@ -1242,15 +1242,20 @@ def apply_theme(dark_mode: bool = True) -> None:
             bottom: 0;
             left: 0;
             right: 0;
+            height: 60px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 5px;
             z-index: 99; /* Below sidebar but above content */
             background: rgba(255, 255, 255, 0.97);
             backdrop-filter: blur(16px);
-            padding: 0.75rem 0;
             border-top: 1px solid rgba(0,0,0,.08);
             text-align: center;
             color: var(--text2);
             font-size: 0.95rem;
-            line-height: 1.6;
+            line-height: 1.2;
         }
         .app-footer a {
             color: var(--primary);
