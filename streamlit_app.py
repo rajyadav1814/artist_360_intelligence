@@ -415,11 +415,11 @@ def apply_theme(dark_mode: bool = True) -> None:
         .block-container {
             width: min(100%, 1680px);
             max-width: 1680px;
-            padding-top: 3.5rem; /* Balanced gap for tooltips */
+            padding-top: 3.5rem;
             padding-right: clamp(0.85rem, 1.8vw, 1.6rem);
             padding-left: clamp(0.85rem, 1.8vw, 1.6rem);
             padding-bottom: 6rem;
-            margin-top: -4.0rem;
+            margin-top: -6.5rem;
         }
         div[data-testid="stHorizontalBlock"] {
             gap: clamp(0.75rem, 1.4vw, 1.1rem);
@@ -3776,6 +3776,7 @@ def show_compare_page() -> None:
         """
         <style>
         .cmp-note {
+            margin-top: -20px;
             margin-bottom: 0.9rem;
             padding: 0.75rem 0.9rem;
             border-radius: 12px;
