@@ -4175,6 +4175,25 @@ def show_artists_overview_page() -> None:
         .stMainBlockContainer, .block-container {
             padding-top: 0.1rem !important;
         }
+        /* Make overview iframe height responsive to responsive grid wrapping inside the iframe */
+                    iframe[title="streamlit.components.v1.html"] {            transition: height 0.2s ease-in-out !important;
+        }
+        @media (max-width: 1200px) {
+                        iframe[title="streamlit.components.v1.html"] {                height: 1100px !important;
+            }
+        }
+        @media (max-width: 1050px) {
+                        iframe[title="streamlit.components.v1.html"] {                height: 1800px !important;
+            }
+        }
+        @media (max-width: 768px) {
+                        iframe[title="streamlit.components.v1.html"] {                height: 2200px !important;
+            }
+        }
+        @media (max-width: 640px) {
+                        iframe[title="streamlit.components.v1.html"] {                height: 2800px !important;
+            }
+        }
         </style>
         """,
         unsafe_allow_html=True,
