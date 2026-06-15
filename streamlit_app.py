@@ -3749,6 +3749,10 @@ top_history = data.get("top_history", pd.DataFrame())
 def clear_active_profile():
     """Callback to reset the active popup state when global filters change."""
     st.session_state.active_artist_profile = None
+    if "global_selected_artist" in st.session_state:
+        del st.session_state.global_selected_artist
+    if "debut_artist_select" in st.session_state:
+        del st.session_state.debut_artist_select
 
 last_run_label = "n/a"
 if not runs.empty and runs["finished_at"].notna().any():
@@ -4520,7 +4524,7 @@ with st.sidebar:
     
     # Collapsible advanced settings
     with st.expander("🔍 Search & Filter", expanded=True):
-        latam_only = st.toggle("🌎 Latin America", value=False)
+        latam_only = st.toggle("🌎 Latin America", value=False, on_change=clear_active_profile, key="sidebar_latam_only_filter")
         
         selected_countries = []
         if latam_only:
@@ -4552,11 +4556,11 @@ with st.sidebar:
                 options=options,
                 default=default_selection,
                 format_func=lambda x: latam_country_mapping.get(x, x),
-                on_change=clear_active_profile if 'clear_active_profile' in locals() else None,
+                on_change=clear_active_profile,
                 key="sidebar_countries_filter"
             )
 
-        sony_music_only = st.toggle("🎵 Sony Music", value=False, on_change=clear_active_profile if 'clear_active_profile' in locals() else None, key="sidebar_sony_music_filter")
+        sony_music_only = st.toggle("🎵 Sony Music", value=False, on_change=clear_active_profile, key="sidebar_sony_music_filter")
         
         selected_sony_labels = []
         if sony_music_only:
