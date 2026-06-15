@@ -307,7 +307,7 @@ def _build_dashboard_html(
         if active_mode == "Album"
         else "Score = listeners + momentum + coverage."
         if active_mode == "Artist"
-        else "Score = 20% iTunes + 20% Spotify entries + 30% Spotify + 30% iTunes streams."
+        else "Acquisition Radar identifies rising, acquirable artists demonstrating significant cross-platform commercial momentum. The Score (0-100) is calculated from: 30% Spotify streams, 30% iTunes points, 20% Spotify chart entries, and 20% iTunes chart entries."
     )
     acq_rows = _filter_acq_rows(focus_pool, latam_only=latam_only, independent_only=independent_only)
     acq_rows = acq_rows.sort_values([score_col, "rank"], ascending=[False, True]).reset_index(drop=True)
@@ -1019,7 +1019,7 @@ body {
 /* Acquisition radar */
 .acq-header{display:flex;align-items:flex-end;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:12px}
 .acq-title{display:flex;align-items:center;gap:10px;font-size:1.8rem;font-weight:850;color:var(--a-t1);margin:0}
-.acq-sub{font-size:.88rem;color:var(--a-t2);margin-top:3px;max-width:66ch;line-height:1.45}
+.acq-sub{font-size:.88rem;color:var(--a-t2);margin-top:3px;line-height:1.45}
 .acq-meta{font-size:.82rem;color:var(--a-t3);text-align:right;line-height:1.4;min-width:150px}
 .acq-grid {
   display: grid;
@@ -1444,7 +1444,7 @@ function showTabById(id){
 
 // ── Acquisition radar ──────────────────────────────────────────
 (function(){
-  document.getElementById('acq-sub-text').textContent = 'Acquisition Radar identifies rising, acquirable artists demonstrating significant cross-platform commercial momentum. The Score (0-100) is calculated from: 30% Spotify streams, 30% iTunes points, 20% Spotify chart entries, and 20% iTunes chart entries.';
+  document.getElementById('acq-sub-text').textContent = D.score_formula;
   const modeLabel = {Track:'Artist / Track', Album:'Artist / Album', Artist:'Artist'}[D.active_mode] || 'Artist / Track';
   document.getElementById('entity-col-label').textContent = modeLabel;
 
