@@ -273,7 +273,7 @@ def _load_track_dashboard(days: int = WINDOW_DAYS) -> tuple[pd.DataFrame, pd.Dat
         kpis AS (
             SELECT
                 SUM(metric) AS metric,
-                COUNT(DISTINCT title) FILTER (WHERE rank <= 10) AS popular_songs,
+                COUNT(DISTINCT artist_title) FILTER (WHERE rank <= 10) AS popular_songs,
                 COUNT(DISTINCT artist_title) AS unique_songs,
                 COUNT(*) AS entries,
                 MAX(days) AS max_days,
@@ -406,7 +406,7 @@ def _load_songs_rank_leaderboard(days: int = WINDOW_DAYS) -> pd.DataFrame:
             title,
             MIN(rank) AS best_rank,
             SUM(metric) AS metric,
-            MAX(days) AS chart_days,
+            COUNT(DISTINCT date) AS chart_days,
             COUNT(*) AS entries,
             MAX(date) AS latest_date
         FROM parsed
@@ -475,7 +475,7 @@ def _load_chart_days_leaderboard(days: int = WINDOW_DAYS) -> pd.DataFrame:
             string_agg(DISTINCT platform, ', ') AS platform,
             artist,
             title,
-            MAX(days) AS chart_days,
+            COUNT(DISTINCT date) AS chart_days,
             MIN(rank) AS best_rank,
             SUM(metric) AS metric,
             COUNT(*) AS entries,
@@ -550,7 +550,7 @@ def _load_popular_songs_leaderboard(days: int = WINDOW_DAYS) -> pd.DataFrame:
             title,
             MIN(rank) AS best_rank,
             SUM(metric) AS metric,
-            MAX(days) AS chart_days,
+            COUNT(DISTINCT date) AS chart_days,
             COUNT(*) AS top10_entries,
             MAX(date) AS latest_date
         FROM parsed
@@ -600,7 +600,7 @@ def _load_albums_rank_leaderboard(days: int = WINDOW_DAYS) -> pd.DataFrame:
             title,
             MIN(rank) AS best_rank,
             SUM(metric) AS metric,
-            MAX(days) AS chart_days,
+            COUNT(DISTINCT date) AS chart_days,
             COUNT(*) AS entries,
             MAX(date) AS latest_date
         FROM parsed
@@ -1025,7 +1025,7 @@ def render_artists_overview(last_run_label: str = "n/a") -> None:
     # Recalculate track_kpis
     track_kpis_filtered = {
         "max_days": float(current_view_chart_days_df["chart_days"].max()) if not current_view_chart_days_df.empty else 0,
-        "popular_songs": float(current_view_popular_songs_df["top10_entries"].sum()) if not current_view_popular_songs_df.empty else 0,
+        "popular_songs": float(len(current_view_popular_songs_df)) if not current_view_popular_songs_df.empty else 0,
         "row_count": float(len(current_view_songs_rank_df)) if not current_view_songs_rank_df.empty else 0,
     }
     chart_days = track_kpis_filtered.get("max_days", 0)
