@@ -395,7 +395,7 @@ def render_track_acquisition(labels_filter: list[str] | None = None) -> None:
             "The **Acquisition Score (0-100)** is a composite metric evaluating a track's market potential. It is calculated using:\n"
             "- **Latest Streams (30%)**: Scaled based on daily volume.\n"
             "- **Best Rank (20%)**: Spotify Global/US chart peak.\n"
-            "- **Momentum (40%)**: Trajectory of stream growth and rank delta.\n"
+            "- **Momentum (40%)**: Trajectory of stream growth and rank delta. Computed as `(Rank Delta * 0.24) + (Stream Growth % * 0.35)`.\n"
             "- **iTunes Bonus (10%)**: Cross-platform validation from iTunes WW charts.\n\n"
             "👉 **Interactive Analysis**: Select any track from the leaderboard to instantly load its detailed acquisition profile, including stream trajectories and specific market signals."
         )
@@ -638,12 +638,12 @@ body { background: var(--bg); font-family: var(--font-sans); color: var(--t1); -
           <div class="stat-sub" id="d-rank-sub">Global</div>
         </div>
         <div class="stat-box">
-          <div class="stat-label">Latest Streams</div>
+          <div class="stat-label">Latest Streams - Daily</div>
           <div class="stat-value" id="d-streams">—</div>
           <div class="stat-sub" id="d-streams-sub">—</div>
         </div>
         <div class="stat-box">
-          <div class="stat-label">Momentum</div>
+          <div class="stat-label">Momentum (0.24*Rank + 0.35*Growth)</div>
           <div class="stat-value" id="d-momentum">—</div>
           <div class="stat-sub" id="d-momentum-sub">Window change</div>
         </div>
