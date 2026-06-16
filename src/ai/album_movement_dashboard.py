@@ -238,7 +238,7 @@ def render_album_movement(labels_filter: list[str] | None = None) -> None:
     c0, c1, c2 = st.columns([1.7, 1.2, 1.2])
     with c0:
         st.markdown(
-            "<div style='font-size:0.85rem;color:#97a3c5;padding-top:1.95rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis'>"
+            "<div style='font-size: 0.92rem; color: var(--t2); margin: 0 0 14px; line-height: 1.5; font-weight: 500;'>"
             "Rank + point momentum across iTunes album charts."
             "</div>",
             unsafe_allow_html=True,

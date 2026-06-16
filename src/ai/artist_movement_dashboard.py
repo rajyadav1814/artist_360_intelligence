@@ -410,6 +410,11 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
             "spanGaps": True
         })
 
+    # Calculate dynamic heights based on number of artists
+    # Increased scaling and buffer to prevent cropping when legend wraps with many artists
+    dynamic_chart_height = 50 + (num_artists * 50)
+    dynamic_iframe_height = dynamic_chart_height + 350
+
     chart_payload = {
         "labels": unique_dates,
         "datasets": datasets,
@@ -468,7 +473,7 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
       .leg-btn:hover {{ border-color: {'rgba(255,255,255,0.4)' if is_dark else 'rgba(0,0,0,0.4)'}; background: {'rgba(255,255,255,0.04)' if is_dark else 'rgba(0,0,0,0.02)'}; }}
       .leg-btn.hidden {{ opacity: 0.4; border-color: transparent; }}
       .dot {{ width: 9px; height: 9px; border-radius: 50%; display: inline-block; }}
-      .chart-wrap {{ position: relative; height: 420px; width: 100%; }}
+      .chart-wrap {{ position: relative; height: {dynamic_chart_height}px; width: 100%; }}
     </style>
     </head><body>
       <div class="chart-card">
@@ -582,7 +587,7 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
       </script>
     </body></html>
     """
-    st_components.html(html_template, height=650)
+    st_components.html(html_template, height=dynamic_iframe_height)
     st.markdown("</div>", unsafe_allow_html=True)
 
     text_color = "#fff" if is_dark else "#1A1A1A"

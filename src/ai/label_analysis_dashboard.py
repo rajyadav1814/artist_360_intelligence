@@ -765,7 +765,7 @@ def _top_n_labels(df: pd.DataFrame, n: int = TOP_N_LABELS) -> list[dict[str, Any
 
 def render_label_analysis() -> None:
     st.markdown(
-        "<div style='font-size:0.85rem;color:#97a3c5;margin:-0.5rem 0 0.75rem 0'>"
+        "<div style='font-size: 0.92rem; color: var(--t2); margin: 0 0 14px; line-height: 1.5; font-weight: 500;'>"
         "Label dominance, normalization stats, and cross-platform reach across iTunes &amp; Spotify."
         "</div>",
         unsafe_allow_html=True,
