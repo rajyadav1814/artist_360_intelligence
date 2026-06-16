@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import math
+import random
 from html import escape
 from typing import Any
 
@@ -64,7 +65,7 @@ def _short_label(value: str, limit: int = 20) -> str:
     return value if len(value) <= limit else value[: max(0, limit - 3)] + "..."
 
 
-def _sparkline_svg(values: list[float], color: str = "#60a5fa") -> str:
+def _sparkline_svg(values: list[float], color: str = "#34d399") -> str:
     """Generate a simple SVG sparkline for trend visualization."""
     if not values or len(values) < 2:
         return ""
@@ -1264,10 +1265,15 @@ def render_artists_overview(last_run_label: str = "n/a") -> None:
             label = str(row[label_col] or "Unknown")
             value = float(row[value_col] or 0)
             width = max(4, min(100, value / max_value * 100))
-            # Generate a more varied mock trend for visual signal (12 points for smoothness)
-            mock_trend = [value * (1.0 + 0.15 * math.sin(idx * 0.4 + i * 0.8)) for i in range(12)]
-            spark_color = "#34d399" if mock_trend[-1] >= mock_trend[0] else "#fb7185"
-            spark = _sparkline_svg(mock_trend, color=spark_color)
+
+            # Generate a unique mock trend for visual signal using a seeded random walk
+            rng = random.Random(sum(ord(c) for c in label) + idx)
+            mock_trend = [value * (0.7 + rng.random() * 0.6)]
+            for _ in range(10):
+                mock_trend.append(mock_trend[-1] + (rng.random() - 0.5) * 0.2 * value)
+            mock_trend.append(value)
+
+            spark = _sparkline_svg(mock_trend)
             
             rows.append(
                 "<div class='bar-row'>"

@@ -117,7 +117,7 @@ def _sparkline_svg(
     *,
     width: int = 180,
     height: int = 54,
-    color: str = "#60a5fa",
+    color: str = "#34d399",
     reverse: bool = False,
 ) -> str:
     clean = [float(v) for v in values if v is not None and pd.notna(v)]
@@ -520,8 +520,7 @@ def _build_roster_cards_html(rows: pd.DataFrame) -> str:
         delta_text = f"{delta:+.0f}" if abs(delta) >= 0.5 else "0"
         country = str(row.get("display_country") or row.get("top_country") or "—")
         top_song = escape(str(row.get("top_song") or "—"))
-        spark_color = {"rising": "#34d399", "slipping": "#fb7185", "holding": "#60a5fa"}.get(verdict, "#60a5fa")
-        spark = _sparkline_svg(row.get("rank_series") or [], color=spark_color, reverse=True)
+        spark = _sparkline_svg(row.get("rank_series") or [], reverse=True)
         listeners_delta = float(row.get("rank_delta_45d") or 0.0)
         ld_text = f"listeners {listeners_delta:+.1f}%" if abs(listeners_delta) >= 0.1 else "listeners flat"
         ld_class = "up" if listeners_delta > 0 else ("dn" if listeners_delta < 0 else "")
