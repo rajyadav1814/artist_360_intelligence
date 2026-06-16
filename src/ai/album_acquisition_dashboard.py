@@ -386,7 +386,7 @@ def render_album_acquisition(labels_filter: list[str] | None = None) -> None:
             "The **Acquisition Score (0-100)** is a composite metric evaluating an album's market potential. It is calculated using:\n"
             "- **Latest Points (30%)**: Scaled based on daily volume.\n"
             "- **Best Rank (20%)**: iTunes WW chart peak.\n"
-            "- **Momentum (40%)**: Trajectory of points growth and rank delta.\n"
+            "- **Momentum (40%)**: Trajectory of points growth and rank delta. Computed as `(Rank Delta * 0.24) + (Points Growth % * 0.35)`.\n"
             "- **Platform Bonus (10%)**: Cross-platform validation signals.\n\n"
             "👉 **Interactive Analysis**: Select any album from the leaderboard to instantly load its detailed acquisition profile, including point trajectories and specific market signals."
         )
@@ -629,12 +629,12 @@ body { background: var(--bg); font-family: var(--font-sans); color: var(--t1); -
           <div class="stat-sub" id="d-rank-sub">Global</div>
         </div>
         <div class="stat-box">
-          <div class="stat-label">Latest Points</div>
+          <div class="stat-label">Latest Points - Daily</div>
           <div class="stat-value" id="d-points">—</div>
-          <div class="stat-sub" id="d-points-sub">—</div>
+          <div class="stat-sub" id="d-points-sub">Latest Points - Daily</div>
         </div>
         <div class="stat-box">
-          <div class="stat-label">Momentum</div>
+          <div class="stat-label">Momentum (0.24*Rank + 0.35*Growth)</div>
           <div class="stat-value" id="d-momentum">—</div>
           <div class="stat-sub" id="d-momentum-sub">Window change</div>
         </div>
