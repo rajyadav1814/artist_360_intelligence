@@ -467,7 +467,7 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
     <button class='tab' onclick="showTab(event,'consistency')">Consistency</button>
   </div>
 
-  <div class='panel active' id='panel-consistency'>
+  <div class='panel' id='panel-consistency'>
     <div class='tab-desc'>Highlights tracks that stayed visible across the selected window, combining repeated chart presence, best rank, and metric strength to separate steady performers from short spikes.</div>
     <div class='two-col'>
       <div class='card' id='it-cons-card'>
@@ -498,7 +498,7 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
     </div>
   </div>
 
-  <div class='panel' id='panel-live'>
+  <div class='panel active' id='panel-live'>
     <div class='tab-desc'>Lists the current top chart entries for the latest available date, with day-over-day rank movement and the latest streams or iTunes points beside each track.</div>
     <div class='two-col'>
       <div class='card' id='live-it-card'><div class='section-label'><span class='tag pt-it'>iTunes</span> Top 20 latest</div><div id='live-it-list'></div></div>
@@ -559,8 +559,7 @@ function movementRow(d, metricName){
   const metric = metricName === 'streams' ? fmtNum(Math.abs(d.sg)) : Math.abs(d.sg).toLocaleString();
   return `<div class='mv-row'>
     <div class='mv-left'>
-      <div class='mv-art'>${d.n}</div>
-      <div class='mv-trk'>${d.t} · #${startRank(d)||'-'} to #${latestRank(d)||'-'}</div>
+      <div class='mv-art'>${d.t} - ${d.n} - #${startRank(d)||'-'} to #${latestRank(d)||'-'}</div>
       ${d.lbl && d.lbl !== '—' ? `<div style='margin-top:4px;'><span style='display:inline-block;padding:2px 6px;border-radius:4px;font-size:9px;font-weight:700;background:var(--bg3);color:var(--t2);border:1px solid var(--border);'>${d.lbl}</span></div>` : ''}
     </div>
     <div class='mv-val ${up?'up':'dn'}'>${up?'+':'-'}${metric}</div>
@@ -576,8 +575,7 @@ function liveRow(r, metricLabel){
   return `<div class='live-row'>
     <div class='live-rank'>${r.rank || '-'}</div>
     <div class='live-info'>
-      <div class='live-title'>${r.t}</div>
-      <div class='live-meta'>${r.a}</div>
+      <div class='live-title'>${r.t} - ${r.a}</div>
       ${r.lbl && r.lbl !== '—' ? `<div style='margin-top:4px;'><span style='display:inline-block;padding:2px 6px;border-radius:4px;font-size:9px;font-weight:700;background:var(--bg3);color:var(--t2);border:1px solid var(--border);'>${r.lbl}</span></div>` : ''}
     </div>
     <div style='display:flex;align-items:center;gap:6px'><div class='live-score'>${fmtNum(r.s)} ${metricLabel}</div>${rankBadge(r.m)}</div>
@@ -601,8 +599,7 @@ function renderConsistency(id, data, color){
     return `<tr>
       <td class='rank-num'>${i+1}</td>
       <td>
-        <div class='item-name'>${d.t}</div>
-        <div class='item-sub'>${d.n}</div>
+        <div class='item-name'>${d.t} - ${d.n}</div>
         ${d.lbl && d.lbl !== '—' ? `<div style='margin-top:4px;margin-bottom:2px;'><span style='display:inline-block;padding:2px 6px;border-radius:4px;font-size:9px;font-weight:700;background:var(--bg3);color:var(--t2);border:1px solid var(--border);'>${d.lbl}</span></div>` : ''}
         <div class='bar-wrap'><div class='bar-bg'><div class='bar-fill' style='width:${pct}%;background:${color}'></div></div><span style='font-size:10px;color:var(--t3)'>${pct}%</span></div>
       </td>
