@@ -4364,7 +4364,7 @@ def show_movement_page() -> None:
         render_album_movement(labels_to_filter)
     with tab3:
         st.markdown(
-            "<div style='font-size:0.85rem;color:var(--text2);margin:-0.5rem 0 0.75rem 0'>"
+            "<div style='font-size: 0.92rem; color: var(--t2); margin: 0 0 14px; line-height: 1.5; font-weight: 500;'>"
             "Rank momentum across iTunes worldwide artist rankings."
             "</div>",
             unsafe_allow_html=True,
