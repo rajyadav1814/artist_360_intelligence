@@ -239,6 +239,7 @@ def _load_track_dashboard(days: int = WINDOW_DAYS) -> tuple[pd.DataFrame, pd.Dat
         ),
         parsed AS MATERIALIZED (
             SELECT
+                artist_title,
                 CASE
                     WHEN position(' - ' in artist_title) > 0 THEN split_part(artist_title, ' - ', 1)
                     ELSE COALESCE(NULLIF(artist_title, ''), 'Unknown')
@@ -275,7 +276,7 @@ def _load_track_dashboard(days: int = WINDOW_DAYS) -> tuple[pd.DataFrame, pd.Dat
             SELECT
                 SUM(metric) AS metric,
                 COUNT(DISTINCT title) FILTER (WHERE rank <= 10) AS popular_songs,
-                COUNT(DISTINCT title) AS unique_songs,
+                COUNT(DISTINCT artist_title) AS unique_songs,
                 COUNT(*) AS entries,
                 MAX(days) AS max_days,
                 COUNT(*) AS row_count
@@ -404,7 +405,7 @@ def _load_songs_rank_leaderboard(days: int = WINDOW_DAYS) -> pd.DataFrame:
             FROM raw_rows
         )
         SELECT
-            platform,
+            string_agg(DISTINCT platform, ', ') AS platform,
             artist,
             title,
             MIN(rank) AS best_rank,
@@ -417,7 +418,7 @@ def _load_songs_rank_leaderboard(days: int = WINDOW_DAYS) -> pd.DataFrame:
           AND lower(btrim(artist)) NOT IN ('null', 'none', 'nan', 'unknown')
           AND btrim(title) <> ''
           AND lower(btrim(title)) NOT IN ('null', 'none', 'nan', 'unknown')
-        GROUP BY platform, artist, title
+        GROUP BY artist, title
         ORDER BY best_rank ASC, metric DESC, chart_days DESC
         LIMIT 250
     """
@@ -478,7 +479,7 @@ def _load_chart_days_leaderboard(days: int = WINDOW_DAYS) -> pd.DataFrame:
             FROM raw_rows
         )
         SELECT
-            platform,
+            string_agg(DISTINCT platform, ', ') AS platform,
             artist,
             title,
             MAX(days) AS chart_days,
@@ -491,7 +492,7 @@ def _load_chart_days_leaderboard(days: int = WINDOW_DAYS) -> pd.DataFrame:
           AND lower(btrim(artist)) NOT IN ('null', 'none', 'nan', 'unknown')
           AND btrim(title) <> ''
           AND lower(btrim(title)) NOT IN ('null', 'none', 'nan', 'unknown')
-        GROUP BY platform, artist, title
+        GROUP BY artist, title
         ORDER BY chart_days DESC, metric DESC, best_rank ASC
         LIMIT 250
     """
@@ -554,7 +555,7 @@ def _load_popular_songs_leaderboard(days: int = WINDOW_DAYS) -> pd.DataFrame:
             FROM raw_rows
         )
         SELECT
-            platform,
+            string_agg(DISTINCT platform, ', ') AS platform,
             artist,
             title,
             MIN(rank) AS best_rank,
@@ -567,7 +568,7 @@ def _load_popular_songs_leaderboard(days: int = WINDOW_DAYS) -> pd.DataFrame:
           AND lower(btrim(artist)) NOT IN ('null', 'none', 'nan', 'unknown')
           AND btrim(title) <> ''
           AND lower(btrim(title)) NOT IN ('null', 'none', 'nan', 'unknown')
-        GROUP BY platform, artist, title
+        GROUP BY artist, title
         ORDER BY metric DESC, best_rank ASC, top10_entries DESC
         LIMIT 250
     """
@@ -1601,6 +1602,9 @@ function compactRank(n) {{
   const v = Number(n || 0);
   return v > 0 ? '#' + fmtLeaderNumber(v) : 'n/a';
 }}
+function platformPills(platformStr) {{
+  return String(platformStr || '').split(', ').map(p => `<span class="detail-pill" style="margin-right:4px;">${{escLeader(p)}}</span>`).join('');
+}}
 function parseDetailList(value) {{
   const raw = String(value || '').trim();
   if (!raw || raw.toLowerCase() === 'nan') return [];
@@ -1743,7 +1747,7 @@ function renderSongsLeaderboard() {{
       <td class="leader-pos">${{row.position}}</td>
       <td><button class="leader-name" type="button" onclick="openSongsDetail(${{row.position}})" title="${{escLeader(row.title)}}">${{escLeader(row.title)}}</button></td>
       <td><div class="leader-artist"><div class="leader-avatar">${{escLeader(initials(row.artist))}}</div><span class="country-cell" title="${{escLeader(row.artist)}}">${{escLeader(row.artist)}}</span></div></td>
-      <td><span class="detail-pill">${{escLeader(row.platform)}}</span></td>
+      <td>${{platformPills(row.platform)}}</td>
       <td class="num leader-rank-cell">${{compactRank(row.bestRank)}}</td>
       <td class="num">${{fmtLeaderNumber(row.metric)}}</td>
     </tr>
@@ -1771,7 +1775,7 @@ function openSongsDetail(position) {{
         <div class="detail-name">${{escLeader(row.title)}}</div>
         <div class="detail-meta">
           <span class="detail-pill">${{escLeader(row.artist || 'Unknown artist')}}</span>
-          <span class="detail-pill">${{escLeader(row.platform || 'n/a')}}</span>
+          ${{platformPills(row.platform)}}
           <span class="detail-pill">Rank ${{compactRank(row.bestRank)}}</span>
         </div>
       </div>
@@ -1817,7 +1821,7 @@ function renderAlbumsLeaderboard() {{
       <td class="leader-pos">${{row.position}}</td>
       <td><button class="leader-name" type="button" onclick="openAlbumsDetail(${{row.position}})" title="${{escLeader(row.title)}}">${{escLeader(row.title)}}</button></td>
       <td><div class="leader-artist"><div class="leader-avatar">${{escLeader(initials(row.artist))}}</div><span class="country-cell" title="${{escLeader(row.artist)}}">${{escLeader(row.artist)}}</span></div></td>
-      <td><span class="detail-pill">${{escLeader(row.platform)}}</span></td>
+      <td>${{platformPills(row.platform)}}</td>
       <td class="num leader-rank-cell">${{compactRank(row.bestRank)}}</td>
       <td class="num">${{fmtLeaderNumber(row.metric)}}</td>
     </tr>
@@ -1845,7 +1849,7 @@ function openAlbumsDetail(position) {{
         <div class="detail-name">${{escLeader(row.title)}}</div>
         <div class="detail-meta">
           <span class="detail-pill">${{escLeader(row.artist || 'Unknown artist')}}</span>
-          <span class="detail-pill">${{escLeader(row.platform || 'iTunes')}}</span>
+          ${{platformPills(row.platform)}}
           <span class="detail-pill">Rank ${{compactRank(row.bestRank)}}</span>
         </div>
       </div>
@@ -1891,7 +1895,7 @@ function renderChartDaysLeaderboard() {{
       <td class="leader-pos">${{row.position}}</td>
       <td><button class="leader-name" type="button" onclick="openChartDaysDetail(${{row.position}})" title="${{escLeader(row.title)}}">${{escLeader(row.title)}}</button></td>
       <td><div class="leader-artist"><div class="leader-avatar">${{escLeader(initials(row.artist))}}</div><span class="country-cell" title="${{escLeader(row.artist)}}">${{escLeader(row.artist)}}</span></div></td>
-      <td><span class="detail-pill">${{escLeader(row.platform)}}</span></td>
+      <td>${{platformPills(row.platform)}}</td>
       <td class="num leader-rank-cell">${{fmtLeaderNumber(row.days)}}</td>
       <td class="num">${{compactRank(row.bestRank)}}</td>
       <td class="num">${{fmtLeaderNumber(row.entries)}}</td>
@@ -1920,7 +1924,7 @@ function openChartDaysDetail(position) {{
         <div class="detail-name">${{escLeader(row.title)}}</div>
         <div class="detail-meta">
           <span class="detail-pill">${{escLeader(row.artist || 'Unknown artist')}}</span>
-          <span class="detail-pill">${{escLeader(row.platform || 'n/a')}}</span>
+          ${{platformPills(row.platform)}}
           <span class="detail-pill">${{fmtLeaderNumber(row.days)}} chart days</span>
           <span class="detail-pill">Best rank ${{compactRank(row.bestRank)}}</span>
         </div>
@@ -1968,7 +1972,7 @@ function renderPopularSongsLeaderboard() {{
       <td class="leader-pos">${{row.position}}</td>
       <td><button class="leader-name" type="button" onclick="openPopularSongsDetail(${{row.position}})" title="${{escLeader(row.title)}}">${{escLeader(row.title)}}</button></td>
       <td><div class="leader-artist"><div class="leader-avatar">${{escLeader(initials(row.artist))}}</div><span class="country-cell" title="${{escLeader(row.artist)}}">${{escLeader(row.artist)}}</span></div></td>
-      <td><span class="detail-pill">${{escLeader(row.platform)}}</span></td>
+      <td>${{platformPills(row.platform)}}</td>
       <td class="num leader-rank-cell">${{compactRank(row.bestRank)}}</td>
       <td class="num">${{fmtLeaderNumber(row.top10Entries)}}</td>
       <td class="num">${{fmtLeaderNumber(row.metric)}}</td>
@@ -1997,7 +2001,7 @@ function openPopularSongsDetail(position) {{
         <div class="detail-name">${{escLeader(row.title)}}</div>
         <div class="detail-meta">
           <span class="detail-pill">${{escLeader(row.artist || 'Unknown artist')}}</span>
-          <span class="detail-pill">${{escLeader(row.platform || 'n/a')}}</span>
+          ${{platformPills(row.platform)}}
           <span class="detail-pill">Best rank ${{compactRank(row.bestRank)}}</span>
           <span class="detail-pill">${{fmtLeaderNumber(row.top10Entries)}} top-10 entries</span>
         </div>
