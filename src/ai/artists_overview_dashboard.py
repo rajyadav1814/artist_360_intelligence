@@ -275,6 +275,7 @@ def _load_track_dashboard(days: int = WINDOW_DAYS) -> tuple[pd.DataFrame, pd.Dat
             SELECT
                 SUM(metric) AS metric,
                 COUNT(DISTINCT title) FILTER (WHERE rank <= 10) AS popular_songs,
+                COUNT(DISTINCT title) AS unique_songs,
                 COUNT(*) AS entries,
                 MAX(days) AS max_days,
                 COUNT(*) AS row_count
@@ -289,7 +290,8 @@ def _load_track_dashboard(days: int = WINDOW_DAYS) -> tuple[pd.DataFrame, pd.Dat
             best_rank,
             max_days,
             row_count,
-            artist AS artist
+            artist AS artist,
+            NULL::bigint AS unique_songs
         FROM artist_stats
         UNION ALL
         SELECT
@@ -301,7 +303,8 @@ def _load_track_dashboard(days: int = WINDOW_DAYS) -> tuple[pd.DataFrame, pd.Dat
             best_rank,
             NULL::integer AS max_days,
             NULL::bigint AS row_count,
-            artist AS artist
+            artist AS artist,
+            NULL::bigint AS unique_songs
         FROM track_stats
         UNION ALL
         SELECT
@@ -313,14 +316,15 @@ def _load_track_dashboard(days: int = WINDOW_DAYS) -> tuple[pd.DataFrame, pd.Dat
             NULL::integer AS best_rank,
             max_days,
             row_count,
-            NULL::text AS artist
+            NULL::text AS artist,
+            unique_songs AS unique_songs
         FROM kpis
     """
     rows = _run_query(query, (days, days))
     if not rows:
-        return pd.DataFrame(), pd.DataFrame(), {"max_days": 0, "popular_songs": 0, "row_count": 0}
+        return pd.DataFrame(), pd.DataFrame(), {"max_days": 0, "popular_songs": 0, "row_count": 0, "unique_songs": 0}
     df = pd.DataFrame(rows)
-    for col in ["metric", "chart_count", "entries", "best_rank", "max_days", "row_count"]:
+    for col in ["metric", "chart_count", "entries", "best_rank", "max_days", "row_count", "unique_songs"]:
         df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
 
     artist_stats = (
@@ -347,6 +351,7 @@ def _load_track_dashboard(days: int = WINDOW_DAYS) -> tuple[pd.DataFrame, pd.Dat
         "max_days": float(kpi_row["max_days"].iloc[0]) if not kpi_row.empty else 0,
         "popular_songs": float(kpi_row["chart_count"].iloc[0]) if not kpi_row.empty else 0,
         "row_count": float(kpi_row["row_count"].iloc[0]) if not kpi_row.empty else 0,
+        "unique_songs": float(kpi_row["unique_songs"].iloc[0]) if not kpi_row.empty and "unique_songs" in kpi_row.columns else 0,
     }
     return artist_stats, top_tracks, kpis
 
@@ -616,7 +621,6 @@ def _load_albums_rank_leaderboard(days: int = WINDOW_DAYS) -> pd.DataFrame:
           AND lower(btrim(title)) NOT IN ('null', 'none', 'nan', 'unknown')
         GROUP BY artist, title
         ORDER BY best_rank ASC, metric DESC, chart_days DESC
-        LIMIT 250
     """
     rows = _run_query(query, (days,))
     if not rows:
@@ -671,7 +675,12 @@ def _load_album_dashboard(days: int = WINDOW_DAYS) -> tuple[pd.DataFrame, pd.Dat
             LIMIT 100
         ),
         kpis AS (
-            SELECT SUM(metric) AS metric, COUNT(*) AS entries, MAX(days) AS max_days, COUNT(*) AS row_count
+            SELECT
+                SUM(metric) AS metric,
+                COUNT(DISTINCT album) AS unique_albums,
+                COUNT(*) AS entries,
+                MAX(days) AS max_days,
+                COUNT(*) AS row_count
             FROM parsed
         )
         SELECT
@@ -683,7 +692,8 @@ def _load_album_dashboard(days: int = WINDOW_DAYS) -> tuple[pd.DataFrame, pd.Dat
             best_rank,
             max_days,
             row_count,
-            artist AS artist
+            artist AS artist,
+            NULL::bigint AS unique_albums
         FROM artist_stats
         UNION ALL
         SELECT
@@ -695,7 +705,8 @@ def _load_album_dashboard(days: int = WINDOW_DAYS) -> tuple[pd.DataFrame, pd.Dat
             best_rank,
             NULL::integer AS max_days,
             NULL::bigint AS row_count,
-            artist AS artist
+            artist AS artist,
+            NULL::bigint AS unique_albums
         FROM album_stats
         UNION ALL
         SELECT
@@ -707,14 +718,15 @@ def _load_album_dashboard(days: int = WINDOW_DAYS) -> tuple[pd.DataFrame, pd.Dat
             NULL::integer AS best_rank,
             max_days,
             row_count,
-            NULL::text AS artist
+            NULL::text AS artist,
+            unique_albums AS unique_albums
         FROM kpis
     """
     rows = _run_query(query, (days,))
     if not rows:
-        return pd.DataFrame(), pd.DataFrame(), {"row_count": 0, "max_days": 0}
+        return pd.DataFrame(), pd.DataFrame(), {"row_count": 0, "max_days": 0, "unique_albums": 0}
     df = pd.DataFrame(rows)
-    for col in ["metric", "chart_count", "entries", "best_rank", "max_days", "row_count"]:
+    for col in ["metric", "chart_count", "entries", "best_rank", "max_days", "row_count", "unique_albums"]:
         df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
 
     artist_stats = (
@@ -740,6 +752,7 @@ def _load_album_dashboard(days: int = WINDOW_DAYS) -> tuple[pd.DataFrame, pd.Dat
     kpis = {
         "row_count": float(kpi_row["row_count"].iloc[0]) if not kpi_row.empty else 0,
         "max_days": float(kpi_row["max_days"].iloc[0]) if not kpi_row.empty else 0,
+        "unique_albums": float(kpi_row["unique_albums"].iloc[0]) if not kpi_row.empty and "unique_albums" in kpi_row.columns else 0,
     }
     return artist_stats, top_albums, kpis
 
@@ -992,8 +1005,19 @@ def render_artists_overview(last_run_label: str = "n/a") -> None:
         current_view_albums_rank_df = current_view_albums_rank_df[current_view_albums_rank_df["artist"] == selected_artist_name].copy()
         current_view_chart_days_df = current_view_chart_days_df[current_view_chart_days_df["artist"] == selected_artist_name].copy()
         current_view_popular_songs_df = current_view_popular_songs_df[current_view_popular_songs_df["artist"] == selected_artist_name].copy()
-        current_view_top_tracks = current_view_top_tracks[current_view_top_tracks["artist"] == selected_artist_name].copy()
-        current_view_top_albums = current_view_top_albums[current_view_top_albums["artist"] == selected_artist_name].copy()
+        current_view_top_tracks = (
+            current_view_songs_rank_df.groupby("title")["metric"]
+            .sum()
+            .reset_index()
+            .sort_values("metric", ascending=False)
+        )
+        current_view_top_albums = (
+            current_view_albums_rank_df.groupby("title")["metric"]
+            .sum()
+            .reset_index()
+            .rename(columns={"title": "album"})
+            .sort_values("metric", ascending=False)
+        )
 
         if current_view_artists_df.empty:
             st.warning(f"No data found for selected artist: {selected_artist_name}")
@@ -1001,8 +1025,14 @@ def render_artists_overview(last_run_label: str = "n/a") -> None:
 
     # --- Recalculate KPIs based on filtered data ---
     artist_total = float(current_view_artists_df["name"].nunique()) if not current_view_artists_df.empty else 0
-    song_total = float(current_view_artists_df["songs_count"].sum()) if "songs_count" in current_view_artists_df.columns else 0
-    album_total = float(current_view_artists_df["albums_count"].sum()) if "albums_count" in current_view_artists_df.columns else 0
+    if selected_artist_name == "Search Artists...":
+        catalog_song_total = track_kpis.get("unique_songs", 0)
+        catalog_album_total = album_kpis.get("unique_albums", 0)
+    else:
+        catalog_song_total = float(current_view_artists_df["songs_count"].sum()) if "songs_count" in current_view_artists_df.columns else 0
+        catalog_album_total = float(current_view_artists_df["albums_count"].sum()) if "albums_count" in current_view_artists_df.columns else 0
+    song_total = 0.0
+    album_total = 0.0
 
     # Recalculate track_kpis
     track_kpis_filtered = {
@@ -1018,9 +1048,9 @@ def render_artists_overview(last_run_label: str = "n/a") -> None:
     album_kpis_filtered = {
         "row_count": float(len(current_view_albums_rank_df)) if not current_view_albums_rank_df.empty else 0,
     }
-    album_rows_label = f"{_fmt_n(album_kpis_filtered.get('row_count', 0))} album chart rows"
+    album_rows_label = "Latest rank snapshot"
 
-    details_label = f"{_fmt_n(len(current_view_artists_df))} artist detail rows"
+    details_label = "Latest rank snapshot"
 
     def kpi_html(title: str, value: str, icon: str, subtitle: str, action: str = "") -> str:
         action_attrs = ""
@@ -1142,7 +1172,7 @@ def render_artists_overview(last_run_label: str = "n/a") -> None:
 
     song_rows: list[dict[str, Any]] = []
     if not current_view_songs_rank_df.empty:
-        for _, row in songs_rank_df.reset_index(drop=True).iterrows():
+        for _, row in current_view_songs_rank_df.reset_index(drop=True).iterrows():
             artist_name = _modal_text(row, "artist").strip()
             title = _modal_text(row, "title").strip()
             if not _is_valid_artist_name(artist_name) or not title or title.lower() in {"null", "none", "nan", "unknown"}:
@@ -1158,11 +1188,16 @@ def render_artists_overview(last_run_label: str = "n/a") -> None:
                 "entries": _modal_num(row, "entries"),
                 "latestDate": _modal_text(row, "latest_date", "n/a"),
             })
+    if selected_artist_name == "Search Artists...":
+        song_total = track_kpis.get("unique_songs", 0)
+        catalog_song_total = track_kpis.get("unique_songs", 0)
+    else:
+        song_total = float(len(song_rows))
     songs_json = json.dumps(
         {
             "windowDays": WINDOW_DAYS,
             "latestLabel": latest_label,
-            "total": int(song_total),
+            "total": int(catalog_song_total),
             "listedRows": int(len(song_rows)),
             "rows": song_rows,
         },
@@ -1171,7 +1206,7 @@ def render_artists_overview(last_run_label: str = "n/a") -> None:
 
     album_rows: list[dict[str, Any]] = []
     if not current_view_albums_rank_df.empty:
-        for _, row in albums_rank_df.reset_index(drop=True).iterrows():
+        for _, row in current_view_albums_rank_df.reset_index(drop=True).iterrows():
             artist_name = _modal_text(row, "artist").strip()
             title = _modal_text(row, "title").strip()
             if not _is_valid_artist_name(artist_name) or not title or title.lower() in {"null", "none", "nan", "unknown"}:
@@ -1187,11 +1222,16 @@ def render_artists_overview(last_run_label: str = "n/a") -> None:
                 "entries": _modal_num(row, "entries"),
                 "latestDate": _modal_text(row, "latest_date", "n/a"),
             })
+    if selected_artist_name == "Search Artists...":
+        album_total = float(len(album_rows))
+        catalog_album_total = album_kpis.get("unique_albums", 0)
+    else:
+        album_total = float(len(album_rows))
     albums_json = json.dumps(
         {
             "windowDays": WINDOW_DAYS,
             "latestLabel": latest_label,
-            "total": int(album_total),
+            "total": int(catalog_album_total),
             "listedRows": int(len(album_rows)),
             "rows": album_rows,
         },
@@ -1200,7 +1240,7 @@ def render_artists_overview(last_run_label: str = "n/a") -> None:
 
     chart_days_rows: list[dict[str, Any]] = []
     if not current_view_chart_days_df.empty:
-        for _, row in chart_days_df.reset_index(drop=True).iterrows():
+        for _, row in current_view_chart_days_df.reset_index(drop=True).iterrows():
             artist_name = _modal_text(row, "artist").strip()
             title = _modal_text(row, "title").strip()
             if not _is_valid_artist_name(artist_name) or not title or title.lower() in {"null", "none", "nan", "unknown"}:
@@ -1228,7 +1268,7 @@ def render_artists_overview(last_run_label: str = "n/a") -> None:
 
     popular_song_rows: list[dict[str, Any]] = []
     if not current_view_popular_songs_df.empty:
-        for _, row in popular_songs_df.reset_index(drop=True).iterrows():
+        for _, row in current_view_popular_songs_df.reset_index(drop=True).iterrows():
             artist_name = _modal_text(row, "artist").strip()
             title = _modal_text(row, "title").strip()
             if not _is_valid_artist_name(artist_name) or not title or title.lower() in {"null", "none", "nan", "unknown"}:
@@ -1380,7 +1420,7 @@ def render_artists_overview(last_run_label: str = "n/a") -> None:
 .modal-backdrop{position:fixed;inset:0;z-index:40;display:none;align-items:flex-start;justify-content:center;background:rgba(2,6,23,.62);padding:22px 18px}.modal-backdrop.open{display:flex}.leader-modal{width:min(1040px,100%);max-height:calc(100vh - 44px);display:flex;flex-direction:column;background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--border);border-radius:14px;box-shadow:0 28px 88px rgba(0,0,0,.42);overflow:hidden}.leader-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:18px 20px;border-bottom:1px solid var(--border)}.leader-kicker{color:var(--rose);font-size:11px;text-transform:uppercase;letter-spacing:.08em;font-weight:900}.leader-title{margin-top:4px;color:var(--text);font-size:20px;font-weight:900}.leader-sub{margin-top:5px;color:var(--muted);font-size:12px;font-weight:650}.leader-close,.leader-back{height:34px;border-radius:8px;border:1px solid var(--border);background:var(--panel3);color:var(--text);cursor:pointer}.leader-close{width:34px;font-size:20px;line-height:1}.leader-back{display:none;padding:0 12px;font-size:12px;font-weight:900}.leader-back.show{display:inline-flex;align-items:center}.leader-actions{display:flex;gap:8px;align-items:center}.leader-close:hover,.leader-back:hover{border-color:rgba(251,113,133,.55);color:var(--rose)}.leader-table-wrap{overflow:auto;padding:0 0 8px}.leader-table-wrap.hide{display:none}.leader-table{width:100%;border-collapse:collapse;min-width:880px;table-layout:fixed}.leader-table th{position:sticky;top:0;z-index:1;background:var(--panel2);color:var(--soft);font-size:10px;text-align:left;text-transform:uppercase;letter-spacing:.06em;font-weight:900;padding:10px 12px;border-bottom:1px solid var(--border)}.leader-table td{padding:11px 12px;border-bottom:1px solid var(--border);color:var(--muted);font-size:12px;font-weight:650;vertical-align:middle}.leader-table tbody tr:hover td{background:var(--panel3)}.leader-pos{color:var(--soft);font-weight:900}.leader-artist{display:flex;align-items:center;gap:9px;min-width:0}.leader-avatar{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;color:#fff;background:linear-gradient(135deg,var(--rose),var(--blue));font-size:11px;font-weight:900;flex:0 0 auto}.leader-name{border:0;background:transparent;padding:0;color:var(--text);font:inherit;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;text-align:left}.leader-name:hover{text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:3px;color:var(--rose)}.leader-rank-cell{color:var(--text);font-size:13px;font-weight:900}.leader-change{display:inline-flex;align-items:center;justify-content:center;min-width:54px;border-radius:999px;padding:3px 8px;font-size:10px;font-weight:900;border:1px solid var(--border);background:var(--panel3)}.leader-change.up{color:#86efac;background:rgba(52,211,153,.14);border-color:rgba(52,211,153,.25)}.leader-change.down{color:#fda4af;background:rgba(251,113,133,.14);border-color:rgba(251,113,133,.25)}.leader-change.flat{color:var(--muted)}.leader-empty{padding:26px;color:var(--muted);font-size:13px;text-align:center}.num{text-align:center;font-variant-numeric:tabular-nums}.leader-table th.num{text-align:center}.country-cell{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.artist-detail{display:none;overflow:auto;padding:18px 20px 22px}.artist-detail.show{display:block}.detail-hero{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:14px}.detail-name{font-size:24px;font-weight:950;color:var(--text);line-height:1}.detail-photo{width:96px;height:96px;border-radius:14px;object-fit:cover;border:1px solid var(--border);background:var(--panel3);box-shadow:0 12px 28px rgba(15,23,42,.18);flex:0 0 auto}.detail-meta{margin-top:8px;display:flex;flex-wrap:wrap;gap:7px}.detail-pill{display:inline-flex;align-items:center;border:1px solid var(--border);border-radius:999px;background:var(--panel3);padding:4px 9px;color:var(--muted);font-size:11px;font-weight:850}.detail-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:14px}.detail-card{background:var(--panel3);border:1px solid var(--border);border-radius:10px;padding:11px 12px;min-height:70px}.detail-label{color:var(--soft);font-size:10px;text-transform:uppercase;letter-spacing:.06em;font-weight:900}.detail-val{margin-top:7px;color:var(--text);font-size:18px;font-weight:950;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.detail-sections{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.detail-section{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:12px;min-height:150px}.detail-section h4{margin:0 0 9px;color:var(--text);font-size:13px;font-weight:950}.detail-list{display:flex;flex-direction:column;gap:7px}.detail-item{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:12px;font-weight:750;min-width:0}.detail-dot{width:7px;height:7px;border-radius:50%;background:linear-gradient(135deg,var(--rose),var(--blue));flex:0 0 auto}.detail-item span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.platform-bars{display:flex;flex-direction:column;gap:8px}.platform-row{display:grid;grid-template-columns:88px 1fr 58px;gap:8px;align-items:center;color:var(--muted);font-size:11px;font-weight:850}.platform-track{height:8px;border-radius:999px;background:var(--track);overflow:hidden}.platform-fill{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,var(--rose),var(--blue))}
 @media(max-width:1050px){.kpis{grid-template-columns:repeat(2,1fr)}.grid,.insight-grid,.artist-story-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.detail-grid,.detail-sections{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:768px){.grid,.insight-grid,.artist-story-grid{grid-template-columns:1fr}}@media(max-width:640px){.kpis{grid-template-columns:1fr}.dash{padding:10px}.kpi{min-height:100px}.artist-story-grid{grid-template-columns:1fr}.donut-layout{grid-template-columns:1fr}.bar-row{grid-template-columns:18px minmax(84px,34%) minmax(0,1fr)}.modal-backdrop{padding:10px;align-items:flex-start}.leader-head{padding:14px}.leader-title{font-size:17px}.detail-grid,.detail-sections{grid-template-columns:1fr}.detail-hero{display:block}.platform-row{grid-template-columns:78px 1fr 48px}}
 </style></head><body>
-""" + f"<main class='dash {theme}'>" + "<div class='kpis'>" + kpi_html("Artists", _fmt_n(artist_total), "&#127908;", f"Latest rank snapshot", "openArtistLeaderboard()") + kpi_html("Songs", _fmt_n(song_total), "&#9835;", details_label, "openSongsLeaderboard()") + kpi_html("Albums", _fmt_n(album_total), "&#9673;", album_rows_label, "openAlbumsLeaderboard()") + kpi_html("Chart Days", _fmt_n(chart_days), "&#9719;", f"Max track streak in last {WINDOW_DAYS} days", "openChartDaysLeaderboard()") + kpi_html("Popular Songs", _fmt_n(popular_songs), "&#9679;", f"Top 10 ranked tracks · {track_rows_label}", "openPopularSongsLeaderboard()") + "</div><div class='grid'>" + bars_html(top_artists, "name", "total_points", "Top Artist - Last Month", "Highest scoring artists in the latest ranking snapshot.", 10) + bars_html(current_view_top_tracks, "title", "metric", "Top Track - Last Month", "Tracks with the strongest combined chart metric.", 10) + bars_html(current_view_top_albums, "album", "metric", "Top Album - Last Month", "Albums with the strongest album chart metric.", 10) + "</div><div class='grid insight-grid'>" + donut_html(current_view_artists_df) + radar_html(current_view_artists_df) + bars_html(top_listeners, "name", "monthly_listeners", "Spotify Listener Leaders", "Artists with the highest latest monthly listener counts.", 10) + "</div>" + f"""
+""" + f"<main class='dash {theme}'>" + "<div class='kpis'>" + kpi_html("Artists", _fmt_n(artist_total), "&#127908;", f"Latest rank snapshot", "openArtistLeaderboard()") + kpi_html("Songs", _fmt_n(song_total), "&#9835;", details_label, "openSongsLeaderboard()") + kpi_html("Albums", _fmt_n(album_total), "&#9673;", album_rows_label, "openAlbumsLeaderboard()") + kpi_html("Chart Days", _fmt_n(chart_days), "&#9719;", f"Max track streak in last {WINDOW_DAYS} days", "openChartDaysLeaderboard()") + kpi_html("Popular Songs", _fmt_n(popular_songs), "&#9679;", "Top 10 ranked tracks", "openPopularSongsLeaderboard()") + "</div><div class='grid'>" + bars_html(top_artists, "name", "total_points", "Top Artist - Last Month", "Highest scoring artists in the latest ranking snapshot.", 10) + bars_html(current_view_top_tracks, "title", "metric", "Top Track - Last Month", "Tracks with the strongest combined chart metric.", 10) + bars_html(current_view_top_albums, "album", "metric", "Top Album - Last Month", "Albums with the strongest album chart metric.", 10) + "</div><div class='grid insight-grid'>" + donut_html(current_view_artists_df) + radar_html(current_view_artists_df) + bars_html(top_listeners, "name", "monthly_listeners", "Spotify Listener Leaders", "Artists with the highest latest monthly listener counts.", 10) + "</div>" + f"""
 <div class="modal-backdrop" id="artistLeaderboardModal">
   <section class="leader-modal" role="dialog" aria-modal="true" aria-labelledby="artistLeaderboardTitle" onclick="event.stopPropagation()">
     <div class="leader-head">
