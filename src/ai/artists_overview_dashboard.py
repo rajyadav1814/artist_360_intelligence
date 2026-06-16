@@ -222,19 +222,17 @@ def _load_artist_details_latest() -> pd.DataFrame:
 @st.cache_data(ttl=300, show_spinner=False)
 def _load_track_dashboard(days: int = WINDOW_DAYS) -> tuple[pd.DataFrame, pd.DataFrame, dict[str, float]]:
     query = """
-        WITH sp_bounds AS (SELECT MAX(date) AS max_d FROM spotify_daily WHERE country = 'global'),
-        it_bounds AS (SELECT MAX(date) AS max_d FROM itunes_daily WHERE country = 'ww'),
+        WITH sp_bounds AS (SELECT MAX(date) AS max_d FROM spotify_daily),
+        it_bounds AS (SELECT MAX(date) AS max_d FROM itunes_daily),
         raw_rows AS (
             SELECT d.artist_title, d.rank, d.days, d.streams::numeric AS metric
             FROM spotify_daily d, sp_bounds b
-            WHERE d.country = 'global'
-              AND d.date > (b.max_d - %s::int)
+            WHERE d.date > (b.max_d - %s::int)
               AND d.date <= b.max_d
             UNION ALL
             SELECT d.artist_title, d.rank, d.days, d.points::numeric AS metric
             FROM itunes_daily d, it_bounds b
-            WHERE d.country = 'ww'
-              AND d.date > (b.max_d - %s::int)
+            WHERE d.date > (b.max_d - %s::int)
               AND d.date <= b.max_d
         ),
         parsed AS MATERIALIZED (
@@ -360,8 +358,8 @@ def _load_track_dashboard(days: int = WINDOW_DAYS) -> tuple[pd.DataFrame, pd.Dat
 @st.cache_data(ttl=300, show_spinner=False)
 def _load_songs_rank_leaderboard(days: int = WINDOW_DAYS) -> pd.DataFrame:
     query = """
-        WITH sp_bounds AS (SELECT MAX(date) AS max_d FROM spotify_daily WHERE country = 'global'),
-        it_bounds AS (SELECT MAX(date) AS max_d FROM itunes_daily WHERE country = 'ww'),
+        WITH sp_bounds AS (SELECT MAX(date) AS max_d FROM spotify_daily),
+        it_bounds AS (SELECT MAX(date) AS max_d FROM itunes_daily),
         raw_rows AS (
             SELECT
                 'Spotify'::text AS platform,
@@ -371,8 +369,7 @@ def _load_songs_rank_leaderboard(days: int = WINDOW_DAYS) -> pd.DataFrame:
                 d.streams::numeric AS metric,
                 d.date
             FROM spotify_daily d, sp_bounds b
-            WHERE d.country = 'global'
-              AND d.date > (b.max_d - %s::int)
+            WHERE d.date > (b.max_d - %s::int)
               AND d.date <= b.max_d
             UNION ALL
             SELECT
@@ -383,8 +380,7 @@ def _load_songs_rank_leaderboard(days: int = WINDOW_DAYS) -> pd.DataFrame:
                 d.points::numeric AS metric,
                 d.date
             FROM itunes_daily d, it_bounds b
-            WHERE d.country = 'ww'
-              AND d.date > (b.max_d - %s::int)
+            WHERE d.date > (b.max_d - %s::int)
               AND d.date <= b.max_d
         ),
         parsed AS MATERIALIZED (
@@ -420,7 +416,6 @@ def _load_songs_rank_leaderboard(days: int = WINDOW_DAYS) -> pd.DataFrame:
           AND lower(btrim(title)) NOT IN ('null', 'none', 'nan', 'unknown')
         GROUP BY artist, title
         ORDER BY best_rank ASC, metric DESC, chart_days DESC
-        LIMIT 250
     """
     rows = _run_query(query, (days, days))
     if not rows:
@@ -434,8 +429,8 @@ def _load_songs_rank_leaderboard(days: int = WINDOW_DAYS) -> pd.DataFrame:
 @st.cache_data(ttl=300, show_spinner=False)
 def _load_chart_days_leaderboard(days: int = WINDOW_DAYS) -> pd.DataFrame:
     query = """
-        WITH sp_bounds AS (SELECT MAX(date) AS max_d FROM spotify_daily WHERE country = 'global'),
-        it_bounds AS (SELECT MAX(date) AS max_d FROM itunes_daily WHERE country = 'ww'),
+        WITH sp_bounds AS (SELECT MAX(date) AS max_d FROM spotify_daily),
+        it_bounds AS (SELECT MAX(date) AS max_d FROM itunes_daily),
         raw_rows AS (
             SELECT
                 'Spotify'::text AS platform,
@@ -445,8 +440,7 @@ def _load_chart_days_leaderboard(days: int = WINDOW_DAYS) -> pd.DataFrame:
                 d.streams::numeric AS metric,
                 d.date
             FROM spotify_daily d, sp_bounds b
-            WHERE d.country = 'global'
-              AND d.date > (b.max_d - %s::int)
+            WHERE d.date > (b.max_d - %s::int)
               AND d.date <= b.max_d
             UNION ALL
             SELECT
@@ -457,8 +451,7 @@ def _load_chart_days_leaderboard(days: int = WINDOW_DAYS) -> pd.DataFrame:
                 d.points::numeric AS metric,
                 d.date
             FROM itunes_daily d, it_bounds b
-            WHERE d.country = 'ww'
-              AND d.date > (b.max_d - %s::int)
+            WHERE d.date > (b.max_d - %s::int)
               AND d.date <= b.max_d
         ),
         parsed AS MATERIALIZED (
@@ -494,7 +487,6 @@ def _load_chart_days_leaderboard(days: int = WINDOW_DAYS) -> pd.DataFrame:
           AND lower(btrim(title)) NOT IN ('null', 'none', 'nan', 'unknown')
         GROUP BY artist, title
         ORDER BY chart_days DESC, metric DESC, best_rank ASC
-        LIMIT 250
     """
     rows = _run_query(query, (days, days))
     if not rows:
@@ -508,8 +500,8 @@ def _load_chart_days_leaderboard(days: int = WINDOW_DAYS) -> pd.DataFrame:
 @st.cache_data(ttl=300, show_spinner=False)
 def _load_popular_songs_leaderboard(days: int = WINDOW_DAYS) -> pd.DataFrame:
     query = """
-        WITH sp_bounds AS (SELECT MAX(date) AS max_d FROM spotify_daily WHERE country = 'global'),
-        it_bounds AS (SELECT MAX(date) AS max_d FROM itunes_daily WHERE country = 'ww'),
+        WITH sp_bounds AS (SELECT MAX(date) AS max_d FROM spotify_daily),
+        it_bounds AS (SELECT MAX(date) AS max_d FROM itunes_daily),
         raw_rows AS (
             SELECT
                 'Spotify'::text AS platform,
@@ -519,8 +511,7 @@ def _load_popular_songs_leaderboard(days: int = WINDOW_DAYS) -> pd.DataFrame:
                 d.streams::numeric AS metric,
                 d.date
             FROM spotify_daily d, sp_bounds b
-            WHERE d.country = 'global'
-              AND d.rank <= 10
+            WHERE d.rank <= 10
               AND d.date > (b.max_d - %s::int)
               AND d.date <= b.max_d
             UNION ALL
@@ -532,8 +523,7 @@ def _load_popular_songs_leaderboard(days: int = WINDOW_DAYS) -> pd.DataFrame:
                 d.points::numeric AS metric,
                 d.date
             FROM itunes_daily d, it_bounds b
-            WHERE d.country = 'ww'
-              AND d.rank <= 10
+            WHERE d.rank <= 10
               AND d.date > (b.max_d - %s::int)
               AND d.date <= b.max_d
         ),
@@ -570,7 +560,6 @@ def _load_popular_songs_leaderboard(days: int = WINDOW_DAYS) -> pd.DataFrame:
           AND lower(btrim(title)) NOT IN ('null', 'none', 'nan', 'unknown')
         GROUP BY artist, title
         ORDER BY metric DESC, best_rank ASC, top10_entries DESC
-        LIMIT 250
     """
     rows = _run_query(query, (days, days))
     if not rows:
@@ -585,7 +574,7 @@ def _load_popular_songs_leaderboard(days: int = WINDOW_DAYS) -> pd.DataFrame:
 def _load_albums_rank_leaderboard(days: int = WINDOW_DAYS) -> pd.DataFrame:
     query = """
         WITH bounds AS (
-            SELECT MAX(date) AS max_d FROM itunes_artist_album WHERE country = 'ww'
+            SELECT MAX(date) AS max_d FROM itunes_artist_album
         ),
         parsed AS MATERIALIZED (
             SELECT
@@ -602,8 +591,7 @@ def _load_albums_rank_leaderboard(days: int = WINDOW_DAYS) -> pd.DataFrame:
                 COALESCE(d.points::numeric, 0) AS metric,
                 d.date
             FROM itunes_artist_album d, bounds b
-            WHERE d.country = 'ww'
-              AND d.date > (b.max_d - %s::int)
+            WHERE d.date > (b.max_d - %s::int)
               AND d.date <= b.max_d
         )
         SELECT
@@ -636,7 +624,7 @@ def _load_albums_rank_leaderboard(days: int = WINDOW_DAYS) -> pd.DataFrame:
 def _load_album_dashboard(days: int = WINDOW_DAYS) -> tuple[pd.DataFrame, pd.DataFrame, dict[str, float]]:
     query = """
         WITH bounds AS (
-            SELECT MAX(date) AS max_d FROM itunes_artist_album WHERE country = 'ww'
+            SELECT MAX(date) AS max_d FROM itunes_artist_album
         ),
         parsed AS MATERIALIZED (
             SELECT
@@ -652,8 +640,7 @@ def _load_album_dashboard(days: int = WINDOW_DAYS) -> tuple[pd.DataFrame, pd.Dat
                 d.days,
                 COALESCE(d.points::numeric, 0) AS metric
             FROM itunes_artist_album d, bounds b
-            WHERE d.country = 'ww'
-              AND d.date > (b.max_d - %s::int)
+            WHERE d.date > (b.max_d - %s::int)
               AND d.date <= b.max_d
         ),
         artist_stats AS (
