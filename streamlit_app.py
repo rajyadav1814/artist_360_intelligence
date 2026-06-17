@@ -1289,8 +1289,8 @@ def apply_theme(dark_mode: bool = True) -> None:
             overflow: visible !important;
         }
         
-        [data-testid="stSidebarUserContent"] {
-            overflow-x: hidden !important;
+        [data-testid="stSidebarContent"], [data-testid="stSidebarUserContent"], [data-testid="stSidebarNav"] {
+            overflow: hidden !important;
         }
         
         [data-testid="stSidebar"].is-mini {
