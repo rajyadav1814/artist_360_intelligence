@@ -2307,7 +2307,7 @@ def render_footer() -> None:
     st.markdown(
         """
         <div class="app-footer">
-            <div><a href="mailto:info@chromadata.com">info@chromadata.com</a></div>
+            <div><a href="mailto:info@chromadata.ai">info@chromadata.ai</a></div>
             <div>© 2026 - Chromadata. All rights reserved.</div>
         </div>
         """,
