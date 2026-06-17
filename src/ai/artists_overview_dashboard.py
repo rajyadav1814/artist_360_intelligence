@@ -1631,7 +1631,7 @@ function renderArtistLeaderboard() {{
   const sub = document.getElementById('artistLeaderboardSub');
   if (!body || !sub) return;
   const rows = ARTIST_LEADERBOARD.rows || [];
-  sub.textContent = `${{ARTIST_LEADERBOARD.total || rows.length}} artists tracked · Latest snapshot: ${{ARTIST_LEADERBOARD.latestLabel || 'n/a'}}`;
+  sub.textContent = `${{ARTIST_LEADERBOARD.total || rows.length}} Artists Tracked`;
   if (!rows.length) {{
     body.innerHTML = '<tr><td colspan="9"><div class="leader-empty">No artist leaderboard rows available.</div></td></tr>';
     return;
@@ -1656,7 +1656,7 @@ function showArtistLeaderboardTable() {{
   document.getElementById('artistLeaderboardBack')?.classList.remove('show');
   document.getElementById('artistLeaderboardTitle').textContent = 'Artist Rank Snapshot';
   const rows = ARTIST_LEADERBOARD.rows || [];
-  document.getElementById('artistLeaderboardSub').textContent = `${{ARTIST_LEADERBOARD.total || rows.length}} artists tracked · Latest snapshot: ${{ARTIST_LEADERBOARD.latestLabel || 'n/a'}}`;
+  document.getElementById('artistLeaderboardSub').textContent = `${{ARTIST_LEADERBOARD.total || rows.length}} Artists Tracked`;
 }}
 function openArtistDetail(position) {{
   const row = (ARTIST_LEADERBOARD.rows || []).find(item => Number(item.position) === Number(position));
@@ -1665,7 +1665,7 @@ function openArtistDetail(position) {{
   const table = document.getElementById('artistLeaderboardTableView');
   const back = document.getElementById('artistLeaderboardBack');
   document.getElementById('artistLeaderboardTitle').textContent = row.name;
-  document.getElementById('artistLeaderboardSub').textContent = `Artist Details · Latest snapshot: ${{ARTIST_LEADERBOARD.latestLabel || 'n/a'}}`;
+  document.getElementById('artistLeaderboardSub').textContent = `Artist Details`;
   const songs = parseDetailList(row.topSongs);
   const albums = parseDetailList(row.topAlbums);
   const countries = parseDetailList(row.topCountries);
@@ -1674,10 +1674,10 @@ function openArtistDetail(position) {{
       <div>
         <div class="detail-name">${{escLeader(row.name)}}</div>
         <div class="detail-meta">
-          <span class="detail-pill">Rank ${{compactRank(row.rank)}}</span>
-          <span class="detail-pill">Move ${{escLeader(row.change)}}</span>
-          <span class="detail-pill">Top country ${{escLeader(row.topCountry || 'Unknown')}}</span>
-          <span class="detail-pill">Peak listeners ${{fmtLeaderNumber(row.peakListeners)}}</span>
+          <span class="detail-pill">Rank : ${{compactRank(row.rank)}}</span>
+          <span class="detail-pill">Move : ${{escLeader(row.change)}}</span>
+          <span class="detail-pill">Top country : ${{escLeader(row.topCountry || 'Unknown')}}</span>
+          <span class="detail-pill">Peak listeners : ${{fmtLeaderNumber(row.peakListeners)}}</span>
         </div>
       </div>
       <img class="detail-photo" src="${{escLeader(row.imageUrl)}}" alt="${{escLeader(row.name)}}" loading="lazy">
