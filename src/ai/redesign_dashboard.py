@@ -801,28 +801,31 @@ body {
 /* Top nav tabs */
 .tab-bar {
   display: flex;
-  gap: 10px;
+  gap: 12px;
   margin-bottom: 24px;
-  padding: 0 0 16px;
+  padding: 4px 4px 16px 4px;
   overflow-x: auto;
   align-items: center;
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+.tab-bar::-webkit-scrollbar {
+  display: none;
 }
 .tab {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  min-width: 154px;
-  padding: 10px 18px;
-  font-size: .84rem;
-  font-weight: 800;
+  gap: 10px;
+  padding: 8px 20px 8px 10px;
+  font-size: .9rem;
+  font-weight: 600;
   background: var(--a-bg2);
   border: 1px solid rgba(148,163,184,.18);
   border-radius: 99px;
   cursor: pointer;
   color: var(--a-t2);
   white-space: nowrap;
-  text-align: center;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   box-shadow: 0 1px 2px rgba(15,23,42,.04);
 }
@@ -830,14 +833,16 @@ body {
   background: var(--a-nav-active-bg);
   color: var(--a-nav-active-text);
   border-color: var(--a-nav-active-border);
-  transform: translateY(-1px);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,.05);
 }
 .tab.active {
-  background: #e31d2d;
+  background: linear-gradient(135deg, #e31b23, #b31217);
   color: #fff;
-  border-color: #e31d2d;
-  font-weight: 800;
-  box-shadow: 0 8px 18px rgba(227,29,45,.22);
+  border-color: #e31b23;
+  font-weight: 700;
+  box-shadow: 0 8px 18px rgba(227,27,35,.22), inset 0 1px 0 rgba(255,255,255,.18);
+  transform: translateY(-1px);
 }
 .tab-icon,
 .title-icon,
@@ -854,17 +859,19 @@ body {
   line-height: 1;
 }
 .tab-icon {
-  width: 1.8rem;
-  height: 1.8rem;
-  font-size: .88rem;
+  width: 2rem;
+  height: 2rem;
+  font-size: .95rem;
   background: rgba(255,255,255,.92);
   border-color: rgba(148,163,184,.22);
   color: var(--a-t1);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
 }
 .tab.active .tab-icon {
-  background: rgba(255,255,255,.18);
+  background: rgba(255,255,255,.2);
   border-color: rgba(255,255,255,.30);
   color: #fff;
+  box-shadow: none;
 }
 .title-icon {
   width: 2rem;
