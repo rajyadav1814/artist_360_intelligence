@@ -286,23 +286,15 @@ function buildBar(id, items, label, chartColor){
   charts[id]=new Chart(el,{type:'bar',data:{labels:items.map(d=>d.date.slice(5)),datasets:[{label,data:items.map(d=>d.value),backgroundColor:chartColor+'44',borderColor:chartColor,borderWidth:1.5,borderRadius:3}]},options:{animation:false,responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{color:chartText(),font:{size:10},maxRotation:0,autoSkip:true,maxTicksLimit:8}},y:{grid:{color:gridColor()},ticks:{color:chartText(),font:{size:10},callback:v=>fmt(v)}}}}});
 }
 
-function buildAlbums(){
-  const el=document.getElementById('albumChart');
-  if(!el || !DATA.albums.length) return;
-  charts.albumChart=new Chart(el,{type:'bar',data:{labels:DATA.albums.map(a=>a.song),datasets:[{data:DATA.albums.map(a=>a.value || 1),backgroundColor:'#185FA555',borderColor:'#185FA5',borderWidth:1.5,borderRadius:4}]},options:{indexAxis:'y',animation:false,responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{display:false},y:{grid:{display:false},ticks:{color:chartText(),font:{size:11}}}}}});
-}
-
 function activeTab(panel){
   document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.panel===panel));
   document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('active',p.id==='panel-'+panel));
   destroyCharts();
   if(panel==='streams'){buildLine('spStreamChart', DATA.spotifyTimeline, 'Streams', 'streams', color); buildBar('itSalesChart', DATA.itunesTimeline, 'Sales', '#185FA5');}
   if(panel==='ranks'){buildLine('spRankChart', DATA.spotifyTimeline, 'Spotify rank', 'rank', color, true); buildLine('itRankChart', DATA.itunesTimeline, 'iTunes rank', 'rank', '#185FA5', true);}
-  if(panel==='itunes') buildAlbums();
 }
 
 function render(){
-  const countries = DATA.countries.length ? DATA.countries.map(c=>`<span class="country-pill">${esc(c)}</span>`).join('') : '<span class="muted">Global presence</span>';
   const marketLabel = DATA.primaryMarket && DATA.primaryMarket !== '—' ? DATA.primaryMarket : 'Global';
   const rankText = DATA.rank ? `#${esc(DATA.rank)}` : '—';
   document.getElementById('spotlight').innerHTML = `
@@ -349,7 +341,6 @@ function render(){
         <button class="tab active" data-panel="streams"><span class="ico">▰</span> Streams</button>
         <button class="tab" data-panel="ranks"><span class="ico">↕</span> Rank Trend</button>
         <button class="tab" data-panel="songs"><span class="ico">♪</span> Song Deep Dive</button>
-        <button class="tab" data-panel="itunes"><span class="ico">◆</span> iTunes Detail</button>
       </div>
       <div id="panel-streams" class="panel active">
         <div class="two-col">
@@ -367,12 +358,6 @@ function render(){
         <div class="two-col">
           <div class="card"><div class="sec-title"><span class="ico">♪</span> Spotify song performance</div><div class="sec-desc">Tracks with the strongest Spotify footprint, summarized by peak rank, market coverage, and recent change.</div><div class="table-scroll"><table class="song-table"><thead><tr><th><span class="ico">#</span> Peak</th><th><span class="ico">♪</span> Song</th><th><span class="ico">◎</span> Regions</th><th><span class="ico">↕</span> Change</th></tr></thead><tbody>${rows(DATA.spotifySongs,'Spotify song')}</tbody></table></div></div>
           <div class="card"><div class="sec-title"><span class="ico">♪</span> iTunes song performance</div><div class="sec-desc">Songs charting on iTunes worldwide, focused on peak performance, regions, and latest movement.</div><div class="table-scroll"><table class="song-table"><thead><tr><th><span class="ico">#</span> Peak</th><th><span class="ico">♪</span> Song</th><th><span class="ico">◎</span> Regions</th><th><span class="ico">↕</span> Change</th></tr></thead><tbody>${rows(DATA.itunesSongs,'iTunes song')}</tbody></table></div></div>
-        </div>
-      </div>
-      <div id="panel-itunes" class="panel">
-        <div class="two-col">
-          <div class="card"><div class="sec-title"><span class="ico">▣</span> Albums on iTunes</div><div class="sec-desc">Album-level iTunes activity ranked by the strongest available charting signal for this artist.</div>${DATA.albums.length?'<div class="chart-wrap tall"><canvas id="albumChart"></canvas></div>':noData('No iTunes album rows found.')}</div>
-          <div class="card"><div class="sec-title"><span class="ico">◎</span> Top markets</div><div class="sec-desc">Country and catalog coverage showing where the artist has the broadest chart presence.</div><div class="countries">${countries}</div><div class="market-lines"><div><span><span class="ico">▶</span> Spotify songs</span><strong>${esc(DATA.spotifySongsCount)}</strong></div><div><span><span class="ico"></span> iTunes songs</span><strong>${esc(DATA.itunesSongsCount)}</strong></div><div><span><span class="ico">▣</span> Albums</span><strong>${esc(DATA.albumsCount)}</strong></div></div></div>
         </div>
       </div>
     </div>`;
