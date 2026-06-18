@@ -238,7 +238,7 @@ def render_plotly_html(fig: go.Figure, *, height: int | None = None, dark_mode: 
         </script>
         """,
         height=chart_height + 32,
-        scrolling=False,
+        scrolling=True,
     )
 
 
@@ -1289,8 +1289,12 @@ def apply_theme(dark_mode: bool = True) -> None:
             overflow: visible !important;
         }
         
-        [data-testid="stSidebarContent"], [data-testid="stSidebarUserContent"], [data-testid="stSidebarNav"] {
-            overflow: hidden !important;
+        @media (min-width: 769px) {
+            [data-testid="stSidebar"].is-mini [data-testid="stSidebarContent"],
+            [data-testid="stSidebar"].is-mini [data-testid="stSidebarUserContent"],
+            [data-testid="stSidebar"].is-mini [data-testid="stSidebarNav"] {
+                overflow: hidden !important;
+            }
         }
         
         [data-testid="stSidebar"].is-mini {
