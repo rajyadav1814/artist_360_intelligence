@@ -249,7 +249,7 @@ def apply_theme(dark_mode: bool = True) -> None:
         root_vars = """
         :root {
             --bg:#0d1117; --surface:#161b26; --surface2:#1f2633; --surface3:#283041;
-            --border:rgba(148,163,184,.15); --accent:#fb7185; --accent2:#60a5fa; --accent3:#34d399;
+            --border:rgba(148,163,184,.35); --accent:#fb7185; --accent2:#60a5fa; --accent3:#34d399;
             --warn:#fcd34d; --danger:#fb7185; --text:#ffffff; --text2:#cdd6e4;
             --primary:#fb7185; --primary-light:#fda4af; --primary-dark:#be123c;
             --cyan:#60a5fa; --pink:#fb7185; --green:#34d399; --orange:#fcd34d;
@@ -311,7 +311,7 @@ def apply_theme(dark_mode: bool = True) -> None:
         root_vars = """
         :root {
             --bg:#F5F6FA; --surface:#FFFFFF; --surface2:#F8F9FB; --surface3:#EEF1F7;
-            --border:#E9ECF2; --accent:#fb7185; --accent2:#60a5fa; --accent3:#34d399;
+            --border:#9CA3AF; --accent:#fb7185; --accent2:#60a5fa; --accent3:#34d399;
             --warn:#fcd34d; --danger:#fb7185; --text:#1A1A1A; --text2:#8A8FA3;
             --primary:#fb7185; --primary-light:#fda4af; --primary-dark:#be123c;
             --cyan:#60a5fa; --pink:#fb7185; --green:#34d399; --orange:#fcd34d;
@@ -335,13 +335,13 @@ def apply_theme(dark_mode: bool = True) -> None:
             overflow: hidden !important;
         }
         .leader-table thead th {
-            background: linear-gradient(135deg, #F8F9FB 0%, #FFFFFF 100%) !important;
+            background: linear-gradient(135deg, #E5E7EB 0%, #FFFFFF 100%) !important;
             color: #1A1A1A !important;
             border-bottom: 2px solid rgba(251, 113, 133, 0.25) !important;
-            font-weight: 700 !important;
+            font-weight: 900 !important;
         }
         .leader-table tbody tr {
-            border-bottom: 1px solid rgba(251, 113, 133, 0.1) !important;
+            border-bottom: 1px solid rgba(251, 113, 133, 0.2) !important;
         }
         .leader-table tbody tr:nth-child(even) {
             background: rgba(251, 113, 133, 0.04) !important;
@@ -408,8 +408,8 @@ def apply_theme(dark_mode: bool = True) -> None:
             color:var(--text);
             animation: fadeIn 0.6s ease-out;
         }
-        body { font-size: 17px; }
-        p, div, span, label { font-size: 1.05rem; }
+        body { font-size: 19px; }
+        p, div, span, label { font-size: 1.15rem; }
         [data-testid="stHeader"], [data-testid="stToolbar"], #MainMenu, header { background:transparent !important; }
         [data-testid="stDecoration"] { display:none; }
         .block-container {
@@ -600,7 +600,7 @@ def apply_theme(dark_mode: bool = True) -> None:
             border: 1px solid var(--border);
             border-radius: 20px;
             padding: 1rem 1.15rem;
-            transition: all 0.25s ease;
+            transition: all 0.3s ease;
             box-shadow: 0 10px 30px rgba(0,0,0,.15);
             margin-bottom: 1.5rem;
             margin-top: -4.0rem;
@@ -619,14 +619,14 @@ def apply_theme(dark_mode: bool = True) -> None:
             text-decoration: underline;
         }
         .table-wrap { margin-top: 1rem; overflow-x:auto; overflow-y:auto; max-height:620px; }
-        .leader-table { width:100%; border-collapse:collapse; font-size:1.05rem; }
+        .leader-table { width:100%; border-collapse:collapse; font-size:1.1rem; }
         .leader-table thead th {
             text-align:left; padding:.85rem .85rem; color: var(--text); font-size:1.1rem;
             letter-spacing:.06em; text-transform:uppercase; border-bottom:1px solid var(--border);
-            font-weight: 700;
+            font-weight: 900;
         }
         .leader-table tbody td {
-            padding:.75rem .85rem; border-bottom:1px solid var(--border); vertical-align:middle;
+            padding:.9rem .85rem; border-bottom:1px solid var(--border); vertical-align:middle;
             color: var(--text);
         }
         .leader-table tbody tr:hover { 
@@ -641,7 +641,7 @@ def apply_theme(dark_mode: bool = True) -> None:
         .artist-cell { font-weight:700; }
         .num-cell { text-align:left; font-variant-numeric:tabular-nums; }
         .country-pill {
-            display:inline-block; padding:4px 10px; border-radius:999px; background:rgba(34,211,160,.12);
+            display:inline-block; padding:4px 12px; border-radius:999px; background:rgba(34,211,160,.12);
             color: var(--text); font-size:.75rem; font-weight:700;
         }
         .badge { 
@@ -720,8 +720,9 @@ def apply_theme(dark_mode: bool = True) -> None:
         .kpi-amber::before { background: linear-gradient(90deg, #fcd34d, #f59e0b); }
         .kpi-red::before { background: linear-gradient(90deg, #fb7185, #e11d48); }
         .kpi-label {
-            color:var(--text2); font-size:0.9rem; text-transform:uppercase;
+            color:var(--text); font-size:1.0rem; text-transform:uppercase;
             letter-spacing:.08em; margin-bottom: 0.5rem;
+            font-weight: 700;
         }
         .kpi-value {
             font-size:2.2rem; font-weight:900; margin-top:.35rem;
