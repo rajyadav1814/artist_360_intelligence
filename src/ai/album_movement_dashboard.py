@@ -238,7 +238,7 @@ def render_album_movement(labels_filter: list[str] | None = None) -> None:
     c0, c1, c2 = st.columns([1.7, 1.2, 1.2])
     with c0:
         st.markdown(
-            "<div style='font-size:0.85rem;color:#97a3c5;padding-top:1.95rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis'>"
+            "<div style='font-size: 0.92rem; color: var(--t2); margin: 0 0 14px; line-height: 1.5; font-weight: 500;'>"
             "Rank + point momentum across iTunes album charts."
             "</div>",
             unsafe_allow_html=True,
@@ -417,7 +417,7 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
     <button class='tab' onclick="showTab(event,'consistency')">Consistency</button>
   </div>
 
-  <div class='panel active' id='panel-consistency'>
+  <div class='panel' id='panel-consistency'>
     <div class='tab-desc'>Highlights albums with the strongest sustained chart footprint, combining repeated presence, best rank, average rank, and total points across the selected window.</div>
     <div class='card'>
       <div class='section-label'><span class='tag pt-it'>iTunes</span> Top consistent albums</div>
@@ -438,7 +438,7 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
     </div>
   </div>
 
-  <div class='panel' id='panel-live'>
+  <div class='panel active' id='panel-live'>
     <div class='tab-desc'>Lists the latest iTunes album chart leaders, including current position, artist, latest points, and day-over-day rank movement.</div>
     <div class='card'><div class='section-label'><span class='tag pt-it'>iTunes</span> Top 20 latest albums</div><div class='note'>Current chart leaders with day-over-day rank movement and latest points.</div><div id='live-it-list'></div></div>
   </div>
@@ -488,12 +488,7 @@ function movementRow(d){
   const up = d.sg >= 0;
   return `<div class='mv-row'>
     <div class='mv-left'>
-      <div class='mv-art'>${d.n}</div>
-      <div class='mv-trk'>${d.t}</div>
-      <div class='mv-meta'>
-        <span class='metric-pill'>#${startRank(d)||'-'} to #${latestRank(d)||'-'}</span>
-        <span class='metric-pill'>latest ${fmtNum(latestPoints(d))} points</span>
-      </div>
+      <div class='mv-art'>${d.t} - ${d.n} · #${startRank(d)||'-'} to #${latestRank(d)||'-'} - ${fmtNum(latestPoints(d))} points</div>
       ${d.lbl && d.lbl !== '—' ? `<div style='margin-top:4px;'><span style='display:inline-block;padding:2px 6px;border-radius:4px;font-size:9px;font-weight:700;background:var(--bg3);color:var(--t2);border:1px solid var(--border);'>${d.lbl}</span></div>` : ''}
     </div>
     <div class='mv-val ${up?'up':'dn'}'>${up?'+':'-'}${fmtNum(Math.abs(d.sg))} points</div>
@@ -501,16 +496,16 @@ function movementRow(d){
   </div>`;
 }
 function renderList(id, data){
-  const el=document.getElementById(id);
-  if(!el)return;
-  el.innerHTML = data && data.length ? data.map(movementRow).join('') : "<div class='empty'>No data in selected window.</div>";
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.innerHTML = data && data.length ? data.map(d => movementRow(d)).join('') : "<div class='empty'>No data in selected window.</div>";
 }
+
 function liveRow(r){
-  return `<div class='live-row'>
+  return `<div class='live-row' onclick="showAcqSpotlight('${r.a} - ${r.t}', 'album')">
     <div class='live-rank'>${r.rank || '-'}</div>
     <div class='live-info'>
-      <div class='live-title'>${r.t}</div>
-      <div class='live-meta'>${r.a}</div>
+      <div class='live-title'>${r.t} - ${r.a}</div>
       ${r.lbl && r.lbl !== '—' ? `<div style='margin-top:4px;'><span style='display:inline-block;padding:2px 6px;border-radius:4px;font-size:9px;font-weight:700;background:var(--bg3);color:var(--t2);border:1px solid var(--border);'>${r.lbl}</span></div>` : ''}
     </div>
     <div style='display:flex;align-items:center;gap:6px'><div class='live-score'>${fmtNum(r.s)} points</div>${rankBadge(r.m)}</div>
@@ -533,9 +528,8 @@ function renderConsistency(id, data){
     const pct = Math.max(4, Math.round(d.score / maxScore * 100));
     return `<tr>
       <td class='rank-num'>${i+1}</td>
-      <td>
-        <div class='item-name'>${d.t}</div>
-        <div class='item-sub'>${d.n}</div>
+      <td onclick="showAcqSpotlight('${d.n} - ${d.t}', 'album')">
+        <div class='item-name'>${d.t} · ${d.n}</div>
         ${d.lbl && d.lbl !== '—' ? `<div style='margin-top:4px;margin-bottom:2px;'><span style='display:inline-block;padding:2px 6px;border-radius:4px;font-size:9px;font-weight:700;background:var(--bg3);color:var(--t2);border:1px solid var(--border);'>${d.lbl}</span></div>` : ''}
         <div class='bar-wrap'><div class='bar-bg'><div class='bar-fill' style='width:${pct}%;background:#3266ad'></div></div><span style='font-size:10px;color:var(--t3)'>${pct}%</span></div>
       </td>

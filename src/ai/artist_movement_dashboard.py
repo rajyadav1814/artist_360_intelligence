@@ -107,14 +107,14 @@ def resample_tracker_pattern(pattern: list[int], days: int) -> list[int]:
     return resampled
 
 
-def build_tracker_demo_data(leaderboard: pd.DataFrame, days: int = 14) -> tuple[pd.DataFrame, pd.DataFrame]:
+def build_tracker_demo_data(leaderboard: pd.DataFrame, days: int = 14, limit: int = 10) -> tuple[pd.DataFrame, pd.DataFrame]:
     if "rank" in leaderboard.columns and leaderboard["rank"].notna().any():
-        top = leaderboard.dropna(subset=["rank"]).sort_values("rank").head(TRACKER_TOP_ARTISTS).copy()
+        top = leaderboard.dropna(subset=["rank"]).sort_values("rank").head(limit).copy()
     else:
-        top = leaderboard.dropna(subset=["monthly_listeners"]).nlargest(TRACKER_TOP_ARTISTS, "monthly_listeners").copy()
+        top = leaderboard.dropna(subset=["monthly_listeners"]).nlargest(limit, "monthly_listeners").copy()
 
     if top.empty:
-        top = leaderboard.head(TRACKER_TOP_ARTISTS).copy()
+        top = leaderboard.head(limit).copy()
 
     top = top.reset_index(drop=True)
     date_range = pd.date_range(end=pd.Timestamp.today().normalize(), periods=days)
@@ -127,8 +127,8 @@ def build_tracker_demo_data(leaderboard: pd.DataFrame, days: int = 14) -> tuple[
         [15, 12, 10, 9, 8, 7, 8, 7, 6, 5, 5, 5, 5, 5],
     ]
 
-    max_rank = int(top["rank"].max()) if "rank" in top.columns and top["rank"].notna().any() else TRACKER_TOP_ARTISTS + 8
-    max_rank = max(TRACKER_TOP_ARTISTS + 2, max_rank)
+    max_rank = int(top["rank"].max()) if "rank" in top.columns and top["rank"].notna().any() else limit + 8
+    max_rank = max(limit + 2, max_rank)
 
     records = []
     best_rows = []
@@ -253,16 +253,18 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
 
     unique_runs = int(history["scraped_at"].nunique()) if not history.empty else 0
 
-    col1, col2 = st.columns([1, 1])
+    col1, col2, col3 = st.columns([1, 1, 1])
     with col1:
-        time_range = custom_selectbox("📅 Time Range", ["7 days", "14 days", "30 days"], index=0, key="ct_range")
+        time_range = custom_selectbox("📅 Time Range", ["7 days", "14 days", "30 days"], index=2, key="ct_range")
     with col2:
         view_mode = custom_selectbox("👁️ View Mode", ["Line Chart", "Area Chart"], index=0, key="ct_view")
+    with col3:
+        num_artists = int(custom_selectbox("👥 Number of Artists", ["10", "20", "30", "40", "50"], index=0, key="ct_num_artists"))
 
     time_window_days = int(time_range.split()[0])
     using_demo = unique_runs < 3
     if using_demo:
-        line_df, best_df = build_tracker_demo_data(leaderboard, days=time_window_days)
+        line_df, best_df = build_tracker_demo_data(leaderboard, days=time_window_days, limit=num_artists)
     else:
         history = history.copy()
         history["scraped_at"] = pd.to_datetime(history["scraped_at"], errors="coerce")
@@ -317,10 +319,10 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
             )
 
     if using_demo and "rank" in leaderboard.columns and leaderboard["rank"].notna().any():
-        artists_tracked = leaderboard.dropna(subset=["rank"]).sort_values("rank")["name"].head(TRACKER_TOP_ARTISTS).tolist()
+        artists_tracked = leaderboard.dropna(subset=["rank"]).sort_values("rank")["name"].head(num_artists).tolist()
     else:
         artists_tracked = (
-            line_df.sort_values(["position", "artist"])["artist"].drop_duplicates().tolist()[:TRACKER_TOP_ARTISTS]
+            line_df.sort_values(["position", "artist"])["artist"].drop_duplicates().tolist()[:num_artists]
         )
 
     line_df = line_df[line_df["artist"].isin(artists_tracked)]
@@ -408,10 +410,15 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
             "spanGaps": True
         })
 
+    # Calculate dynamic heights based on number of artists
+    # Increased scaling and buffer to prevent cropping when legend wraps with many artists
+    dynamic_chart_height = 50 + (num_artists * 50)
+    dynamic_iframe_height = dynamic_chart_height + 350
+
     chart_payload = {
         "labels": unique_dates,
         "datasets": datasets,
-        "title": f"📈 Top {TRACKER_TOP_ARTISTS} artist position trend",
+        "title": f"📈 Top {num_artists} artist position trend",
         "theme": "dark" if is_dark else "light",
     }
     
@@ -466,7 +473,7 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
       .leg-btn:hover {{ border-color: {'rgba(255,255,255,0.4)' if is_dark else 'rgba(0,0,0,0.4)'}; background: {'rgba(255,255,255,0.04)' if is_dark else 'rgba(0,0,0,0.02)'}; }}
       .leg-btn.hidden {{ opacity: 0.4; border-color: transparent; }}
       .dot {{ width: 9px; height: 9px; border-radius: 50%; display: inline-block; }}
-      .chart-wrap {{ position: relative; height: 420px; width: 100%; }}
+      .chart-wrap {{ position: relative; height: {dynamic_chart_height}px; width: 100%; }}
     </style>
     </head><body>
       <div class="chart-card">
@@ -580,7 +587,7 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
       </script>
     </body></html>
     """
-    st_components.html(html_template, height=650)
+    st_components.html(html_template, height=dynamic_iframe_height)
     st.markdown("</div>", unsafe_allow_html=True)
 
     text_color = "#fff" if is_dark else "#1A1A1A"
@@ -715,5 +722,3 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
                 mime="text/csv",
                 key="download_detailed_movement_analysis",
             )
-
-

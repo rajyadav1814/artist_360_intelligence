@@ -117,7 +117,7 @@ def _sparkline_svg(
     *,
     width: int = 180,
     height: int = 54,
-    color: str = "#60a5fa",
+    color: str = "#34d399",
     reverse: bool = False,
 ) -> str:
     clean = [float(v) for v in values if v is not None and pd.notna(v)]
@@ -307,7 +307,7 @@ def _build_dashboard_html(
         if active_mode == "Album"
         else "Score = listeners + momentum + coverage."
         if active_mode == "Artist"
-        else "Score = 20% iTunes + 20% Spotify entries + 30% Spotify + 30% iTunes streams."
+        else "Acquisition Radar identifies rising, acquirable artists demonstrating significant cross-platform commercial momentum. The Score (0-100) is calculated from: 30% Spotify streams, 30% iTunes points, 20% Spotify chart entries, and 20% iTunes chart entries."
     )
     acq_rows = _filter_acq_rows(focus_pool, latam_only=latam_only, independent_only=independent_only)
     acq_rows = acq_rows.sort_values([score_col, "rank"], ascending=[False, True]).reset_index(drop=True)
@@ -520,8 +520,7 @@ def _build_roster_cards_html(rows: pd.DataFrame) -> str:
         delta_text = f"{delta:+.0f}" if abs(delta) >= 0.5 else "0"
         country = str(row.get("display_country") or row.get("top_country") or "—")
         top_song = escape(str(row.get("top_song") or "—"))
-        spark_color = {"rising": "#34d399", "slipping": "#fb7185", "holding": "#60a5fa"}.get(verdict, "#60a5fa")
-        spark = _sparkline_svg(row.get("rank_series") or [], color=spark_color, reverse=True)
+        spark = _sparkline_svg(row.get("rank_series") or [], reverse=True)
         listeners_delta = float(row.get("rank_delta_45d") or 0.0)
         ld_text = f"listeners {listeners_delta:+.1f}%" if abs(listeners_delta) >= 0.1 else "listeners flat"
         ld_class = "up" if listeners_delta > 0 else ("dn" if listeners_delta < 0 else "")
@@ -802,28 +801,31 @@ body {
 /* Top nav tabs */
 .tab-bar {
   display: flex;
-  gap: 10px;
+  gap: 12px;
   margin-bottom: 24px;
-  padding: 0 0 16px;
+  padding: 4px 4px 16px 4px;
   overflow-x: auto;
   align-items: center;
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+.tab-bar::-webkit-scrollbar {
+  display: none;
 }
 .tab {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  min-width: 154px;
-  padding: 10px 18px;
-  font-size: .84rem;
-  font-weight: 800;
+  gap: 10px;
+  padding: 8px 20px 8px 10px;
+  font-size: .9rem;
+  font-weight: 600;
   background: var(--a-bg2);
   border: 1px solid rgba(148,163,184,.18);
   border-radius: 99px;
   cursor: pointer;
   color: var(--a-t2);
   white-space: nowrap;
-  text-align: center;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   box-shadow: 0 1px 2px rgba(15,23,42,.04);
 }
@@ -831,14 +833,16 @@ body {
   background: var(--a-nav-active-bg);
   color: var(--a-nav-active-text);
   border-color: var(--a-nav-active-border);
-  transform: translateY(-1px);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,.05);
 }
 .tab.active {
-  background: #e31d2d;
+  background: linear-gradient(135deg, #e31b23, #b31217);
   color: #fff;
-  border-color: #e31d2d;
-  font-weight: 800;
-  box-shadow: 0 8px 18px rgba(227,29,45,.22);
+  border-color: #e31b23;
+  font-weight: 700;
+  box-shadow: 0 8px 18px rgba(227,27,35,.22), inset 0 1px 0 rgba(255,255,255,.18);
+  transform: translateY(-1px);
 }
 .tab-icon,
 .title-icon,
@@ -855,17 +859,19 @@ body {
   line-height: 1;
 }
 .tab-icon {
-  width: 1.8rem;
-  height: 1.8rem;
-  font-size: .88rem;
+  width: 2rem;
+  height: 2rem;
+  font-size: .95rem;
   background: rgba(255,255,255,.92);
   border-color: rgba(148,163,184,.22);
   color: var(--a-t1);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
 }
 .tab.active .tab-icon {
-  background: rgba(255,255,255,.18);
+  background: rgba(255,255,255,.2);
   border-color: rgba(255,255,255,.30);
   color: #fff;
+  box-shadow: none;
 }
 .title-icon {
   width: 2rem;
@@ -1019,7 +1025,7 @@ body {
 /* Acquisition radar */
 .acq-header{display:flex;align-items:flex-end;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:12px}
 .acq-title{display:flex;align-items:center;gap:10px;font-size:1.8rem;font-weight:850;color:var(--a-t1);margin:0}
-.acq-sub{font-size:.88rem;color:var(--a-t2);margin-top:3px;max-width:66ch;line-height:1.45}
+.acq-sub{font-size:.88rem;color:var(--a-t2);margin-top:3px;line-height:1.45}
 .acq-meta{font-size:.82rem;color:var(--a-t3);text-align:right;line-height:1.4;min-width:150px}
 .acq-grid {
   display: grid;
@@ -1444,7 +1450,7 @@ function showTabById(id){
 
 // ── Acquisition radar ──────────────────────────────────────────
 (function(){
-  document.getElementById('acq-sub-text').textContent = 'Acquisition Radar identifies rising, acquirable artists demonstrating significant cross-platform commercial momentum. The Score (0-100) is calculated from: 30% Spotify streams, 30% iTunes points, 20% Spotify chart entries, and 20% iTunes chart entries.';
+  document.getElementById('acq-sub-text').textContent = D.score_formula;
   const modeLabel = {Track:'Artist / Track', Album:'Artist / Album', Artist:'Artist'}[D.active_mode] || 'Artist / Track';
   document.getElementById('entity-col-label').textContent = modeLabel;
 

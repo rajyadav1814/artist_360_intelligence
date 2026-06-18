@@ -1242,15 +1242,20 @@ def apply_theme(dark_mode: bool = True) -> None:
             bottom: 0;
             left: 0;
             right: 0;
+            height: 60px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 5px;
             z-index: 99; /* Below sidebar but above content */
             background: rgba(255, 255, 255, 0.97);
             backdrop-filter: blur(16px);
-            padding: 0.75rem 0;
             border-top: 1px solid rgba(0,0,0,.08);
             text-align: center;
             color: var(--text2);
             font-size: 0.95rem;
-            line-height: 1.6;
+            line-height: 1.2;
         }
         .app-footer a {
             color: var(--primary);
@@ -1284,8 +1289,8 @@ def apply_theme(dark_mode: bool = True) -> None:
             overflow: visible !important;
         }
         
-        [data-testid="stSidebarUserContent"] {
-            overflow-x: hidden !important;
+        [data-testid="stSidebarContent"], [data-testid="stSidebarUserContent"], [data-testid="stSidebarNav"] {
+            overflow: hidden !important;
         }
         
         [data-testid="stSidebar"].is-mini {
@@ -1408,9 +1413,11 @@ def apply_theme(dark_mode: bool = True) -> None:
         unsafe_allow_html=True,
     )
     
-    # Inject Javascript to create the custom toggle button and handle state
-    st_components.html(
-        """
+    button_bg = "#1f2633" if dark_mode else "#FFFFFF"
+    button_border = "rgba(148,163,184,.15)" if dark_mode else "#E9ECF2"
+    button_color = "#ffffff" if dark_mode else "#1A1A1A"
+
+    js_code = """
         <script>
             setInterval(() => {
                 const doc = window.parent.document;
@@ -1428,8 +1435,8 @@ def apply_theme(dark_mode: bool = True) -> None:
                     btn.style.cssText = `
                         position: absolute; right: -14px; top: 42px; width: 28px; height: 28px; 
                         display: flex; align-items: center; justify-content: center;
-                        cursor: pointer; color: var(--text); border-radius: 50%;
-                        background: var(--surface); border: 1px solid var(--border);
+                        cursor: pointer; color: __BTN_COLOR__; border-radius: 50%;
+                        background: __BTN_BG__; border: 1px solid __BTN_BORDER__;
                         box-shadow: 0 2px 6px rgba(0,0,0,0.08);
                         transition: all 0.2s; z-index: 999999;
                     `;
@@ -1487,8 +1494,13 @@ def apply_theme(dark_mode: bool = True) -> None:
                 });
             }
         </script>
-        
-        """,
+        """
+    js_code = js_code.replace("__BTN_COLOR__", button_color)
+    js_code = js_code.replace("__BTN_BG__", button_bg)
+    js_code = js_code.replace("__BTN_BORDER__", button_border)
+
+    st_components.html(
+        js_code,
         height=0,
         width=0
     )
@@ -2302,7 +2314,7 @@ def render_footer() -> None:
     st.markdown(
         """
         <div class="app-footer">
-            <div><a href="mailto:info@chromadata.com">info@chromadata.com</a></div>
+            <div><a href="mailto:info@chromadata.ai">info@chromadata.ai</a></div>
             <div>© 2026 - Chromadata. All rights reserved.</div>
         </div>
         """,
@@ -3744,6 +3756,10 @@ top_history = data.get("top_history", pd.DataFrame())
 def clear_active_profile():
     """Callback to reset the active popup state when global filters change."""
     st.session_state.active_artist_profile = None
+    if "global_selected_artist" in st.session_state:
+        del st.session_state.global_selected_artist
+    if "debut_artist_select" in st.session_state:
+        del st.session_state.debut_artist_select
 
 last_run_label = "n/a"
 if not runs.empty and runs["finished_at"].notna().any():
@@ -4170,6 +4186,25 @@ def show_artists_overview_page() -> None:
         .stMainBlockContainer, .block-container {
             padding-top: 0.1rem !important;
         }
+        /* Make overview iframe height responsive to responsive grid wrapping inside the iframe */
+                    iframe[title="streamlit.components.v1.html"] {            transition: height 0.2s ease-in-out !important;
+        }
+        @media (max-width: 1200px) {
+                        iframe[title="streamlit.components.v1.html"] {                height: 1100px !important;
+            }
+        }
+        @media (max-width: 1050px) {
+                        iframe[title="streamlit.components.v1.html"] {                height: 1800px !important;
+            }
+        }
+        @media (max-width: 768px) {
+                        iframe[title="streamlit.components.v1.html"] {                height: 2200px !important;
+            }
+        }
+        @media (max-width: 640px) {
+                        iframe[title="streamlit.components.v1.html"] {                height: 2800px !important;
+            }
+        }
         </style>
         """,
         unsafe_allow_html=True,
@@ -4336,7 +4371,7 @@ def show_movement_page() -> None:
         render_album_movement(labels_to_filter)
     with tab3:
         st.markdown(
-            "<div style='font-size:0.85rem;color:var(--text2);margin:-0.5rem 0 0.75rem 0'>"
+            "<div style='font-size: 0.92rem; color: var(--t2); margin: 0 0 14px; line-height: 1.5; font-weight: 500;'>"
             "Rank momentum across iTunes worldwide artist rankings."
             "</div>",
             unsafe_allow_html=True,
@@ -4496,7 +4531,7 @@ with st.sidebar:
     
     # Collapsible advanced settings
     with st.expander("🔍 Search & Filter", expanded=True):
-        latam_only = st.toggle("🌎 Latin America", value=False)
+        latam_only = st.toggle("🌎 Latin America", value=False, on_change=clear_active_profile, key="sidebar_latam_only_filter")
         
         selected_countries = []
         if latam_only:
@@ -4528,11 +4563,11 @@ with st.sidebar:
                 options=options,
                 default=default_selection,
                 format_func=lambda x: latam_country_mapping.get(x, x),
-                on_change=clear_active_profile if 'clear_active_profile' in locals() else None,
+                on_change=clear_active_profile,
                 key="sidebar_countries_filter"
             )
 
-        sony_music_only = st.toggle("🎵 Sony Music", value=False, on_change=clear_active_profile if 'clear_active_profile' in locals() else None, key="sidebar_sony_music_filter")
+        sony_music_only = st.toggle("🎵 Sony Music", value=False, on_change=clear_active_profile, key="sidebar_sony_music_filter")
         
         selected_sony_labels = []
         if sony_music_only:

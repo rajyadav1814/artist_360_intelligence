@@ -222,6 +222,9 @@ def render_debut_artist_chart(leaderboard: pd.DataFrame) -> None:
     data_json = json.dumps(payload, ensure_ascii=False)
     theme_json = json.dumps({"dark": st.session_state.get("dark_mode", True)})
     html = """
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <div class="dash" id="dash">
   <div id="spotlight"></div>
 </div>
@@ -402,7 +405,7 @@ render();
 </script>
 <style>
 *{box-sizing:border-box} html,body{margin:0;background:transparent;overflow-x:hidden;padding-bottom:25px}
-.dash{--color-background-primary:__BG1__;--color-background-secondary:__BG2__;--color-border-tertiary:__BORDER__;--color-text-primary:__TEXT1__;--color-text-secondary:__TEXT2__;--color-text-tertiary:__TEXT3__;padding:0 0 2rem 0;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--color-text-primary)}
+.dash{--color-background-primary:__BG1__;--color-background-secondary:__BG2__;--color-border-tertiary:__BORDER__;--color-text-primary:__TEXT1__;--color-text-secondary:__TEXT2__;--color-text-tertiary:__TEXT3__;padding:0 0 2rem 0;font-family:'Inter',system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;color:var(--color-text-primary)}
 .header{display:grid;grid-template-columns:116px minmax(0,1fr);align-items:center;gap:1.35rem;margin-bottom:1rem;padding:1.15rem;border:1px solid var(--color-border-tertiary);border-radius:8px;background:var(--color-background-primary)}
 .avatar{width:116px;height:116px;border-radius:8px;object-fit:cover;flex-shrink:0;border:1px solid var(--color-border-tertiary);background:var(--color-background-secondary)}
 .head-copy{min-width:0}.eyebrow{font-size:11px;font-weight:750;text-transform:uppercase;letter-spacing:.08em;color:var(--color-text-tertiary);margin-bottom:5px}.artist-name{font-size:36px;font-weight:760;color:var(--color-text-primary);line-height:1.04;letter-spacing:0}.artist-meta{font-size:14px;color:var(--color-text-secondary);margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:760px}
@@ -428,4 +431,4 @@ render();
     html = html.replace("__DATA__", data_json).replace("__THEME__", theme_json)
     for key, value in colors.items():
         html = html.replace(key, value)
-    st_components.html(html, height=1000, width=None, scrolling=False)
+    st_components.html(html, height=1000, width=None, scrolling=True)
