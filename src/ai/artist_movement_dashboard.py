@@ -410,10 +410,11 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
             "spanGaps": True
         })
 
-    # Calculate dynamic heights based on number of artists
-    # Increased scaling and buffer to prevent cropping when legend wraps with many artists
-    dynamic_chart_height = 50 + (num_artists * 50)
-    dynamic_iframe_height = dynamic_chart_height + 350
+    # Calculate dynamic heights to prevent extra blank space
+    dynamic_chart_height = 450
+    # Legend wraps, approx 40px per row of ~6 artists, plus ~130px for headers/padding
+    legend_height = ((num_artists // 6) + 1) * 40
+    dynamic_iframe_height = dynamic_chart_height + legend_height + 130
 
     chart_payload = {
         "labels": unique_dates,
