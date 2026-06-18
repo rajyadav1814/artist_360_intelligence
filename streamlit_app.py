@@ -4442,7 +4442,7 @@ app_pages = [
         show_redesign_dashboard_page,
         title="LATAM Signals",
         icon=":material/auto_awesome:",
-        url_path="redesign-lab",
+        url_path="latam-signals",
     ),
     # st.Page(
     #     show_leaderboard_page,
