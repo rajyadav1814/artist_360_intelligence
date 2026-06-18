@@ -899,6 +899,7 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
 @media(max-width:640px){.kpi-bar{grid-template-columns:1fr}}
 @media(max-width:900px){.tab-row{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:640px){.tab-row{grid-template-columns:1fr}}
+@media(max-width:900px){.r2, .fix-grid{grid-template-columns:1fr}}
 
 </style></head><body>
 
@@ -941,7 +942,7 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
     </div>
     <div class='card'>
       <div class='card-ttl card-ttl-flex'><span>🌐 Platform reach — separate volume split</span></div>
-      <div style='display:grid;grid-template-columns:1fr 1fr;gap:20px'>
+      <div class='r2'>
         <div>
           <div style='font-size:12px;font-weight:600;margin-bottom:8px;text-align:center;color:var(--t2)'>iTunes Streams</div>
           <div style='position:relative;height:200px'><canvas id='stackBarItunes'></canvas></div>

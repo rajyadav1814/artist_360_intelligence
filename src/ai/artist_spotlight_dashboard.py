@@ -431,4 +431,4 @@ render();
     html = html.replace("__DATA__", data_json).replace("__THEME__", theme_json)
     for key, value in colors.items():
         html = html.replace(key, value)
-    st_components.html(html, height=1000, width=None, scrolling=False)
+    st_components.html(html, height=1000, width=None, scrolling=True)

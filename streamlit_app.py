@@ -1413,9 +1413,11 @@ def apply_theme(dark_mode: bool = True) -> None:
         unsafe_allow_html=True,
     )
     
-    # Inject Javascript to create the custom toggle button and handle state
-    st_components.html(
-        """
+    button_bg = "#1f2633" if dark_mode else "#FFFFFF"
+    button_border = "rgba(148,163,184,.15)" if dark_mode else "#E9ECF2"
+    button_color = "#ffffff" if dark_mode else "#1A1A1A"
+
+    js_code = """
         <script>
             setInterval(() => {
                 const doc = window.parent.document;
@@ -1433,8 +1435,8 @@ def apply_theme(dark_mode: bool = True) -> None:
                     btn.style.cssText = `
                         position: absolute; right: -14px; top: 42px; width: 28px; height: 28px; 
                         display: flex; align-items: center; justify-content: center;
-                        cursor: pointer; color: var(--text); border-radius: 50%;
-                        background: var(--surface); border: 1px solid var(--border);
+                        cursor: pointer; color: __BTN_COLOR__; border-radius: 50%;
+                        background: __BTN_BG__; border: 1px solid __BTN_BORDER__;
                         box-shadow: 0 2px 6px rgba(0,0,0,0.08);
                         transition: all 0.2s; z-index: 999999;
                     `;
@@ -1492,8 +1494,13 @@ def apply_theme(dark_mode: bool = True) -> None:
                 });
             }
         </script>
-        
-        """,
+        """
+    js_code = js_code.replace("__BTN_COLOR__", button_color)
+    js_code = js_code.replace("__BTN_BG__", button_bg)
+    js_code = js_code.replace("__BTN_BORDER__", button_border)
+
+    st_components.html(
+        js_code,
         height=0,
         width=0
     )
