@@ -543,6 +543,16 @@ body { background: var(--bg); font-family: var(--font-sans); color: var(--t1); -
 #searchInput::placeholder { color: var(--color-text-tertiary); }
 
 .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 300px; color: var(--color-text-tertiary); text-align: center; gap: 8px; }
+
+@media (max-width: 1100px) {
+  .dash-wrapper { height: auto; overflow: visible; }
+  .dash { grid-template-columns: 1fr; }
+  .filters { width: 100%; }
+  .window-chip-group { flex-wrap: wrap; }
+  .left-col { overflow: visible; }
+  .album-table { min-height: 400px; max-height: 600px; }
+  .right-col { overflow: visible; }
+}
 </style>
 </head><body class="__BODY_CLASS__">
 
@@ -551,7 +561,7 @@ body { background: var(--bg); font-family: var(--font-sans); color: var(--t1); -
 <div class="dash-wrapper">
   <div class="filters">
 
-      <span style="display:flex; gap:8px; align-items:center;">
+      <span style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; width:100%;">
         <span class="filter-tag">
             <input type="text" id="searchInput" placeholder="Search..." oninput="applyFilters()">
         </span>
