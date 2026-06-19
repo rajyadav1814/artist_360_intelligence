@@ -1315,7 +1315,7 @@ body {
 /* Roster health */
 .roster-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
 }
 .rc {
@@ -1399,7 +1399,7 @@ body {
 /* What changes */
 .spec-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
   margin-top: 16px;
 }
@@ -1450,6 +1450,10 @@ body {
   padding: 10px 20px 20px; overflow-y: auto; flex: 1;
 }
 
+@media(max-width:1200px){
+  .roster-grid{grid-template-columns:repeat(2, minmax(0, 1fr))}
+  .spec-grid{grid-template-columns:repeat(2, minmax(0, 1fr))}
+}
 @media(max-width:900px){
   .brief-grid,.acq-grid,.roster-grid,.spec-grid,.kpi-strip,.momentum-grid{grid-template-columns:1fr}
   .tab-bar{overflow-x:auto}
@@ -1463,6 +1467,7 @@ body {
     <button class='tab active' onclick="showTab(event,'brief')"><span class='tab-icon' aria-hidden='true'>▣</span>Today's Brief</button>
     <button class='tab' onclick="showTab(event,'fatigue')"><span class='tab-icon' aria-hidden='true'>♪</span>Fatigue Map</button>
     <button class='tab' onclick="showTab(event,'roster')"><span class='tab-icon' aria-hidden='true'>◔</span>Roster Health</button>
+    <button class='tab' onclick="showTab(event,'dependencies')"><span class='tab-icon' aria-hidden='true'>⚙</span>Dependencies</button>
   </div>
 
   <!-- SCREEN 1: Today's Brief -->
@@ -1486,45 +1491,48 @@ body {
     <h2 class='screen-title'><span class='title-icon' aria-hidden='true'>◉</span>Roster health</h2>
     <p class='screen-sub'>One card per signed artist — holding, rising, or slipping, with rank trend and weakest market. Signed artists · 30-day window.</p>
     <div id='roster-cards'></div>
-    <div style='margin-top:24px'>
-      <div class='screen-kicker'><span class='section-kicker-icon' aria-hidden='true'>⚙</span>Dependencies</div>
-      <h2 class='screen-title' style='margin-bottom:4px'><span class='title-icon' aria-hidden='true'>⚙</span>What changes, and what it depends on</h2>
-      <p class='screen-sub'>Which KPIs are cut, which stay decision-grade, and what data must land before the filters stop being visual only.</p>
-      <div class='spec-grid'>
-        <div class='spec-card'>
-          <h3>KPIs cut (knowing, not deciding)</h3>
-          <p>Useful reference metrics — none directly support a decision in the new story.</p>
-          <ul class='spec-list'>
-            <li>Total Points — composite, no decision attached</li>
-            <li>Position Strength Score + its bar chart</li>
-            <li>Stream Signal (970.8M) as a hero number</li>
-            <li>iTunes Points (1.1M) as a headline KPI</li>
-            <li>Duplicate listener cards: 5 instances → 1</li>
-            <li>Track / Album / Artist Movement as its own module</li>
-            <li>Label Power Score — demoted to appendix</li>
-          </ul>
-        </div>
-        <div class='spec-card'>
-          <h3>Two data fields required (task zero)</h3>
-          <p>The radar, fatigue, and roster views need both before they can be production-ready.</p>
-          <ul class='spec-list'>
-            <li>Per-artist / per-track country trend — at minimum each entity's weakest market and trend.</li>
-            <li>Signed vs independent status plus the label name, so filters stop relying on proxies.</li>
-          </ul>
-          <div class='spec-kept' style='margin-top:10px'><strong>Why it matters:</strong> without these two fields, the LATAM filter, the independent filter, and the fatigue/roster "where" stay decorative.</div>
-        </div>
+  </div>
+
+  <!-- SCREEN 5: Dependencies -->
+  <div class='panel' id='panel-dependencies'>
+    <div class='screen-kicker'><span class='section-kicker-icon' aria-hidden='true'>⚙</span>Dependencies</div>
+    <h2 class='screen-title' style='margin-bottom:4px'><span class='title-icon' aria-hidden='true'>⚙</span>What changes, and what it depends on</h2>
+    <p class='screen-sub'>Which KPIs are cut, which stay decision-grade, and what data must land before the filters stop being visual only.</p>
+    <div class='spec-grid'>
+      <div class='spec-card'>
+        <h3>KPIs cut (knowing, not deciding)</h3>
+        <p>Useful reference metrics — none directly support a decision in the new story.</p>
+        <ul class='spec-list'>
+          <li>Total Points — composite, no decision attached</li>
+          <li>Position Strength Score + its bar chart</li>
+          <li>Stream Signal (970.8M) as a hero number</li>
+          <li>iTunes Points (1.1M) as a headline KPI</li>
+          <li>Duplicate listener cards: 5 instances → 1</li>
+          <li>Track / Album / Artist Movement as its own module</li>
+          <li>Label Power Score — demoted to appendix</li>
+        </ul>
       </div>
-      <div class='spec-kept' style='margin-top:10px'>
-        <strong>KPIs kept (each drives a decision):</strong>
-        <ul class='spec-list' style='margin-top:8px'>
+      <div class='spec-card'>
+        <h3>Two data fields required (task zero)</h3>
+        <p>The radar, fatigue, and roster views need both before they can be production-ready.</p>
+        <ul class='spec-list'>
+          <li>Per-artist / per-track country trend — at minimum each entity's weakest market and trend.</li>
+          <li>Signed vs independent status plus the label name, so filters stop relying on proxies.</li>
+        </ul>
+        <div class='spec-kept' style='margin-top:10px'><strong>Why it matters:</strong> without these two fields, the LATAM filter, the independent filter, and the fatigue/roster "where" stay decorative.</div>
+      </div>
+      <div class='spec-card'>
+        <h3>KPIs kept (each drives a decision)</h3>
+        <p>Decision-grade metrics that stay central to the story.</p>
+        <ul class='spec-list'>
           <li>30-day momentum — acquire + fatigue</li>
           <li>Acquisition Score — acquire ranking</li>
           <li>Rank + movement chip — hold / fatigue</li>
           <li>Monthly listeners (one instance) — fatigue axis</li>
         </ul>
       </div>
-      <p class='final-note'>Once per-country artist trajectories and a confirmed signed/independent flag land in the model, the radar and roster views can split cleanly by market and roster type. Until then, this page is intentionally framed as a prototype so the missing data is obvious, not hidden.</p>
     </div>
+    <p class='final-note'>Once per-country artist trajectories and a confirmed signed/independent flag land in the model, the radar and roster views can split cleanly by market and roster type. Until then, this page is intentionally framed as a prototype so the missing data is obvious, not hidden.</p>
   </div>
 
   <div class='modal-overlay' id='kpi-modal' onclick='closeModal(event)'>
@@ -1613,7 +1621,7 @@ document.getElementById('brief-grid').innerHTML = [
 
 function showTabById(id){
   const tabs = document.querySelectorAll('.tab');
-  const map = {brief:0,fatigue:1,roster:2};
+  const map = {brief:0,fatigue:1,roster:2,dependencies:3};
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
   tabs[map[id]].classList.add('active');
