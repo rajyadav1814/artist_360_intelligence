@@ -867,10 +867,30 @@ def render_artists_overview(last_run_label: str = "n/a") -> None:
             <span style='font-size:1.05rem; font-weight:800; color:var(--text); letter-spacing:-0.01em;'>📊 Artist Overview</span>
             <span class='time-chip'>{escape(f"Last Update: {last_run_label}")}</span>
         </div>
-        <div style='font-size: 0.92rem; color: var(--t2); margin: 0 0 14px; line-height: 1.5; font-weight: 500;'>
+        <div style='font-size: 0.92rem; color: var(--t2); margin: 0 0 8px; line-height: 1.5; font-weight: 500;'>
         This dashboard provides a comprehensive overview of all tracked artists, including their catalog, 
         chart activity, listeners, and key performance indicators, offering a holistic view of their market presence and performance.
         </div>
+        <div class="artists-filter-tightener"></div>
+        <style>
+        div.element-container:has(div.artists-filter-tightener) {{
+            margin-bottom: 0 !important;
+        }}
+        div[data-testid="stHorizontalBlock"]:has(div.gradient-marker) {{
+            margin-top: 0 !important;
+            margin-bottom: -24px !important;
+        }}
+        div[data-testid="stHorizontalBlock"]:has(div.gradient-marker) [data-testid="column"] {{
+            padding-top: 0 !important;
+            padding-bottom: 0 !important;
+        }}
+        div[data-testid="stHorizontalBlock"]:has(div.gradient-marker) .element-container {{
+            margin-bottom: 0 !important;
+        }}
+        div.element-container:has(div.gradient-marker) {{
+            margin-bottom: 0 !important;
+        }}
+        </style>
         """,
         unsafe_allow_html=True,
     )
@@ -964,7 +984,10 @@ def render_artists_overview(last_run_label: str = "n/a") -> None:
             div.element-container:has(div.gradient-marker) + div.element-container div[data-testid="stSelectbox"] label p {
                 font-weight: 700 !important;
                 letter-spacing: 0.02em !important;
-                margin-bottom: 6px !important;
+                margin-bottom: 3px !important;
+            }
+            div.element-container:has(div.gradient-marker) + div.element-container div[data-testid="stSelectbox"] {
+                margin-bottom: 0 !important;
             }
             </style>
             """,
