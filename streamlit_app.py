@@ -4375,15 +4375,11 @@ def show_movement_page() -> None:
         """,
         unsafe_allow_html=True,
     )
-    tab1, tab2, tab3 = st.tabs(["🎵 Track Movement", "💿 Album Movement", "🎤 Artist Movement"])
+    tab1, tab2, tab3 = st.tabs(["🎤 Artist Movement", "🎵 Track Movement", "💿 Album Movement"])
     
     labels_to_filter = selected_sony_labels if sony_music_only else None
     
     with tab1:
-        render_track_movement(labels_to_filter)
-    with tab2:
-        render_album_movement(labels_to_filter)
-    with tab3:
         st.markdown(
             "<div style='font-size: 0.92rem; color: var(--t2); margin: 0 0 14px; line-height: 1.5; font-weight: 500;'>"
             "Rank momentum across iTunes worldwide artist rankings."
@@ -4391,6 +4387,10 @@ def show_movement_page() -> None:
             unsafe_allow_html=True,
         )
         render_chart_tracker(history, global_filtered)
+    with tab2:
+        render_track_movement(labels_to_filter)
+    with tab3:
+        render_album_movement(labels_to_filter)
 
 
 def show_acquisition_page() -> None:
