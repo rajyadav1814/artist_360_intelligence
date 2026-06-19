@@ -728,7 +728,8 @@ def _make_momentum_bar_charts(df: pd.DataFrame, *, dark_mode: bool) -> dict[str,
                     name=title,
                     showlegend=False,
                     text=sub_df["rank_delta_30d"].apply(lambda x: f"{x:+.0f}"),
-                    textposition="auto"
+                    textposition="auto",
+                    textangle=0
                 )
             )
         
