@@ -356,7 +356,15 @@ def _load_track_dashboard(days: int = WINDOW_DAYS) -> tuple[pd.DataFrame, pd.Dat
 
 
 @st.cache_data(ttl=300, show_spinner=False)
-def _load_songs_rank_leaderboard(days: int = WINDOW_DAYS) -> pd.DataFrame:
+def _load_track_rank_base(days: int = WINDOW_DAYS) -> pd.DataFrame:
+    """Single shared aggregation for the songs-rank and chart-days leaderboards.
+
+    These two leaderboards previously ran two independent full scans of
+    spotify_daily/itunes_daily with identical GROUP BY artist, title logic
+    and only differed in their final ORDER BY. They are merged into one
+    cached query here; callers sort the result differently in pandas
+    instead of re-querying the database.
+    """
     query = """
         WITH sp_bounds AS (SELECT MAX(date) AS max_d FROM spotify_daily),
         it_bounds AS (SELECT MAX(date) AS max_d FROM itunes_daily),
@@ -415,7 +423,6 @@ def _load_songs_rank_leaderboard(days: int = WINDOW_DAYS) -> pd.DataFrame:
           AND btrim(title) <> ''
           AND lower(btrim(title)) NOT IN ('null', 'none', 'nan', 'unknown')
         GROUP BY artist, title
-        ORDER BY best_rank ASC, metric DESC, chart_days DESC
     """
     rows = _run_query(query, (days, days))
     if not rows:
@@ -426,75 +433,24 @@ def _load_songs_rank_leaderboard(days: int = WINDOW_DAYS) -> pd.DataFrame:
     return df
 
 
-@st.cache_data(ttl=300, show_spinner=False)
+def _load_songs_rank_leaderboard(days: int = WINDOW_DAYS) -> pd.DataFrame:
+    """Derived from the shared `_load_track_rank_base` cache — no extra DB hit."""
+    df = _load_track_rank_base(days)
+    if df.empty:
+        return df
+    return df.sort_values(
+        ["best_rank", "metric", "chart_days"], ascending=[True, False, False]
+    ).reset_index(drop=True)
+
+
 def _load_chart_days_leaderboard(days: int = WINDOW_DAYS) -> pd.DataFrame:
-    query = """
-        WITH sp_bounds AS (SELECT MAX(date) AS max_d FROM spotify_daily),
-        it_bounds AS (SELECT MAX(date) AS max_d FROM itunes_daily),
-        raw_rows AS (
-            SELECT
-                'Spotify'::text AS platform,
-                d.artist_title,
-                d.rank,
-                d.days,
-                d.streams::numeric AS metric,
-                d.date
-            FROM spotify_daily d, sp_bounds b
-            WHERE d.date > (b.max_d - %s::int)
-              AND d.date <= b.max_d
-            UNION ALL
-            SELECT
-                'iTunes'::text AS platform,
-                d.artist_title,
-                d.rank,
-                d.days,
-                d.points::numeric AS metric,
-                d.date
-            FROM itunes_daily d, it_bounds b
-            WHERE d.date > (b.max_d - %s::int)
-              AND d.date <= b.max_d
-        ),
-        parsed AS MATERIALIZED (
-            SELECT
-                platform,
-                CASE
-                    WHEN position(' - ' in artist_title) > 0 THEN split_part(artist_title, ' - ', 1)
-                    ELSE COALESCE(NULLIF(artist_title, ''), 'Unknown')
-                END AS artist,
-                CASE
-                    WHEN position(' - ' in artist_title) > 0 THEN substring(artist_title from position(' - ' in artist_title) + 3)
-                    ELSE COALESCE(NULLIF(artist_title, ''), 'Unknown')
-                END AS title,
-                rank,
-                COALESCE(days, 0) AS days,
-                COALESCE(metric, 0) AS metric,
-                date
-            FROM raw_rows
-        )
-        SELECT
-            string_agg(DISTINCT platform, ', ') AS platform,
-            artist,
-            title,
-            COUNT(DISTINCT date) AS chart_days,
-            MIN(rank) AS best_rank,
-            SUM(metric) AS metric,
-            COUNT(*) AS entries,
-            MAX(date) AS latest_date
-        FROM parsed
-        WHERE btrim(artist) <> ''
-          AND lower(btrim(artist)) NOT IN ('null', 'none', 'nan', 'unknown')
-          AND btrim(title) <> ''
-          AND lower(btrim(title)) NOT IN ('null', 'none', 'nan', 'unknown')
-        GROUP BY artist, title
-        ORDER BY chart_days DESC, metric DESC, best_rank ASC
-    """
-    rows = _run_query(query, (days, days))
-    if not rows:
-        return pd.DataFrame(columns=["platform", "artist", "title", "chart_days", "best_rank", "metric", "entries", "latest_date"])
-    df = pd.DataFrame(rows)
-    for col in ["chart_days", "best_rank", "metric", "entries"]:
-        df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
-    return df
+    """Derived from the shared `_load_track_rank_base` cache — no extra DB hit."""
+    df = _load_track_rank_base(days)
+    if df.empty:
+        return df
+    return df.sort_values(
+        ["chart_days", "metric", "best_rank"], ascending=[False, False, True]
+    ).reset_index(drop=True)
 
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -828,15 +784,45 @@ def _load_artists_overview_data(days: int = WINDOW_DAYS) -> tuple[
     pd.DataFrame,
     pd.DataFrame,
 ]:
-    latest_artists = _load_artist_rank_history(days)
-    spotify_df = _load_spotify_artist_latest()
-    details_df = _load_artist_details_latest()
-    track_artist_stats, top_tracks, track_kpis = _load_track_dashboard(days)
-    songs_rank_df = _load_songs_rank_leaderboard(days)
-    album_artist_stats, top_albums, album_kpis = _load_album_dashboard(days)
-    albums_rank_df = _load_albums_rank_leaderboard(days)
-    chart_days_df = _load_chart_days_leaderboard(days)
-    popular_songs_df = _load_popular_songs_leaderboard(days)
+    # All of the loaders below run independent queries against independent
+    # connections (see _run_query), so there is no reason to wait on them
+    # one-by-one. Fan them out to a thread pool and join at the end. This
+    # collapses ~8 sequential round trips into roughly the time of the
+    # slowest single query instead of the sum of all of them.
+    from concurrent.futures import ThreadPoolExecutor
+
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        f_latest_artists = executor.submit(_load_artist_rank_history, days)
+        f_spotify_df = executor.submit(_load_spotify_artist_latest)
+        f_details_df = executor.submit(_load_artist_details_latest)
+        f_track_dashboard = executor.submit(_load_track_dashboard, days)
+        f_track_rank_base = executor.submit(_load_track_rank_base, days)
+        f_album_dashboard = executor.submit(_load_album_dashboard, days)
+        f_albums_rank_df = executor.submit(_load_albums_rank_leaderboard, days)
+        f_popular_songs_df = executor.submit(_load_popular_songs_leaderboard, days)
+
+        latest_artists = f_latest_artists.result()
+        spotify_df = f_spotify_df.result()
+        details_df = f_details_df.result()
+        track_artist_stats, top_tracks, track_kpis = f_track_dashboard.result()
+        track_rank_base = f_track_rank_base.result()
+        album_artist_stats, top_albums, album_kpis = f_album_dashboard.result()
+        albums_rank_df = f_albums_rank_df.result()
+        popular_songs_df = f_popular_songs_df.result()
+
+    # Both leaderboards are sorted views of the same shared aggregation —
+    # no extra DB round trip needed for either of them.
+    if track_rank_base.empty:
+        songs_rank_df = track_rank_base
+        chart_days_df = track_rank_base
+    else:
+        songs_rank_df = track_rank_base.sort_values(
+            ["best_rank", "metric", "chart_days"], ascending=[True, False, False]
+        ).reset_index(drop=True)
+        chart_days_df = track_rank_base.sort_values(
+            ["chart_days", "metric", "best_rank"], ascending=[False, False, True]
+        ).reset_index(drop=True)
+
     filtered = _build_artist_table(latest_artists, spotify_df, details_df, track_artist_stats, album_artist_stats)
     return (
         latest_artists,
