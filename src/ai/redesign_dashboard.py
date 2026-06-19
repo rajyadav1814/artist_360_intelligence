@@ -161,7 +161,7 @@ def _build_history_profiles(history: pd.DataFrame) -> dict[str, dict[str, Any]]:
     df = df.dropna(subset=["scraped_at", "name", "rank"])
     if df.empty:
         return {}
-    latest_allowed = df["scraped_at"].max() - timedelta(days=45)
+    latest_allowed = df["scraped_at"].max() - timedelta(days=30)
     df = df[df["scraped_at"] >= latest_allowed]
     profiles: dict[str, dict[str, Any]] = {}
     for artist, group in df.groupby("name"):
@@ -211,9 +211,9 @@ def _prep_frame(leaderboard: pd.DataFrame, history: pd.DataFrame) -> pd.DataFram
         df["display_country"] = df["top_country"].fillna("—")
 
     profiles = _build_history_profiles(history)
-    df["rank_delta_45d"] = df["name"].map(lambda n: profiles.get(n, {}).get("rank_delta", 0.0))
-    df["rank_slope_45d"] = df["name"].map(lambda n: profiles.get(n, {}).get("rank_slope", 0.0))
-    df["rank_span_45d"] = df["name"].map(lambda n: profiles.get(n, {}).get("rank_span", 0))
+    df["rank_delta_30d"] = df["name"].map(lambda n: profiles.get(n, {}).get("rank_delta", 0.0))
+    df["rank_slope_30d"] = df["name"].map(lambda n: profiles.get(n, {}).get("rank_slope", 0.0))
+    df["rank_span_30d"] = df["name"].map(lambda n: profiles.get(n, {}).get("rank_span", 0))
     df["rank_series"] = df["name"].map(lambda n: profiles.get(n, {}).get("rank_series", []))
     df["rank_change_num"] = (
         df["rank_change"].map(_parse_rank_change) if "rank_change" in df.columns else 0.0
@@ -225,7 +225,7 @@ def _prep_frame(leaderboard: pd.DataFrame, history: pd.DataFrame) -> pd.DataFram
     df["point_score"] = _percentile(df["total_points"]) if "total_points" in df.columns and df["total_points"].notna().any() else 0.0
     df["coverage_score"] = _percentile(df["countries_count"]) if "countries_count" in df.columns and df["countries_count"].notna().any() else 0.0
 
-    momentum_raw = df["rank_delta_45d"].fillna(0.0) + df["rank_change_num"].fillna(0.0)
+    momentum_raw = df["rank_delta_30d"].fillna(0.0) + df["rank_change_num"].fillna(0.0)
     max_mom = momentum_raw.abs().max()
     df["momentum_score"] = (momentum_raw / max_mom).clip(-1, 1) if max_mom > 0 else 0.0
 
@@ -245,7 +245,7 @@ def _prep_frame(leaderboard: pd.DataFrame, history: pd.DataFrame) -> pd.DataFram
 
     def _classify(row: pd.Series) -> str:
         mom = float(row.get("momentum_score") or 0.0)
-        rd = float(row.get("rank_delta_45d") or 0.0)
+        rd = float(row.get("rank_delta_30d") or 0.0)
         if rd <= -5 or mom <= -0.2:
             return "slipping"
         if rd >= 5 or mom >= 0.2:
@@ -287,18 +287,30 @@ def _build_dashboard_html(
     theme_css = _THEME_DARK if dark_mode else _THEME_LIGHT
 
     # ── Compute all data needed for all panels ───────────────────────────
+    # Fatigue Map base pool for Today's Brief
+    fm_pool = focus_pool[focus_pool["monthly_listeners"] > 0].copy()
+    fm_pool["fatigue_state"] = np.select(
+        [fm_pool["rank_delta_30d"] <= -5, fm_pool["rank_delta_30d"] >= 5],
+        ["fatigue", "climbing"], default="stable",
+    )
+
     # Today's brief
-    brief_acq = (
-        focus_pool[focus_pool["verdict"] == "rising"]
-        .sort_values("acq_score", ascending=False)
-        .head(3)
+    brief_acq_all = (
+        fm_pool[fm_pool["fatigue_state"] == "climbing"]
+        .sort_values("rank_delta_30d", ascending=False)
     )
-    brief_fatigue = (
-        focus_pool[focus_pool["verdict"] == "slipping"]
-        .sort_values("fatigue_alert", ascending=False)
-        .head(3)
+    brief_acq = brief_acq_all.head(3)
+    
+    brief_fatigue_all = (
+        fm_pool[fm_pool["fatigue_state"] == "fatigue"]
+        .sort_values("rank_delta_30d", ascending=True)
     )
-    brief_hold = focus_pool.sort_values("hold_alert", ascending=False).head(3)
+    brief_fatigue = brief_fatigue_all.head(3)
+    
+    brief_hold = (
+        fm_pool[fm_pool["fatigue_state"] == "stable"]
+        .sort_values("monthly_listeners", ascending=False)
+    ).head(3)
 
     # Acquisition radar
     score_col = "hold_score" if active_mode == "Album" else ("fatigue_alert" if active_mode == "Artist" else "acq_score")
@@ -316,32 +328,26 @@ def _build_dashboard_html(
     # Fatigue map (Plotly rendered separately via st, just need the alert data)
     slipping = focus_pool[focus_pool["verdict"] == "slipping"]
     fatigue_alert_html = ""
-    if not slipping.empty:
-        worst = slipping.sort_values("monthly_listeners", ascending=False).iloc[0]
-        wname = escape(str(worst.get("name") or "Artist"))
-        wmarket = escape(str(worst.get("display_country") or worst.get("top_country") or "Unknown"))
-        wlisteners = escape(_fmt_n(worst.get("monthly_listeners")))
-        wdelta = float(worst.get("rank_delta_45d") or 0.0)
-        wdelta_text = f"{wdelta:+.1f}%"
-        fatigue_alert_html = (
-            f"<div class='a360-fatigue-alert'>"
-            f"<span class='fa-icon'>⚠</span>"
-            f"<span>{len(slipping)} artists in the fatigue zone this week. "
-            f"Largest concern: <b>{wname} {escape(wdelta_text)} in {wmarket}</b> "
-            f"at {wlisteners} listeners — biggest audience showing the steepest decline.</span>"
-            f"</div>"
-        )
 
     # Roster health cards
     roster_pool = focus_pool.sort_values(["hold_alert", "monthly_listeners"], ascending=[False, False])
     roster_cards_html = _build_roster_cards_html(roster_pool.head(8))
 
+    # Full lists for the modals and KPI strip
+    full_rising = brief_acq_all.copy()
+    full_fatigue = brief_fatigue_all.copy()
+
     # KPI strip
     snapshot_total = len(focus_pool)
-    snapshot_risers = int((focus_pool["verdict"] == "rising").sum())
-    snapshot_fatigue_count = int((focus_pool["verdict"] == "slipping").sum())
+    snapshot_risers = len(full_rising)
+    snapshot_fatigue_count = len(full_fatigue)
     highest_rising_name = str(brief_acq.iloc[0]["name"]) if not brief_acq.empty else "—"
     highest_fatigue_name = str(brief_fatigue.iloc[0]["name"]) if not brief_fatigue.empty else "—"
+    
+    brief_acq_row = brief_acq.iloc[0] if not brief_acq.empty else None
+    brief_fatigue_row = brief_fatigue.iloc[0] if not brief_fatigue.empty else None
+    highest_rising_details = _row_to_details(brief_acq_row, "rising")
+    highest_fatigue_details = _row_to_details(brief_fatigue_row, "fatigue")
 
     # Generate the fatigue plot HTML block
     fatigue_fig = _make_fatigue_figure(focus_pool, dark_mode=dark_mode)
@@ -360,6 +366,18 @@ def _build_dashboard_html(
             default_height="460px",
         )
         fatigue_chart_html = f"<div class='fatigue-chart-container'>{fatigue_chart_html}</div>"
+        
+        bar_fig = _make_momentum_bar_charts(focus_pool, dark_mode=dark_mode)
+        if bar_fig.data:
+            bar_html = pio.to_html(
+                bar_fig,
+                config=PLOTLY_CONFIG,
+                full_html=False,
+                include_plotlyjs="cdn",
+                default_width="100%",
+                default_height="320px",
+            )
+            fatigue_chart_html += f"<div class='fatigue-chart-container' style='margin-top:16px;'>{bar_html}</div>"
     else:
         fatigue_chart_html = "<div class='empty-msg'>No fatigue map data available for the current slice.</div>"
 
@@ -371,6 +389,8 @@ def _build_dashboard_html(
             "highest_rising": highest_rising_name,
             "highest_fatigue": highest_fatigue_name,
             "last_run": last_run_label,
+            "highest_rising_details": highest_rising_details,
+            "highest_fatigue_details": highest_fatigue_details,
         },
         "window_label": window_label,
         "acq_list": acq_list,
@@ -381,6 +401,8 @@ def _build_dashboard_html(
         "brief_acq": _brief_rows_to_json(brief_acq),
         "brief_fatigue": _brief_rows_to_json(brief_fatigue, band="fatigue"),
         "brief_hold": _brief_rows_to_json(brief_hold),
+        "all_rising": _brief_rows_to_json(full_rising, limit=None),
+        "all_fatigue": _brief_rows_to_json(full_fatigue, band="fatigue", limit=None),
         "fatigue_alert_html": fatigue_alert_html,
         "roster_cards_html": roster_cards_html,
     }
@@ -393,17 +415,21 @@ def _build_dashboard_html(
     )
 
 
-def _brief_rows_to_json(rows: pd.DataFrame, band: str = "acquire") -> list[dict]:
+def _brief_rows_to_json(rows: pd.DataFrame, band: str = "acquire", limit: int | None = 3) -> list[dict]:
     out = []
-    for _, row in rows.head(3).iterrows():
-        mom = float(row.get("rank_delta_45d") or 0.0)
-        label_str = str(row.get("label") or "").strip()
-        if "independent" in label_str.lower() or "indie" in label_str.lower():
+    _rows = rows if limit is None else rows.head(limit)
+    for _, row in _rows.iterrows():
+        mom = float(row.get("rank_delta_30d") or 0.0)
+        label_val = row.get("label")
+        if pd.isna(label_val) or str(label_val).strip().lower() == "nan" or not str(label_val).strip() or str(label_val).strip() == "—":
+            label_str = "Independent"
             label_type = "ind"
-        elif label_str and label_str != "—":
-            label_type = "small"
         else:
-            label_type = ""
+            label_str = str(label_val).strip()
+            if "independent" in label_str.lower() or "indie" in label_str.lower():
+                label_type = "ind"
+            else:
+                label_type = "small"
         out.append({
             "name": str(row.get("name") or "Unknown"),
             "genre": str(row.get("top_song") or ""),
@@ -415,6 +441,40 @@ def _brief_rows_to_json(rows: pd.DataFrame, band: str = "acquire") -> list[dict]
             "band": band,
         })
     return out
+
+
+def _row_to_details(row: pd.Series | None, verdict: str) -> dict:
+    if row is None or (isinstance(row, pd.Series) and row.empty):
+        return {}
+    mom = float(row.get("rank_delta_30d") or 0.0)
+    rank = row.get("rank")
+    rank_text = f"#{int(rank)}" if pd.notna(rank) else "—"
+    listeners = _fmt_n(row.get("monthly_listeners"))
+    countries = _fmt_n(row.get("countries_count"))
+    top_song = str(row.get("top_song") or "—")
+    top_album = str(row.get("top_album") or "—")
+    signals = _build_signals(row, rank_text=rank_text, listeners=listeners, countries=countries, top_song=top_song, mom=mom)
+    
+    label_val = row.get("label")
+    if pd.isna(label_val) or str(label_val).strip().lower() == "nan" or not str(label_val).strip() or str(label_val).strip() == "—":
+        label_str = "Independent"
+    else:
+        label_str = str(label_val).strip()
+        
+    return {
+        "name": str(row.get("name") or "Unknown"),
+        "rank": rank_text,
+        "mom": mom,
+        "listeners": listeners,
+        "points": _fmt_n(row.get("total_points")),
+        "countries": countries,
+        "primary_market": str(row.get("display_country") or row.get("top_country") or "—"),
+        "top_song": top_song,
+        "top_album": top_album,
+        "label_str": label_str,
+        "signals": signals,
+        "verdict": verdict
+    }
 
 
 def _acq_rows_to_json(rows: pd.DataFrame, *, score_col: str, mode: str) -> list[dict]:
@@ -430,17 +490,20 @@ def _acq_rows_to_json(rows: pd.DataFrame, *, score_col: str, mode: str) -> list[
             display_name = f"{artist_name} - {track_name}"
 
         market = str(row.get("display_country") or row.get("top_country") or "—")
-        mom = float(row.get("rank_delta_45d") or 0.0)
+        mom = float(row.get("rank_delta_30d") or 0.0)
         score = int(round(float(row.get(score_col) or 0)))
         rank = row.get("rank")
         rank_text = f"#{int(rank)}" if pd.notna(rank) else "—"
-        label_str = str(row.get("label") or "").strip()
-        if "independent" in label_str.lower() or "indie" in label_str.lower():
+        label_val = row.get("label")
+        if pd.isna(label_val) or str(label_val).strip().lower() == "nan" or not str(label_val).strip() or str(label_val).strip() == "—":
+            label_str = "Independent"
             label_type = "ind"
-        elif label_str and label_str != "—":
-            label_type = "small"
         else:
-            label_type = ""
+            label_str = str(label_val).strip()
+            if "independent" in label_str.lower() or "indie" in label_str.lower():
+                label_type = "ind"
+            else:
+                label_type = "small"
         sub_parts = [market]
         if mode == "Artist":
             sub_parts.append(f"{_fmt_n(row.get('monthly_listeners'))} listeners")
@@ -512,7 +575,7 @@ def _build_roster_cards_html(rows: pd.DataFrame) -> str:
         verdict = str(row.get("verdict") or "holding")
         verdict_label = {"rising": "Rising", "slipping": "Slipping", "holding": "Holding"}.get(verdict, "Holding")
         verdict_class = {"rising": "good", "slipping": "bad", "holding": "neutral"}.get(verdict, "neutral")
-        delta = float(row.get("rank_delta_45d") or 0.0)
+        delta = float(row.get("rank_delta_30d") or 0.0)
         rank = row.get("rank")
         rank_text = f"#{int(rank)}" if pd.notna(rank) else "—"
         listeners = escape(_fmt_n(row.get("monthly_listeners")))
@@ -521,7 +584,7 @@ def _build_roster_cards_html(rows: pd.DataFrame) -> str:
         country = str(row.get("display_country") or row.get("top_country") or "—")
         top_song = escape(str(row.get("top_song") or "—"))
         spark = _sparkline_svg(row.get("rank_series") or [], reverse=True)
-        listeners_delta = float(row.get("rank_delta_45d") or 0.0)
+        listeners_delta = float(row.get("rank_delta_30d") or 0.0)
         ld_text = f"listeners {listeners_delta:+.1f}%" if abs(listeners_delta) >= 0.1 else "listeners flat"
         ld_class = "up" if listeners_delta > 0 else ("dn" if listeners_delta < 0 else "")
         if verdict == "slipping":
@@ -560,25 +623,30 @@ def _build_roster_cards_html(rows: pd.DataFrame) -> str:
 # ── Plotly fatigue figure ───────────────────────────────────────────────────
 
 def _make_fatigue_figure(df: pd.DataFrame, *, dark_mode: bool) -> go.Figure:
-    plot_df = df.dropna(subset=["monthly_listeners"]).copy()
+    plot_df = df[df["monthly_listeners"] > 0].copy()
     if plot_df.empty:
         return go.Figure()
-    # Limit to top 30 records
-    plot_df = plot_df.sort_values("monthly_listeners", ascending=False).head(30)
+        
     plot_df["fatigue_state"] = np.select(
-        [plot_df["rank_delta_45d"] <= -5, plot_df["rank_delta_45d"] >= 5],
+        [plot_df["rank_delta_30d"] <= -5, plot_df["rank_delta_30d"] >= 5],
         ["fatigue", "climbing"], default="stable",
     )
+    
+    # Ensure the absolute highest momentum artists appear on the plot
+    top_listeners = plot_df.sort_values("monthly_listeners", ascending=False).head(20)
+    top_climbing = plot_df[plot_df["fatigue_state"] == "climbing"].sort_values("rank_delta_30d", ascending=False).head(15)
+    top_fatigue = plot_df[plot_df["fatigue_state"] == "fatigue"].sort_values("rank_delta_30d", ascending=True).head(15)
+    plot_df = pd.concat([top_listeners, top_climbing, top_fatigue]).drop_duplicates(subset=["name"])
     plot_df["bubble"] = np.log10(plot_df["total_points"].fillna(1).clip(lower=1)) * 18 + 10
     fig = px.scatter(
-        plot_df, x="rank_delta_45d", y="monthly_listeners",
+        plot_df, x="rank_delta_30d", y="monthly_listeners",
         size="bubble",
         color="fatigue_state",
         color_discrete_map={"fatigue": "#fb7185", "stable": "#94a3b8", "climbing": "#34d399"},
         hover_name="name",
         text="name",
-        custom_data=["rank", "total_points", "countries_count", "display_country", "rank_delta_45d", "fatigue_state"],
-        size_max=24,
+        custom_data=["rank", "total_points", "countries_count", "display_country", "rank_delta_30d", "fatigue_state"],
+        size_max=14,
         title=None,
     )
     fig.update_traces(
@@ -592,8 +660,8 @@ def _make_fatigue_figure(df: pd.DataFrame, *, dark_mode: bool) -> go.Figure:
             "State: %{customdata[5]}<extra></extra>"
         ),
     )
-    x_abs = max(8.0, float(plot_df["rank_delta_45d"].fillna(0).abs().max() or 0)) * 1.15
-    y_min = float(plot_df["monthly_listeners"].min()) * 0.85
+    x_abs = max(8.0, float(plot_df["rank_delta_30d"].fillna(0).abs().max() or 0)) * 1.15
+    y_min = 0
     y_max = float(plot_df["monthly_listeners"].max()) * 1.08
 
     fig.add_shape(type="rect", xref="x", yref="paper", x0=-x_abs, x1=0, y0=0, y1=1, fillcolor="rgba(251,113,133,.10)", line=dict(width=0), layer="below")
@@ -605,10 +673,79 @@ def _make_fatigue_figure(df: pd.DataFrame, *, dark_mode: bool) -> go.Figure:
     fig.update_layout(
         height=440, margin=dict(l=6, r=8, t=24, b=6),
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0, title_text=""),
-        xaxis_title="7-day momentum (%)", yaxis_title="Monthly listeners (M)",
+        xaxis_title="30-day momentum", yaxis_title="Monthly listeners (M)",
         xaxis=dict(range=[-x_abs, x_abs], gridcolor="rgba(148,163,184,.12)" if dark_mode else "rgba(148,163,184,.18)"),
         yaxis=dict(range=[y_min, y_max], tickformat="~s", gridcolor="rgba(148,163,184,.12)" if dark_mode else "rgba(148,163,184,.18)"),
     )
+    return fig
+
+
+def _make_momentum_bar_charts(df: pd.DataFrame, *, dark_mode: bool) -> go.Figure:
+    from plotly.subplots import make_subplots
+    plot_df = df.dropna(subset=["monthly_listeners"]).copy()
+    if plot_df.empty:
+        return go.Figure()
+        
+    plot_df["fatigue_state"] = np.select(
+        [plot_df["rank_delta_30d"] <= -5, plot_df["rank_delta_30d"] >= 5],
+        ["fatigue", "climbing"], default="stable",
+    )
+    
+    fig = make_subplots(
+        rows=1, cols=3, 
+        subplot_titles=("Fatigue (Falling)", "Stable", "Rising"),
+        horizontal_spacing=0.18
+    )
+    
+    categories = [
+        ("fatigue", "#fb7185", 1),
+        ("stable", "#94a3b8", 2),
+        ("climbing", "#34d399", 3)
+    ]
+    
+    for state, color, col in categories:
+        if state == "climbing":
+            # Top 10 highest positive momentum, sorted ascending for bar chart display
+            sub_df = plot_df[plot_df["fatigue_state"] == state].sort_values("rank_delta_30d", ascending=False).head(10)
+            sub_df = sub_df.sort_values("rank_delta_30d", ascending=True)
+        elif state == "fatigue":
+            # Top 10 highest negative momentum (most declined), sorted descending for bar chart display
+            sub_df = plot_df[plot_df["fatigue_state"] == state].sort_values("rank_delta_30d", ascending=True).head(10)
+            sub_df = sub_df.sort_values("rank_delta_30d", ascending=False)
+        else:
+            # Stable: sort by momentum abs value, display ascending
+            sub_df = plot_df[plot_df["fatigue_state"] == state].sort_values("monthly_listeners", ascending=False).head(10)
+            sub_df = sub_df.sort_values("monthly_listeners", ascending=True)
+            
+        if sub_df.empty:
+            continue
+            
+        fig.add_trace(
+            go.Bar(
+                x=sub_df["rank_delta_30d"],
+                y=sub_df["name"],
+                orientation='h',
+                marker_color=color,
+                name=state,
+                showlegend=False,
+                text=sub_df["rank_delta_30d"].apply(lambda x: f"{x:+.0f}"),
+                textposition="auto"
+            ),
+            row=1, col=col
+        )
+        
+    fig.update_layout(
+        height=320,
+        margin=dict(l=10, r=20, t=30, b=40),
+        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="rgba(0,0,0,0)",
+        font=dict(color="rgba(255,255,255,0.9)" if dark_mode else "rgba(0,0,0,0.8)")
+    )
+    
+    for i in range(1, 4):
+        fig.update_xaxes(title_text="30-day Momentum", row=1, col=i, gridcolor="rgba(148,163,184,.12)" if dark_mode else "rgba(148,163,184,.18)")
+        fig.update_yaxes(gridcolor="rgba(148,163,184,.12)" if dark_mode else "rgba(148,163,184,.18)", row=1, col=i, automargin=True)
+        
     return fig
 
 
@@ -1270,6 +1407,38 @@ body {
 .spec-kept strong{color:var(--a-t1)}
 .final-note{margin-top:12px;color:var(--a-t3);font-size:.86rem;line-height:1.55}
 .empty-msg{color:var(--a-t3);font-size:.88rem;padding:12px 0}
+/* Modal */
+.modal-overlay {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);
+  z-index: 1000; display: none; align-items: center; justify-content: center;
+  opacity: 0; transition: opacity 0.2s ease;
+}
+.modal-overlay.open {
+  display: flex; opacity: 1;
+}
+.modal-content {
+  background: var(--a-bg2); border: 1px solid var(--a-border);
+  border-radius: 16px; width: 90%; max-width: 600px; max-height: 85vh;
+  display: flex; flex-direction: column; overflow: hidden;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+  transform: translateY(20px); transition: transform 0.2s ease;
+}
+.modal-overlay.open .modal-content { transform: translateY(0); }
+.modal-header {
+  padding: 16px 20px; border-bottom: 1px solid var(--a-border);
+  display: flex; justify-content: space-between; align-items: center;
+}
+.modal-title { font-size: 1.2rem; font-weight: 850; color: var(--a-t1); display: flex; align-items: center; gap: 8px;}
+.modal-close {
+  background: transparent; border: none; font-size: 1.5rem; color: var(--a-t3);
+  cursor: pointer; line-height: 1; padding: 4px; transition: color 0.2s;
+}
+.modal-close:hover { color: var(--a-t1); }
+.modal-body {
+  padding: 10px 20px 20px; overflow-y: auto; flex: 1;
+}
+
 @media(max-width:900px){
   .brief-grid,.acq-grid,.roster-grid,.spec-grid,.kpi-strip{grid-template-columns:1fr}
   .tab-bar{overflow-x:auto}
@@ -1281,7 +1450,6 @@ body {
 
   <div class='tab-bar'>
     <button class='tab active' onclick="showTab(event,'brief')"><span class='tab-icon' aria-hidden='true'>▣</span>Today's Brief</button>
-    <button class='tab' onclick="showTab(event,'radar')"><span class='tab-icon' aria-hidden='true'>♫</span>Acquisition Radar</button>
     <button class='tab' onclick="showTab(event,'fatigue')"><span class='tab-icon' aria-hidden='true'>♪</span>Fatigue Map</button>
     <button class='tab' onclick="showTab(event,'roster')"><span class='tab-icon' aria-hidden='true'>◔</span>Roster Health</button>
   </div>
@@ -1293,27 +1461,11 @@ body {
     <div class='brief-grid' id='brief-grid'></div>
   </div>
 
-  <!-- SCREEN 2: Acquisition Radar -->
-  <div class='panel' id='panel-radar'>
-    <div class='acq-header'>
-      <div>
-        <h2 class='acq-title'><span class='title-icon' aria-hidden='true'>⌁</span>Acquisition radar</h2>
-        <div class='acq-sub' id='acq-sub-text'></div>
-      </div>
-    </div>
-    <div class='acq-grid'>
-      <div class='acq-panel'>
-        <div class='acq-thead'><div>#</div><div id='entity-col-label'>Artist / Track</div><div>Market</div><div>Mom.</div><div>Score</div></div>
-        <div id='acq-rows'></div>
-      </div>
-      <div class='acq-detail' id='acq-detail'></div>
-    </div>
-  </div>
 
   <!-- SCREEN 3: Fatigue Map -->
   <div class='panel' id='panel-fatigue'>
     <h2 class='screen-title'><span class='title-icon' aria-hidden='true'>↘</span>Fatigue map</h2>
-    <p class='screen-sub'>Verdict: top-left is fatigue - large audience, falling momentum. Hover any point for its weakest country.</p>
+    <p class='screen-sub'>Verdict: top-left is fatigue - large audience, falling momentum.<br><b>Calculation:</b> 30-day momentum combines the total rank trajectory over the last 30 days (start rank vs. latest rank) with the most recent daily rank shift.</p>
     __FATIGUE_CHART__
     <div id='fatigue-alert-slot'></div>
   </div>
@@ -1364,6 +1516,18 @@ body {
     </div>
   </div>
 
+  <div class='modal-overlay' id='kpi-modal' onclick='closeModal(event)'>
+    <div class='modal-content' onclick='event.stopPropagation()'>
+      <div class='modal-header'>
+        <div class='modal-title' id='modal-title'></div>
+        <button class='modal-close' onclick='closeModal(event)'>&times;</button>
+      </div>
+      <div class='modal-body'>
+        <div id='modal-list'></div>
+      </div>
+    </div>
+  </div>
+
 </div>
 
 <script>
@@ -1385,13 +1549,13 @@ function showTab(evt, id){
   const strip = document.getElementById('kpi-strip');
   const kpis = [
     {label:'Artists scored', value: k.total,        icon:'✦', tone:'neutral'},
-    {label:'Rising now',     value: k.risers,      cls:'up', icon:'↗', tone:'up'},
-    {label:'Fatigue watch',  value: k.fatigue,     cls:'dn', icon:'↘', tone:'dn'},
-    {label:'Highest rising', value: k.highest_rising,        cls:'up', icon:'🔥', tone:'up'},
-    {label:'Highest fatigue',value: k.highest_fatigue,       cls:'dn', icon:'🧊', tone:'dn'},
+    {label:'Rising now',     value: k.risers,      cls:'up', icon:'↗', tone:'up', onclick: "window.openModal('rising')"},
+    {label:'Fatigue watch',  value: k.fatigue,     cls:'dn', icon:'↘', tone:'dn', onclick: "window.openModal('fatigue')"},
+    {label:'Highest rising', value: k.highest_rising,        cls:'up', icon:'🔥', tone:'up', onclick: "window.openModal('highest_rising')"},
+    {label:'Highest fatigue',value: k.highest_fatigue,       cls:'dn', icon:'🧊', tone:'dn', onclick: "window.openModal('highest_fatigue')"},
     {label:'Last run',       value: k.last_run,               icon:'⏱', tone:'neutral'},
   ];
-  strip.innerHTML = kpis.map(k=>`<div class='kpi'><div class='kpi-head'><div class='kpi-label'>${k.label}</div><span class='kpi-icon ${k.tone||'neutral'}' aria-hidden='true'>${k.icon}</span></div><div class='kpi-value ${k.cls||''}'>${k.value}</div></div>`).join('');
+  strip.innerHTML = kpis.map(k=>`<div class='kpi' ${k.onclick ? `onclick="${k.onclick}" style="cursor:pointer;"` : ''}><div class='kpi-head'><div class='kpi-label'>${k.label}</div><span class='kpi-icon ${k.tone||'neutral'}' aria-hidden='true'>${k.icon}</span></div><div class='kpi-value ${k.cls||''}'>${k.value}</div></div>`).join('');
 })();
 
 // ── Today's brief ──────────────────────────────────────────────
@@ -1402,9 +1566,9 @@ function labelBadge(type, str){
 }
 function briefArtistRow(r){
   const momCls = r.mom>0?'up':r.mom<0?'dn':'';
-  const momText = Math.abs(r.mom)>=0.1?(r.mom>0?'+':'')+r.mom.toFixed(1)+'% streams':'flat';
-  const listenersHtml = r.band==='fatigue' ? `<span class='ar-listeners'>${r.listeners} streams</span>` : '';
-  const trackAndLabel = [r.genre, r.label_str].filter(x => x && x !== '—').join(' - ');
+  const momText = Math.abs(r.mom)>=0.5?(r.mom>0?'+':'')+r.mom.toFixed(0)+' mom':'flat';
+  const listenersHtml = `<span class='ar-listeners'>${r.listeners} listeners</span>`;
+  const trackAndLabel = [r.label_str].filter(x => x && x !== '—').join(' - ');
   return `<div class='artist-row'>
     <div class='ar-left'><span class='ar-name'>${r.name}</span>${trackAndLabel?`<span class='ar-genre'>${trackAndLabel}</span>`:''}</div>
     <span class='ar-mom ${momCls}'>${momText}</span>
@@ -1421,13 +1585,13 @@ function briefBand(rows, title, icon, chip, chipCls, sub, drillLabel, drillScree
     <div class='band-title-row'><span class='band-icon' aria-hidden='true'>${icon}</span><span class='band-title'>${title}</span><span class='band-chip ${chipCls}'>${chip}</span></div>
     <p class='band-sub'>${sub}</p>
     <div>${items}</div>
-    <button class='band-drill' onclick="showTabById('${drillScreen}')">${drillLabel} →</button>
+    ${drillScreen ? `<button class='band-drill' onclick="showTabById('${drillScreen}')">${drillLabel} →</button>` : ''}
   </article>`;
 }
 document.getElementById('brief-grid').innerHTML = [
   briefBand(D.brief_acq, 'Acquire now', '↗', D.brief_acq.length+' clean risers', 'chip-g',
     'Rising, acquirable, in a market we want — verdict: move on these before a major does.',
-    'Open acquisition radar', 'radar'),
+    'Open fatigue map', 'fatigue'),
   briefBand(D.brief_fatigue, 'Watch — fatigue', '↘', D.brief_fatigue.length+' cooling', 'chip-r',
     'Large audience, declining momentum — verdict: demand softening, see where before it spreads.',
     'Open fatigue map', 'fatigue'),
@@ -1438,7 +1602,7 @@ document.getElementById('brief-grid').innerHTML = [
 
 function showTabById(id){
   const tabs = document.querySelectorAll('.tab');
-  const map = {brief:0,radar:1,fatigue:2,roster:3};
+  const map = {brief:0,fatigue:1,roster:2};
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
   tabs[map[id]].classList.add('active');
@@ -1448,63 +1612,111 @@ function showTabById(id){
   }, 50);
 }
 
-// ── Acquisition radar ──────────────────────────────────────────
-(function(){
-  document.getElementById('acq-sub-text').textContent = D.score_formula;
-  const modeLabel = {Track:'Artist / Track', Album:'Artist / Album', Artist:'Artist'}[D.active_mode] || 'Artist / Track';
-  document.getElementById('entity-col-label').textContent = modeLabel;
+window.openModal = function(type) {
+  try {
+    const modal = document.getElementById('kpi-modal');
+    const title = document.getElementById('modal-title');
+    const list = document.getElementById('modal-list');
+    
+    if (type === 'rising') {
+      title.innerHTML = "<span class='band-icon' style='background:rgba(52,211,153,.14);color:#34d399;'>↗</span> Rising Artists";
+      const items = D.all_rising || [];
+      if (items.length > 0) {
+        list.innerHTML = items.map(r => {
+          try { return briefArtistRow(r); } catch(e) { return "<div style='color:red'>Error parsing row: "+e+"</div>"; }
+        }).join('');
+      } else {
+        list.innerHTML = "<div class='empty-band'>No rising artists found.</div>";
+      }
+    } else if (type === 'fatigue') {
+      title.innerHTML = "<span class='band-icon' style='background:rgba(251,113,133,.14);color:#fb7185;'>↘</span> Fatigue Watch";
+      const items = D.all_fatigue || [];
+      if (items.length > 0) {
+        list.innerHTML = items.map(r => {
+          try { return briefArtistRow(r); } catch(e) { return "<div style='color:red'>Error parsing row: "+e+"</div>"; }
+        }).join('');
+      } else {
+        list.innerHTML = "<div class='empty-band'>No fatigue artists found.</div>";
+      }
+    } else if (type === 'highest_rising' || type === 'highest_fatigue') {
+      const details = type === 'highest_rising' ? (D.kpis.highest_rising_details || {}) : (D.kpis.highest_fatigue_details || {});
+      if (details.name && details.name !== '—') {
+        const isRising = details.verdict === 'rising';
+        const icon = isRising ? '🔥' : '🧊';
+        const badgeColor = isRising ? 'rgba(52,211,153,.14);color:#34d399;' : 'rgba(251,113,133,.14);color:#fb7185;';
+        title.innerHTML = `<span class='band-icon' style='background:${badgeColor}'>${icon}</span> ${isRising ? 'Highest Rising Detail' : 'Highest Fatigue Detail'}`;
+        
+        const explanationText = isRising 
+          ? `<strong>${details.name}</strong> is currently experiencing the strongest upward trend in the entire dataset. Over the 30-day window, they climbed by <strong>${details.mom > 0 ? '+' : ''}${details.mom} positions</strong> to their current rank of <strong>${details.rank}</strong>.`
+          : `<strong>${details.name}</strong> is experiencing significant audience fatigue. While they maintain a massive audience of <strong>${details.listeners} listeners</strong>, their rank trajectory has plummeted by <strong>${Math.abs(details.mom)} positions</strong> over the last 30 days.`;
 
-  let selectedIdx = 0;
-  function renderRows(){
-    document.getElementById('acq-rows').innerHTML = D.acq_list.map((r,i)=>{
-      const momCls = r.mom>0?' up':r.mom<0?' dn':'';
-      const momText = Math.abs(r.mom)>=0.1?(r.mom>0?'+':'')+r.mom.toFixed(1)+'%':'0.0%';
-      const lbl = r.label_type==='ind'?`<span class='lbl-badge lbl-ind'>Independent</span>`:
-                  r.label_type==='small'?`<span class='lbl-badge lbl-small'>${r.label_str}</span>`:'';
-      return `<div class='acq-row${i===selectedIdx?' selected':''}' onclick='selectAcq(${i})'>
-        <div class='acq-pos'>${i+1}</div>
-        <div><div class='acq-name-row'><span class='acq-name'>${r.display_name}</span></div><div class='acq-sub-text'>${r.sub}</div></div>
-        <div class='acq-mkt'>${r.market}</div>
-        <div class='acq-mom${momCls}'>${momText}</div>
-        <div class='acq-score'>${r.score}</div>
-      </div>`;
-    }).join('');
+        const signalsHtml = (details.signals || []).map(sig => `
+          <li style='margin-bottom: 8px; display: flex; align-items: flex-start; gap: 8px;'>
+            <span class='${isRising ? 'up' : 'dn'}'>•</span>
+            <span>${sig}</span>
+          </li>
+        `).join('');
+
+        list.innerHTML = `
+          <div style='margin-bottom: 20px; font-size: 0.95rem; line-height: 1.6; color: var(--a-t1);'>
+            <div style='font-size: 1.25rem; font-weight: 900; margin-bottom: 6px; color: ${isRising ? 'var(--a-green)' : 'var(--a-red)'};'>${details.name}</div>
+            <p style='color: var(--a-t2); font-size: 0.92rem;'>${explanationText}</p>
+          </div>
+          
+          <div class='metric-grid' style='margin-bottom: 20px;'>
+            <div class='metric-cell'>
+              <span>Current Rank</span>
+              <b>${details.rank}</b>
+            </div>
+            <div class='metric-cell'>
+              <span>30d Momentum</span>
+              <b class='${isRising ? 'up' : 'dn'}'>${details.mom > 0 ? '+' : ''}${details.mom} positions</b>
+            </div>
+            <div class='metric-cell'>
+              <span>Monthly Listeners</span>
+              <b>${details.listeners}</b>
+            </div>
+            <div class='metric-cell'>
+              <span>Total Points</span>
+              <b>${details.points}</b>
+            </div>
+            <div class='metric-cell'>
+              <span>Markets Charting</span>
+              <b>${details.countries}</b>
+            </div>
+            <div class='metric-cell'>
+              <span>Primary Market</span>
+              <b>${details.primary_market}</b>
+            </div>
+          </div>
+
+          <div class='signals' style='margin-bottom: 16px;'>
+            <div class='sig-hdr'>Automated Signals & Context</div>
+            <ul style='list-style-type: none; padding: 0;'>
+              ${signalsHtml}
+            </ul>
+          </div>
+
+          <div style='border-top: 1px solid var(--a-border); padding-top: 12px; margin-top: 16px; font-size: 0.85rem; color: var(--a-t3); display: flex; justify-content: space-between;'>
+            <span>Label: <strong>${details.label_str}</strong></span>
+            <span>Top Track/Album: <strong>${details.top_song !== '—' ? details.top_song : details.top_album}</strong></span>
+          </div>
+        `;
+      } else {
+        list.innerHTML = `<div class='empty-band'>No details available for this card.</div>`;
+      }
+    }
+    
+    modal.classList.add('open');
+  } catch (err) {
+    alert("Error opening modal: " + err.message);
   }
-  function renderDetail(){
-    const r = D.acq_list[selectedIdx];
-    if(!r){document.getElementById('acq-detail').innerHTML='';return;}
-    const verdictChip = `<span class='chip chip-${r.verdict}'>${r.verdict.charAt(0).toUpperCase()+r.verdict.slice(1)}</span>`;
-    const countryChip = `<span class='chip chip-country'>${r.market}</span>`;
-    const muted = D.active_mode==='Album'?r.top_album:D.active_mode==='Artist'?r.listeners+' listeners':r.top_song;
-    document.getElementById('acq-detail').innerHTML = `
-      <div class='det-head'>
-        <div><div class='det-title'>${r.display_name}</div><div class='det-sub'>${r.sub}</div></div>
-        <div class='det-scorebox'><div class='det-score'>${r.score}</div><div class='det-score-sub'>acq. score · #${r.score_rank} of ${r.total}</div></div>
-      </div>
-      <div class='chip-row'>${countryChip}${verdictChip}<span class='chip chip-muted'>${muted}</span></div>
-      <div class='metric-grid'>
-        <div class='metric-cell'><span>Latest streams</span><b>${r.listeners}</b></div>
-        <div class='metric-cell'><span>Best rank</span><b>${r.rank}</b></div>
-        <div class='metric-cell'><span>Countries</span><b>${r.countries}</b></div>
-        <div class='metric-cell'><span>Points</span><b>${r.points}</b></div>
-      </div>
-      <div class='signals'>
-        <div class='sig-hdr'>why now — acquisition signals</div>
-        <ul>${r.signals.map(s=>`<li>${s}</li>`).join('')}</ul>
-      </div>
-      <div class='mini-grid'>
-        <div class='mini-cell'><span>Top song</span><b>${r.top_song}</b></div>
-        <div class='mini-cell'><span>Top album</span><b>${r.top_album}</b></div>
-      </div>`;
-  }
-  window.selectAcq = function(i){
-    selectedIdx = i;
-    renderRows();
-    renderDetail();
-  };
-  renderRows();
-  renderDetail();
-})();
+};
+window.closeModal = function(e) {
+  if(e) e.preventDefault();
+  document.getElementById('kpi-modal').classList.remove('open');
+};
+
 
 // Fatigue alert
 document.getElementById('fatigue-alert-slot').innerHTML = D.fatigue_alert_html || '';

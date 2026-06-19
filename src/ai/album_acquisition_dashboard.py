@@ -457,11 +457,12 @@ body { background: var(--bg); font-family: var(--font-sans); color: var(--t1); -
 
 .left-col { display: flex; flex-direction: column; gap: 12px; overflow: hidden; }
 
-.filters { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; flex-shrink: 0; width: calc(50% - 8px); }
+.filters { display: flex; gap: 8px; align-items: center; flex-wrap: nowrap; flex-shrink: 0; width: 100%; overflow-x: auto; padding-bottom: 2px; }
+.filter-row { display: flex; gap: 8px; align-items: center; flex-wrap: nowrap; width: 100%; min-width: 0; }
 .filter-btn { font-size: 12px; padding: 5px 12px; border-radius: 999px; border: 0.5px solid var(--color-border-secondary); background: var(--color-background-primary); color: var(--color-text-secondary); cursor: pointer; transition: all .15s; }
 .filter-btn.active { background: #185FA5; color: #E6F1FB; border-color: #185FA5; }
-.filter-tag { display: flex; align-items: center; font-size: 14px; padding: 8px 16px; border-radius: 999px; background: var(--color-background-secondary); color: var(--color-text-secondary); border: 1px solid var(--color-border-tertiary); cursor: pointer; }
-.filter-tag select { background: transparent; border: none; color: inherit; font-size: inherit; font-family: inherit; outline: none; cursor: pointer; }
+.filter-tag { display: flex; align-items: center; font-size: 14px; padding: 8px 16px; border-radius: 999px; background: var(--color-background-secondary); color: var(--color-text-secondary); border: 1px solid var(--color-border-tertiary); cursor: pointer; flex: 0 1 220px; min-width: 180px; }
+.filter-tag select { background: transparent; border: none; color: inherit; font-size: inherit; font-family: inherit; outline: none; cursor: pointer; width: 100%; min-width: 0; }
 .window-chip-group { display: flex; gap: 8px; flex-wrap: nowrap; align-items: center; }
 .window-chip { border: 1px solid var(--color-border-tertiary); background: var(--color-background-primary); color: var(--color-text-secondary); font: inherit; font-size: 13px; line-height: 1; padding: 9px 14px; min-height: 38px; border-radius: 999px; cursor: pointer; transition: all .15s ease; white-space: nowrap; flex: 0 0 auto; }
 .window-chip:hover { border-color: #185FA5; color: #185FA5; }
@@ -539,7 +540,7 @@ body { background: var(--bg); font-family: var(--font-sans); color: var(--t1); -
 .signal-text strong { font-size: 12px; font-weight: 500; color: var(--color-text-primary); display: block; }
 .signal-text span { font-size: 11px; color: var(--color-text-secondary); line-height: 1.4; }
 
-#searchInput { background: transparent; border: none; color: inherit; outline: none; width: 180px; font-family: inherit; font-size: inherit; }
+#searchInput { background: transparent; border: none; color: inherit; outline: none; width: 100%; min-width: 0; font-family: inherit; font-size: inherit; }
 #searchInput::placeholder { color: var(--color-text-tertiary); }
 
 .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 300px; color: var(--color-text-tertiary); text-align: center; gap: 8px; }
@@ -548,7 +549,8 @@ body { background: var(--bg); font-family: var(--font-sans); color: var(--t1); -
   .dash-wrapper { height: auto; overflow: visible; }
   .dash { grid-template-columns: 1fr; }
   .filters { width: 100%; }
-  .window-chip-group { flex-wrap: wrap; }
+  .filter-row { width: max-content; }
+  .window-chip-group { flex-wrap: nowrap; }
   .left-col { overflow: visible; }
   .album-table { min-height: 400px; max-height: 600px; }
   .right-col { overflow: visible; }
@@ -561,7 +563,7 @@ body { background: var(--bg); font-family: var(--font-sans); color: var(--t1); -
 <div class="dash-wrapper">
   <div class="filters">
 
-      <span style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; width:100%;">
+      <span class="filter-row">
         <span class="filter-tag">
             <input type="text" id="searchInput" placeholder="Search..." oninput="applyFilters()">
         </span>
