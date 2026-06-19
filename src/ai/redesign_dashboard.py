@@ -367,17 +367,23 @@ def _build_dashboard_html(
         )
         fatigue_chart_html = f"<div class='fatigue-chart-container'>{fatigue_chart_html}</div>"
         
-        bar_fig = _make_momentum_bar_charts(focus_pool, dark_mode=dark_mode)
-        if bar_fig.data:
-            bar_html = pio.to_html(
-                bar_fig,
-                config=PLOTLY_CONFIG,
-                full_html=False,
-                include_plotlyjs="cdn",
-                default_width="100%",
-                default_height="320px",
-            )
-            fatigue_chart_html += f"<div class='fatigue-chart-container' style='margin-top:16px;'>{bar_html}</div>"
+        bar_figs = _make_momentum_bar_charts(focus_pool, dark_mode=dark_mode)
+        if bar_figs:
+            cards_html = []
+            for key in ["fatigue", "stable", "climbing"]:
+                fig = bar_figs.get(key)
+                if fig and fig.data:
+                    bar_html = pio.to_html(
+                        fig,
+                        config=PLOTLY_CONFIG,
+                        full_html=False,
+                        include_plotlyjs="cdn",
+                        default_width="100%",
+                        default_height="320px",
+                    )
+                    cards_html.append(f"<div class='fatigue-chart-container'>{bar_html}</div>")
+            if cards_html:
+                fatigue_chart_html += f"<div class='momentum-grid'>{''.join(cards_html)}</div>"
     else:
         fatigue_chart_html = "<div class='empty-msg'>No fatigue map data available for the current slice.</div>"
 
@@ -680,73 +686,72 @@ def _make_fatigue_figure(df: pd.DataFrame, *, dark_mode: bool) -> go.Figure:
     return fig
 
 
-def _make_momentum_bar_charts(df: pd.DataFrame, *, dark_mode: bool) -> go.Figure:
-    from plotly.subplots import make_subplots
+def _make_momentum_bar_charts(df: pd.DataFrame, *, dark_mode: bool) -> dict[str, go.Figure]:
     plot_df = df.dropna(subset=["monthly_listeners"]).copy()
     if plot_df.empty:
-        return go.Figure()
+        return {}
         
     plot_df["fatigue_state"] = np.select(
         [plot_df["rank_delta_30d"] <= -5, plot_df["rank_delta_30d"] >= 5],
         ["fatigue", "climbing"], default="stable",
     )
     
-    fig = make_subplots(
-        rows=1, cols=3, 
-        subplot_titles=("Fatigue (Falling)", "Stable", "Rising"),
-        horizontal_spacing=0.18
-    )
-    
     categories = [
-        ("fatigue", "#fb7185", 1),
-        ("stable", "#94a3b8", 2),
-        ("climbing", "#34d399", 3)
+        ("fatigue", "<b>Fatigue (Falling)</b>", "#fb7185"),
+        ("stable", "<b>Stable</b>", "#94a3b8"),
+        ("climbing", "<b>Rising</b>", "#34d399")
     ]
     
-    for state, color, col in categories:
-        if state == "climbing":
+    figs = {}
+    for key, title, color in categories:
+        if key == "climbing":
             # Top 10 highest positive momentum, sorted ascending for bar chart display
-            sub_df = plot_df[plot_df["fatigue_state"] == state].sort_values("rank_delta_30d", ascending=False).head(10)
+            sub_df = plot_df[plot_df["fatigue_state"] == key].sort_values("rank_delta_30d", ascending=False).head(10)
             sub_df = sub_df.sort_values("rank_delta_30d", ascending=True)
-        elif state == "fatigue":
+        elif key == "fatigue":
             # Top 10 highest negative momentum (most declined), sorted descending for bar chart display
-            sub_df = plot_df[plot_df["fatigue_state"] == state].sort_values("rank_delta_30d", ascending=True).head(10)
+            sub_df = plot_df[plot_df["fatigue_state"] == key].sort_values("rank_delta_30d", ascending=True).head(10)
             sub_df = sub_df.sort_values("rank_delta_30d", ascending=False)
         else:
             # Stable: sort by momentum abs value, display ascending
-            sub_df = plot_df[plot_df["fatigue_state"] == state].sort_values("monthly_listeners", ascending=False).head(10)
+            sub_df = plot_df[plot_df["fatigue_state"] == key].sort_values("monthly_listeners", ascending=False).head(10)
             sub_df = sub_df.sort_values("monthly_listeners", ascending=True)
             
-        if sub_df.empty:
-            continue
-            
-        fig.add_trace(
-            go.Bar(
-                x=sub_df["rank_delta_30d"],
-                y=sub_df["name"],
-                orientation='h',
-                marker_color=color,
-                name=state,
-                showlegend=False,
-                text=sub_df["rank_delta_30d"].apply(lambda x: f"{x:+.0f}"),
-                textposition="auto"
+        fig = go.Figure()
+        if not sub_df.empty:
+            fig.add_trace(
+                go.Bar(
+                    x=sub_df["rank_delta_30d"],
+                    y=sub_df["name"],
+                    orientation='h',
+                    marker_color=color,
+                    name=title,
+                    showlegend=False,
+                    text=sub_df["rank_delta_30d"].apply(lambda x: f"{x:+.0f}"),
+                    textposition="auto"
+                )
+            )
+        
+        fig.update_layout(
+            title=dict(
+                text=title,
+                x=0.5,
+                xanchor="center",
+                font=dict(size=14)
             ),
-            row=1, col=col
+            height=320,
+            margin=dict(l=10, r=10, t=50, b=40),
+            plot_bgcolor="rgba(0,0,0,0)",
+            paper_bgcolor="rgba(0,0,0,0)",
+            font=dict(color="rgba(255,255,255,0.9)" if dark_mode else "rgba(0,0,0,0.8)")
         )
         
-    fig.update_layout(
-        height=320,
-        margin=dict(l=10, r=20, t=30, b=40),
-        plot_bgcolor="rgba(0,0,0,0)",
-        paper_bgcolor="rgba(0,0,0,0)",
-        font=dict(color="rgba(255,255,255,0.9)" if dark_mode else "rgba(0,0,0,0.8)")
-    )
-    
-    for i in range(1, 4):
-        fig.update_xaxes(title_text="30-day Momentum", row=1, col=i, gridcolor="rgba(148,163,184,.12)" if dark_mode else "rgba(148,163,184,.18)")
-        fig.update_yaxes(gridcolor="rgba(148,163,184,.12)" if dark_mode else "rgba(148,163,184,.18)", row=1, col=i, automargin=True)
+        fig.update_xaxes(title_text="30-day Momentum", gridcolor="rgba(148,163,184,.12)" if dark_mode else "rgba(148,163,184,.18)")
+        fig.update_yaxes(gridcolor="rgba(148,163,184,.12)" if dark_mode else "rgba(148,163,184,.18)", automargin=True)
         
-    return fig
+        figs[key] = fig
+        
+    return figs
 
 
 # ── Main render entry point ─────────────────────────────────────────────────
@@ -1284,6 +1289,12 @@ body {
   margin-bottom: 16px;
   box-shadow: 0 4px 20px rgba(0,0,0,0.06);
 }
+.momentum-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 16px;
+}
 .a360-fatigue-alert {
   display: flex;
   align-items: flex-start;
@@ -1440,7 +1451,7 @@ body {
 }
 
 @media(max-width:900px){
-  .brief-grid,.acq-grid,.roster-grid,.spec-grid,.kpi-strip{grid-template-columns:1fr}
+  .brief-grid,.acq-grid,.roster-grid,.spec-grid,.kpi-strip,.momentum-grid{grid-template-columns:1fr}
   .tab-bar{overflow-x:auto}
 }
 </style></head><body>
