@@ -56,12 +56,21 @@ st.markdown(
         [data-testid="stDecoration"],
         header[data-testid="stHeader"],
         [data-testid="stStatusWidget"],
+        [data-testid="stHostedBadge"],
         [data-testid="viewerBadge"],
+        [data-testid="stDeployButton"],
         .viewerBadge_container,
+        .viewerBadge_link,
+        .viewerBadge_text,
         .stDeployButton,
+        div[class*="viewerBadge"],
+        a[href*="streamlit.io/cloud"],
+        a[href*="share.streamlit.io"],
         #MainMenu,
         footer {
             display: none !important;
+            visibility: hidden !important;
+            pointer-events: none !important;
         }
     </style>
     """,
