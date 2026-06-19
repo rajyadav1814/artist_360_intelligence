@@ -186,7 +186,7 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
         }
         .ct-kpi{
             background:var(--surface);border:1px solid var(--border);border-radius:12px;
-            padding:16px 18px;transition:.15s;position:relative;overflow:hidden;
+            padding:6px 18px;transition:.15s;position:relative;overflow:hidden;
             box-shadow:0 2px 8px rgba(0,0,0,.06);
         }
         .ct-kpi:hover{transform:translateY(-2px);border-color:var(--accent);
@@ -253,7 +253,14 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
 
     unique_runs = int(history["scraped_at"].nunique()) if not history.empty else 0
 
-    col1, col2, col3 = st.columns([1, 1, 1])
+    col_text, col1, col2, col3 = st.columns([1.5, 1, 1, 1])
+    with col_text:
+        st.markdown(
+            "<div style='font-size: 0.92rem; color: var(--t2); margin: 0 0 14px; line-height: 1.5; font-weight: 500;'>"
+            "Rank momentum across iTunes worldwide artist rankings."
+            "</div>",
+            unsafe_allow_html=True,
+        )
     with col1:
         time_range = custom_selectbox("📅 Time Range", ["7 days", "14 days", "30 days"], index=2, key="ct_range")
     with col2:
