@@ -912,7 +912,7 @@ def render_artists_overview(last_run_label: str = "n/a") -> None:
     # all_artists_combined_df is already sorted by rank in _build_artist_table
     all_artist_names = ["Search Artists..."] + all_artists_combined_df["name"].dropna().unique().tolist()
     
-    col1, col2 = st.columns([0.3, 0.7])
+    col1, col2 = st.columns([0.5, 0.5])
     with col1:
         st.markdown(
             """
