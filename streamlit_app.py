@@ -4180,7 +4180,7 @@ def show_debut_artist_page() -> None:
         <style>
         /* Forcefully remove the massive empty space above the Artist Spotlight dashboard */
         .stMainBlockContainer, .block-container {
-            padding-top: 0rem !important;
+            padding-top: 1.5rem !important;
             padding-bottom: 0rem !important;
         }
         /* Tighten vertical gaps between elements on this page */
