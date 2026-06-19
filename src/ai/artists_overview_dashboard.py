@@ -966,14 +966,27 @@ def render_artists_overview(last_run_label: str = "n/a") -> None:
                 pointer-events: none !important;
                 z-index: 10 !important;
             }
-            /* Style label to look modern */
+            /* Style label to look modern and inline */
+            div.element-container:has(div.gradient-marker) + div.element-container div[data-testid="stSelectbox"] {
+                display: flex !important;
+                flex-direction: row !important;
+                align-items: center !important;
+                gap: 16px !important;
+                margin-bottom: 0 !important;
+            }
+            div.element-container:has(div.gradient-marker) + div.element-container div[data-testid="stSelectbox"] label {
+                margin-bottom: 0 !important;
+                min-height: auto !important;
+            }
             div.element-container:has(div.gradient-marker) + div.element-container div[data-testid="stSelectbox"] label p {
                 font-weight: 700 !important;
                 letter-spacing: 0.02em !important;
-                margin-bottom: 3px !important;
-            }
-            div.element-container:has(div.gradient-marker) + div.element-container div[data-testid="stSelectbox"] {
                 margin-bottom: 0 !important;
+                white-space: nowrap !important;
+            }
+            div.element-container:has(div.gradient-marker) + div.element-container div[data-testid="stSelectbox"] > div[data-baseweb="select"] {
+                flex-grow: 1 !important;
+                width: 100% !important;
             }
             </style>
             """,
