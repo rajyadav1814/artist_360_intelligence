@@ -1585,7 +1585,7 @@ function labelBadge(type, str){
 }
 function briefArtistRow(r){
   const momCls = r.mom>0?'up':r.mom<0?'dn':'';
-  const momText = Math.abs(r.mom)>=0.5?(r.mom>0?'+':'')+r.mom.toFixed(0)+' mom':'flat';
+  const momText = Math.abs(r.mom)>=0.5?(r.mom>0?'+':'')+r.mom.toFixed(0)+' momentum':'flat';
   const listenersHtml = `<span class='ar-listeners'>${r.listeners} listeners</span>`;
   const trackAndLabel = [r.label_str].filter(x => x && x !== '—').join(' - ');
   return `<div class='artist-row'>
