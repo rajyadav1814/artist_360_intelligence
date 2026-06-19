@@ -56,16 +56,62 @@ st.markdown(
         [data-testid="stDecoration"],
         header[data-testid="stHeader"],
         [data-testid="stStatusWidget"],
+        [data-testid="stHostedBadge"],
         [data-testid="viewerBadge"],
         .viewerBadge_container,
+        .viewerBadge_link,
+        .viewerBadge_text,
         .stDeployButton,
+        a[href*="streamlit.io/cloud"],
+        a[href*="share.streamlit.io"],
         #MainMenu,
         footer {
             display: none !important;
+            visibility: hidden !important;
+            height: 0 !important;
+            width: 0 !important;
+            pointer-events: none !important;
         }
     </style>
     """,
     unsafe_allow_html=True,
+)
+
+st_components.html(
+    """
+    <script>
+    const hideHostedBadge = () => {
+        const roots = [document];
+        try {
+            if (window.parent && window.parent.document) {
+                roots.push(window.parent.document);
+            }
+        } catch (error) {
+            // Some hosting contexts do not allow iframe access to the parent document.
+        }
+        roots.forEach((root) => {
+            root
+                .querySelectorAll('[data-testid="stHostedBadge"], [data-testid="viewerBadge"], .viewerBadge_container, .stDeployButton, a[href*="streamlit.io/cloud"], a[href*="share.streamlit.io"]')
+                .forEach((el) => {
+                    const text = (el.textContent || "").toLowerCase();
+                    if (text.includes("hosted with streamlit") || el.matches('[data-testid="stHostedBadge"], [data-testid="viewerBadge"], .viewerBadge_container, .stDeployButton, a[href*="streamlit.io/cloud"], a[href*="share.streamlit.io"]')) {
+                        el.style.setProperty("display", "none", "important");
+                        el.style.setProperty("visibility", "hidden", "important");
+                        el.style.setProperty("pointer-events", "none", "important");
+                    }
+                });
+        });
+    };
+    hideHostedBadge();
+    try {
+        new MutationObserver(hideHostedBadge).observe(window.parent.document.body, { childList: true, subtree: true });
+    } catch (error) {
+        new MutationObserver(hideHostedBadge).observe(document.body, { childList: true, subtree: true });
+    }
+    </script>
+    """,
+    height=0,
+    width=0,
 )
 
 # Initialize session state for interactivity
