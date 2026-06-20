@@ -418,7 +418,7 @@ def apply_theme(dark_mode: bool = True) -> None:
             animation: fadeIn 0.6s ease-out;
         }
         body { font-size: 19px; }
-        p, div, span, label { font-size: 1.15rem; }
+        p, div, span, label { font-size: 1rem; }
         [data-testid="stHeader"], [data-testid="stToolbar"], #MainMenu, header { background:transparent !important; }
         [data-testid="stDecoration"] { display:none; }
         .block-container {
