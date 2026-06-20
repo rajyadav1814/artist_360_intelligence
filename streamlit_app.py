@@ -1695,6 +1695,25 @@ def apply_theme(dark_mode: bool = True) -> None:
                 const navLinks = sidebar.querySelectorAll('.app-side-link, [data-testid="stSidebarNav"] a');
                 const currentPath = (window.parent.location.pathname || '/').replace(/\/+$/, '');
                 navLinks.forEach(link => {
+                    if (link.classList.contains('app-side-link') && !link.dataset.sameTabBound) {
+                        link.dataset.sameTabBound = 'true';
+                        link.addEventListener('click', event => {
+                            event.preventDefault();
+                            const nextPath = link.getAttribute('data-path') || new URL(link.href, window.parent.location.href).pathname;
+                            const currentSearch = window.parent.location.search || '';
+                            const nextUrl = `${nextPath}${currentSearch}`;
+                            window.parent.history.pushState({}, '', nextUrl);
+                            window.parent.dispatchEvent(new PopStateEvent('popstate'));
+                            window.parent.dispatchEvent(new HashChangeEvent('hashchange'));
+                            setTimeout(() => {
+                                const currentPath = (window.parent.location.pathname || '').replace(/\/+$/, '');
+                                const expectedPath = nextPath.replace(/\/+$/, '');
+                                if (currentPath !== expectedPath) {
+                                    window.parent.location.assign(nextUrl);
+                                }
+                            }, 80);
+                        });
+                    }
                     // Add tooltip attribute if missing
                     if (!link.hasAttribute('title')) {
                         const clone = link.cloneNode(true);
@@ -4775,7 +4794,7 @@ def _render_custom_sidebar_nav() -> None:
         path = "/" + item["path"].strip("/")
         links.append(
             "<a class='app-side-link' "
-            f"href='{escape(path)}' data-path='{escape(path)}' data-tooltip='{label}'>"
+            f"href='{escape(path)}' target='_self' data-path='{escape(path)}' data-tooltip='{label}'>"
             f"<span class='app-side-icon'>{_sidebar_icon_svg(item['icon'])}</span>"
             f"<span class='app-side-label'>{label}</span>"
             "</a>"
