@@ -468,7 +468,133 @@ def apply_theme(dark_mode: bool = True) -> None:
             right:3.25rem; color:var(--text); font-size:1.15rem; font-weight:800;
             letter-spacing:.2px; line-height:1.15;
         }
-        [data-testid="stSidebarNav"] { padding-top:.75rem; }
+        [data-testid="stSidebarNav"] { display:none !important; }
+        .app-side-nav {
+            display:flex;
+            flex-direction:column;
+            gap:8px;
+            padding:.75rem .75rem 1rem;
+        }
+        .app-side-link {
+            display:flex;
+            align-items:center;
+            gap:12px;
+            min-height:44px;
+            padding:0 12px;
+            border-radius:10px;
+            color:var(--text2) !important;
+            text-decoration:none !important;
+            font-weight:750;
+            font-size:14px;
+            line-height:1;
+            transition:background .16s ease,color .16s ease,box-shadow .16s ease;
+        }
+        .app-side-link:hover {
+            background:rgba(251,63,104,.10);
+            color:var(--text) !important;
+        }
+        .app-side-link.is-active {
+            background:rgba(251,63,104,.84);
+            color:#fff !important;
+            box-shadow:0 10px 22px rgba(251,63,104,.28);
+        }
+        .app-side-icon {
+            width:24px;
+            height:24px;
+            flex:0 0 24px;
+            display:grid;
+            place-items:center;
+            color:currentColor;
+        }
+        .app-side-icon svg {
+            width:21px;
+            height:21px;
+            display:block;
+            stroke:currentColor;
+            fill:none;
+            stroke-width:2.35;
+            stroke-linecap:round;
+            stroke-linejoin:round;
+        }
+        .app-side-label {
+            min-width:0;
+            overflow:hidden;
+            text-overflow:ellipsis;
+            white-space:nowrap;
+            color:inherit !important;
+        }
+        [data-testid="stSidebar"].is-mini .app-side-nav {
+            align-items:center;
+            gap:9px;
+            padding:.65rem 0 1rem;
+        }
+        [data-testid="stSidebar"].is-mini .app-side-link {
+            width:40px;
+            height:40px;
+            min-height:40px;
+            padding:0;
+            justify-content:center;
+            position:relative;
+        }
+        [data-testid="stSidebar"].is-mini .app-side-label {
+            display:none !important;
+        }
+        [data-testid="stSidebar"].is-mini .app-side-icon {
+            width:40px;
+            height:40px;
+            flex-basis:40px;
+        }
+        [data-testid="stSidebar"].is-mini .app-side-icon svg {
+            width:21px;
+            height:21px;
+            margin:auto;
+        }
+        [data-testid="stSidebar"].is-mini .app-side-link[data-tooltip]::after {
+            content:attr(data-tooltip);
+            position:absolute;
+            left:calc(100% + 12px);
+            top:50%;
+            transform:translateY(-50%) translateX(-4px);
+            opacity:0;
+            pointer-events:none;
+            white-space:nowrap;
+            max-width:220px;
+            overflow:hidden;
+            text-overflow:ellipsis;
+            padding:7px 10px;
+            border-radius:8px;
+            background:var(--surface);
+            border:1px solid var(--border);
+            color:var(--text) !important;
+            font-size:12px;
+            font-weight:800;
+            box-shadow:0 12px 28px rgba(15,23,42,.18);
+            transition:opacity .16s ease,transform .16s ease;
+            z-index:999999;
+        }
+        [data-testid="stSidebar"].is-mini .app-side-link[data-tooltip]::before {
+            content:"";
+            position:absolute;
+            left:calc(100% + 7px);
+            top:50%;
+            width:9px;
+            height:9px;
+            transform:translateY(-50%) rotate(45deg);
+            opacity:0;
+            pointer-events:none;
+            background:var(--surface);
+            border-left:1px solid var(--border);
+            border-bottom:1px solid var(--border);
+            transition:opacity .16s ease;
+            z-index:999998;
+        }
+        [data-testid="stSidebar"].is-mini .app-side-link:hover::after,
+        [data-testid="stSidebar"].is-mini .app-side-link:hover::before {
+            opacity:1;
+        }
+        [data-testid="stSidebar"].is-mini .app-side-link:hover::after {
+            transform:translateY(-50%) translateX(0);
+        }
         /* Sidebar nav: align icons and labels on a single baseline */
         [data-testid="stSidebarNav"] ul { padding-left: 0 !important; margin: 0 !important; }
         [data-testid="stSidebarNav"] li { list-style: none !important; margin: 0 !important; padding: 0 !important; }
@@ -489,8 +615,14 @@ def apply_theme(dark_mode: bool = True) -> None:
             color: var(--primary-light) !important;
         }
         [data-testid="stSidebarNav"] a[aria-current="page"] {
-            background: rgba(251, 113, 133, 0.25) !important;
-            color: var(--primary-light) !important;
+            background: rgba(251, 63, 104, 0.82) !important;
+            color: #ffffff !important;
+            box-shadow: 0 10px 22px rgba(251, 63, 104, 0.28) !important;
+        }
+        [data-testid="stSidebarNav"] a[data-active="true"] {
+            background: rgba(251, 63, 104, 0.82) !important;
+            color: #ffffff !important;
+            box-shadow: 0 10px 22px rgba(251, 63, 104, 0.28) !important;
         }
         [data-testid="stSidebarNav"] a > span:first-child,
         [data-testid="stSidebarNav"] a [data-testid="stIconMaterial"],
@@ -1308,12 +1440,12 @@ def apply_theme(dark_mode: bool = True) -> None:
         }
         
         [data-testid="stSidebar"].is-mini {
-            width: 82px !important;
-            min-width: 82px !important;
+            width: 66px !important;
+            min-width: 66px !important;
         }
         
         [data-testid="stSidebar"].is-mini + section[data-testid="stMain"] {
-            margin-left: 82px !important;
+            margin-left: 66px !important;
         }
         
         [data-testid="stSidebar"].is-mini [data-testid="stSidebarHeader"]::after,
@@ -1329,15 +1461,22 @@ def apply_theme(dark_mode: bool = True) -> None:
             display: flex !important;
             align-items: center !important;
             justify-content: center !important;
-            width: 46px !important;
-            height: 46px !important;
+            width: 40px !important;
+            height: 40px !important;
             padding: 0 !important;
-            margin: 0 auto 6px auto !important;
-            border-radius: 12px !important;
+            margin: 0 auto 8px auto !important;
+            border-radius: 10px !important;
             overflow: visible !important;
             position: relative !important;
             background: transparent !important;
             box-shadow: none !important;
+        }
+
+        [data-testid="stSidebar"].is-mini [data-testid="stSidebarHeader"]::before {
+            left: 50% !important;
+            top: 50% !important;
+            transform: translate(-50%, -50%) !important;
+            margin: 0 !important;
         }
         
         /* Make text invisible without forcing 0x0 dimensions that trigger clip bugs */
@@ -1351,18 +1490,18 @@ def apply_theme(dark_mode: bool = True) -> None:
         
         [data-testid="stSidebar"].is-mini [data-testid="stSidebarNav"] a span.material-symbols-rounded,
         [data-testid="stSidebar"].is-mini [data-testid="stSidebarNav"] a [data-testid="stIconMaterial"],
-        [data-testid="stSidebar"].is-mini [data-testid="stSidebarNav"] a svg,
         [data-testid="stSidebar"].is-mini [data-testid="stSidebarNav"] a i {
-            display: block !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
             position: absolute !important;
-            left: 50% !important;
-            top: 50% !important;
-            transform: translate(-50%, -50%) !important;
-            width: auto !important;
-            height: auto !important;
+            inset: 0 !important;
+            transform: none !important;
+            width: 100% !important;
+            height: 100% !important;
             color: var(--text2) !important;
             font-size: 22px !important;
-            line-height: 22px !important;
+            line-height: 1 !important;
             text-align: center !important;
             white-space: nowrap !important;
             margin: 0 !important;
@@ -1370,18 +1509,90 @@ def apply_theme(dark_mode: bool = True) -> None:
             z-index: 2 !important;
             opacity: 0.60;
         }
+
+        [data-testid="stSidebar"].is-mini [data-testid="stSidebarNav"] a svg {
+            display: block !important;
+            position: absolute !important;
+            left: 50% !important;
+            top: 50% !important;
+            transform: translate(-50%, -50%) !important;
+            width: 22px !important;
+            height: 22px !important;
+            color: var(--text2) !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            z-index: 2 !important;
+            opacity: 0.60;
+        }
         
 
-        [data-testid="stSidebar"].is-mini [data-testid="stSidebarNav"] a[aria-current="page"] {
-            background: linear-gradient(135deg, #fb7185 0%, #f472b6 100%) !important;
-            box-shadow: 0 4px 16px rgba(251, 113, 133, 0.5) !important;
+        [data-testid="stSidebar"].is-mini [data-testid="stSidebarNav"] a[aria-current="page"],
+        [data-testid="stSidebar"].is-mini [data-testid="stSidebarNav"] a[data-active="true"] {
+            background: rgba(251, 63, 104, 0.84) !important;
+            box-shadow: 0 10px 22px rgba(251, 63, 104, 0.28) !important;
             border: none !important;
+            border-radius: 10px !important;
+        }
+
+        [data-testid="stSidebar"].is-mini [data-testid="stSidebarNav"] a[data-tooltip]::after {
+            content: attr(data-tooltip);
+            position: absolute;
+            left: calc(100% + 12px);
+            top: 50%;
+            transform: translateY(-50%) translateX(-4px);
+            opacity: 0;
+            pointer-events: none;
+            white-space: nowrap;
+            max-width: 220px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            padding: 7px 10px;
+            border-radius: 8px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            color: var(--text) !important;
+            font-size: 12px;
+            font-weight: 800;
+            line-height: 1.2;
+            box-shadow: 0 12px 28px rgba(15,23,42,.18);
+            transition: opacity .16s ease, transform .16s ease;
+            z-index: 999999;
+        }
+
+        [data-testid="stSidebar"].is-mini [data-testid="stSidebarNav"] a[data-tooltip]::before {
+            content: "";
+            position: absolute;
+            left: calc(100% + 7px);
+            top: 50%;
+            width: 9px;
+            height: 9px;
+            transform: translateY(-50%) rotate(45deg);
+            opacity: 0;
+            pointer-events: none;
+            background: var(--surface);
+            border-left: 1px solid var(--border);
+            border-bottom: 1px solid var(--border);
+            transition: opacity .16s ease;
+            z-index: 999998;
+        }
+
+        [data-testid="stSidebar"].is-mini [data-testid="stSidebarNav"] a[data-tooltip]:hover::after,
+        [data-testid="stSidebar"].is-mini [data-testid="stSidebarNav"] a[data-tooltip]:hover::before {
+            opacity: 1;
+        }
+
+        [data-testid="stSidebar"].is-mini [data-testid="stSidebarNav"] a[data-tooltip]:hover::after {
+            transform: translateY(-50%) translateX(0);
         }
         
         [data-testid="stSidebar"].is-mini [data-testid="stSidebarNav"] a[aria-current="page"] span.material-symbols-rounded,
         [data-testid="stSidebar"].is-mini [data-testid="stSidebarNav"] a[aria-current="page"] [data-testid="stIconMaterial"],
         [data-testid="stSidebar"].is-mini [data-testid="stSidebarNav"] a[aria-current="page"] svg,
-        [data-testid="stSidebar"].is-mini [data-testid="stSidebarNav"] a[aria-current="page"] i {
+        [data-testid="stSidebar"].is-mini [data-testid="stSidebarNav"] a[aria-current="page"] i,
+        [data-testid="stSidebar"].is-mini [data-testid="stSidebarNav"] a[data-active="true"] span.material-symbols-rounded,
+        [data-testid="stSidebar"].is-mini [data-testid="stSidebarNav"] a[data-active="true"] [data-testid="stIconMaterial"],
+        [data-testid="stSidebar"].is-mini [data-testid="stSidebarNav"] a[data-active="true"] svg,
+        [data-testid="stSidebar"].is-mini [data-testid="stSidebarNav"] a[data-active="true"] i {
             color: #ffffff !important;
             opacity: 1 !important;
             filter: drop-shadow(0 1px 3px rgba(0,0,0,0.2));
@@ -1417,6 +1628,7 @@ def apply_theme(dark_mode: bool = True) -> None:
         [data-testid="stSidebar"].is-mini [data-testid="stSidebarNav"] li {
             width: 100% !important;
             display: flex !important;
+            align-items: center !important;
             justify-content: center !important;
             list-style: none !important;
             padding: 0 !important;
@@ -1447,7 +1659,7 @@ def apply_theme(dark_mode: bool = True) -> None:
                         : `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>`;
                     
                     btn.style.cssText = `
-                        position: absolute; right: -14px; top: 42px; width: 28px; height: 28px; 
+                        position: absolute; right: -13px; top: 42px; width: 26px; height: 26px; 
                         display: flex; align-items: center; justify-content: center;
                         cursor: pointer; color: __BTN_COLOR__; border-radius: 50%;
                         background: __BTN_BG__; border: 1px solid __BTN_BORDER__;
@@ -1480,7 +1692,8 @@ def apply_theme(dark_mode: bool = True) -> None:
             }, 300);
 
             function applyMiniNavStyles(sidebar) {
-                const navLinks = sidebar.querySelectorAll('[data-testid="stSidebarNav"] a');
+                const navLinks = sidebar.querySelectorAll('.app-side-link, [data-testid="stSidebarNav"] a');
+                const currentPath = (window.parent.location.pathname || '/').replace(/\/+$/, '');
                 navLinks.forEach(link => {
                     // Add tooltip attribute if missing
                     if (!link.hasAttribute('title')) {
@@ -1492,14 +1705,31 @@ def apply_theme(dark_mode: bool = True) -> None:
                             link.setAttribute('title', text);
                         }
                     }
+                    if (!link.hasAttribute('data-tooltip')) {
+                        const text = link.getAttribute('title') || link.textContent.trim();
+                        if (text) {
+                            link.setAttribute('data-tooltip', text);
+                        }
+                    }
 
-                    const isActive = link.getAttribute('aria-current') === 'page';
+                    const linkUrl = new URL(link.href || '#', window.parent.location.href);
+                    const linkPath = (linkUrl.pathname || '/').replace(/\/+$/, '');
+                    const isDefaultOverview = (currentPath === '' || currentPath === '/') && linkPath.endsWith('/artists-overview');
+                    const isActive = link.getAttribute('aria-current') === 'page' || linkPath === currentPath || isDefaultOverview;
+                    if (isActive) {
+                        link.setAttribute('data-active', 'true');
+                        link.classList.add('is-active');
+                    } else {
+                        link.removeAttribute('data-active');
+                        link.classList.remove('is-active');
+                    }
                     if (sidebar.classList.contains('is-mini')) {
                         if (isActive) {
-                            // Bold pink gradient on active link
-                            link.style.setProperty('background', 'linear-gradient(135deg, #fb7185 0%, #f472b6 100%)', 'important');
-                            link.style.setProperty('box-shadow', '0 4px 16px rgba(251,113,133,0.5)', 'important');
+                            // Red active link
+                            link.style.setProperty('background', 'rgba(251,63,104,0.84)', 'important');
+                            link.style.setProperty('box-shadow', '0 10px 22px rgba(251,63,104,0.28)', 'important');
                             link.style.setProperty('border', 'none', 'important');
+                            link.style.setProperty('border-radius', '10px', 'important');
                             // White icon inside active link
                             const icons = link.querySelectorAll('span, svg, i, [data-testid="stIconMaterial"]');
                             icons.forEach(icon => {
@@ -1511,6 +1741,7 @@ def apply_theme(dark_mode: bool = True) -> None:
                             link.style.removeProperty('background');
                             link.style.removeProperty('box-shadow');
                             link.style.removeProperty('border');
+                            link.style.removeProperty('border-radius');
                             const icons = link.querySelectorAll('span, svg, i, [data-testid="stIconMaterial"]');
                             icons.forEach(icon => {
                                 icon.style.removeProperty('color');
@@ -1522,6 +1753,8 @@ def apply_theme(dark_mode: bool = True) -> None:
                         link.style.removeProperty('background');
                         link.style.removeProperty('box-shadow');
                         link.style.removeProperty('border');
+                        link.style.removeProperty('border-radius');
+                        link.removeAttribute('data-tooltip');
                         const icons = link.querySelectorAll('span, svg, i, [data-testid="stIconMaterial"]');
                         icons.forEach(icon => {
                             icon.style.removeProperty('color');
@@ -4457,77 +4690,97 @@ def show_acquisition_page() -> None:
         render_acquisition(labels_to_filter)
 
 
-app_pages = [
-        st.Page(
-        show_artists_overview_page,
-        title="Overview",
-        icon=":material/dashboard:",
-        url_path="artists-overview",
-        default=True,
-    ),
-    st.Page(
-        show_redesign_dashboard_page,
-        title="LATAM Signals",
-        icon=":material/auto_awesome:",
-        url_path="latam-signals",
-    ),
-    # st.Page(
-    #     show_leaderboard_page,
-    #     title="Leaderboard",
-    #     icon=":material/trending_up:",
-    #     url_path="leaderboard",
-    # ),
-     st.Page(
-        show_movement_page,
-        title="Movement Trends",
-        icon=":material/show_chart:",
-        url_path="movement-trends",
-    ),
-      st.Page(
-        show_acquisition_page,
-        title="Acquisition Analysis",
-        icon=":material/handshake:",
-        url_path="acquisition-Analysis",
-    ),
-
-    # st.Page(
-    #     show_debut_report_page,
-    #     title="Debut Report",
-    #     icon=":material/new_releases:",
-    #     url_path="debut-report",
-    # ),
-    st.Page(
-        show_label_analysis_page,
-        title="Label Analysis",
-        icon=":material/analytics:",
-        url_path="label-analysis",
-    ),
-    # st.Page(
-    #     show_pulse_report_page,
-    #     title="Pulse Report",
-    #     icon=":material/label:",
-    #     url_path="pulse-report",
-    # ),
-
-     st.Page(
-        show_debut_artist_page,
-        title="Artist Spotlight",
-        icon=":material/person:",
-        url_path="artist-spotlight",
-    ),
-    st.Page(
-        show_compare_page,
-        title="Compare",
-        icon=":material/compare_arrows:",
-        url_path="compare",
-    ),
-    st.Page(
-        show_ai_analyst_page,
-        title="AI Data Analyst",
-        icon=":material/smart_toy:",
-        url_path="ai-data-analyst",
-    ),
+NAV_ITEMS = [
+    {
+        "page": show_artists_overview_page,
+        "title": "Overview",
+        "icon": "dashboard",
+        "path": "artists-overview",
+        "default": True,
+    },
+    {
+        "page": show_redesign_dashboard_page,
+        "title": "LATAM Signals",
+        "icon": "sparkles",
+        "path": "latam-signals",
+    },
+    {
+        "page": show_movement_page,
+        "title": "Movement Trends",
+        "icon": "trend",
+        "path": "movement-trends",
+    },
+    {
+        "page": show_acquisition_page,
+        "title": "Acquisition Analysis",
+        "icon": "handshake",
+        "path": "acquisition-Analysis",
+    },
+    {
+        "page": show_label_analysis_page,
+        "title": "Label Analysis",
+        "icon": "analytics",
+        "path": "label-analysis",
+    },
+    {
+        "page": show_debut_artist_page,
+        "title": "Artist Spotlight",
+        "icon": "person",
+        "path": "artist-spotlight",
+    },
+    {
+        "page": show_compare_page,
+        "title": "Compare",
+        "icon": "compare",
+        "path": "compare",
+    },
+    {
+        "page": show_ai_analyst_page,
+        "title": "AI Data Analyst",
+        "icon": "bot",
+        "path": "ai-data-analyst",
+    },
 ]
+
+app_pages = [
+    st.Page(
+        item["page"],
+        title=item["title"],
+        icon=":material/dashboard:",
+        url_path=item["path"],
+        default=item.get("default", False),
+    )
+    for item in NAV_ITEMS
+]
+
+
+def _sidebar_icon_svg(icon: str) -> str:
+    icons = {
+        "dashboard": "<rect x='3' y='3' width='7' height='7' rx='1.5'/><rect x='14' y='3' width='7' height='7' rx='1.5'/><rect x='3' y='14' width='7' height='7' rx='1.5'/><rect x='14' y='14' width='7' height='7' rx='1.5'/>",
+        "sparkles": "<path d='M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3z'/><path d='M5 15l.9 2.6L8.5 18l-2.6.9L5 21l-.9-2.1L2 18l2.1-.4L5 15z'/><path d='M18 14l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7.7-2z'/>",
+        "trend": "<path d='M3 17l6-6 4 4 8-8'/><path d='M15 7h6v6'/>",
+        "handshake": "<path d='M8.5 12.5l2-2a2.1 2.1 0 0 1 3 0l.8.8'/><path d='M14 11l2.5 2.5a2.1 2.1 0 0 1 0 3l-2 2a2.1 2.1 0 0 1-3 0L8 15'/><path d='M7 13l-2-2 4-4 2 2'/><path d='M17 13l2-2-4-4-2 2'/><path d='M9 16l2 2'/><path d='M11 14l2 2'/>",
+        "analytics": "<rect x='4' y='4' width='16' height='16' rx='2'/><path d='M8 16v-4'/><path d='M12 16V8'/><path d='M16 16v-6'/>",
+        "person": "<circle cx='12' cy='8' r='3'/><path d='M5 20a7 7 0 0 1 14 0'/>",
+        "compare": "<path d='M7 7h13'/><path d='M17 4l3 3-3 3'/><path d='M17 17H4'/><path d='M7 14l-3 3 3 3'/>",
+        "bot": "<rect x='5' y='8' width='14' height='11' rx='2'/><path d='M12 8V4'/><path d='M9 13h.01'/><path d='M15 13h.01'/><path d='M9 17h6'/>",
+    }
+    return f"<svg viewBox='0 0 24 24' aria-hidden='true'>{icons.get(icon, icons['dashboard'])}</svg>"
+
+
+def _render_custom_sidebar_nav() -> None:
+    links = []
+    for item in NAV_ITEMS:
+        label = escape(item["title"])
+        path = "/" + item["path"].strip("/")
+        links.append(
+            "<a class='app-side-link' "
+            f"href='{escape(path)}' data-path='{escape(path)}' data-tooltip='{label}'>"
+            f"<span class='app-side-icon'>{_sidebar_icon_svg(item['icon'])}</span>"
+            f"<span class='app-side-label'>{label}</span>"
+            "</a>"
+        )
+    st.markdown(f"<nav class='app-side-nav'>{''.join(links)}</nav>", unsafe_allow_html=True)
 
 with st.sidebar:
     st.markdown(
@@ -4542,8 +4795,9 @@ with st.sidebar:
         unsafe_allow_html=True,
     )
     
-    # Proper sidebar routing for all dashboard views
-    current_page = st.navigation(app_pages, position="sidebar", expanded=True)
+    # Keep Streamlit routing, but render our own sidebar nav for exact layout control.
+    current_page = st.navigation(app_pages, position="hidden")
+    _render_custom_sidebar_nav()
 
     st.markdown(
         "<div class='appearance-title' style='margin:.25rem 0 .35rem; color: var(--text2); font-size:.78rem; font-weight:800; letter-spacing:.08em; text-transform:uppercase;'>Appearance</div>",
