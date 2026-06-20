@@ -1643,7 +1643,7 @@ def apply_theme(dark_mode: bool = True) -> None:
     button_border = "rgba(148,163,184,.15)" if dark_mode else "#E9ECF2"
     button_color = "#ffffff" if dark_mode else "#1A1A1A"
 
-    js_code = """
+    js_code = r"""
         <script>
             setInterval(() => {
                 const doc = window.parent.document;
