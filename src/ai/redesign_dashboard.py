@@ -1452,6 +1452,7 @@ body {
 }
 
 @media(max-width:1200px){
+  .brief-grid{grid-template-columns:repeat(2, minmax(0, 1fr))}
   .roster-grid{grid-template-columns:repeat(2, minmax(0, 1fr))}
   .spec-grid{grid-template-columns:repeat(2, minmax(0, 1fr))}
 }
