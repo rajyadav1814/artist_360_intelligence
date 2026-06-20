@@ -123,7 +123,13 @@ def custom_multiselect(label: str, options: list, default: list = None, key: str
             border-radius: 6px !important;
             border: 1px solid rgba(251, 113, 133, 0.3) !important;
         }}
-        div[data-testid="stMultiSelect"] span[data-baseweb="tag"] span {{
+        div[data-testid="stMultiSelect"] span[data-baseweb="tag"] span,
+        div[data-testid="stMultiSelect"] span[data-baseweb="tag"] div {{
+            color: {tag_text} !important;
+            background-color: transparent !important;
+        }}
+        div[data-testid="stMultiSelect"] span[data-baseweb="tag"] svg {{
+            fill: {tag_text} !important;
             color: {tag_text} !important;
         }}
         /* Inner Text / Placeholder for multiselect */
