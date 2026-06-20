@@ -1473,8 +1473,8 @@ def apply_theme(dark_mode: bool = True) -> None:
                     sidebar.appendChild(btn);
                 }
 
-                // Always apply active nav styles when in mini mode
-                if (sidebar && sidebar.classList.contains('is-mini')) {
+                // Apply styles and tooltips
+                if (sidebar) {
                     applyMiniNavStyles(sidebar);
                 }
             }, 300);
@@ -1482,20 +1482,43 @@ def apply_theme(dark_mode: bool = True) -> None:
             function applyMiniNavStyles(sidebar) {
                 const navLinks = sidebar.querySelectorAll('[data-testid="stSidebarNav"] a');
                 navLinks.forEach(link => {
+                    // Add tooltip attribute if missing
+                    if (!link.hasAttribute('title')) {
+                        const clone = link.cloneNode(true);
+                        const icons = clone.querySelectorAll('[data-testid="stIconMaterial"], .material-symbols-rounded, .material-icons, svg');
+                        icons.forEach(i => i.remove());
+                        const text = clone.textContent.trim();
+                        if (text) {
+                            link.setAttribute('title', text);
+                        }
+                    }
+
                     const isActive = link.getAttribute('aria-current') === 'page';
-                    if (isActive) {
-                        // Bold pink gradient on active link
-                        link.style.setProperty('background', 'linear-gradient(135deg, #fb7185 0%, #f472b6 100%)', 'important');
-                        link.style.setProperty('box-shadow', '0 4px 16px rgba(251,113,133,0.5)', 'important');
-                        link.style.setProperty('border', 'none', 'important');
-                        // White icon inside active link
-                        const icons = link.querySelectorAll('span, svg, i, [data-testid="stIconMaterial"]');
-                        icons.forEach(icon => {
-                            icon.style.setProperty('color', '#ffffff', 'important');
-                            icon.style.setProperty('opacity', '1', 'important');
-                        });
+                    if (sidebar.classList.contains('is-mini')) {
+                        if (isActive) {
+                            // Bold pink gradient on active link
+                            link.style.setProperty('background', 'linear-gradient(135deg, #fb7185 0%, #f472b6 100%)', 'important');
+                            link.style.setProperty('box-shadow', '0 4px 16px rgba(251,113,133,0.5)', 'important');
+                            link.style.setProperty('border', 'none', 'important');
+                            // White icon inside active link
+                            const icons = link.querySelectorAll('span, svg, i, [data-testid="stIconMaterial"]');
+                            icons.forEach(icon => {
+                                icon.style.setProperty('color', '#ffffff', 'important');
+                                icon.style.setProperty('opacity', '1', 'important');
+                            });
+                        } else {
+                            // Reset non-active links
+                            link.style.removeProperty('background');
+                            link.style.removeProperty('box-shadow');
+                            link.style.removeProperty('border');
+                            const icons = link.querySelectorAll('span, svg, i, [data-testid="stIconMaterial"]');
+                            icons.forEach(icon => {
+                                icon.style.removeProperty('color');
+                                icon.style.removeProperty('opacity');
+                            });
+                        }
                     } else {
-                        // Reset non-active links
+                        // If not mini, remove the hardcoded inline styles so Streamlit's default or global CSS takes over
                         link.style.removeProperty('background');
                         link.style.removeProperty('box-shadow');
                         link.style.removeProperty('border');
