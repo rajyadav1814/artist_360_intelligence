@@ -90,8 +90,10 @@ def scrape_spotify_daily(country: str = "global") -> List[SpotifyDaily]:
                 titles.append(artist_title)
                 rows_to_process.append(row)
         
-        # Batch lookup labels
+        # Batch lookup labels and genres
         labels_map = get_labels_batch_optimized(titles)
+        from src.utils.genre_lookup import get_genres_batch
+        genres_map = get_genres_batch(titles)
         
         results = []
         for i, row in enumerate(rows_to_process):
@@ -115,6 +117,7 @@ def scrape_spotify_daily(country: str = "global") -> List[SpotifyDaily]:
                         total_streams=_safe_int(row.get("Total", 0)),
                         label=labels_map.get(artist_title),
                         rank_change=_normalize_rank_change(row.get("P+")),
+                        genere=genres_map.get(artist_title),
                     )
                 )
             except Exception:
@@ -155,8 +158,10 @@ def scrape_spotify_weekly(country: str = "global") -> List[SpotifyDaily]:
                 titles.append(artist_title)
                 rows_to_process.append(row)
 
-        # Batch lookup labels
+        # Batch lookup labels and genres
         labels_map = get_labels_batch_optimized(titles)
+        from src.utils.genre_lookup import get_genres_batch
+        genres_map = get_genres_batch(titles)
         
         results = []
         for i, row in enumerate(rows_to_process):
@@ -180,6 +185,7 @@ def scrape_spotify_weekly(country: str = "global") -> List[SpotifyDaily]:
                         total_streams=_safe_int(row.get("Total", 0)),
                         label=labels_map.get(artist_title),
                         rank_change=_normalize_rank_change(row.get("P+")),
+                        genere=genres_map.get(artist_title),
                     )
                 )
             except Exception:
@@ -220,8 +226,10 @@ def scrape_spotify_totals(country: str = "global") -> List[SpotifyDaily]:
                 titles.append(artist_title)
                 rows_to_process.append(row)
 
-        # Batch lookup labels
+        # Batch lookup labels and genres
         labels_map = get_labels_batch_optimized(titles)
+        from src.utils.genre_lookup import get_genres_batch
+        genres_map = get_genres_batch(titles)
         
         results = []
         for i, row in enumerate(rows_to_process):
@@ -244,6 +252,7 @@ def scrape_spotify_totals(country: str = "global") -> List[SpotifyDaily]:
                         total_streams=_safe_int(row.get("Total", 0)),
                         label=labels_map.get(artist_title),
                         rank_change=_normalize_rank_change(row.get("P+")),
+                        genere=genres_map.get(artist_title),
                     )
                 )
             except Exception:
@@ -287,8 +296,10 @@ def scrape_itunes_daily(country: str = "us") -> List[ItunesDaily]:
                 titles.append(artist_title)
                 rows_to_process.append(row)
 
-        # Batch lookup labels
+        # Batch lookup labels and genres
         labels_map = get_labels_batch_optimized(titles)
+        from src.utils.genre_lookup import get_genres_batch
+        genres_map = get_genres_batch(titles)
         
         results = []
         for i, row in enumerate(rows_to_process):
@@ -312,6 +323,7 @@ def scrape_itunes_daily(country: str = "us") -> List[ItunesDaily]:
                         total_points=_safe_int(row.get("TPts", 0)),
                         label=labels_map.get(artist_title),
                         rank_change=_normalize_rank_change(row.get("P+")),
+                        genere=genres_map.get(artist_title),
                     )
                 )
             except Exception as e:

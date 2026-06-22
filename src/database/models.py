@@ -76,6 +76,7 @@ class SpotifyDaily:
     total_streams: Optional[int] = None
     label: Optional[str] = None
     rank_change: Optional[str] = None
+    genere: Optional[str] = None
 
 
 @dataclass
@@ -91,6 +92,7 @@ class ItunesDaily:
     total_points: Optional[int] = None
     label: Optional[str] = None
     rank_change: Optional[str] = None
+    genere: Optional[str] = None
 
 
 @dataclass
