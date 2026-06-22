@@ -1649,40 +1649,51 @@ def apply_theme(dark_mode: bool = True) -> None:
                 const doc = window.parent.document;
                 const sidebar = doc.querySelector('[data-testid="stSidebar"]');
                 
-                if (sidebar && !doc.getElementById('custom-collapse-btn')) {
-                    const btn = doc.createElement('div');
-                    btn.id = 'custom-collapse-btn';
-                    
+                if (sidebar) {
+                    let btn = doc.getElementById('custom-collapse-btn');
                     const isMiniInit = localStorage.getItem('sidebar_mini') === 'true';
-                    btn.innerHTML = isMiniInit 
-                        ? `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>` 
-                        : `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>`;
                     
-                    btn.style.cssText = `
-                        position: absolute; right: -13px; top: 42px; width: 26px; height: 26px; 
-                        display: flex; align-items: center; justify-content: center;
-                        cursor: pointer; color: __BTN_COLOR__; border-radius: 50%;
-                        background: __BTN_BG__; border: 1px solid __BTN_BORDER__;
-                        box-shadow: 0 2px 6px rgba(0,0,0,0.08);
-                        transition: all 0.2s; z-index: 999999;
-                    `;
-                    btn.onmouseover = () => { btn.style.transform = 'scale(1.08)'; }
-                    btn.onmouseout = () => { btn.style.transform = 'scale(1)'; }
-                    
-                    btn.onclick = () => {
-                        const isMini = sidebar.classList.toggle('is-mini');
-                        btn.innerHTML = isMini 
+                    if (!btn) {
+                        btn = doc.createElement('div');
+                        btn.id = 'custom-collapse-btn';
+                        
+                        btn.innerHTML = isMiniInit 
                             ? `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>` 
                             : `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>`;
-                        localStorage.setItem('sidebar_mini', isMini);
-                        applyMiniNavStyles(sidebar);
-                    };
-                    
-                    if (isMiniInit) {
-                        sidebar.classList.add('is-mini');
+                        
+                        btn.style.cssText = `
+                            position: absolute; right: -13px; top: 42px; width: 26px; height: 26px; 
+                            display: flex; align-items: center; justify-content: center;
+                            cursor: pointer; border-radius: 50%;
+                            box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+                            transition: all 0.2s; z-index: 999999;
+                        `;
+                        
+                        if (isMiniInit) {
+                            sidebar.classList.add('is-mini');
+                        }
+                        
+                        sidebar.appendChild(btn);
                     }
                     
-                    sidebar.appendChild(btn);
+                    // Always update colors and re-attach handlers to ensure theme sync and prevent dead handlers
+                    if (btn) {
+                        btn.style.color = '__BTN_COLOR__';
+                        btn.style.background = '__BTN_BG__';
+                        btn.style.border = '1px solid __BTN_BORDER__';
+                        
+                        btn.onmouseover = () => { btn.style.transform = 'scale(1.08)'; }
+                        btn.onmouseout = () => { btn.style.transform = 'scale(1)'; }
+                        
+                        btn.onclick = () => {
+                            const isMini = sidebar.classList.toggle('is-mini');
+                            btn.innerHTML = isMini 
+                                ? `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>` 
+                                : `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>`;
+                            localStorage.setItem('sidebar_mini', isMini);
+                            applyMiniNavStyles(sidebar);
+                        };
+                    }
                 }
 
                 // Apply styles and tooltips
