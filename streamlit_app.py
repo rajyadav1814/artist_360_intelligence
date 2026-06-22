@@ -4498,7 +4498,10 @@ def show_artists_overview_page() -> None:
         """,
         unsafe_allow_html=True,
     )
-    render_artists_overview(last_run_label)
+    # Pass sidebar-filtered artist names (Latin America, Sony Music, etc.) 
+    # for the Artists Overview dashboard which loads its own data from DB
+    sidebar_filtered_artists = global_filtered["name"].dropna().unique().tolist() if not global_filtered.empty else None
+    render_artists_overview(last_run_label, filtered_artists=sidebar_filtered_artists)
 
 
 def show_redesign_dashboard_page() -> None:

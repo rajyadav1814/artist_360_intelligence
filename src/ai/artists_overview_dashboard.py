@@ -846,7 +846,7 @@ def prefetch_artists_overview_data() -> None:
     _load_artists_overview_data(WINDOW_DAYS)
 
 
-def render_artists_overview(last_run_label: str = "n/a") -> None:
+def render_artists_overview(last_run_label: str = "n/a", filtered_artists: list[str] | None = None) -> None:
     st.markdown(
         f"""
         <div style='display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin:0 0 8px;'>
@@ -1008,6 +1008,16 @@ def render_artists_overview(last_run_label: str = "n/a") -> None:
     current_view_popular_songs_df = popular_songs_df.copy()
     current_view_top_tracks = top_tracks.copy()
     current_view_top_albums = top_albums.copy()
+
+    # Apply sidebar filters (Latin America, Sony Music, etc.) from streamlit_app.py
+    if filtered_artists is not None:
+        current_view_artists_df = current_view_artists_df[current_view_artists_df["name"].isin(filtered_artists)].copy()
+        current_view_songs_rank_df = current_view_songs_rank_df[current_view_songs_rank_df["artist"].isin(filtered_artists)].copy()
+        current_view_albums_rank_df = current_view_albums_rank_df[current_view_albums_rank_df["artist"].isin(filtered_artists)].copy()
+        current_view_chart_days_df = current_view_chart_days_df[current_view_chart_days_df["artist"].isin(filtered_artists)].copy()
+        current_view_popular_songs_df = current_view_popular_songs_df[current_view_popular_songs_df["artist"].isin(filtered_artists)].copy()
+        current_view_top_tracks = top_tracks[top_tracks["artist"].isin(filtered_artists)].copy()
+        current_view_top_albums = top_albums[top_albums["artist"].isin(filtered_artists)].copy()
 
     if selected_artist_name != "Search Artists...":
         current_view_artists_df = current_view_artists_df[current_view_artists_df["name"] == selected_artist_name].copy()

@@ -926,6 +926,7 @@ function changeRegion() {
 
   selectedId = TRACKS[0]?.id;
   applyFilters();
+  if (selectedId) selectTrack(selectedId);
 }
 
 function setTimeWindow(val) {
