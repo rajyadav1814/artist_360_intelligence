@@ -1541,7 +1541,7 @@ def render_artists_overview(last_run_label: str = "n/a") -> None:
         <thead>
           <tr>
             <th style="width:58px">#</th>
-            <th style="width:280px">Song</th>
+            <th style="width:280px">Track</th>
             <th style="width:210px">Artist</th>
             <th style="width:96px">Platform</th>
             <th style="width:92px" class="num">Days</th>
@@ -1572,7 +1572,7 @@ def render_artists_overview(last_run_label: str = "n/a") -> None:
         <thead>
           <tr>
             <th style="width:58px">#</th>
-            <th style="width:280px">Song</th>
+            <th style="width:280px">Track</th>
             <th style="width:210px">Artist</th>
             <th style="width:96px">Platform</th>
             <th style="width:92px" class="num">Best rank</th>
@@ -1794,7 +1794,7 @@ function openSongsDetail(position) {{
       </div>
     </div>
     <div class="detail-grid">
-      <div class="detail-card"><div class="detail-label">Song</div><div class="detail-val" title="${{escLeader(row.title)}}">${{escLeader(row.title)}}</div></div>
+      <div class="detail-card"><div class="detail-label">Track</div><div class="detail-val" title="${{escLeader(row.title)}}">${{escLeader(row.title)}}</div></div>
       <div class="detail-card"><div class="detail-label">Artist</div><div class="detail-val" title="${{escLeader(row.artist)}}">${{escLeader(row.artist)}}</div></div>
       <div class="detail-card"><div class="detail-label">Platform</div><div class="detail-val">${{escLeader(row.platform || 'n/a')}}</div></div>
       <div class="detail-card"><div class="detail-label">Best rank</div><div class="detail-val">${{compactRank(row.bestRank)}}</div></div>
@@ -1846,7 +1846,7 @@ function showAlbumsLeaderboardTable() {{
   document.getElementById('albumsLeaderboardBack')?.classList.remove('show');
   document.getElementById('albumsLeaderboardTitle').textContent = 'Albums Rank Snapshot';
   const rows = ALBUMS_LEADERBOARD.rows || [];
-  document.getElementById('albumsLeaderboardSub').textContent = `${{fmtLeaderNumber(ALBUMS_LEADERBOARD.total || 0)}} catalog albums · ${{fmtLeaderNumber(ALBUMS_LEADERBOARD.listedRows || rows.length)}} ranked albums in last ${{ALBUMS_LEADERBOARD.windowDays || 30}} days`;
+  document.getElementById('albumsLeaderboardSub').textContent = `${{fmtLeaderNumber(ALBUMS_LEADERBOARD.listedRows || rows.length)}} ranked albums in last ${{ALBUMS_LEADERBOARD.windowDays || 30}} days`;
 }}
 function openAlbumsDetail(position) {{
   const row = (ALBUMS_LEADERBOARD.rows || []).find(item => Number(item.position) === Number(position));
@@ -1944,7 +1944,7 @@ function openChartDaysDetail(position) {{
       </div>
     </div>
     <div class="detail-grid">
-      <div class="detail-card"><div class="detail-label">Song</div><div class="detail-val" title="${{escLeader(row.title)}}">${{escLeader(row.title)}}</div></div>
+      <div class="detail-card"><div class="detail-label">Track</div><div class="detail-val" title="${{escLeader(row.title)}}">${{escLeader(row.title)}}</div></div>
       <div class="detail-card"><div class="detail-label">Artist</div><div class="detail-val" title="${{escLeader(row.artist)}}">${{escLeader(row.artist)}}</div></div>
       <div class="detail-card"><div class="detail-label">Platform</div><div class="detail-val">${{escLeader(row.platform || 'n/a')}}</div></div>
       <div class="detail-card"><div class="detail-label">Chart days</div><div class="detail-val">${{fmtLeaderNumber(row.days)}}</div></div>
@@ -1996,7 +1996,7 @@ function showPopularSongsLeaderboardTable() {{
   document.getElementById('popularSongsLeaderboardTableView')?.classList.remove('hide');
   document.getElementById('popularSongsDetailView')?.classList.remove('show');
   document.getElementById('popularSongsLeaderboardBack')?.classList.remove('show');
-  document.getElementById('popularSongsLeaderboardTitle').textContent = 'Popular Songs Snapshot';
+  document.getElementById('popularSongsLeaderboardTitle').textContent = 'Popular Tracks Snapshot';
   const rows = POPULAR_SONGS_LEADERBOARD.rows || [];
   document.getElementById('popularSongsLeaderboardSub').textContent = `${{fmtLeaderNumber(POPULAR_SONGS_LEADERBOARD.listedRows || rows.length)}} ranked tracks in last ${{POPULAR_SONGS_LEADERBOARD.windowDays || 30}} days`;
 }}
@@ -2021,7 +2021,7 @@ function openPopularSongsDetail(position) {{
       </div>
     </div>
     <div class="detail-grid">
-      <div class="detail-card"><div class="detail-label">Song</div><div class="detail-val" title="${{escLeader(row.title)}}">${{escLeader(row.title)}}</div></div>
+      <div class="detail-card"><div class="detail-label">Track</div><div class="detail-val" title="${{escLeader(row.title)}}">${{escLeader(row.title)}}</div></div>
       <div class="detail-card"><div class="detail-label">Artist</div><div class="detail-val" title="${{escLeader(row.artist)}}">${{escLeader(row.artist)}}</div></div>
       <div class="detail-card"><div class="detail-label">Platform</div><div class="detail-val">${{escLeader(row.platform || 'n/a')}}</div></div>
       <div class="detail-card"><div class="detail-label">Best rank</div><div class="detail-val">${{compactRank(row.bestRank)}}</div></div>
