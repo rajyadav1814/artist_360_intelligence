@@ -4660,6 +4660,9 @@ def show_movement_page() -> None:
             color: var(--text) !important;
             box-shadow: inset 0 0 0 1px rgba(251,113,133,.18), 0 6px 16px rgba(251,113,133,.10) !important;
         }
+        div[data-testid="stTabs"] button[role="tab"][aria-selected="true"] p {
+            color: var(--text) !important;
+        }
         div[data-testid="stTabs"] div[data-baseweb="tab-highlight"] {
             display: none !important;
         }
@@ -4702,10 +4705,13 @@ def show_acquisition_page() -> None:
             transform: translateY(-1px);
         }
         div[data-testid="stTabs"] button[role="tab"][aria-selected="true"] {
-            background: linear-gradient(135deg, rgba(255,255,255,.98), rgba(255,232,234,.96)) !important;
+            background: rgba(227,27,35,.14) !important;
             border-color: #e31b23 !important;
-            color: #8f0f1c !important;
+            color: var(--text) !important;
             box-shadow: inset 0 0 0 1px rgba(227,27,35,.18), 0 6px 16px rgba(227,27,35,.12) !important;
+        }
+        div[data-testid="stTabs"] button[role="tab"][aria-selected="true"] p {
+            color: var(--text) !important;
         }
         div[data-testid="stTabs"] div[data-baseweb="tab-highlight"] {
             display: none !important;
