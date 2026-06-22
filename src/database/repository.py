@@ -358,7 +358,7 @@ def save_spotify_daily(data: List[SpotifyDaily]) -> int:
                 rows = [
                     (
                         d.date, d.country, d.rank, d.artist_title,
-                        d.days, d.peak, d.streams, d.streams_change, d.total_streams, d.label, d.rank_change
+                        d.days, d.peak, d.streams, d.streams_change, d.total_streams, d.label, d.rank_change, d.genere
                     )
                     for d in data
                 ]
@@ -366,7 +366,7 @@ def save_spotify_daily(data: List[SpotifyDaily]) -> int:
                     cur,
                     """
                     INSERT INTO spotify_daily
-                        (date, country, rank, artist_title, days, peak, streams, streams_change, total_streams, label, rank_change)
+                        (date, country, rank, artist_title, days, peak, streams, streams_change, total_streams, label, rank_change, genere)
                     VALUES %s
                     ON CONFLICT (date, country, rank, artist_title)
                     DO UPDATE SET
@@ -375,8 +375,9 @@ def save_spotify_daily(data: List[SpotifyDaily]) -> int:
                         streams         = EXCLUDED.streams,
                         streams_change  = EXCLUDED.streams_change,
                         total_streams   = EXCLUDED.total_streams,
-                        label           = EXCLUDED.label,
+                        label           = COALESCE(EXCLUDED.label, spotify_daily.label),
                         rank_change     = EXCLUDED.rank_change,
+                        genere          = COALESCE(EXCLUDED.genere, spotify_daily.genere),
                         scraped_at      = NOW()
                     """,
                     rows
@@ -400,7 +401,7 @@ def save_itunes_daily(data: List[ItunesDaily]) -> int:
                 rows = [
                     (
                         d.date, d.country, d.rank, d.artist_title,
-                        d.days, d.peak, d.points, d.points_change, d.total_points, d.label, d.rank_change
+                        d.days, d.peak, d.points, d.points_change, d.total_points, d.label, d.rank_change, d.genere
                     )
                     for d in data
                 ]
@@ -408,9 +409,19 @@ def save_itunes_daily(data: List[ItunesDaily]) -> int:
                     cur,
                     """
                     INSERT INTO itunes_daily
-                        (date, country, rank, artist_title, days, peak, points, points_change, total_points, label, rank_change)
+                        (date, country, rank, artist_title, days, peak, points, points_change, total_points, label, rank_change, genere)
                     VALUES %s
-                    ON CONFLICT (date, country, rank, artist_title) DO NOTHING
+                    ON CONFLICT (date, country, rank, artist_title)
+                    DO UPDATE SET
+                        days            = EXCLUDED.days,
+                        peak            = EXCLUDED.peak,
+                        points          = EXCLUDED.points,
+                        points_change   = EXCLUDED.points_change,
+                        total_points    = EXCLUDED.total_points,
+                        label           = COALESCE(EXCLUDED.label, itunes_daily.label),
+                        rank_change     = EXCLUDED.rank_change,
+                        genere          = COALESCE(EXCLUDED.genere, itunes_daily.genere),
+                        scraped_at      = NOW()
                     """,
                     rows
                 )

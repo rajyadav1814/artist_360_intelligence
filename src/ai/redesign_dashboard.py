@@ -367,17 +367,23 @@ def _build_dashboard_html(
         )
         fatigue_chart_html = f"<div class='fatigue-chart-container'>{fatigue_chart_html}</div>"
         
-        bar_fig = _make_momentum_bar_charts(focus_pool, dark_mode=dark_mode)
-        if bar_fig.data:
-            bar_html = pio.to_html(
-                bar_fig,
-                config=PLOTLY_CONFIG,
-                full_html=False,
-                include_plotlyjs="cdn",
-                default_width="100%",
-                default_height="320px",
-            )
-            fatigue_chart_html += f"<div class='fatigue-chart-container' style='margin-top:16px;'>{bar_html}</div>"
+        bar_figs = _make_momentum_bar_charts(focus_pool, dark_mode=dark_mode)
+        if bar_figs:
+            cards_html = []
+            for key in ["fatigue", "stable", "climbing"]:
+                fig = bar_figs.get(key)
+                if fig and fig.data:
+                    bar_html = pio.to_html(
+                        fig,
+                        config=PLOTLY_CONFIG,
+                        full_html=False,
+                        include_plotlyjs="cdn",
+                        default_width="100%",
+                        default_height="320px",
+                    )
+                    cards_html.append(f"<div class='fatigue-chart-container'>{bar_html}</div>")
+            if cards_html:
+                fatigue_chart_html += f"<div class='momentum-grid'>{''.join(cards_html)}</div>"
     else:
         fatigue_chart_html = "<div class='empty-msg'>No fatigue map data available for the current slice.</div>"
 
@@ -680,73 +686,73 @@ def _make_fatigue_figure(df: pd.DataFrame, *, dark_mode: bool) -> go.Figure:
     return fig
 
 
-def _make_momentum_bar_charts(df: pd.DataFrame, *, dark_mode: bool) -> go.Figure:
-    from plotly.subplots import make_subplots
+def _make_momentum_bar_charts(df: pd.DataFrame, *, dark_mode: bool) -> dict[str, go.Figure]:
     plot_df = df.dropna(subset=["monthly_listeners"]).copy()
     if plot_df.empty:
-        return go.Figure()
+        return {}
         
     plot_df["fatigue_state"] = np.select(
         [plot_df["rank_delta_30d"] <= -5, plot_df["rank_delta_30d"] >= 5],
         ["fatigue", "climbing"], default="stable",
     )
     
-    fig = make_subplots(
-        rows=1, cols=3, 
-        subplot_titles=("Fatigue (Falling)", "Stable", "Rising"),
-        horizontal_spacing=0.18
-    )
-    
     categories = [
-        ("fatigue", "#fb7185", 1),
-        ("stable", "#94a3b8", 2),
-        ("climbing", "#34d399", 3)
+        ("fatigue", "<b>Fatigue (Falling)</b>", "#fb7185"),
+        ("stable", "<b>Stable</b>", "#94a3b8"),
+        ("climbing", "<b>Rising</b>", "#34d399")
     ]
     
-    for state, color, col in categories:
-        if state == "climbing":
+    figs = {}
+    for key, title, color in categories:
+        if key == "climbing":
             # Top 10 highest positive momentum, sorted ascending for bar chart display
-            sub_df = plot_df[plot_df["fatigue_state"] == state].sort_values("rank_delta_30d", ascending=False).head(10)
+            sub_df = plot_df[plot_df["fatigue_state"] == key].sort_values("rank_delta_30d", ascending=False).head(10)
             sub_df = sub_df.sort_values("rank_delta_30d", ascending=True)
-        elif state == "fatigue":
+        elif key == "fatigue":
             # Top 10 highest negative momentum (most declined), sorted descending for bar chart display
-            sub_df = plot_df[plot_df["fatigue_state"] == state].sort_values("rank_delta_30d", ascending=True).head(10)
+            sub_df = plot_df[plot_df["fatigue_state"] == key].sort_values("rank_delta_30d", ascending=True).head(10)
             sub_df = sub_df.sort_values("rank_delta_30d", ascending=False)
         else:
             # Stable: sort by momentum abs value, display ascending
-            sub_df = plot_df[plot_df["fatigue_state"] == state].sort_values("monthly_listeners", ascending=False).head(10)
+            sub_df = plot_df[plot_df["fatigue_state"] == key].sort_values("monthly_listeners", ascending=False).head(10)
             sub_df = sub_df.sort_values("monthly_listeners", ascending=True)
             
-        if sub_df.empty:
-            continue
-            
-        fig.add_trace(
-            go.Bar(
-                x=sub_df["rank_delta_30d"],
-                y=sub_df["name"],
-                orientation='h',
-                marker_color=color,
-                name=state,
-                showlegend=False,
-                text=sub_df["rank_delta_30d"].apply(lambda x: f"{x:+.0f}"),
-                textposition="auto"
+        fig = go.Figure()
+        if not sub_df.empty:
+            fig.add_trace(
+                go.Bar(
+                    x=sub_df["rank_delta_30d"],
+                    y=sub_df["name"],
+                    orientation='h',
+                    marker_color=color,
+                    name=title,
+                    showlegend=False,
+                    text=sub_df["rank_delta_30d"].apply(lambda x: f"{x:+.0f}"),
+                    textposition="auto",
+                    textangle=0
+                )
+            )
+        
+        fig.update_layout(
+            title=dict(
+                text=title,
+                x=0.5,
+                xanchor="center",
+                font=dict(size=14)
             ),
-            row=1, col=col
+            height=320,
+            margin=dict(l=10, r=10, t=50, b=40),
+            plot_bgcolor="rgba(0,0,0,0)",
+            paper_bgcolor="rgba(0,0,0,0)",
+            font=dict(color="rgba(255,255,255,0.9)" if dark_mode else "rgba(0,0,0,0.8)")
         )
         
-    fig.update_layout(
-        height=320,
-        margin=dict(l=10, r=20, t=30, b=40),
-        plot_bgcolor="rgba(0,0,0,0)",
-        paper_bgcolor="rgba(0,0,0,0)",
-        font=dict(color="rgba(255,255,255,0.9)" if dark_mode else "rgba(0,0,0,0.8)")
-    )
-    
-    for i in range(1, 4):
-        fig.update_xaxes(title_text="30-day Momentum", row=1, col=i, gridcolor="rgba(148,163,184,.12)" if dark_mode else "rgba(148,163,184,.18)")
-        fig.update_yaxes(gridcolor="rgba(148,163,184,.12)" if dark_mode else "rgba(148,163,184,.18)", row=1, col=i, automargin=True)
+        fig.update_xaxes(title_text="30-day Momentum", gridcolor="rgba(148,163,184,.12)" if dark_mode else "rgba(148,163,184,.18)")
+        fig.update_yaxes(gridcolor="rgba(148,163,184,.12)" if dark_mode else "rgba(148,163,184,.18)", automargin=True)
         
-    return fig
+        figs[key] = fig
+        
+    return figs
 
 
 # ── Main render entry point ─────────────────────────────────────────────────
@@ -1284,6 +1290,12 @@ body {
   margin-bottom: 16px;
   box-shadow: 0 4px 20px rgba(0,0,0,0.06);
 }
+.momentum-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 16px;
+}
 .a360-fatigue-alert {
   display: flex;
   align-items: flex-start;
@@ -1304,7 +1316,7 @@ body {
 /* Roster health */
 .roster-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
 }
 .rc {
@@ -1388,7 +1400,7 @@ body {
 /* What changes */
 .spec-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
   margin-top: 16px;
 }
@@ -1439,8 +1451,13 @@ body {
   padding: 10px 20px 20px; overflow-y: auto; flex: 1;
 }
 
+@media(max-width:1200px){
+  .brief-grid{grid-template-columns:repeat(2, minmax(0, 1fr))}
+  .roster-grid{grid-template-columns:repeat(2, minmax(0, 1fr))}
+  .spec-grid{grid-template-columns:repeat(2, minmax(0, 1fr))}
+}
 @media(max-width:900px){
-  .brief-grid,.acq-grid,.roster-grid,.spec-grid,.kpi-strip{grid-template-columns:1fr}
+  .brief-grid,.acq-grid,.roster-grid,.spec-grid,.kpi-strip,.momentum-grid{grid-template-columns:1fr}
   .tab-bar{overflow-x:auto}
 }
 </style></head><body>
@@ -1452,6 +1469,7 @@ body {
     <button class='tab active' onclick="showTab(event,'brief')"><span class='tab-icon' aria-hidden='true'>▣</span>Today's Brief</button>
     <button class='tab' onclick="showTab(event,'fatigue')"><span class='tab-icon' aria-hidden='true'>♪</span>Fatigue Map</button>
     <button class='tab' onclick="showTab(event,'roster')"><span class='tab-icon' aria-hidden='true'>◔</span>Roster Health</button>
+    <button class='tab' onclick="showTab(event,'dependencies')"><span class='tab-icon' aria-hidden='true'>⚙</span>Dependencies</button>
   </div>
 
   <!-- SCREEN 1: Today's Brief -->
@@ -1475,45 +1493,48 @@ body {
     <h2 class='screen-title'><span class='title-icon' aria-hidden='true'>◉</span>Roster health</h2>
     <p class='screen-sub'>One card per signed artist — holding, rising, or slipping, with rank trend and weakest market. Signed artists · 30-day window.</p>
     <div id='roster-cards'></div>
-    <div style='margin-top:24px'>
-      <div class='screen-kicker'><span class='section-kicker-icon' aria-hidden='true'>⚙</span>Dependencies</div>
-      <h2 class='screen-title' style='margin-bottom:4px'><span class='title-icon' aria-hidden='true'>⚙</span>What changes, and what it depends on</h2>
-      <p class='screen-sub'>Which KPIs are cut, which stay decision-grade, and what data must land before the filters stop being visual only.</p>
-      <div class='spec-grid'>
-        <div class='spec-card'>
-          <h3>KPIs cut (knowing, not deciding)</h3>
-          <p>Useful reference metrics — none directly support a decision in the new story.</p>
-          <ul class='spec-list'>
-            <li>Total Points — composite, no decision attached</li>
-            <li>Position Strength Score + its bar chart</li>
-            <li>Stream Signal (970.8M) as a hero number</li>
-            <li>iTunes Points (1.1M) as a headline KPI</li>
-            <li>Duplicate listener cards: 5 instances → 1</li>
-            <li>Track / Album / Artist Movement as its own module</li>
-            <li>Label Power Score — demoted to appendix</li>
-          </ul>
-        </div>
-        <div class='spec-card'>
-          <h3>Two data fields required (task zero)</h3>
-          <p>The radar, fatigue, and roster views need both before they can be production-ready.</p>
-          <ul class='spec-list'>
-            <li>Per-artist / per-track country trend — at minimum each entity's weakest market and trend.</li>
-            <li>Signed vs independent status plus the label name, so filters stop relying on proxies.</li>
-          </ul>
-          <div class='spec-kept' style='margin-top:10px'><strong>Why it matters:</strong> without these two fields, the LATAM filter, the independent filter, and the fatigue/roster "where" stay decorative.</div>
-        </div>
+  </div>
+
+  <!-- SCREEN 5: Dependencies -->
+  <div class='panel' id='panel-dependencies'>
+    <div class='screen-kicker'><span class='section-kicker-icon' aria-hidden='true'>⚙</span>Dependencies</div>
+    <h2 class='screen-title' style='margin-bottom:4px'><span class='title-icon' aria-hidden='true'>⚙</span>What changes, and what it depends on</h2>
+    <p class='screen-sub'>Which KPIs are cut, which stay decision-grade, and what data must land before the filters stop being visual only.</p>
+    <div class='spec-grid'>
+      <div class='spec-card'>
+        <h3>KPIs cut (knowing, not deciding)</h3>
+        <p>Useful reference metrics — none directly support a decision in the new story.</p>
+        <ul class='spec-list'>
+          <li>Total Points — composite, no decision attached</li>
+          <li>Position Strength Score + its bar chart</li>
+          <li>Stream Signal (970.8M) as a hero number</li>
+          <li>iTunes Points (1.1M) as a headline KPI</li>
+          <li>Duplicate listener cards: 5 instances → 1</li>
+          <li>Track / Album / Artist Movement as its own module</li>
+          <li>Label Power Score — demoted to appendix</li>
+        </ul>
       </div>
-      <div class='spec-kept' style='margin-top:10px'>
-        <strong>KPIs kept (each drives a decision):</strong>
-        <ul class='spec-list' style='margin-top:8px'>
+      <div class='spec-card'>
+        <h3>Two data fields required (task zero)</h3>
+        <p>The radar, fatigue, and roster views need both before they can be production-ready.</p>
+        <ul class='spec-list'>
+          <li>Per-artist / per-track country trend — at minimum each entity's weakest market and trend.</li>
+          <li>Signed vs independent status plus the label name, so filters stop relying on proxies.</li>
+        </ul>
+        <div class='spec-kept' style='margin-top:10px'><strong>Why it matters:</strong> without these two fields, the LATAM filter, the independent filter, and the fatigue/roster "where" stay decorative.</div>
+      </div>
+      <div class='spec-card'>
+        <h3>KPIs kept (each drives a decision)</h3>
+        <p>Decision-grade metrics that stay central to the story.</p>
+        <ul class='spec-list'>
           <li>30-day momentum — acquire + fatigue</li>
           <li>Acquisition Score — acquire ranking</li>
           <li>Rank + movement chip — hold / fatigue</li>
           <li>Monthly listeners (one instance) — fatigue axis</li>
         </ul>
       </div>
-      <p class='final-note'>Once per-country artist trajectories and a confirmed signed/independent flag land in the model, the radar and roster views can split cleanly by market and roster type. Until then, this page is intentionally framed as a prototype so the missing data is obvious, not hidden.</p>
     </div>
+    <p class='final-note'>Once per-country artist trajectories and a confirmed signed/independent flag land in the model, the radar and roster views can split cleanly by market and roster type. Until then, this page is intentionally framed as a prototype so the missing data is obvious, not hidden.</p>
   </div>
 
   <div class='modal-overlay' id='kpi-modal' onclick='closeModal(event)'>
@@ -1566,7 +1587,7 @@ function labelBadge(type, str){
 }
 function briefArtistRow(r){
   const momCls = r.mom>0?'up':r.mom<0?'dn':'';
-  const momText = Math.abs(r.mom)>=0.5?(r.mom>0?'+':'')+r.mom.toFixed(0)+' mom':'flat';
+  const momText = Math.abs(r.mom)>=0.5?(r.mom>0?'+':'')+r.mom.toFixed(0)+' momentum':'flat';
   const listenersHtml = `<span class='ar-listeners'>${r.listeners} listeners</span>`;
   const trackAndLabel = [r.label_str].filter(x => x && x !== '—').join(' - ');
   return `<div class='artist-row'>
@@ -1602,7 +1623,7 @@ document.getElementById('brief-grid').innerHTML = [
 
 function showTabById(id){
   const tabs = document.querySelectorAll('.tab');
-  const map = {brief:0,fatigue:1,roster:2};
+  const map = {brief:0,fatigue:1,roster:2,dependencies:3};
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
   tabs[map[id]].classList.add('active');

@@ -5,6 +5,7 @@ Spotify Global + iTunes WW daily chart data.
 from __future__ import annotations
 
 import json
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date
 from typing import Any
 
@@ -13,6 +14,7 @@ import streamlit as st
 import streamlit.components.v1 as st_components
 
 from src.database.connection import get_connection
+from src.utils.image_utils import get_artist_audiodb_info
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -121,6 +123,49 @@ def get_processed_track_rows(sp_df: pd.DataFrame, it_df: pd.DataFrame, dates: li
     return _build_track_rows(sp_df, it_df, dates, region=region)
 
 
+@st.cache_data(ttl=299, show_spinner=False)
+def get_all_region_track_rows(
+    sp_all_df: pd.DataFrame,
+    it_global_df: pd.DataFrame,
+    it_ww_df: pd.DataFrame,
+    dates: list[date],
+    latam_codes: tuple[str, ...],
+    limit: int = 100,
+) -> dict[str, list[dict[str, Any]]]:
+    """Build track rows for every region (global, US, all LATAM countries) in a
+    single cached call instead of one `get_processed_track_rows` call per
+    country.
+
+    Previously this dashboard called the cached per-region builder once for
+    "global", once for "us", and once for *each* of the 18 LATAM country
+    codes — 20 separate `st.cache_data` lookups, each of which has to hash
+    its own (sliced) DataFrame argument before it can even check the cache.
+    That hashing cost is paid on every rerun regardless of cache hits.
+
+    Splitting `sp_all_df` by country with a single `groupby` up front (instead
+    of re-filtering the full DataFrame with a boolean mask 18 times) and
+    wrapping the whole batch in one cache entry collapses ~20 hash + lookup
+    round trips into 1.
+    """
+    results: dict[str, list[dict[str, Any]]] = {}
+
+    results["global"] = _build_track_rows(sp_all_df, it_global_df, dates, region="Global")[:limit]
+
+    if sp_all_df.empty:
+        sp_by_country: dict[str, pd.DataFrame] = {}
+    else:
+        sp_by_country = {code: grp for code, grp in sp_all_df.groupby("country", sort=False)}
+
+    sp_us = sp_by_country.get("us", pd.DataFrame())
+    results["us"] = _build_track_rows(sp_us, it_ww_df, dates, region="US")[:limit]
+
+    for code in latam_codes:
+        sp_code = sp_by_country.get(code, pd.DataFrame())
+        results[code] = _build_track_rows(sp_code, it_ww_df, dates, region=code.upper())[:limit]
+
+    return results
+
+
 def _fmt_n(n: float | int | None) -> str:
     if n is None or n == 0:
         return "—"
@@ -157,14 +202,26 @@ def _build_track_rows(sp_df: pd.DataFrame, it_df: pd.DataFrame, dates: list[date
     sp_ranks_p = sp_df.pivot_table(index='artist_title', columns='date', values='rank', aggfunc='min').reindex(columns=dates) if not sp_df.empty else pd.DataFrame(index=[], columns=dates)
     # Get most frequent label per track
     labels_map = sp_df.groupby('artist_title')['label'].apply(lambda x: str(x.mode().iat[0]) if not x.dropna().empty else "Independent").to_dict() if (not sp_df.empty and "label" in sp_df.columns) else {}
-    
+
     # iTunes
     it_scores_p = it_df.pivot_table(index='artist_title', columns='date', values='metric', aggfunc='sum').reindex(columns=dates, fill_value=0) if not it_df.empty else pd.DataFrame(index=[], columns=dates)
     it_ranks_p = it_df.pivot_table(index='artist_title', columns='date', values='rank', aggfunc='min').reindex(columns=dates) if not it_df.empty else pd.DataFrame(index=[], columns=dates)
 
     tracks: list[dict[str, Any]] = []
     all_track_titles = sorted(set(sp_streams_p.index) | set(it_scores_p.index))
-    
+
+    # ── Pre-fetch strGenre from TheAudioDB once per unique artist ──
+    unique_artists: set[str] = set()
+    for track in all_track_titles:
+        if track:
+            artist, _ = _split_at(track)
+            unique_artists.add(artist)
+    genre_map: dict[str, str] = {}
+    for artist_name in unique_artists:
+        info = get_artist_audiodb_info(artist_name)
+        if info.get("genre"):
+            genre_map[artist_name] = info["genre"]
+
     for track in all_track_titles:
         if not track: continue
         
@@ -240,7 +297,7 @@ def _build_track_rows(sp_df: pd.DataFrame, it_df: pd.DataFrame, dates: list[date
             "title": title,
             "artist": artist,
             "label": label,
-            "genre": "—",
+            "genre": genre_map.get(artist, "—"),
             "platform": platform,
             "spStreams": sp_streams,
             "spRanks": sp_ranks,
@@ -332,29 +389,34 @@ def render_track_acquisition(labels_filter: list[str] | None = None) -> None:
     window_days = 30
     latam_codes = ["ar", "bo", "br", "cl", "co", "cr", "do", "ec", "sv", "gt", "hn", "mx", "ni", "pa", "pe", "py", "uy", "ve"]
     all_codes = ["global", "us"] + latam_codes
+    it_all_codes = ["ww", "us"]
 
-    sp_all_df = _load_window_multi("spotify_daily", all_codes, window_days)
+    # These two queries are independent (different tables, separate
+    # connections via _run_query) so there's no reason to wait on one before
+    # starting the other.
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        f_sp_all = executor.submit(_load_window_multi, "spotify_daily", all_codes, window_days)
+        f_it_all = executor.submit(_load_window_multi, "itunes_daily", it_all_codes, window_days)
+        sp_all_df = f_sp_all.result()
+        it_all_df = f_it_all.result()
+
     if labels_filter and not sp_all_df.empty and "label" in sp_all_df.columns:
         sp_all_df = sp_all_df[sp_all_df["label"].isin(labels_filter)]
     
     sp_global_df = sp_all_df if not sp_all_df.empty else pd.DataFrame()
-    sp_us_df = sp_all_df[sp_all_df["country"] == "us"] if not sp_all_df.empty else pd.DataFrame()
-    latam_dfs = {code: sp_all_df[sp_all_df["country"] == code] if not sp_all_df.empty else pd.DataFrame() for code in latam_codes}
 
-    it_all_codes = ["ww", "us"]
-    it_all_df = _load_window_multi("itunes_daily", it_all_codes, window_days)
     if labels_filter and not it_all_df.empty and "label" in it_all_df.columns:
         it_all_df = it_all_df[it_all_df["label"].isin(labels_filter)]
         
     it_global_df = it_all_df if not it_all_df.empty else pd.DataFrame()
     it_ww_df = it_all_df[it_all_df["country"] == "ww"] if not it_all_df.empty else pd.DataFrame()
 
-    if sp_global_df.empty and sp_us_df.empty and it_global_df.empty and all(df.empty for df in latam_dfs.values()):
+    if sp_global_df.empty and it_global_df.empty:
         st.warning("No daily chart data available to build the track acquisition view.")
         return
 
     date_set = set()
-    for df in [sp_global_df, sp_us_df, it_global_df, it_ww_df] + list(latam_dfs.values()):
+    for df in [sp_global_df, it_global_df, it_ww_df]:
         if not df.empty:
             date_set.update(df["date"].tolist())
 
@@ -363,9 +425,17 @@ def render_track_acquisition(labels_filter: list[str] | None = None) -> None:
         return
 
     dates = sorted(date_set)
-    global_tracks = get_processed_track_rows(sp_global_df, it_global_df, dates, region="Global")[:100]
-    us_tracks = get_processed_track_rows(sp_us_df, it_ww_df, dates, region="US")[:100]
-    latam_tracks = {code: get_processed_track_rows(df, it_ww_df, dates, region=code.upper())[:100] for code, df in latam_dfs.items()}
+
+    # Build track rows for every region (global, US, and all LATAM codes) in
+    # one batched + cached pass instead of 20 separate cached calls, each of
+    # which previously had to hash its own sliced DataFrame before it could
+    # even check the cache. See get_all_region_track_rows for details.
+    all_region_tracks = get_all_region_track_rows(
+        sp_all_df, it_global_df, it_ww_df, dates, tuple(latam_codes), limit=100
+    )
+    global_tracks = all_region_tracks.get("global", [])
+    us_tracks = all_region_tracks.get("us", [])
+    latam_tracks = {code: all_region_tracks.get(code, []) for code in latam_codes}
 
     if not global_tracks and not us_tracks and not any(latam_tracks.values()):
         st.warning("No track acquisition rows could be built from the available chart data.")

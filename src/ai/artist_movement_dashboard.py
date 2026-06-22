@@ -186,7 +186,7 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
         }
         .ct-kpi{
             background:var(--surface);border:1px solid var(--border);border-radius:12px;
-            padding:16px 18px;transition:.15s;position:relative;overflow:hidden;
+            padding:6px 18px;transition:.15s;position:relative;overflow:hidden;
             box-shadow:0 2px 8px rgba(0,0,0,.06);
         }
         .ct-kpi:hover{transform:translateY(-2px);border-color:var(--accent);
@@ -253,7 +253,14 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
 
     unique_runs = int(history["scraped_at"].nunique()) if not history.empty else 0
 
-    col1, col2, col3 = st.columns([1, 1, 1])
+    col_text, col1, col2, col3 = st.columns([1.5, 1, 1, 1])
+    with col_text:
+        st.markdown(
+            "<div style='font-size: 0.92rem; color: var(--t2); margin: 0 0 14px; line-height: 1.5; font-weight: 500;'>"
+            "Rank momentum across iTunes worldwide artist rankings."
+            "</div>",
+            unsafe_allow_html=True,
+        )
     with col1:
         time_range = custom_selectbox("📅 Time Range", ["7 days", "14 days", "30 days"], index=2, key="ct_range")
     with col2:
@@ -555,24 +562,54 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
           }}
         }});
 
+        let highlightedIndex = null;
+
         function renderLegend() {{
           const leg = document.getElementById('legend');
           leg.innerHTML = '';
           myChart.data.datasets.forEach((ds, i) => {{
-            const meta = myChart.getDatasetMeta(i);
-            const isHidden = meta.hidden === true;
+            if (!ds.originalBorderColor) {{
+               ds.originalBorderColor = ds.borderColor;
+               ds.originalBackgroundColor = ds.backgroundColor;
+            }}
+            const isOtherHighlighted = highlightedIndex !== null && highlightedIndex !== i;
+            
             const btn = document.createElement('button');
-            btn.className = 'leg-btn' + (isHidden ? ' hidden' : '');
+            btn.className = 'leg-btn' + (isOtherHighlighted ? ' hidden' : '');
             btn.onclick = () => {{
-              meta.hidden = meta.hidden === null ? !myChart.data.datasets[i].hidden : null;
+              if (highlightedIndex === i) {{
+                highlightedIndex = null; // Toggle off
+              }} else {{
+                highlightedIndex = i; // Highlight this one
+              }}
+              
+              myChart.data.datasets.forEach((dataset, j) => {{
+                if (highlightedIndex === null) {{
+                   dataset.borderWidth = 2.5;
+                   dataset.borderColor = dataset.originalBorderColor;
+                   dataset.backgroundColor = dataset.originalBackgroundColor;
+                   dataset.order = j;
+                }} else if (highlightedIndex === j) {{
+                   dataset.borderWidth = 4;
+                   dataset.borderColor = dataset.originalBorderColor;
+                   dataset.backgroundColor = dataset.originalBackgroundColor;
+                   dataset.order = -1; // Draw on top
+                }} else {{
+                   dataset.borderWidth = 1.5;
+                   // Add transparency (33 in hex is ~20% opacity)
+                   dataset.borderColor = dataset.originalBorderColor + '33';
+                   dataset.backgroundColor = dataset.originalBackgroundColor + '11';
+                   dataset.order = j;
+                }}
+              }});
               myChart.update();
               renderLegend();
             }};
-            btn.innerHTML = `<span class="dot" style="background: ${{ds.borderColor}}"></span> ${{ds.label}}`;
+            btn.innerHTML = `<span class="dot" style="background: ${{ds.originalBorderColor}}"></span> ${{ds.label}}`;
             leg.appendChild(btn);
           }});
         }}
-        
+
         let allHidden = false;
         function toggleAll() {{
           allHidden = !allHidden;

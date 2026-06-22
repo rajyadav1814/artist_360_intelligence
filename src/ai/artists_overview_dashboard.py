@@ -356,7 +356,15 @@ def _load_track_dashboard(days: int = WINDOW_DAYS) -> tuple[pd.DataFrame, pd.Dat
 
 
 @st.cache_data(ttl=300, show_spinner=False)
-def _load_songs_rank_leaderboard(days: int = WINDOW_DAYS) -> pd.DataFrame:
+def _load_track_rank_base(days: int = WINDOW_DAYS) -> pd.DataFrame:
+    """Single shared aggregation for the songs-rank and chart-days leaderboards.
+
+    These two leaderboards previously ran two independent full scans of
+    spotify_daily/itunes_daily with identical GROUP BY artist, title logic
+    and only differed in their final ORDER BY. They are merged into one
+    cached query here; callers sort the result differently in pandas
+    instead of re-querying the database.
+    """
     query = """
         WITH sp_bounds AS (SELECT MAX(date) AS max_d FROM spotify_daily),
         it_bounds AS (SELECT MAX(date) AS max_d FROM itunes_daily),
@@ -415,7 +423,6 @@ def _load_songs_rank_leaderboard(days: int = WINDOW_DAYS) -> pd.DataFrame:
           AND btrim(title) <> ''
           AND lower(btrim(title)) NOT IN ('null', 'none', 'nan', 'unknown')
         GROUP BY artist, title
-        ORDER BY best_rank ASC, metric DESC, chart_days DESC
     """
     rows = _run_query(query, (days, days))
     if not rows:
@@ -426,75 +433,24 @@ def _load_songs_rank_leaderboard(days: int = WINDOW_DAYS) -> pd.DataFrame:
     return df
 
 
-@st.cache_data(ttl=300, show_spinner=False)
+def _load_songs_rank_leaderboard(days: int = WINDOW_DAYS) -> pd.DataFrame:
+    """Derived from the shared `_load_track_rank_base` cache — no extra DB hit."""
+    df = _load_track_rank_base(days)
+    if df.empty:
+        return df
+    return df.sort_values(
+        ["best_rank", "metric", "chart_days"], ascending=[True, False, False]
+    ).reset_index(drop=True)
+
+
 def _load_chart_days_leaderboard(days: int = WINDOW_DAYS) -> pd.DataFrame:
-    query = """
-        WITH sp_bounds AS (SELECT MAX(date) AS max_d FROM spotify_daily),
-        it_bounds AS (SELECT MAX(date) AS max_d FROM itunes_daily),
-        raw_rows AS (
-            SELECT
-                'Spotify'::text AS platform,
-                d.artist_title,
-                d.rank,
-                d.days,
-                d.streams::numeric AS metric,
-                d.date
-            FROM spotify_daily d, sp_bounds b
-            WHERE d.date > (b.max_d - %s::int)
-              AND d.date <= b.max_d
-            UNION ALL
-            SELECT
-                'iTunes'::text AS platform,
-                d.artist_title,
-                d.rank,
-                d.days,
-                d.points::numeric AS metric,
-                d.date
-            FROM itunes_daily d, it_bounds b
-            WHERE d.date > (b.max_d - %s::int)
-              AND d.date <= b.max_d
-        ),
-        parsed AS MATERIALIZED (
-            SELECT
-                platform,
-                CASE
-                    WHEN position(' - ' in artist_title) > 0 THEN split_part(artist_title, ' - ', 1)
-                    ELSE COALESCE(NULLIF(artist_title, ''), 'Unknown')
-                END AS artist,
-                CASE
-                    WHEN position(' - ' in artist_title) > 0 THEN substring(artist_title from position(' - ' in artist_title) + 3)
-                    ELSE COALESCE(NULLIF(artist_title, ''), 'Unknown')
-                END AS title,
-                rank,
-                COALESCE(days, 0) AS days,
-                COALESCE(metric, 0) AS metric,
-                date
-            FROM raw_rows
-        )
-        SELECT
-            string_agg(DISTINCT platform, ', ') AS platform,
-            artist,
-            title,
-            COUNT(DISTINCT date) AS chart_days,
-            MIN(rank) AS best_rank,
-            SUM(metric) AS metric,
-            COUNT(*) AS entries,
-            MAX(date) AS latest_date
-        FROM parsed
-        WHERE btrim(artist) <> ''
-          AND lower(btrim(artist)) NOT IN ('null', 'none', 'nan', 'unknown')
-          AND btrim(title) <> ''
-          AND lower(btrim(title)) NOT IN ('null', 'none', 'nan', 'unknown')
-        GROUP BY artist, title
-        ORDER BY chart_days DESC, metric DESC, best_rank ASC
-    """
-    rows = _run_query(query, (days, days))
-    if not rows:
-        return pd.DataFrame(columns=["platform", "artist", "title", "chart_days", "best_rank", "metric", "entries", "latest_date"])
-    df = pd.DataFrame(rows)
-    for col in ["chart_days", "best_rank", "metric", "entries"]:
-        df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
-    return df
+    """Derived from the shared `_load_track_rank_base` cache — no extra DB hit."""
+    df = _load_track_rank_base(days)
+    if df.empty:
+        return df
+    return df.sort_values(
+        ["chart_days", "metric", "best_rank"], ascending=[False, False, True]
+    ).reset_index(drop=True)
 
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -828,15 +784,45 @@ def _load_artists_overview_data(days: int = WINDOW_DAYS) -> tuple[
     pd.DataFrame,
     pd.DataFrame,
 ]:
-    latest_artists = _load_artist_rank_history(days)
-    spotify_df = _load_spotify_artist_latest()
-    details_df = _load_artist_details_latest()
-    track_artist_stats, top_tracks, track_kpis = _load_track_dashboard(days)
-    songs_rank_df = _load_songs_rank_leaderboard(days)
-    album_artist_stats, top_albums, album_kpis = _load_album_dashboard(days)
-    albums_rank_df = _load_albums_rank_leaderboard(days)
-    chart_days_df = _load_chart_days_leaderboard(days)
-    popular_songs_df = _load_popular_songs_leaderboard(days)
+    # All of the loaders below run independent queries against independent
+    # connections (see _run_query), so there is no reason to wait on them
+    # one-by-one. Fan them out to a thread pool and join at the end. This
+    # collapses ~8 sequential round trips into roughly the time of the
+    # slowest single query instead of the sum of all of them.
+    from concurrent.futures import ThreadPoolExecutor
+
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        f_latest_artists = executor.submit(_load_artist_rank_history, days)
+        f_spotify_df = executor.submit(_load_spotify_artist_latest)
+        f_details_df = executor.submit(_load_artist_details_latest)
+        f_track_dashboard = executor.submit(_load_track_dashboard, days)
+        f_track_rank_base = executor.submit(_load_track_rank_base, days)
+        f_album_dashboard = executor.submit(_load_album_dashboard, days)
+        f_albums_rank_df = executor.submit(_load_albums_rank_leaderboard, days)
+        f_popular_songs_df = executor.submit(_load_popular_songs_leaderboard, days)
+
+        latest_artists = f_latest_artists.result()
+        spotify_df = f_spotify_df.result()
+        details_df = f_details_df.result()
+        track_artist_stats, top_tracks, track_kpis = f_track_dashboard.result()
+        track_rank_base = f_track_rank_base.result()
+        album_artist_stats, top_albums, album_kpis = f_album_dashboard.result()
+        albums_rank_df = f_albums_rank_df.result()
+        popular_songs_df = f_popular_songs_df.result()
+
+    # Both leaderboards are sorted views of the same shared aggregation —
+    # no extra DB round trip needed for either of them.
+    if track_rank_base.empty:
+        songs_rank_df = track_rank_base
+        chart_days_df = track_rank_base
+    else:
+        songs_rank_df = track_rank_base.sort_values(
+            ["best_rank", "metric", "chart_days"], ascending=[True, False, False]
+        ).reset_index(drop=True)
+        chart_days_df = track_rank_base.sort_values(
+            ["chart_days", "metric", "best_rank"], ascending=[False, False, True]
+        ).reset_index(drop=True)
+
     filtered = _build_artist_table(latest_artists, spotify_df, details_df, track_artist_stats, album_artist_stats)
     return (
         latest_artists,
@@ -926,7 +912,7 @@ def render_artists_overview(last_run_label: str = "n/a") -> None:
     # all_artists_combined_df is already sorted by rank in _build_artist_table
     all_artist_names = ["Search Artists..."] + all_artists_combined_df["name"].dropna().unique().tolist()
     
-    col1, col2 = st.columns([0.3, 0.7])
+    col1, col2 = st.columns([0.5, 0.5])
     with col1:
         st.markdown(
             """
@@ -980,14 +966,27 @@ def render_artists_overview(last_run_label: str = "n/a") -> None:
                 pointer-events: none !important;
                 z-index: 10 !important;
             }
-            /* Style label to look modern */
+            /* Style label to look modern and inline */
+            div.element-container:has(div.gradient-marker) + div.element-container div[data-testid="stSelectbox"] {
+                display: flex !important;
+                flex-direction: row !important;
+                align-items: center !important;
+                gap: 16px !important;
+                margin-bottom: 0 !important;
+            }
+            div.element-container:has(div.gradient-marker) + div.element-container div[data-testid="stSelectbox"] label {
+                margin-bottom: 0 !important;
+                min-height: auto !important;
+            }
             div.element-container:has(div.gradient-marker) + div.element-container div[data-testid="stSelectbox"] label p {
                 font-weight: 700 !important;
                 letter-spacing: 0.02em !important;
-                margin-bottom: 3px !important;
-            }
-            div.element-container:has(div.gradient-marker) + div.element-container div[data-testid="stSelectbox"] {
                 margin-bottom: 0 !important;
+                white-space: nowrap !important;
+            }
+            div.element-container:has(div.gradient-marker) + div.element-container div[data-testid="stSelectbox"] > div[data-baseweb="select"] {
+                flex-grow: 1 !important;
+                width: 100% !important;
             }
             </style>
             """,
@@ -1343,9 +1342,25 @@ def render_artists_overview(last_run_label: str = "n/a") -> None:
         )
 
     def donut_html(df: pd.DataFrame, artist_filter_col: str = "name") -> str:
-        if df.empty or "top_country" not in df.columns:
+        if df.empty:
             return "<section class='panel'><div class='panel-head'><div><h3>Top Country</h3><p>Most common lead market among ranked artists.</p></div></div><div class='empty'>No country rows available.</div></section>"
-        counts = df["top_country"].fillna("Unknown").replace("", "Unknown").value_counts().head(5)
+            
+        if len(df) == 1 and "top_countries" in df.columns:
+            countries_str = str(df.iloc[0].get("top_countries") or "")
+            if not countries_str or countries_str.lower() in ("nan", "none", "—"):
+                counts = df["top_country"].fillna("Unknown").replace("", "Unknown").value_counts().head(5) if "top_country" in df.columns else pd.Series()
+            else:
+                countries_list = [c.strip() for c in countries_str.replace('\n', ',').split(',') if c.strip()]
+                counts = pd.Series(countries_list).value_counts().head(5)
+                # Since all counts might be 1, let's just show them
+        else:
+            if "top_country" not in df.columns:
+                return "<section class='panel'><div class='panel-head'><div><h3>Top Country</h3><p>Most common lead market among ranked artists.</p></div></div><div class='empty'>No country rows available.</div></section>"
+            counts = df["top_country"].fillna("Unknown").replace("", "Unknown").value_counts().head(5)
+            
+        if counts.empty:
+            return "<section class='panel'><div class='panel-head'><div><h3>Top Country</h3><p>Most common lead market among ranked artists.</p></div></div><div class='empty'>No country rows available.</div></section>"
+            
         total = float(counts.sum()) or 1.0
         colors = ["#fb7185", "#60a5fa", "#34d399", "#c4b5fd", "#fcd34d"]
         segments, legend, start = [], [], 0.0
@@ -1356,8 +1371,12 @@ def render_artists_overview(last_run_label: str = "n/a") -> None:
             segments.append(f"{color} {start:.1f}deg {end:.1f}deg")
             legend.append(f"<div class='legend-row'><span style='background:{color}'></span><b>{escape(str(label))}</b><i>{int(value)}</i></div>")
             start = end
+            
+        title_text = "Artist Markets" if len(df) == 1 else "Top Country"
+        desc_text = "Markets where the artist is currently charting." if len(df) == 1 else "Most common lead market among ranked artists."
+        
         return (
-            "<section class='panel donut-panel'><div class='panel-head'><div><h3>Top Country</h3><p>Most common lead market among ranked artists.</p></div></div>"
+            f"<section class='panel donut-panel'><div class='panel-head'><div><h3>{title_text}</h3><p>{desc_text}</p></div></div>"
             "<div class='donut-layout'>"
             f"<div class='donut' style='background:conic-gradient({', '.join(segments)})'><span>{escape(_fmt_n(total))}</span></div>"
             f"<div class='legend'>{''.join(legend)}</div></div></section>"
@@ -1420,18 +1439,18 @@ def render_artists_overview(last_run_label: str = "n/a") -> None:
 *{box-sizing:border-box}body{margin:0;font-family:Inter,ui-sans-serif,system-ui;background:transparent}.dash{min-height:800px;padding:18px;color:var(--text);background:transparent}
 .dash.dark{--bg:linear-gradient(135deg,#0d1117 0%,#111827 42%,#17152a 72%,#261d3d 100%);--panel:#161b26;--panel2:#1f2633;--panel3:#283041;--text:#f8fafc;--muted:#cdd6e4;--soft:#94a3b8;--border:rgba(148,163,184,.15);--track:rgba(148,163,184,.13);--shadow:0 18px 42px rgba(0,0,0,.24);--rose:#fb7185;--blue:#60a5fa;--green:#34d399;--purple:#c4b5fd;--amber:#fcd34d}
 .dash.light{--bg:linear-gradient(135deg,#f5f6fa 0%,#ffffff 58%,#f1f5f9 100%);--panel:#ffffff;--panel2:#f8f9fb;--panel3:#f1f5f9;--text:#0f172a;--muted:#475569;--soft:#64748b;--border:rgba(148,163,184,.28);--track:rgba(15,23,42,.06);--shadow:0 10px 25px rgba(0,0,0,.04);--rose:#e11d48;--blue:#2563eb;--green:#10b981;--purple:#7c3aed;--amber:#d97706}
-.kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px;margin-bottom:16px}.kpi{min-height:105px;border-radius:16px;background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--border);padding:16px 14px;display:flex;align-items:center;gap:12px;box-shadow:var(--shadow);position:relative;overflow:hidden}.kpi-action{cursor:pointer;transition:transform .16s ease,border-color .16s ease,box-shadow .16s ease}.kpi-action:hover,.kpi-action:focus-visible{transform:translateY(-2px);border-color:rgba(251,113,133,.48);box-shadow:0 22px 48px rgba(251,113,133,.16),var(--shadow);outline:0}.kpi:before{content:"";position:absolute;inset:0 auto 0 0;width:4px;background:var(--accent)}.kpi-icon{width:44px;height:44px;border-radius:14px;color:#fff;background:linear-gradient(135deg,var(--accent),var(--accent2));font-size:24px;display:flex;align-items:center;justify-content:center;flex:0 0 auto}.kpi-copy{min-width:0;flex:1}.kpi:nth-child(1){--accent:var(--rose);--accent2:#f43f5e}.kpi:nth-child(2){--accent:var(--blue);--accent2:#2563eb}.kpi:nth-child(3){--accent:var(--green);--accent2:#10b981}.kpi:nth-child(4){--accent:var(--purple);--accent2:#8b5cf6}.kpi:nth-child(5){--accent:var(--amber);--accent2:#f97316}.kpi-title{color:var(--soft);font-size:11px;text-transform:uppercase;letter-spacing:.06em;font-weight:800;margin-bottom:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.kpi-value{font-size:30px;font-weight:600;line-height:1;color:var(--text);font-variant-numeric:tabular-nums}.kpi-sub{color:var(--muted);margin-top:7px;font-size:10.5px;font-weight:650;line-height:1.25;white-space:normal;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
-.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-bottom:14px}.insight-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.panel{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--border);border-radius:16px;padding:14px;min-height:286px;overflow:hidden;box-shadow:var(--shadow)}.insight-grid .panel{min-height:318px}.panel-head{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:12px;gap:10px}.panel h3{margin:0;color:var(--text);font-size:16px;font-weight:850}.panel p{margin:5px 0 0;color:var(--muted);font-size:11px;font-weight:650;line-height:1.25}
+.kpis{display:flex;flex-wrap:wrap;gap:14px;margin-bottom:16px}.kpi{flex:1 1 180px;max-width:320px;min-height:105px;border-radius:16px;background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--border);padding:16px 14px;display:flex;align-items:center;gap:12px;box-shadow:var(--shadow);position:relative;overflow:hidden}.kpi-action{cursor:pointer;transition:transform .16s ease,border-color .16s ease,box-shadow .16s ease}.kpi-action:hover,.kpi-action:focus-visible{transform:translateY(-2px);border-color:rgba(251,113,133,.48);box-shadow:0 22px 48px rgba(251,113,133,.16),var(--shadow);outline:0}.kpi:before{content:"";position:absolute;inset:0 auto 0 0;width:4px;background:var(--accent)}.kpi-icon{width:44px;height:44px;border-radius:14px;color:#fff;background:linear-gradient(135deg,var(--accent),var(--accent2));font-size:24px;display:flex;align-items:center;justify-content:center;flex:0 0 auto}.kpi-copy{min-width:0;flex:1}.kpi:nth-child(1){--accent:var(--rose);--accent2:#f43f5e}.kpi:nth-child(2){--accent:var(--blue);--accent2:#2563eb}.kpi:nth-child(3){--accent:var(--green);--accent2:#10b981}.kpi:nth-child(4){--accent:var(--purple);--accent2:#8b5cf6}.kpi:nth-child(5){--accent:var(--amber);--accent2:#f97316}.kpi-title{color:var(--soft);font-size:11px;text-transform:uppercase;letter-spacing:.06em;font-weight:800;margin-bottom:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.kpi-value{font-size:30px;font-weight:600;line-height:1;color:var(--text);font-variant-numeric:tabular-nums}.kpi-sub{color:var(--muted);margin-top:7px;font-size:10.5px;font-weight:650;line-height:1.25;white-space:normal;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-bottom:14px}.insight-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.panel{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--border);border-radius:16px;padding:14px;min-height:286px;overflow:hidden;box-shadow:var(--shadow)}.donut-panel,.chart-panel{min-height:318px}.panel-head{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:12px;gap:10px}.panel h3{margin:0;color:var(--text);font-size:16px;font-weight:850}.panel p{margin:5px 0 0;color:var(--muted);font-size:11px;font-weight:650;line-height:1.25}
 .bars{display:flex;flex-direction:column;gap:11px;padding-top:5px}.bar-row{display:grid;grid-template-columns:22px minmax(0,1.25fr) 24% 48px 96px;gap:10px;align-items:center;min-height:28px}.bar-index{font-size:12px;color:var(--soft);text-align:center;font-variant-numeric:tabular-nums;font-weight:700}.bar-label{color:var(--text);font-size:13.5px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.bar-track{height:9px;background:var(--track);border-radius:5px;position:relative;overflow:hidden}.bar-fill{display:block;height:100%;border-radius:5px;background:linear-gradient(90deg,var(--rose),var(--blue));box-shadow:inset 0 1px 0 rgba(255,255,255,.12)}.bar-val{font-size:11px;color:var(--text);font-weight:800;text-align:left;font-variant-numeric:tabular-nums}.bar-spark{display:flex;align-items:center;justify-content:flex-end;height:18px;width:96px;gap:5px}
 .radar-shell{height:214px;display:grid;place-items:center;margin-top:0}.radar{width:min(100%,344px);height:196px;display:block}.radar text{fill:var(--text);font-size:13.5px;font-weight:900}.radar-grid circle,.radar-grid line{fill:none;stroke:var(--border);stroke-width:1.2}.radar polygon{fill:rgba(167,139,250,.20);stroke:var(--purple);stroke-width:2.6;filter:drop-shadow(0 8px 16px rgba(167,139,250,.20))}
 .donut-layout{display:grid;grid-template-columns:150px minmax(0,1fr);gap:16px;align-items:center;min-height:210px}.donut{width:128px;height:128px;border-radius:50%;margin:0 auto;display:grid;place-items:center;position:relative;box-shadow:0 12px 28px rgba(15,23,42,.09)}.donut:after{content:"";position:absolute;width:70px;height:70px;border-radius:50%;background:var(--panel);box-shadow:inset 0 0 0 1px var(--border)}.donut span{position:relative;z-index:1;color:var(--text);font-size:17px;font-weight:950}.legend{display:grid;gap:9px}.legend-row{display:grid;grid-template-columns:12px minmax(0,1fr) auto;gap:10px;align-items:center;color:var(--muted);font-size:12.5px;padding:6px 8px;border:1px solid var(--border);border-radius:7px;background:rgba(148,163,184,.05)}.legend-row span{width:10px;height:10px;border-radius:50%}.legend-row b{color:var(--text);font-weight:900;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.legend-row i{font-style:normal;font-size:12px;font-weight:900;font-variant-numeric:tabular-nums}
 .treemap{height:224px;display:flex;flex-wrap:wrap;gap:2px}.tile{min-width:72px;min-height:52px;padding:7px;color:#fff;display:flex;flex-direction:column;justify-content:space-between;font-size:11px;font-weight:800;text-shadow:0 1px 2px rgba(0,0,0,.28)}.tile b{font-size:13px}.top-chip{font-size:11px;color:var(--muted);background:var(--panel3);border:1px solid var(--border);padding:3px 7px;border-radius:4px}.artist-story-panel{min-height:488px;padding:14px 14px 18px}.artist-story-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}.artist-card{position:relative;overflow:hidden;background:linear-gradient(180deg,var(--panel2),var(--panel3));border:1px solid var(--border);border-radius:14px;padding:10px 12px;display:flex;flex-direction:column;gap:8px;min-height:202px;box-shadow:0 8px 20px rgba(0,0,0,.06)}.artist-card:before{content:"";position:absolute;inset:0 auto 0 0;width:4px;background:linear-gradient(180deg,var(--accent),var(--accent2))}.artist-card-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}.artist-rank{color:var(--soft);font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase}.artist-name{color:var(--text);font-size:16px;font-weight:900;line-height:1.05;margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.artist-badge{font-size:10px;font-weight:900;padding:4px 8px;border-radius:999px;white-space:nowrap;background:var(--panel3);border:1px solid var(--border);color:var(--muted)}.artist-badge.up{color:#86efac;background:rgba(52,211,153,.14);border-color:rgba(52,211,153,.22)}.artist-badge.down{color:#fda4af;background:rgba(251,113,133,.14);border-color:rgba(251,113,133,.22)}.artist-badge.flat{color:var(--muted);background:var(--panel3);border-color:var(--border)}.artist-bar{height:8px;background:var(--track);border-radius:999px;overflow:hidden}.artist-bar span{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,var(--accent),var(--accent2))}.artist-metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.metric{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:7px 8px}.metric span{display:block;font-size:9px;color:var(--soft);text-transform:uppercase;letter-spacing:.06em;font-weight:800}.metric b{display:block;margin-top:4px;color:var(--text);font-size:12px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.artist-footer{display:flex;justify-content:space-between;gap:8px;align-items:center;color:var(--muted);font-size:11px;font-weight:650}.artist-country{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.perf-graph{width:100%;height:132px;margin-top:14px;display:block;border-radius:12px;background:linear-gradient(180deg,rgba(96,165,250,.10),rgba(251,113,133,.05))}.perf-grid{stroke:var(--border);stroke-width:1;stroke-dasharray:4 5}.perf-axis{stroke:var(--soft);stroke-width:1.5}.perf-area{fill:rgba(96,165,250,.24)}.perf-line{fill:none;stroke:var(--rose);stroke-width:5;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 0 8px rgba(251,113,133,.42))}.perf-bar{opacity:.72}.perf-dot{stroke:var(--panel);stroke-width:3;filter:drop-shadow(0 0 5px rgba(255,255,255,.22))}.perf-graph text{fill:var(--soft);font-size:11px;font-weight:900}.perf-title{fill:var(--text)!important;font-size:13px!important}.perf-name{font-size:10px!important}.tone-fill-0{fill:var(--rose)}.tone-fill-1{fill:var(--blue)}.tone-fill-2{fill:var(--green)}.tone-fill-3{fill:var(--purple)}.tone-fill-4{fill:var(--amber)}
 .artist-story-panel{min-height:486px;padding:14px 14px 20px}.artist-story-grid{gap:12px;align-items:stretch}.artist-card{border-radius:12px;padding:11px 12px 10px;min-height:196px;background:linear-gradient(180deg,rgba(255,255,255,.04),var(--panel3));gap:7px;transition:transform .16s ease,border-color .16s ease,box-shadow .16s ease}.artist-card:hover{transform:translateY(-2px);border-color:rgba(96,165,250,.30);box-shadow:0 14px 28px rgba(15,23,42,.12)}.artist-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;min-height:36px}.artist-identity{display:flex;align-items:center;gap:9px;min-width:0}.artist-avatar{width:32px;height:32px;border-radius:10px;display:grid;place-items:center;flex:0 0 auto;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;font-size:10px;font-weight:900;box-shadow:0 8px 18px rgba(15,23,42,.14)}.artist-title-wrap{min-width:0}.artist-rank{font-size:9.5px;line-height:1;color:var(--soft);font-weight:900;letter-spacing:.04em;text-transform:uppercase}.artist-name{font-size:16px;line-height:1.15;margin-top:4px;letter-spacing:0;max-width:100%}.artist-badge{padding:4px 8px;border-radius:999px;font-size:9.5px;line-height:1.1;flex:0 0 auto}.artist-score-line{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-top:1px}.artist-score-line span{color:var(--soft);font-size:9.5px;font-weight:900;letter-spacing:.06em;text-transform:uppercase}.artist-score-line b{color:var(--text);font-size:17px;font-weight:900;font-variant-numeric:tabular-nums}.artist-bar{height:7px;background:rgba(148,163,184,.16);flex:0 0 auto}.artist-metrics{display:grid;grid-template-columns:1fr;gap:0;border:1px solid var(--border);border-radius:10px;background:rgba(148,163,184,.05);overflow:hidden;flex:0 0 auto}.artist-metric-row{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:26px;padding:5px 9px;border-bottom:1px solid var(--border)}.artist-metric-row:last-child{border-bottom:0}.artist-metric-row span{color:var(--soft);font-size:9.5px;font-weight:900;letter-spacing:.05em;text-transform:uppercase}.artist-metric-row b{color:var(--text);font-size:11.5px;font-weight:900;font-variant-numeric:tabular-nums}.artist-footer{margin-top:auto;border-top:1px solid var(--border);padding-top:8px;font-size:10.5px;font-weight:800;line-height:1.2}.artist-country{min-width:0}.artist-country b{color:var(--text);font-weight:700}
 .empty{color:var(--muted);font-size:12px;padding:24px 4px}
-.modal-backdrop{position:fixed;inset:0;z-index:40;display:none;align-items:flex-start;justify-content:center;background:rgba(2,6,23,.62);padding:22px 18px}.modal-backdrop.open{display:flex}.leader-modal{width:min(1040px,100%);max-height:calc(100vh - 44px);display:flex;flex-direction:column;background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--border);border-radius:14px;box-shadow:0 28px 88px rgba(0,0,0,.42);overflow:hidden}.leader-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:18px 20px;border-bottom:1px solid var(--border)}.leader-kicker{color:var(--rose);font-size:11px;text-transform:uppercase;letter-spacing:.08em;font-weight:900}.leader-title{margin-top:4px;color:var(--text);font-size:20px;font-weight:900}.leader-sub{margin-top:5px;color:var(--muted);font-size:12px;font-weight:650}.leader-close,.leader-back{height:34px;border-radius:8px;border:1px solid var(--border);background:var(--panel3);color:var(--text);cursor:pointer}.leader-close{width:34px;font-size:20px;line-height:1}.leader-back{display:none;padding:0 12px;font-size:12px;font-weight:900}.leader-back.show{display:inline-flex;align-items:center}.leader-actions{display:flex;gap:8px;align-items:center}.leader-close:hover,.leader-back:hover{border-color:rgba(251,113,133,.55);color:var(--rose)}.leader-table-wrap{overflow:auto;padding:0 0 8px}.leader-table-wrap.hide{display:none}.leader-table{width:100%;border-collapse:collapse;min-width:880px;table-layout:fixed}.leader-table th{position:sticky;top:0;z-index:1;background:var(--panel2);color:var(--soft);font-size:10px;text-align:left;text-transform:uppercase;letter-spacing:.06em;font-weight:900;padding:10px 12px;border-bottom:1px solid var(--border)}.leader-table td{padding:11px 12px;border-bottom:1px solid var(--border);color:var(--muted);font-size:12px;font-weight:650;vertical-align:middle;overflow:hidden}.leader-table tbody tr:hover td{background:var(--panel3)}.leader-pos{color:var(--soft);font-weight:900}.leader-artist{display:flex;align-items:center;gap:9px;min-width:0;max-width:100%;overflow:hidden}.leader-avatar{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;color:#fff;background:linear-gradient(135deg,var(--rose),var(--blue));font-size:11px;font-weight:900;flex:0 0 auto}.leader-name{display:block;width:100%;max-width:100%;border:0;background:transparent;padding:0;color:var(--text);font:inherit;font-size:14px;font-weight:700;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;text-align:left}.leader-name:hover{text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:3px;color:var(--rose)}.leader-rank-cell{color:var(--text);font-size:13px;font-weight:900}.leader-change{display:inline-flex;align-items:center;justify-content:center;min-width:54px;border-radius:999px;padding:3px 8px;font-size:10px;font-weight:900;border:1px solid var(--border);background:var(--panel3)}.leader-change.up{color:#86efac;background:rgba(52,211,153,.14);border-color:rgba(52,211,153,.25)}.leader-change.down{color:#fda4af;background:rgba(251,113,133,.14);border-color:rgba(251,113,133,.25)}.leader-change.flat{color:var(--muted)}.platform-pill{display:inline-flex;align-items:center;border:1px solid var(--border);border-radius:999px;padding:4px 9px;margin:2px 4px 2px 0;font-size:11px;font-weight:900;line-height:1}.platform-itunes{color:#b45309;background:rgba(252,211,77,.22);border-color:rgba(217,119,6,.30)}.platform-spotify{color:#047857;background:rgba(52,211,153,.18);border-color:rgba(16,185,129,.30)}.platform-mixed{color:#2563eb;background:rgba(96,165,250,.16);border-color:rgba(37,99,235,.24)}.leader-empty{padding:26px;color:var(--muted);font-size:13px;text-align:center}.num{text-align:center;font-variant-numeric:tabular-nums}.leader-table th.num{text-align:center}.country-cell{display:block;min-width:0;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.artist-detail{display:none;overflow:auto;padding:18px 20px 22px}.artist-detail.show{display:block}.detail-hero{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:14px}.detail-name{font-size:24px;font-weight:950;color:var(--text);line-height:1}.detail-photo{width:96px;height:96px;border-radius:14px;object-fit:cover;border:1px solid var(--border);background:var(--panel3);box-shadow:0 12px 28px rgba(15,23,42,.18);flex:0 0 auto}.detail-meta{margin-top:8px;display:flex;flex-wrap:wrap;gap:7px}.detail-pill{display:inline-flex;align-items:center;border:1px solid var(--border);border-radius:999px;background:var(--panel3);padding:4px 9px;color:var(--muted);font-size:11px;font-weight:850}.detail-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:14px}.detail-card{background:var(--panel3);border:1px solid var(--border);border-radius:10px;padding:11px 12px;min-height:70px}.detail-label{color:var(--soft);font-size:10px;text-transform:uppercase;letter-spacing:.06em;font-weight:900}.detail-val{margin-top:7px;color:var(--text);font-size:18px;font-weight:950;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.detail-sections{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.detail-section{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:12px;min-height:150px}.detail-section h4{margin:0 0 9px;color:var(--text);font-size:13px;font-weight:950}.detail-list{display:flex;flex-direction:column;gap:7px}.detail-item{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:12px;font-weight:750;min-width:0}.detail-dot{width:7px;height:7px;border-radius:50%;background:linear-gradient(135deg,var(--rose),var(--blue));flex:0 0 auto}.detail-item span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.platform-bars{display:flex;flex-direction:column;gap:8px}.platform-row{display:grid;grid-template-columns:88px 1fr 58px;gap:8px;align-items:center;color:var(--muted);font-size:11px;font-weight:850}.platform-track{height:8px;border-radius:999px;background:var(--track);overflow:hidden}.platform-fill{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,var(--rose),var(--blue))}
-@media(max-width:1050px){.kpis{grid-template-columns:repeat(2,1fr)}.grid,.insight-grid,.artist-story-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.detail-grid,.detail-sections{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:768px){.grid,.insight-grid,.artist-story-grid{grid-template-columns:1fr}}@media(max-width:640px){.kpis{grid-template-columns:1fr}.dash{padding:10px}.kpi{min-height:100px}.artist-story-grid{grid-template-columns:1fr}.donut-layout{grid-template-columns:1fr}.bar-row{grid-template-columns:18px minmax(84px,34%) minmax(0,1fr)}.modal-backdrop{padding:10px;align-items:flex-start}.leader-head{padding:14px}.leader-title{font-size:17px}.detail-grid,.detail-sections{grid-template-columns:1fr}.detail-hero{display:block}.platform-row{grid-template-columns:78px 1fr 48px}}
+.modal-backdrop{position:fixed;inset:0;z-index:40;display:none;align-items:flex-start;justify-content:center;background:rgba(2,6,23,.62);padding:22px 18px}.modal-backdrop.open{display:flex}.leader-modal{width:min(1040px,100%);max-height:calc(100vh - 44px);display:flex;flex-direction:column;background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--border);border-radius:14px;box-shadow:0 28px 88px rgba(0,0,0,.42);overflow:hidden}.leader-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:18px 20px;border-bottom:1px solid var(--border)}.leader-kicker{color:var(--rose);font-size:11px;text-transform:uppercase;letter-spacing:.08em;font-weight:900}.leader-title{margin-top:4px;color:var(--text);font-size:20px;font-weight:900}.leader-sub{margin-top:5px;color:var(--muted);font-size:12px;font-weight:650}.leader-close,.leader-back{height:34px;border-radius:8px;border:1px solid var(--border);background:var(--panel3);color:var(--text);cursor:pointer}.leader-close{width:34px;font-size:20px;line-height:1}.leader-back{display:none;padding:0 12px;font-size:12px;font-weight:900}.leader-back.show{display:inline-flex;align-items:center}.leader-actions{display:flex;gap:8px;align-items:center}.leader-close:hover,.leader-back:hover{border-color:rgba(251,113,133,.55);color:var(--rose)}.leader-table-wrap{overflow:auto;padding:0 0 8px}.leader-table-wrap.hide{display:none}.leader-table{width:100%;border-collapse:collapse;min-width:880px;table-layout:fixed}.leader-table th{position:sticky;top:0;z-index:1;background:var(--panel2);color:var(--soft);font-size:10px;text-align:left;text-transform:uppercase;letter-spacing:.06em;font-weight:900;padding:10px 12px;border-bottom:1px solid var(--border)}.leader-table td{padding:11px 12px;border-bottom:1px solid var(--border);color:var(--muted);font-size:12px;font-weight:650;vertical-align:middle;overflow:hidden}.leader-table tbody tr:hover td{background:var(--panel3)}.leader-pos{color:var(--soft);font-weight:900}.leader-artist{display:flex;align-items:center;gap:9px;min-width:0;max-width:100%;overflow:hidden}.leader-avatar{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;color:#fff;background:linear-gradient(135deg,var(--rose),var(--blue));font-size:11px;font-weight:900;flex:0 0 auto}.leader-name{display:block;width:100%;max-width:100%;border:0;background:transparent;padding:0;color:var(--text);font:inherit;font-size:14px;font-weight:700;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;text-align:left}.leader-name:hover{text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:3px;color:var(--rose)}.leader-rank-cell{color:var(--text);font-size:13px;font-weight:900}.leader-change{display:inline-flex;align-items:center;justify-content:center;min-width:54px;border-radius:999px;padding:3px 8px;font-size:10px;font-weight:900;border:1px solid var(--border);background:var(--panel3)}.leader-change.up{color:#86efac;background:rgba(52,211,153,.14);border-color:rgba(52,211,153,.25)}.leader-change.down{color:#fda4af;background:rgba(251,113,133,.14);border-color:rgba(251,113,133,.25)}.leader-change.flat{color:var(--muted)}.platform-pill{display:inline-flex;align-items:center;border:1px solid var(--border);border-radius:999px;padding:4px 9px;margin:2px 4px 2px 0;font-size:11px;font-weight:900;line-height:1}.platform-itunes{color:#b45309;background:rgba(252,211,77,.22);border-color:rgba(217,119,6,.30)}.platform-spotify{color:#047857;background:rgba(52,211,153,.18);border-color:rgba(16,185,129,.30)}.platform-mixed{color:#2563eb;background:rgba(96,165,250,.16);border-color:rgba(37,99,235,.24)}.leader-empty{padding:26px;color:var(--muted);font-size:13px;text-align:center}.num{text-align:center;font-variant-numeric:tabular-nums}.leader-table th.num{text-align:center}.country-cell{min-width:0;max-width:100%;white-space:nowrap;text-overflow:ellipsis}.artist-detail{display:none;overflow:auto;padding:18px 20px 22px}.artist-detail.show{display:block}.detail-hero{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:14px}.detail-name{font-size:24px;font-weight:950;color:var(--text);line-height:1}.detail-photo{width:96px;height:96px;border-radius:14px;object-fit:cover;border:1px solid var(--border);background:var(--panel3);box-shadow:0 12px 28px rgba(15,23,42,.18);flex:0 0 auto}.detail-meta{margin-top:8px;display:flex;flex-wrap:wrap;gap:7px}.detail-pill{display:inline-flex;align-items:center;border:1px solid var(--border);border-radius:999px;background:var(--panel3);padding:4px 9px;color:var(--muted);font-size:11px;font-weight:850}.detail-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:14px}.detail-card{background:var(--panel3);border:1px solid var(--border);border-radius:10px;padding:11px 12px;min-height:70px}.detail-label{color:var(--soft);font-size:10px;text-transform:uppercase;letter-spacing:.06em;font-weight:900}.detail-val{margin-top:7px;color:var(--text);font-size:18px;font-weight:950;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.detail-sections{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.detail-section{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:12px;min-height:150px}.detail-section h4{margin:0 0 9px;color:var(--text);font-size:13px;font-weight:950}.detail-list{display:flex;flex-direction:column;gap:7px}.detail-item{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:12px;font-weight:750;min-width:0}.detail-dot{width:7px;height:7px;border-radius:50%;background:linear-gradient(135deg,var(--rose),var(--blue));flex:0 0 auto}.detail-item span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.platform-bars{display:flex;flex-direction:column;gap:8px}.platform-row{display:grid;grid-template-columns:88px 1fr 58px;gap:8px;align-items:center;color:var(--muted);font-size:11px;font-weight:850}.platform-track{height:8px;border-radius:999px;background:var(--track);overflow:hidden}.platform-fill{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,var(--rose),var(--blue))}
+@media(max-width:1200px){.grid,.insight-grid,.artist-story-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.detail-grid,.detail-sections{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:768px){.grid,.insight-grid,.artist-story-grid{grid-template-columns:1fr}}@media(max-width:640px){.dash{padding:10px}.kpi{max-width:none;min-height:100px}.artist-story-grid{grid-template-columns:1fr}.donut-layout{grid-template-columns:1fr}.bar-row{grid-template-columns:18px minmax(84px,34%) minmax(0,1fr)}.modal-backdrop{padding:10px;align-items:flex-start}.leader-head{padding:14px}.leader-title{font-size:17px}.detail-grid,.detail-sections{grid-template-columns:1fr}.detail-hero{display:block}.platform-row{grid-template-columns:78px 1fr 48px}}
 </style></head><body>
-""" + f"<main class='dash {theme}'>" + "<div class='kpis'>" + kpi_html("Artists", _fmt_n(artist_total), "&#127908;", f"Latest rank snapshot", "openArtistLeaderboard()") + kpi_html("Tracks", _fmt_n(song_total), "&#9835;", details_label, "openSongsLeaderboard()") + kpi_html("Albums", _fmt_n(album_total), "&#9673;", album_rows_label, "openAlbumsLeaderboard()") + kpi_html("Chart Days", _fmt_n(chart_days), "&#9719;", f"Max track streak in last {WINDOW_DAYS} days", "openChartDaysLeaderboard()") + kpi_html("Popular Tracks", _fmt_n(popular_songs), "&#9679;", "Top 10 ranked tracks", "openPopularSongsLeaderboard()") + "</div><div class='grid'>" + bars_html(top_artists, "name", "total_points", "Top Artist - Last Month", "Highest scoring artists in the latest ranking snapshot.", 10) + bars_html(current_view_top_tracks, "title", "metric", "Top Track - Last Month", "Tracks with the strongest combined chart metric.", 10) + bars_html(current_view_top_albums, "album", "metric", "Top Album - Last Month", "Albums with the strongest album chart metric.", 10) + "</div><div class='grid insight-grid'>" + donut_html(current_view_artists_df) + radar_html(current_view_artists_df) + bars_html(top_listeners, "name", "monthly_listeners", "Spotify Listener Leaders", "Artists with the highest latest monthly listener counts.", 10) + "</div>" + f"""
+""" + f"<main class='dash {theme}'>" + "<div class='kpis'>" + kpi_html("Artists", _fmt_n(artist_total), "&#127908;", f"Latest rank snapshot", "openArtistLeaderboard()") + kpi_html("Tracks", _fmt_n(song_total), "&#9835;", details_label, "openSongsLeaderboard()") + kpi_html("Albums", _fmt_n(album_total), "&#9673;", album_rows_label, "openAlbumsLeaderboard()") + kpi_html("Chart Days", _fmt_n(chart_days), "&#9719;", f"Max track streak in last {WINDOW_DAYS} days", "openChartDaysLeaderboard()") + kpi_html("Popular Tracks", _fmt_n(popular_songs), "&#9679;", "Top 10 ranked tracks", "openPopularSongsLeaderboard()") + "</div><div class='grid'>" + bars_html(top_artists, "name", "total_points", "Top Artist - Last Month", "Highest scoring artists in the latest ranking snapshot.", 10) + bars_html(current_view_top_tracks, "title", "metric", "Top Track - Last Month", "Tracks with the strongest combined chart metric.", 10, artist_filter_col="artist") + bars_html(top_listeners, "name", "monthly_listeners", "Spotify Listener Leaders", "Artists with the highest latest monthly listener counts.", 10) + donut_html(current_view_artists_df) + radar_html(current_view_artists_df) + bars_html(current_view_top_albums, "album", "metric", "Top Album - Last Month", "Albums with the strongest album chart metric.", 10, artist_filter_col="artist") + "</div>" + f"""
 <div class="modal-backdrop" id="artistLeaderboardModal">
   <section class="leader-modal" role="dialog" aria-modal="true" aria-labelledby="artistLeaderboardTitle" onclick="event.stopPropagation()">
     <div class="leader-head">
@@ -1542,7 +1561,7 @@ def render_artists_overview(last_run_label: str = "n/a") -> None:
         <thead>
           <tr>
             <th style="width:58px">#</th>
-            <th style="width:280px">Song</th>
+            <th style="width:280px">Track</th>
             <th style="width:210px">Artist</th>
             <th style="width:96px">Platform</th>
             <th style="width:92px" class="num">Days</th>
@@ -1573,7 +1592,7 @@ def render_artists_overview(last_run_label: str = "n/a") -> None:
         <thead>
           <tr>
             <th style="width:58px">#</th>
-            <th style="width:280px">Song</th>
+            <th style="width:280px">Track</th>
             <th style="width:210px">Artist</th>
             <th style="width:96px">Platform</th>
             <th style="width:92px" class="num">Best rank</th>
@@ -1795,7 +1814,7 @@ function openSongsDetail(position) {{
       </div>
     </div>
     <div class="detail-grid">
-      <div class="detail-card"><div class="detail-label">Song</div><div class="detail-val" title="${{escLeader(row.title)}}">${{escLeader(row.title)}}</div></div>
+      <div class="detail-card"><div class="detail-label">Track</div><div class="detail-val" title="${{escLeader(row.title)}}">${{escLeader(row.title)}}</div></div>
       <div class="detail-card"><div class="detail-label">Artist</div><div class="detail-val" title="${{escLeader(row.artist)}}">${{escLeader(row.artist)}}</div></div>
       <div class="detail-card"><div class="detail-label">Platform</div><div class="detail-val">${{escLeader(row.platform || 'n/a')}}</div></div>
       <div class="detail-card"><div class="detail-label">Best rank</div><div class="detail-val">${{compactRank(row.bestRank)}}</div></div>
@@ -1847,7 +1866,7 @@ function showAlbumsLeaderboardTable() {{
   document.getElementById('albumsLeaderboardBack')?.classList.remove('show');
   document.getElementById('albumsLeaderboardTitle').textContent = 'Albums Rank Snapshot';
   const rows = ALBUMS_LEADERBOARD.rows || [];
-  document.getElementById('albumsLeaderboardSub').textContent = `${{fmtLeaderNumber(ALBUMS_LEADERBOARD.total || 0)}} catalog albums · ${{fmtLeaderNumber(ALBUMS_LEADERBOARD.listedRows || rows.length)}} ranked albums in last ${{ALBUMS_LEADERBOARD.windowDays || 30}} days`;
+  document.getElementById('albumsLeaderboardSub').textContent = `${{fmtLeaderNumber(ALBUMS_LEADERBOARD.listedRows || rows.length)}} ranked albums in last ${{ALBUMS_LEADERBOARD.windowDays || 30}} days`;
 }}
 function openAlbumsDetail(position) {{
   const row = (ALBUMS_LEADERBOARD.rows || []).find(item => Number(item.position) === Number(position));
@@ -1945,7 +1964,7 @@ function openChartDaysDetail(position) {{
       </div>
     </div>
     <div class="detail-grid">
-      <div class="detail-card"><div class="detail-label">Song</div><div class="detail-val" title="${{escLeader(row.title)}}">${{escLeader(row.title)}}</div></div>
+      <div class="detail-card"><div class="detail-label">Track</div><div class="detail-val" title="${{escLeader(row.title)}}">${{escLeader(row.title)}}</div></div>
       <div class="detail-card"><div class="detail-label">Artist</div><div class="detail-val" title="${{escLeader(row.artist)}}">${{escLeader(row.artist)}}</div></div>
       <div class="detail-card"><div class="detail-label">Platform</div><div class="detail-val">${{escLeader(row.platform || 'n/a')}}</div></div>
       <div class="detail-card"><div class="detail-label">Chart days</div><div class="detail-val">${{fmtLeaderNumber(row.days)}}</div></div>
@@ -1997,7 +2016,7 @@ function showPopularSongsLeaderboardTable() {{
   document.getElementById('popularSongsLeaderboardTableView')?.classList.remove('hide');
   document.getElementById('popularSongsDetailView')?.classList.remove('show');
   document.getElementById('popularSongsLeaderboardBack')?.classList.remove('show');
-  document.getElementById('popularSongsLeaderboardTitle').textContent = 'Popular Songs Snapshot';
+  document.getElementById('popularSongsLeaderboardTitle').textContent = 'Popular Tracks Snapshot';
   const rows = POPULAR_SONGS_LEADERBOARD.rows || [];
   document.getElementById('popularSongsLeaderboardSub').textContent = `${{fmtLeaderNumber(POPULAR_SONGS_LEADERBOARD.listedRows || rows.length)}} ranked tracks in last ${{POPULAR_SONGS_LEADERBOARD.windowDays || 30}} days`;
 }}
@@ -2022,7 +2041,7 @@ function openPopularSongsDetail(position) {{
       </div>
     </div>
     <div class="detail-grid">
-      <div class="detail-card"><div class="detail-label">Song</div><div class="detail-val" title="${{escLeader(row.title)}}">${{escLeader(row.title)}}</div></div>
+      <div class="detail-card"><div class="detail-label">Track</div><div class="detail-val" title="${{escLeader(row.title)}}">${{escLeader(row.title)}}</div></div>
       <div class="detail-card"><div class="detail-label">Artist</div><div class="detail-val" title="${{escLeader(row.artist)}}">${{escLeader(row.artist)}}</div></div>
       <div class="detail-card"><div class="detail-label">Platform</div><div class="detail-val">${{escLeader(row.platform || 'n/a')}}</div></div>
       <div class="detail-card"><div class="detail-label">Best rank</div><div class="detail-val">${{compactRank(row.bestRank)}}</div></div>

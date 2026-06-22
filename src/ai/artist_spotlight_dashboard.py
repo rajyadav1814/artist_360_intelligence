@@ -8,7 +8,7 @@ import streamlit as st
 import streamlit.components.v1 as st_components
 
 from src.database.connection import get_connection
-from src.utils.image_utils import get_artist_image_url, get_fallback_avatar_url
+from src.utils.image_utils import get_artist_audiodb_info, get_artist_image_url, get_fallback_avatar_url
 from src.utils.ui import custom_selectbox
 
 
@@ -193,9 +193,15 @@ def render_debut_artist_chart(leaderboard: pd.DataFrame) -> None:
     if not countries and str(row.get("display_country") or "—") != "—":
         countries = [str(row.get("display_country"))]
 
+    # Fetch both image and genre from TheAudioDB in a single cached API call
+    audiodb_info = get_artist_audiodb_info(str(row.get("name") or ""))
+    artist_image = audiodb_info.get("image") or get_fallback_avatar_url(row["name"])
+    artist_genre = audiodb_info.get("genre") or ""
+
     payload = {
         "name": str(row.get("name") or "—"),
-        "image": get_artist_image_url(row["name"]) or get_fallback_avatar_url(row["name"]),
+        "image": artist_image,
+        "genre": artist_genre,
         "label": str(row.get("page_title") or row.get("top_country") or "Global chart artist"),
         "rank": safe_int(row.get("rank")),
         "rankChange": trend_raw,
@@ -296,7 +302,7 @@ function activeTab(panel){
 
 function render(){
   const marketLabel = DATA.primaryMarket && DATA.primaryMarket !== '—' ? DATA.primaryMarket : 'Global';
-  const rankText = DATA.rank ? `#${esc(DATA.rank)}` : '—';
+  const rankText = DATA.rank ? `${esc(DATA.rank)}` : '—';
   document.getElementById('spotlight').innerHTML = `
     <div class="header">
       <img class="avatar" src="${esc(DATA.image)}" alt="${esc(DATA.name)}">
@@ -305,9 +311,10 @@ function render(){
         <div class="artist-name">${esc(DATA.name)}</div>
         <div class="artist-meta">${esc(DATA.label)}</div>
         <div class="badges">
-          <span class="badge badge-rank">Current rank ${rankText}</span>
+          <span class="badge badge-rank">Current rank : ${rankText}</span>
           <span class="badge ${signalClass(DATA.rankChange)}">${changeCopy(DATA.rankChange)}</span>
-          <span class="badge badge-world">${esc(marketLabel)}</span>
+          <span class="badge badge-world">Country : ${esc(marketLabel)}</span>
+          ${DATA.genre ? `<span class="badge badge-genre">Genre : ${esc(DATA.genre)}</span>` : ''}
         </div>
       </div>
     </div>
@@ -319,7 +326,7 @@ function render(){
       </div>
       <div class="summary-card">
         <div class="summary-head"><span class="summary-icon catalog-icon">♪</span><div class="summary-label">Catalog Signal</div></div>
-        <div class="summary-value">${esc(DATA.spotifySongsCount)} songs · ${esc(DATA.albumsCount)} albums</div>
+        <div class="summary-value">${esc(DATA.spotifySongsCount)} Tracks · ${esc(DATA.albumsCount)} Albums</div>
         <div class="summary-note">Active chart footprint across Spotify, iTunes songs, and albums.</div>
       </div>
       <div class="summary-card">
@@ -340,7 +347,7 @@ function render(){
       <div class="tabs">
         <button class="tab active" data-panel="streams"><span class="ico">▰</span> Streams</button>
         <button class="tab" data-panel="ranks"><span class="ico">↕</span> Rank Trend</button>
-        <button class="tab" data-panel="songs"><span class="ico">♪</span> Song Deep Dive</button>
+        <button class="tab" data-panel="songs"><span class="ico">♪</span> Track Deep Dive</button>
       </div>
       <div id="panel-streams" class="panel active">
         <div class="two-col">
@@ -356,8 +363,8 @@ function render(){
       </div>
       <div id="panel-songs" class="panel">
         <div class="two-col">
-          <div class="card"><div class="sec-title"><span class="ico">♪</span> Spotify song performance</div><div class="sec-desc">Tracks with the strongest Spotify footprint, summarized by peak rank, market coverage, and recent change.</div><div class="table-scroll"><table class="song-table"><thead><tr><th><span class="ico">#</span> Peak</th><th><span class="ico">♪</span> Song</th><th><span class="ico">◎</span> Regions</th><th><span class="ico">↕</span> Change</th></tr></thead><tbody>${rows(DATA.spotifySongs,'Spotify song')}</tbody></table></div></div>
-          <div class="card"><div class="sec-title"><span class="ico">♪</span> iTunes song performance</div><div class="sec-desc">Songs charting on iTunes worldwide, focused on peak performance, regions, and latest movement.</div><div class="table-scroll"><table class="song-table"><thead><tr><th><span class="ico">#</span> Peak</th><th><span class="ico">♪</span> Song</th><th><span class="ico">◎</span> Regions</th><th><span class="ico">↕</span> Change</th></tr></thead><tbody>${rows(DATA.itunesSongs,'iTunes song')}</tbody></table></div></div>
+          <div class="card"><div class="sec-title"><span class="ico">♪</span> Spotify Track performance</div><div class="sec-desc">Tracks with the strongest Spotify footprint, summarized by peak rank, market coverage, and recent change.</div><div class="table-scroll"><table class="song-table"><thead><tr><th><span class="ico">#</span> Peak</th><th><span class="ico">♪</span> Track</th><th><span class="ico">◎</span> Regions</th><th><span class="ico">↕</span> Change</th></tr></thead><tbody>${rows(DATA.spotifySongs,'Spotify song')}</tbody></table></div></div>
+          <div class="card"><div class="sec-title"><span class="ico">♪</span> iTunes Track performance</div><div class="sec-desc">Tracks charting on iTunes worldwide, focused on peak performance, regions, and latest movement.</div><div class="table-scroll"><table class="song-table"><thead><tr><th><span class="ico">#</span> Peak</th><th><span class="ico">♪</span> Track</th><th><span class="ico">◎</span> Regions</th><th><span class="ico">↕</span> Change</th></tr></thead><tbody>${rows(DATA.itunesSongs,'iTunes song')}</tbody></table></div></div>
         </div>
       </div>
     </div>`;
@@ -394,7 +401,7 @@ render();
 .header{display:grid;grid-template-columns:116px minmax(0,1fr);align-items:center;gap:1.35rem;margin-bottom:1rem;padding:1.15rem;border:1px solid var(--color-border-tertiary);border-radius:8px;background:var(--color-background-primary)}
 .avatar{width:116px;height:116px;border-radius:8px;object-fit:cover;flex-shrink:0;border:1px solid var(--color-border-tertiary);background:var(--color-background-secondary)}
 .head-copy{min-width:0}.eyebrow{font-size:11px;font-weight:750;text-transform:uppercase;letter-spacing:.08em;color:var(--color-text-tertiary);margin-bottom:5px}.artist-name{font-size:36px;font-weight:760;color:var(--color-text-primary);line-height:1.04;letter-spacing:0}.artist-meta{font-size:14px;color:var(--color-text-secondary);margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:760px}
-.badges{display:flex;gap:8px;margin-top:13px;flex-wrap:wrap}.badge{display:inline-flex;align-items:center;gap:5px;font-size:12px;padding:6px 11px;border-radius:999px;font-weight:700;border:1px solid var(--color-border-tertiary);background:var(--color-background-secondary);color:var(--color-text-secondary)}.badge-rank{background:rgba(24,95,165,.12);color:#185FA5;border-color:rgba(24,95,165,.32)}.badge-world{background:rgba(139,92,246,.10);color:#8B5CF6;border-color:rgba(139,92,246,.28)}.signal-up{background:rgba(29,158,117,.12);color:#0f8a64;border-color:rgba(29,158,117,.32)}.signal-down{background:rgba(226,75,74,.12);color:#c63a3a;border-color:rgba(226,75,74,.32)}.signal-new{background:rgba(24,95,165,.12);color:#185FA5;border-color:rgba(24,95,165,.32)}.signal-flat{background:var(--color-background-secondary);color:var(--color-text-secondary)}
+.badges{display:flex;gap:8px;margin-top:13px;flex-wrap:wrap}.badge{display:inline-flex;align-items:center;gap:5px;font-size:12px;padding:6px 11px;border-radius:999px;font-weight:700;border:1px solid var(--color-border-tertiary);background:var(--color-background-secondary);color:var(--color-text-secondary)}.badge-rank{background:rgba(24,95,165,.12);color:#185FA5;border-color:rgba(24,95,165,.32)}.badge-world{background:rgba(139,92,246,.10);color:#8B5CF6;border-color:rgba(139,92,246,.28)}.badge-genre{background:rgba(186,117,23,.12);color:#BA7517;border-color:rgba(186,117,23,.32)}.signal-up{background:rgba(29,158,117,.12);color:#0f8a64;border-color:rgba(29,158,117,.32)}.signal-down{background:rgba(226,75,74,.12);color:#c63a3a;border-color:rgba(226,75,74,.32)}.signal-new{background:rgba(24,95,165,.12);color:#185FA5;border-color:rgba(24,95,165,.32)}.signal-flat{background:var(--color-background-secondary);color:var(--color-text-secondary)}
 .summary-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:0 0 1rem}.summary-card{background:var(--color-background-secondary);border:1px solid var(--color-border-tertiary);border-radius:8px;padding:14px 16px;min-width:0}.summary-head{display:flex;align-items:center;gap:8px;margin-bottom:6px}.summary-icon{width:22px;height:22px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;flex:0 0 auto}.audience-icon{background:rgba(29,158,117,.13);color:#1D9E75}.catalog-icon{background:rgba(24,95,165,.13);color:#185FA5}.market-icon{background:rgba(139,92,246,.13);color:#8B5CF6}.summary-label{font-size:11px;text-transform:uppercase;letter-spacing:.07em;font-weight:760;color:var(--color-text-tertiary)}.summary-value{font-size:18px;font-weight:780;color:var(--color-text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.summary-note{font-size:12px;color:var(--color-text-secondary);line-height:1.4;margin-top:5px}
 .ico{display:inline-flex;align-items:center;justify-content:center;line-height:1;font-style:normal;font-weight:750;color:var(--accent,#1D9E75)}
 .kpi-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin-bottom:1.15rem}.kpi{background:var(--color-background-primary);border:1px solid var(--color-border-tertiary);border-radius:8px;padding:1rem;min-height:112px;min-width:0}.kpi-rank{border-color:rgba(24,95,165,.35)}.kpi-label{display:flex;align-items:center;gap:7px;font-size:11px;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;font-weight:750}.kpi-val{font-size:28px;font-weight:790;color:var(--color-text-primary);line-height:1.02;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.kpi-sub{font-size:12px;color:var(--color-text-tertiary);margin-top:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
