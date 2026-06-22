@@ -14,6 +14,7 @@ import streamlit as st
 import streamlit.components.v1 as st_components
 
 from src.database.connection import get_connection
+from src.utils.image_utils import get_artist_audiodb_info
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -201,14 +202,26 @@ def _build_track_rows(sp_df: pd.DataFrame, it_df: pd.DataFrame, dates: list[date
     sp_ranks_p = sp_df.pivot_table(index='artist_title', columns='date', values='rank', aggfunc='min').reindex(columns=dates) if not sp_df.empty else pd.DataFrame(index=[], columns=dates)
     # Get most frequent label per track
     labels_map = sp_df.groupby('artist_title')['label'].apply(lambda x: str(x.mode().iat[0]) if not x.dropna().empty else "Independent").to_dict() if (not sp_df.empty and "label" in sp_df.columns) else {}
-    
+
     # iTunes
     it_scores_p = it_df.pivot_table(index='artist_title', columns='date', values='metric', aggfunc='sum').reindex(columns=dates, fill_value=0) if not it_df.empty else pd.DataFrame(index=[], columns=dates)
     it_ranks_p = it_df.pivot_table(index='artist_title', columns='date', values='rank', aggfunc='min').reindex(columns=dates) if not it_df.empty else pd.DataFrame(index=[], columns=dates)
 
     tracks: list[dict[str, Any]] = []
     all_track_titles = sorted(set(sp_streams_p.index) | set(it_scores_p.index))
-    
+
+    # ── Pre-fetch strGenre from TheAudioDB once per unique artist ──
+    unique_artists: set[str] = set()
+    for track in all_track_titles:
+        if track:
+            artist, _ = _split_at(track)
+            unique_artists.add(artist)
+    genre_map: dict[str, str] = {}
+    for artist_name in unique_artists:
+        info = get_artist_audiodb_info(artist_name)
+        if info.get("genre"):
+            genre_map[artist_name] = info["genre"]
+
     for track in all_track_titles:
         if not track: continue
         
@@ -284,7 +297,7 @@ def _build_track_rows(sp_df: pd.DataFrame, it_df: pd.DataFrame, dates: list[date
             "title": title,
             "artist": artist,
             "label": label,
-            "genre": "—",
+            "genre": genre_map.get(artist, "—"),
             "platform": platform,
             "spStreams": sp_streams,
             "spRanks": sp_ranks,
