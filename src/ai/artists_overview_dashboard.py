@@ -846,7 +846,7 @@ def prefetch_artists_overview_data() -> None:
     _load_artists_overview_data(WINDOW_DAYS)
 
 
-def render_artists_overview(last_run_label: str = "n/a") -> None:
+def render_artists_overview(last_run_label: str = "n/a", filtered_artists: list[str] | None = None) -> None:
     st.markdown(
         f"""
         <div style='display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin:0 0 8px;'>
@@ -1009,6 +1009,27 @@ def render_artists_overview(last_run_label: str = "n/a") -> None:
     current_view_top_tracks = top_tracks.copy()
     current_view_top_albums = top_albums.copy()
 
+    # Apply sidebar filters (Latin America, Sony Music, etc.) from streamlit_app.py
+    if filtered_artists is not None:
+        current_view_artists_df = current_view_artists_df[current_view_artists_df["name"].isin(filtered_artists)].copy()
+        current_view_songs_rank_df = current_view_songs_rank_df[current_view_songs_rank_df["artist"].isin(filtered_artists)].copy()
+        current_view_albums_rank_df = current_view_albums_rank_df[current_view_albums_rank_df["artist"].isin(filtered_artists)].copy()
+        current_view_chart_days_df = current_view_chart_days_df[current_view_chart_days_df["artist"].isin(filtered_artists)].copy()
+        current_view_popular_songs_df = current_view_popular_songs_df[current_view_popular_songs_df["artist"].isin(filtered_artists)].copy()
+        current_view_top_tracks = (
+            current_view_songs_rank_df.groupby(["title", "artist"])["metric"]
+            .sum()
+            .reset_index()
+            .sort_values("metric", ascending=False)
+        )
+        current_view_top_albums = (
+            current_view_albums_rank_df.groupby(["title", "artist"])["metric"]
+            .sum()
+            .reset_index()
+            .rename(columns={"title": "album"})
+            .sort_values("metric", ascending=False)
+        )
+
     if selected_artist_name != "Search Artists...":
         current_view_artists_df = current_view_artists_df[current_view_artists_df["name"] == selected_artist_name].copy()
         current_view_songs_rank_df = current_view_songs_rank_df[current_view_songs_rank_df["artist"] == selected_artist_name].copy()
@@ -1035,7 +1056,7 @@ def render_artists_overview(last_run_label: str = "n/a") -> None:
 
     # --- Recalculate KPIs based on filtered data ---
     artist_total = float(current_view_artists_df["name"].nunique()) if not current_view_artists_df.empty else 0
-    if selected_artist_name == "Search Artists...":
+    if selected_artist_name == "Search Artists..." and filtered_artists is None:
         catalog_song_total = track_kpis.get("unique_songs", 0)
         catalog_album_total = album_kpis.get("unique_albums", 0)
     else:
@@ -1198,9 +1219,9 @@ def render_artists_overview(last_run_label: str = "n/a") -> None:
                 "entries": _modal_num(row, "entries"),
                 "latestDate": _modal_text(row, "latest_date", "n/a"),
             })
-    if selected_artist_name == "Search Artists...":
+    if selected_artist_name == "Search Artists..." and filtered_artists is None:
         song_total = track_kpis.get("unique_songs", 0)
-        catalog_song_total = track_kpis.get("unique_songs", 0)
+        # catalog_song_total is already set above
     else:
         song_total = float(len(song_rows))
     songs_json = json.dumps(
@@ -1232,9 +1253,9 @@ def render_artists_overview(last_run_label: str = "n/a") -> None:
                 "entries": _modal_num(row, "entries"),
                 "latestDate": _modal_text(row, "latest_date", "n/a"),
             })
-    if selected_artist_name == "Search Artists...":
+    if selected_artist_name == "Search Artists..." and filtered_artists is None:
         album_total = float(len(album_rows))
-        catalog_album_total = album_kpis.get("unique_albums", 0)
+        # catalog_album_total is already set above
     else:
         album_total = float(len(album_rows))
     albums_json = json.dumps(

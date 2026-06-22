@@ -4498,7 +4498,13 @@ def show_artists_overview_page() -> None:
         """,
         unsafe_allow_html=True,
     )
-    render_artists_overview(last_run_label)
+    # Pass sidebar-filtered artist names (Latin America, Sony Music, etc.) 
+    # for the Artists Overview dashboard which loads its own data from DB
+    if len(global_filtered) < len(leaderboard):
+        sidebar_filtered_artists = global_filtered["name"].dropna().unique().tolist()
+    else:
+        sidebar_filtered_artists = None
+    render_artists_overview(last_run_label, filtered_artists=sidebar_filtered_artists)
 
 
 def show_redesign_dashboard_page() -> None:
@@ -4929,11 +4935,7 @@ with st.sidebar:
         )
     
     if latam_only:
-        # options is only defined inside the sidebar, so we use LATAM_COUNTRIES or re-define
-        global_filtered = global_filtered[global_filtered["top_country"].isin(latam_country_mapping.keys() if 'latam_country_mapping' in locals() else LATAM_COUNTRIES)]
-        if selected_countries:
-            global_filtered = global_filtered[global_filtered["top_country"].isin(selected_countries)]
-            
+        global_filtered = global_filtered[global_filtered["top_country"].isin(selected_countries)]
     if sony_music_only and "label" in global_filtered.columns:
         global_filtered = global_filtered[global_filtered["label"].isin(selected_sony_labels)]
     

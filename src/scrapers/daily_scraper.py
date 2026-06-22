@@ -104,6 +104,11 @@ def scrape_spotify_daily(country: str = "global") -> List[SpotifyDaily]:
                 rank = int(rank_raw)
                 
                 artist_title = titles[i]
+                genre_info = genres_map.get(artist_title) or {}
+                label_val = labels_map.get(artist_title)
+                if not label_val and genre_info.get("label"):
+                    label_val = genre_info.get("label")
+                
                 results.append(
                     SpotifyDaily(
                         date=today,
@@ -115,9 +120,9 @@ def scrape_spotify_daily(country: str = "global") -> List[SpotifyDaily]:
                         streams=_safe_int(row.get("Streams", 0)),
                         streams_change=_safe_int(row.get("Streams+", 0)),
                         total_streams=_safe_int(row.get("Total", 0)),
-                        label=labels_map.get(artist_title),
+                        label=label_val,
                         rank_change=_normalize_rank_change(row.get("P+")),
-                        genere=genres_map.get(artist_title),
+                        genere=genre_info.get("genre"),
                     )
                 )
             except Exception:
@@ -172,6 +177,11 @@ def scrape_spotify_weekly(country: str = "global") -> List[SpotifyDaily]:
                 rank = int(rank_raw)
 
                 artist_title = titles[i]
+                genre_info = genres_map.get(artist_title) or {}
+                label_val = labels_map.get(artist_title)
+                if not label_val and genre_info.get("label"):
+                    label_val = genre_info.get("label")
+                    
                 results.append(
                     SpotifyDaily(
                         date=today,
@@ -183,9 +193,9 @@ def scrape_spotify_weekly(country: str = "global") -> List[SpotifyDaily]:
                         streams=_safe_int(row.get("Streams", 0)),
                         streams_change=_safe_int(row.get("Streams+", 0)),
                         total_streams=_safe_int(row.get("Total", 0)),
-                        label=labels_map.get(artist_title),
+                        label=label_val,
                         rank_change=_normalize_rank_change(row.get("P+")),
-                        genere=genres_map.get(artist_title),
+                        genere=genre_info.get("genre"),
                     )
                 )
             except Exception:
@@ -239,6 +249,11 @@ def scrape_spotify_totals(country: str = "global") -> List[SpotifyDaily]:
                 rank = int(rank_raw) if rank_raw and rank_raw.isdigit() else 0
 
                 artist_title = titles[i]
+                genre_info = genres_map.get(artist_title) or {}
+                label_val = labels_map.get(artist_title)
+                if not label_val and genre_info.get("label"):
+                    label_val = genre_info.get("label")
+                    
                 results.append(
                     SpotifyDaily(
                         date=today,
@@ -250,9 +265,9 @@ def scrape_spotify_totals(country: str = "global") -> List[SpotifyDaily]:
                         streams=_safe_int(row.get("Streams", 0)),
                         streams_change=_safe_int(row.get("Streams+", 0)),
                         total_streams=_safe_int(row.get("Total", 0)),
-                        label=labels_map.get(artist_title),
+                        label=label_val,
                         rank_change=_normalize_rank_change(row.get("P+")),
-                        genere=genres_map.get(artist_title),
+                        genere=genre_info.get("genre"),
                     )
                 )
             except Exception:
@@ -310,6 +325,11 @@ def scrape_itunes_daily(country: str = "us") -> List[ItunesDaily]:
                 rank = int(rank_raw)
 
                 artist_title = titles[i]
+                genre_info = genres_map.get(artist_title) or {}
+                label_val = labels_map.get(artist_title)
+                if not label_val and genre_info.get("label"):
+                    label_val = genre_info.get("label")
+                    
                 results.append(
                     ItunesDaily(
                         date=today,
@@ -321,9 +341,9 @@ def scrape_itunes_daily(country: str = "us") -> List[ItunesDaily]:
                         points=_safe_int(row.get("Pts", 0)),
                         points_change=_safe_int(row.get("Pts+", row.get("P+", 0))),
                         total_points=_safe_int(row.get("TPts", 0)),
-                        label=labels_map.get(artist_title),
+                        label=label_val,
                         rank_change=_normalize_rank_change(row.get("P+")),
-                        genere=genres_map.get(artist_title),
+                        genere=genre_info.get("genre"),
                     )
                 )
             except Exception as e:
