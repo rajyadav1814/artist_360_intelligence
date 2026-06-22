@@ -319,7 +319,7 @@ function render(){
       </div>
       <div class="summary-card">
         <div class="summary-head"><span class="summary-icon catalog-icon">♪</span><div class="summary-label">Catalog Signal</div></div>
-        <div class="summary-value">${esc(DATA.spotifySongsCount)} songs · ${esc(DATA.albumsCount)} albums</div>
+        <div class="summary-value">${esc(DATA.spotifySongsCount)} Tracks · ${esc(DATA.albumsCount)} Albums</div>
         <div class="summary-note">Active chart footprint across Spotify, iTunes songs, and albums.</div>
       </div>
       <div class="summary-card">
@@ -340,7 +340,7 @@ function render(){
       <div class="tabs">
         <button class="tab active" data-panel="streams"><span class="ico">▰</span> Streams</button>
         <button class="tab" data-panel="ranks"><span class="ico">↕</span> Rank Trend</button>
-        <button class="tab" data-panel="songs"><span class="ico">♪</span> Song Deep Dive</button>
+        <button class="tab" data-panel="songs"><span class="ico">♪</span> Track Deep Dive</button>
       </div>
       <div id="panel-streams" class="panel active">
         <div class="two-col">
@@ -356,8 +356,8 @@ function render(){
       </div>
       <div id="panel-songs" class="panel">
         <div class="two-col">
-          <div class="card"><div class="sec-title"><span class="ico">♪</span> Spotify song performance</div><div class="sec-desc">Tracks with the strongest Spotify footprint, summarized by peak rank, market coverage, and recent change.</div><div class="table-scroll"><table class="song-table"><thead><tr><th><span class="ico">#</span> Peak</th><th><span class="ico">♪</span> Song</th><th><span class="ico">◎</span> Regions</th><th><span class="ico">↕</span> Change</th></tr></thead><tbody>${rows(DATA.spotifySongs,'Spotify song')}</tbody></table></div></div>
-          <div class="card"><div class="sec-title"><span class="ico">♪</span> iTunes song performance</div><div class="sec-desc">Songs charting on iTunes worldwide, focused on peak performance, regions, and latest movement.</div><div class="table-scroll"><table class="song-table"><thead><tr><th><span class="ico">#</span> Peak</th><th><span class="ico">♪</span> Song</th><th><span class="ico">◎</span> Regions</th><th><span class="ico">↕</span> Change</th></tr></thead><tbody>${rows(DATA.itunesSongs,'iTunes song')}</tbody></table></div></div>
+          <div class="card"><div class="sec-title"><span class="ico">♪</span> Spotify Track performance</div><div class="sec-desc">Tracks with the strongest Spotify footprint, summarized by peak rank, market coverage, and recent change.</div><div class="table-scroll"><table class="song-table"><thead><tr><th><span class="ico">#</span> Peak</th><th><span class="ico">♪</span> Track</th><th><span class="ico">◎</span> Regions</th><th><span class="ico">↕</span> Change</th></tr></thead><tbody>${rows(DATA.spotifySongs,'Spotify song')}</tbody></table></div></div>
+          <div class="card"><div class="sec-title"><span class="ico">♪</span> iTunes Track performance</div><div class="sec-desc">Tracks charting on iTunes worldwide, focused on peak performance, regions, and latest movement.</div><div class="table-scroll"><table class="song-table"><thead><tr><th><span class="ico">#</span> Peak</th><th><span class="ico">♪</span> Track</th><th><span class="ico">◎</span> Regions</th><th><span class="ico">↕</span> Change</th></tr></thead><tbody>${rows(DATA.itunesSongs,'iTunes song')}</tbody></table></div></div>
         </div>
       </div>
     </div>`;

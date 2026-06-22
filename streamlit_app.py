@@ -4221,7 +4221,7 @@ def show_compare_page() -> None:
                 f"<span class='cmp-metric-value'>{rank_value}</span></div>"
                 "<div class='cmp-metric'><span class='cmp-metric-label'>Monthly Listeners</span>"
                 f"<span class='cmp-metric-value'>{escape(monthly_value)}</span></div>"
-                "<div class='cmp-metric'><span class='cmp-metric-label'>Songs</span>"
+                "<div class='cmp-metric'><span class='cmp-metric-label'>Tracks</span>"
                 f"<span class='cmp-metric-value'>{int(songs_count) if pd.notna(songs_count) else 0}</span></div>"
                 "<div class='cmp-metric'><span class='cmp-metric-label'>LATAM Countries</span>"
                 f"<span class='cmp-metric-value'>{int(countries_count) if pd.notna(countries_count) else 0}</span></div>"
@@ -4234,7 +4234,7 @@ def show_compare_page() -> None:
         VIZ_PALETTE = ["#60a5fa", "#34d399", "#c4b5fd", "#fcd34d", "#fb7185", "#f9a8d4"]
         cmp_metrics = [
             ("🎧 Monthly Listeners", "monthly_listeners"),
-            ("🎵 Songs",             "songs_count"),
+            ("🎵 Tracks",             "songs_count"),
             ("💿 Albums",            "albums_count"),
             ("🌎 LATAM Countries",   "countries_count"),
             ("⭐ Total Points",      "total_points"),
@@ -4427,7 +4427,7 @@ def show_compare_page() -> None:
                 "<table class='cmp-table'>"
                 "<thead><tr>"
                 "<th>Artist</th><th>Rank</th><th>Monthly Listeners</th>"
-                "<th>Songs</th><th>Albums</th><th>LATAM Countries</th><th>Top Song</th>"
+                "<th>Tracks</th><th>Albums</th><th>LATAM Countries</th><th>Top Track</th>"
                 "</tr></thead>"
                 f"<tbody>{''.join(table_rows)}</tbody>"
                 "</table>"
