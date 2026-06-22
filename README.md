@@ -116,7 +116,7 @@ erDiagram
         timestamptz finished_at
     }
 ```
-
+ 
 ### Table Definitions
 
 #### 1. Core Entities
