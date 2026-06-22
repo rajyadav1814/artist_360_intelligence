@@ -482,7 +482,7 @@ def apply_theme(dark_mode: bool = True) -> None:
             min-height:44px;
             padding:0 12px;
             border-radius:10px;
-            color:#000000 !important;
+            color:var(--text) !important;
             text-decoration:none !important;
             font-weight:750;
             font-size:14px;
