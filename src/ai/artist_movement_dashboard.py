@@ -562,24 +562,54 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
           }}
         }});
 
+        let highlightedIndex = null;
+
         function renderLegend() {{
           const leg = document.getElementById('legend');
           leg.innerHTML = '';
           myChart.data.datasets.forEach((ds, i) => {{
-            const meta = myChart.getDatasetMeta(i);
-            const isHidden = meta.hidden === true;
+            if (!ds.originalBorderColor) {{
+               ds.originalBorderColor = ds.borderColor;
+               ds.originalBackgroundColor = ds.backgroundColor;
+            }}
+            const isOtherHighlighted = highlightedIndex !== null && highlightedIndex !== i;
+            
             const btn = document.createElement('button');
-            btn.className = 'leg-btn' + (isHidden ? ' hidden' : '');
+            btn.className = 'leg-btn' + (isOtherHighlighted ? ' hidden' : '');
             btn.onclick = () => {{
-              meta.hidden = meta.hidden === null ? !myChart.data.datasets[i].hidden : null;
+              if (highlightedIndex === i) {{
+                highlightedIndex = null; // Toggle off
+              }} else {{
+                highlightedIndex = i; // Highlight this one
+              }}
+              
+              myChart.data.datasets.forEach((dataset, j) => {{
+                if (highlightedIndex === null) {{
+                   dataset.borderWidth = 2.5;
+                   dataset.borderColor = dataset.originalBorderColor;
+                   dataset.backgroundColor = dataset.originalBackgroundColor;
+                   dataset.order = j;
+                }} else if (highlightedIndex === j) {{
+                   dataset.borderWidth = 4;
+                   dataset.borderColor = dataset.originalBorderColor;
+                   dataset.backgroundColor = dataset.originalBackgroundColor;
+                   dataset.order = -1; // Draw on top
+                }} else {{
+                   dataset.borderWidth = 1.5;
+                   // Add transparency (33 in hex is ~20% opacity)
+                   dataset.borderColor = dataset.originalBorderColor + '33';
+                   dataset.backgroundColor = dataset.originalBackgroundColor + '11';
+                   dataset.order = j;
+                }}
+              }});
               myChart.update();
               renderLegend();
             }};
-            btn.innerHTML = `<span class="dot" style="background: ${{ds.borderColor}}"></span> ${{ds.label}}`;
+            btn.innerHTML = `<span class="dot" style="background: ${{ds.originalBorderColor}}"></span> ${{ds.label}}`;
             leg.appendChild(btn);
           }});
         }}
-        
+
         let allHidden = false;
         function toggleAll() {{
           allHidden = !allHidden;

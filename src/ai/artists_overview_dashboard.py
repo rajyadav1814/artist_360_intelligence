@@ -1342,9 +1342,25 @@ def render_artists_overview(last_run_label: str = "n/a") -> None:
         )
 
     def donut_html(df: pd.DataFrame, artist_filter_col: str = "name") -> str:
-        if df.empty or "top_country" not in df.columns:
+        if df.empty:
             return "<section class='panel'><div class='panel-head'><div><h3>Top Country</h3><p>Most common lead market among ranked artists.</p></div></div><div class='empty'>No country rows available.</div></section>"
-        counts = df["top_country"].fillna("Unknown").replace("", "Unknown").value_counts().head(5)
+            
+        if len(df) == 1 and "top_countries" in df.columns:
+            countries_str = str(df.iloc[0].get("top_countries") or "")
+            if not countries_str or countries_str.lower() in ("nan", "none", "—"):
+                counts = df["top_country"].fillna("Unknown").replace("", "Unknown").value_counts().head(5) if "top_country" in df.columns else pd.Series()
+            else:
+                countries_list = [c.strip() for c in countries_str.replace('\n', ',').split(',') if c.strip()]
+                counts = pd.Series(countries_list).value_counts().head(5)
+                # Since all counts might be 1, let's just show them
+        else:
+            if "top_country" not in df.columns:
+                return "<section class='panel'><div class='panel-head'><div><h3>Top Country</h3><p>Most common lead market among ranked artists.</p></div></div><div class='empty'>No country rows available.</div></section>"
+            counts = df["top_country"].fillna("Unknown").replace("", "Unknown").value_counts().head(5)
+            
+        if counts.empty:
+            return "<section class='panel'><div class='panel-head'><div><h3>Top Country</h3><p>Most common lead market among ranked artists.</p></div></div><div class='empty'>No country rows available.</div></section>"
+            
         total = float(counts.sum()) or 1.0
         colors = ["#fb7185", "#60a5fa", "#34d399", "#c4b5fd", "#fcd34d"]
         segments, legend, start = [], [], 0.0
@@ -1355,8 +1371,12 @@ def render_artists_overview(last_run_label: str = "n/a") -> None:
             segments.append(f"{color} {start:.1f}deg {end:.1f}deg")
             legend.append(f"<div class='legend-row'><span style='background:{color}'></span><b>{escape(str(label))}</b><i>{int(value)}</i></div>")
             start = end
+            
+        title_text = "Artist Markets" if len(df) == 1 else "Top Country"
+        desc_text = "Markets where the artist is currently charting." if len(df) == 1 else "Most common lead market among ranked artists."
+        
         return (
-            "<section class='panel donut-panel'><div class='panel-head'><div><h3>Top Country</h3><p>Most common lead market among ranked artists.</p></div></div>"
+            f"<section class='panel donut-panel'><div class='panel-head'><div><h3>{title_text}</h3><p>{desc_text}</p></div></div>"
             "<div class='donut-layout'>"
             f"<div class='donut' style='background:conic-gradient({', '.join(segments)})'><span>{escape(_fmt_n(total))}</span></div>"
             f"<div class='legend'>{''.join(legend)}</div></div></section>"
