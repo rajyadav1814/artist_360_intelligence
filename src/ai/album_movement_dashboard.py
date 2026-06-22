@@ -411,7 +411,7 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
   </div>
 
   <div class='tab-bar'>
-    <button class='tab active' onclick="showTab(event,'live')">Top Tracks</button>
+    <button class='tab active' onclick="showTab(event,'live')">Top Albums</button>
     <button class='tab' onclick="showTab(event,'movement')">Top Movement</button>
     <button class='tab' onclick="showTab(event,'trend')">Rank Trend</button>
     <button class='tab' onclick="showTab(event,'consistency')">Consistency</button>
