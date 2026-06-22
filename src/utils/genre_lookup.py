@@ -34,8 +34,16 @@ def _get_genre_for_title(artist_title: str) -> Optional[str]:
         
         if data and data.get("track") and len(data["track"]) > 0:
             genre = data["track"][0].get("strGenre")
+            style = data["track"][0].get("strStyle")
+            
+            result = []
             if genre and genre.strip():
-                return genre.strip()
+                result.append(genre.strip())
+            if style and style.strip() and style.strip() not in result:
+                result.append(style.strip())
+                
+            if result:
+                return ", ".join(result)
     except Exception as e:
         logger.debug(f"Failed to fetch genre for {artist_title}: {e}")
         
