@@ -10,8 +10,6 @@ import plotly.graph_objects as go
 import plotly.io as pio
 import streamlit as st
 import streamlit.components.v1 as st_components
-
-from src.ai.custom_chatbot import render_custom_chatbot
 from src.ai.label_dashboard import render_pulse_report
 from src.ai.debut_dashboard import render_debut_tab, prefetch_debut_data
 import threading
@@ -4199,7 +4197,7 @@ def show_compare_page() -> None:
         unsafe_allow_html=True,
     )
 
-    available_artists = leaderboard["name"].dropna().tolist()[:20]
+    available_artists = filtered["name"].dropna().unique().tolist()
     selected_for_comparison = custom_multiselect(
         "Select artists to compare",
         available_artists,
@@ -4209,11 +4207,21 @@ def show_compare_page() -> None:
     )
 
     if len(selected_for_comparison) >= 2:
-        comparison_data = leaderboard[leaderboard["name"].isin(selected_for_comparison)].copy()
+        comparison_data = filtered[filtered["name"].isin(selected_for_comparison)].copy()
         comparison_data = comparison_data.sort_values("rank")
         comparison_data["monthly_label"] = comparison_data["monthly_listeners"].apply(fmt_short)
 
         metric_cards: list[str] = []
+        cmp_metrics = [
+            ("Rank", "rank"),
+            ("Monthly Listeners", "monthly_listeners"),
+            ("Total Points", "total_points"),
+            ("Tracks", "songs_count"),
+            ("Albums", "albums_count"),
+            ("Countries", "countries_count"),
+            ("iTunes Points", "itunes_points"),
+            ("Spotify Points", "spotify_points"),
+        ]
         for artist_name in selected_for_comparison:
             artist_slice = comparison_data[comparison_data["name"] == artist_name]
             if artist_slice.empty:
@@ -4240,17 +4248,7 @@ def show_compare_page() -> None:
             )
 
         st.markdown(f"<div class='cmp-grid'>{''.join(metric_cards)}</div>", unsafe_allow_html=True)
-
-        # ── Head-to-head HTML comparison bars ─────────────────────────────
         VIZ_PALETTE = ["#60a5fa", "#34d399", "#c4b5fd", "#fcd34d", "#fb7185", "#f9a8d4"]
-        cmp_metrics = [
-            ("🎧 Monthly Listeners", "monthly_listeners"),
-            ("🎵 Tracks",             "songs_count"),
-            ("💿 Albums",            "albums_count"),
-            ("🌎 LATAM Countries",   "countries_count"),
-            ("⭐ Total Points",      "total_points"),
-        ]
-
         hth_rows = ""
         for label, col in cmp_metrics:
             vals = []
@@ -4306,12 +4304,6 @@ def show_compare_page() -> None:
             unsafe_allow_html=True,
         )
 
-        # ── 3 Plotly charts: Listeners · Countries · Points ─────────────
-        st.markdown(
-            "<div style='font-size:1.05rem;font-weight:800;color:var(--text);margin:0.25rem 0 0.85rem;"
-            "letter-spacing:-.01em;'>📊 Visual Comparison</div>",
-            unsafe_allow_html=True,
-        )
         comp_col1, comp_col2, comp_col3 = st.columns(3, gap="medium")
 
         with comp_col1:
@@ -4411,45 +4403,6 @@ def show_compare_page() -> None:
             fig_comp_points.update_yaxes(tickformat="~s")
             style_figure(fig_comp_points, 310, dark_mode=is_dark)
             render_plotly_html(fig_comp_points)
-
-        with st.expander("📋 View Detailed Comparison Table", expanded=True):
-            table_rows: list[str] = []
-            for _, row in comparison_data.iterrows():
-                rank_val = int(row["rank"]) if pd.notna(row.get("rank")) else "-"
-                monthly_val = fmt_short(row.get("monthly_listeners"))
-                songs_val = int(row.get("songs_count")) if pd.notna(row.get("songs_count")) else 0
-                albums_val = int(row.get("albums_count")) if pd.notna(row.get("albums_count")) else 0
-                countries_val = int(row.get("countries_count")) if pd.notna(row.get("countries_count")) else 0
-                top_song_val = str(row.get("top_song") or "-")
-                table_rows.append(
-                    "<tr>"
-                    f"<td>{escape(str(row.get('name') or '-'))}</td>"
-                    f"<td>{rank_val}</td>"
-                    f"<td>{escape(monthly_val)}</td>"
-                    f"<td>{songs_val}</td>"
-                    f"<td>{albums_val}</td>"
-                    f"<td>{countries_val}</td>"
-                    f"<td>{escape(top_song_val)}</td>"
-                    "</tr>"
-                )
-
-            st.markdown(
-                "<div class='cmp-table-wrap'>"
-                "<table class='cmp-table'>"
-                "<thead><tr>"
-                "<th>Artist</th><th>Rank</th><th>Monthly Listeners</th>"
-                "<th>Tracks</th><th>Albums</th><th>LATAM Countries</th><th>Top Track</th>"
-                "</tr></thead>"
-                f"<tbody>{''.join(table_rows)}</tbody>"
-                "</table>"
-                "</div>",
-                unsafe_allow_html=True,
-            )
-    else:
-        st.markdown(
-            "<div class='cmp-warning'>Please select at least 2 artists to compare.</div>",
-            unsafe_allow_html=True,
-        )
 
 
 def show_chart_tracker_page() -> None:
@@ -4738,6 +4691,12 @@ def show_acquisition_page() -> None:
         render_acquisition(labels_to_filter, artists_to_filter)
 
 
+def show_genre_analysis_page() -> None:
+    """Wrapper function for Genre Analysis page"""
+    from src.ai.genre_analysis_dashboard import render_genre_analysis
+    render_genre_analysis()
+
+
 NAV_ITEMS = [
     {
         "page": show_artists_overview_page,
@@ -4787,6 +4746,12 @@ NAV_ITEMS = [
         "title": "AI Data Analyst",
         "icon": "bot",
         "path": "ai-data-analyst",
+    },
+    {
+        "page": show_genre_analysis_page,
+        "title": "Genre Analysis",
+        "icon": "analytics",
+        "path": "genre-analysis",
     },
 ]
 
