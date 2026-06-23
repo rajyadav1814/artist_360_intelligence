@@ -444,7 +444,7 @@ def save_itunes_artist_album(data: List[ItunesArtistAlbum]) -> int:
                 rows = [
                     (
                         d.date, d.country, d.rank, d.artist_title,
-                        d.days, d.peak, d.points, d.points_change, d.total_points, d.label, d.rank_change
+                        d.days, d.peak, d.points, d.points_change, d.total_points, d.label, d.rank_change, d.genere
                     )
                     for d in data
                 ]
@@ -452,9 +452,19 @@ def save_itunes_artist_album(data: List[ItunesArtistAlbum]) -> int:
                     cur,
                     """
                     INSERT INTO itunes_artist_album
-                        (date, country, rank, artist_title, days, peak, points, points_change, total_points, label, rank_change)
+                        (date, country, rank, artist_title, days, peak, points, points_change, total_points, label, rank_change, genere)
                     VALUES %s
-                    ON CONFLICT (date, country, rank, artist_title) DO NOTHING
+                    ON CONFLICT (date, country, rank, artist_title)
+                    DO UPDATE SET
+                        days            = EXCLUDED.days,
+                        peak            = EXCLUDED.peak,
+                        points          = EXCLUDED.points,
+                        points_change   = EXCLUDED.points_change,
+                        total_points    = EXCLUDED.total_points,
+                        label           = COALESCE(EXCLUDED.label, itunes_artist_album.label),
+                        rank_change     = EXCLUDED.rank_change,
+                        genere          = COALESCE(EXCLUDED.genere, itunes_artist_album.genere),
+                        scraped_at      = NOW()
                     """,
                     rows
                 )

@@ -108,6 +108,7 @@ class ItunesArtistAlbum:
     total_points: Optional[int] = None
     label: Optional[str] = None
     rank_change: Optional[str] = None
+    genere: Optional[str] = None
 
 
 
