@@ -712,9 +712,9 @@ body{{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg
 .full-card{{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:1.25rem;box-shadow:{box_shadow}}}
 .card-title{{font-size:14px;font-weight:600;color:var(--t1);margin-bottom:16px;display:flex;align-items:center;gap:8px}}
 
-.filter-row{{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:0.25rem;align-items:center}}
-.filter-label{{font-size:12px;font-weight:600;color:var(--t2);margin-right:2px;text-transform:uppercase;letter-spacing:0.04em}}
-.fbtn{{font-size:11px;font-weight:600;padding:6px 14px;border-radius:20px;border:1px solid var(--border);background:var(--bg3);color:var(--t2);cursor:pointer;transition:all 0.2s ease}}
+.filter-row{{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:0.75rem;align-items:center}}
+.filter-label{{font-size:14px;font-weight:600;color:var(--t2);margin-right:4px;text-transform:uppercase;letter-spacing:0.04em}}
+.fbtn{{font-size:13px;font-weight:600;padding:8px 18px;border-radius:20px;border:1px solid var(--border);background:var(--bg3);color:var(--t2);cursor:pointer;transition:all 0.2s ease}}
 .fbtn:hover{{background:var(--bg4);color:var(--t1)}}
 .fbtn.active{{background:var(--bd);color:var(--blue);border-color:var(--blue)}}
 
@@ -882,14 +882,10 @@ hmLegend.innerHTML = GENRES_HM.map(g=>`<span class="leg-item"><span class="leg-s
 const countries_hm = DATA.filter(d=>d.country!=='Global');
 const hmEl = document.getElementById('heatmap');
 
-const labelW = 150, cellW = 85, cellH = 28, headerH = 100;
+const labelW = 150, cellW = 85, cellH = 28;
 const totalW = labelW + GENRES_HM.length * cellW + 8;
 
 let hmHTML = `<div style="display:grid;grid-template-columns:${{labelW}}px ${{GENRES_HM.map(()=>cellW+'px').join(' ')}};gap:2px;min-width:${{totalW}}px">`;
-hmHTML += `<div style="font-size:10px;color:var(--t3);padding:4px 2px;display:flex;align-items:flex-end"></div>`;
-GENRES_HM.forEach(g=>{{
-  hmHTML += `<div style="font-size:10px;font-weight:600;color:var(--t2);text-align:center;padding:4px;height:${{headerH}}px;display:flex;align-items:flex-end;justify-content:center;writing-mode:vertical-rl;transform:rotate(180deg)">${{g}}</div>`;
-}});
 countries_hm.forEach(d=>{{
   hmHTML += `<div style="font-size:11px;font-weight:600;color:var(--t1);display:flex;align-items:center;padding:2px 4px;height:${{cellH}}px">${{d.flag}} ${{d.country.length>15?d.country.substring(0,15)+'…':d.country}}</div>`;
   const maxS = Math.max(...d.genres.map(g2=>g2.s));
