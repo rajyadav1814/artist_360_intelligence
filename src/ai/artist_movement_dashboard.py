@@ -172,6 +172,7 @@ def render_chart_tracker(
         .ct-section{
             background:var(--surface);border:1px solid var(--border);border-radius:12px;
             padding:8px 8px 4px;margin-bottom:18px;
+            margin-top:-65px;
         }
         .ct-section-ttl{
             font-size:13px;color:var(--text);font-weight:600;text-transform:uppercase;
