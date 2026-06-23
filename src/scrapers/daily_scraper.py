@@ -9,7 +9,6 @@ from config.settings import ITUNES_DAILY_URL, SPOTIFY_DAILY_URL
 from src.database.models import ItunesDaily, SpotifyDaily, ItunesArtistAlbum
 from src.utils.http_client import fetch_page
 from src.utils.logger import get_logger
-from src.utils.label_lookup import get_label
 
 logger = get_logger(__name__)
 
@@ -62,7 +61,6 @@ def _read_chart_table(table) -> pd.DataFrame:
 
 def scrape_spotify_daily(country: str = "global") -> List[SpotifyDaily]:
     """Scrape Spotify daily chart for a specific country."""
-    from src.utils.label_lookup import get_labels_batch_optimized
     url = SPOTIFY_DAILY_URL.format(country=country)
     logger.info(f"Scraping Spotify {country} Daily from {url}...")
     
@@ -90,8 +88,7 @@ def scrape_spotify_daily(country: str = "global") -> List[SpotifyDaily]:
                 titles.append(artist_title)
                 rows_to_process.append(row)
         
-        # Batch lookup labels and genres
-        labels_map = get_labels_batch_optimized(titles)
+        # Batch lookup genres and labels
         from src.utils.genre_lookup import get_genres_batch
         genres_map = get_genres_batch(titles)
         
@@ -105,9 +102,7 @@ def scrape_spotify_daily(country: str = "global") -> List[SpotifyDaily]:
                 
                 artist_title = titles[i]
                 genre_info = genres_map.get(artist_title) or {}
-                label_val = labels_map.get(artist_title)
-                if not label_val and genre_info.get("label"):
-                    label_val = genre_info.get("label")
+                label_val = genre_info.get("label")
                 
                 results.append(
                     SpotifyDaily(
@@ -137,7 +132,6 @@ def scrape_spotify_daily(country: str = "global") -> List[SpotifyDaily]:
 
 def scrape_spotify_weekly(country: str = "global") -> List[SpotifyDaily]:
     """Scrape Spotify weekly chart for a specific country."""
-    from src.utils.label_lookup import get_labels_batch_optimized
     url = f"https://kworb.net/spotify/country/{country}_weekly.html"
     logger.info(f"Scraping Spotify {country} Weekly from {url}...")
     
@@ -163,8 +157,7 @@ def scrape_spotify_weekly(country: str = "global") -> List[SpotifyDaily]:
                 titles.append(artist_title)
                 rows_to_process.append(row)
 
-        # Batch lookup labels and genres
-        labels_map = get_labels_batch_optimized(titles)
+        # Batch lookup genres and labels
         from src.utils.genre_lookup import get_genres_batch
         genres_map = get_genres_batch(titles)
         
@@ -178,9 +171,7 @@ def scrape_spotify_weekly(country: str = "global") -> List[SpotifyDaily]:
 
                 artist_title = titles[i]
                 genre_info = genres_map.get(artist_title) or {}
-                label_val = labels_map.get(artist_title)
-                if not label_val and genre_info.get("label"):
-                    label_val = genre_info.get("label")
+                label_val = genre_info.get("label")
                     
                 results.append(
                     SpotifyDaily(
@@ -210,7 +201,6 @@ def scrape_spotify_weekly(country: str = "global") -> List[SpotifyDaily]:
 
 def scrape_spotify_totals(country: str = "global") -> List[SpotifyDaily]:
     """Scrape Spotify daily chart totals (all-time stats for the day's tracks)."""
-    from src.utils.label_lookup import get_labels_batch_optimized
     url = f"https://kworb.net/spotify/country/{country}_daily_totals.html"
     logger.info(f"Scraping Spotify {country} Totals from {url}...")
     
@@ -236,8 +226,7 @@ def scrape_spotify_totals(country: str = "global") -> List[SpotifyDaily]:
                 titles.append(artist_title)
                 rows_to_process.append(row)
 
-        # Batch lookup labels and genres
-        labels_map = get_labels_batch_optimized(titles)
+        # Batch lookup genres and labels
         from src.utils.genre_lookup import get_genres_batch
         genres_map = get_genres_batch(titles)
         
@@ -250,9 +239,7 @@ def scrape_spotify_totals(country: str = "global") -> List[SpotifyDaily]:
 
                 artist_title = titles[i]
                 genre_info = genres_map.get(artist_title) or {}
-                label_val = labels_map.get(artist_title)
-                if not label_val and genre_info.get("label"):
-                    label_val = genre_info.get("label")
+                label_val = genre_info.get("label")
                     
                 results.append(
                     SpotifyDaily(
@@ -282,7 +269,6 @@ def scrape_spotify_totals(country: str = "global") -> List[SpotifyDaily]:
 
 def scrape_itunes_daily(country: str = "us") -> List[ItunesDaily]:
     """Scrape iTunes daily chart for a specific country."""
-    from src.utils.label_lookup import get_labels_batch_optimized
     if country == "ww":
         url = "https://kworb.net/ww/"
     else:
@@ -311,8 +297,7 @@ def scrape_itunes_daily(country: str = "us") -> List[ItunesDaily]:
                 titles.append(artist_title)
                 rows_to_process.append(row)
 
-        # Batch lookup labels and genres
-        labels_map = get_labels_batch_optimized(titles)
+        # Batch lookup genres and labels
         from src.utils.genre_lookup import get_genres_batch
         genres_map = get_genres_batch(titles)
         
@@ -326,9 +311,7 @@ def scrape_itunes_daily(country: str = "us") -> List[ItunesDaily]:
 
                 artist_title = titles[i]
                 genre_info = genres_map.get(artist_title) or {}
-                label_val = labels_map.get(artist_title)
-                if not label_val and genre_info.get("label"):
-                    label_val = genre_info.get("label")
+                label_val = genre_info.get("label")
                     
                 results.append(
                     ItunesDaily(
@@ -358,7 +341,6 @@ def scrape_itunes_daily(country: str = "us") -> List[ItunesDaily]:
 
 def scrape_itunes_artist_album() -> List[ItunesArtistAlbum]:
     """Scrape iTunes Worldwide Artist Album Daily from https://kworb.net/aww/."""
-    from src.utils.label_lookup import get_labels_batch_optimized
     url = "https://kworb.net/aww/"
     logger.info(f"Scraping iTunes Worldwide Artist Album Daily from {url}...")
     html = fetch_page(url)
@@ -383,8 +365,9 @@ def scrape_itunes_artist_album() -> List[ItunesArtistAlbum]:
                 titles.append(artist_title)
                 rows_to_process.append(row)
 
-        # Batch lookup labels
-        labels_map = get_labels_batch_optimized(titles)
+        # Batch lookup labels via genre API
+        from src.utils.genre_lookup import get_genres_batch
+        genres_map = get_genres_batch(titles)
         
         results = []
         for i, row in enumerate(rows_to_process):
@@ -395,6 +378,7 @@ def scrape_itunes_artist_album() -> List[ItunesArtistAlbum]:
                 rank = int(rank_raw)
 
                 artist_title = titles[i]
+                genre_info = genres_map.get(artist_title) or {}
                 results.append(
                     ItunesArtistAlbum(
                         date=today,
@@ -406,8 +390,9 @@ def scrape_itunes_artist_album() -> List[ItunesArtistAlbum]:
                         points=_safe_int(row.get("Pts", 0)),
                         points_change=_safe_int(row.get("Pts+", row.get("P+", 0))),
                         total_points=_safe_int(row.get("TPts", 0)),
-                        label=labels_map.get(artist_title),
+                        label=genre_info.get("label"),
                         rank_change=_normalize_rank_change(row.get("P+")),
+                        genere=genre_info.get("genre"),
                     )
                 )
             except Exception as e:

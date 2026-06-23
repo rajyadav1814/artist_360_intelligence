@@ -257,7 +257,10 @@ def _records_to_df(records: list[dict], metric_key: str) -> pd.DataFrame:
 
 # ─────────────────────────── render ───────────────────────────────
 
-def render_track_movement(labels_filter: list[str] | None = None) -> None:
+def render_track_movement(
+    labels_filter: list[str] | None = None,
+    artists_to_filter: list[str] | None = None,
+) -> None:
     # ── Filter bar ────────────────────────────────────────────────
     c0, c1, c2, c3 = st.columns([1.7, 1.2, 1.2, 1.6])
     with c0:
@@ -290,6 +293,12 @@ def render_track_movement(labels_filter: list[str] | None = None) -> None:
             sp_df = sp_df[sp_df["label"].isin(labels_filter)]
         if not it_df.empty and "label" in it_df.columns:
             it_df = it_df[it_df["label"].isin(labels_filter)]
+
+    if artists_to_filter:
+        if not sp_df.empty and "artist_title" in sp_df.columns:
+            sp_df = sp_df[sp_df["artist_title"].str.split(" - ").str[0].isin(artists_to_filter)]
+        if not it_df.empty and "artist_title" in it_df.columns:
+            it_df = it_df[it_df["artist_title"].str.split(" - ").str[0].isin(artists_to_filter)]
 
     if sp_df.empty and it_df.empty:
         st.warning("No daily chart data available for the selected window.")

@@ -233,7 +233,10 @@ def _top20_today(df: pd.DataFrame, latest: date) -> list[dict[str, Any]]:
 
 # ─────────────────────────── render ───────────────────────────────
 
-def render_album_movement(labels_filter: list[str] | None = None) -> None:
+def render_album_movement(
+    labels_filter: list[str] | None = None,
+    artists_to_filter: list[str] | None = None,
+) -> None:
     # ── Filter bar ────────────────────────────────────────────────
     c0, c1, c2 = st.columns([1.7, 1.2, 1.2])
     with c0:
@@ -256,6 +259,10 @@ def render_album_movement(labels_filter: list[str] | None = None) -> None:
     if labels_filter:
         if not it_df.empty and "label" in it_df.columns:
             it_df = it_df[it_df["label"].isin(labels_filter)]
+
+    if artists_to_filter:
+        if not it_df.empty and "artist_title" in it_df.columns:
+            it_df = it_df[it_df["artist_title"].str.split(" - ").str[0].isin(artists_to_filter)]
 
     if it_df.empty:
         st.warning("No daily chart data available for the selected window.")
@@ -411,7 +418,7 @@ body{background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--t
   </div>
 
   <div class='tab-bar'>
-    <button class='tab active' onclick="showTab(event,'live')">Top Tracks</button>
+    <button class='tab active' onclick="showTab(event,'live')">Top Albums</button>
     <button class='tab' onclick="showTab(event,'movement')">Top Movement</button>
     <button class='tab' onclick="showTab(event,'trend')">Rank Trend</button>
     <button class='tab' onclick="showTab(event,'consistency')">Consistency</button>

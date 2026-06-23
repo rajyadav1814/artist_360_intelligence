@@ -14,7 +14,6 @@ import streamlit as st
 import streamlit.components.v1 as st_components
 
 from src.database.connection import get_connection
-from src.utils.image_utils import get_artist_audiodb_info
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -210,17 +209,7 @@ def _build_track_rows(sp_df: pd.DataFrame, it_df: pd.DataFrame, dates: list[date
     tracks: list[dict[str, Any]] = []
     all_track_titles = sorted(set(sp_streams_p.index) | set(it_scores_p.index))
 
-    # ── Pre-fetch strGenre from TheAudioDB once per unique artist ──
-    unique_artists: set[str] = set()
-    for track in all_track_titles:
-        if track:
-            artist, _ = _split_at(track)
-            unique_artists.add(artist)
-    genre_map: dict[str, str] = {}
-    for artist_name in unique_artists:
-        info = get_artist_audiodb_info(artist_name)
-        if info.get("genre"):
-            genre_map[artist_name] = info["genre"]
+
 
     for track in all_track_titles:
         if not track: continue
@@ -297,7 +286,6 @@ def _build_track_rows(sp_df: pd.DataFrame, it_df: pd.DataFrame, dates: list[date
             "title": title,
             "artist": artist,
             "label": label,
-            "genre": genre_map.get(artist, "—"),
             "platform": platform,
             "spStreams": sp_streams,
             "spRanks": sp_ranks,
@@ -374,7 +362,10 @@ def _build_payload(tracks: list[dict[str, Any]], dates: list[date], limit: int =
     }
 
 
-def render_track_acquisition(labels_filter: list[str] | None = None) -> None:
+def render_track_acquisition(
+    labels_filter: list[str] | None = None,
+    artists_to_filter: list[str] | None = None,
+) -> None:
     st.markdown(
         "<div style='font-size: 0.92rem; color: var(--t2); margin: 0 0 14px; line-height: 1.5; font-weight: 500;'>"
         "🎵 Evaluate track-level acquisition potential by analyzing cross-platform performance metrics. "
@@ -402,6 +393,10 @@ def render_track_acquisition(labels_filter: list[str] | None = None) -> None:
 
     if labels_filter and not sp_all_df.empty and "label" in sp_all_df.columns:
         sp_all_df = sp_all_df[sp_all_df["label"].isin(labels_filter)]
+    
+    if artists_to_filter and not sp_all_df.empty and "artist_title" in sp_all_df.columns:
+        sp_all_df = sp_all_df[sp_all_df["artist_title"].str.split(" - ").str[0].isin(artists_to_filter)]
+
     
     sp_global_df = sp_all_df if not sp_all_df.empty else pd.DataFrame()
 

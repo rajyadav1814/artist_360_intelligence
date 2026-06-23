@@ -763,7 +763,10 @@ def _top_n_labels(df: pd.DataFrame, n: int = TOP_N_LABELS) -> list[dict[str, Any
 
 # ─────────────────────────── render ───────────────────────────────
 
-def render_label_analysis() -> None:
+def render_label_analysis(
+    labels_to_filter: list[str] | None = None,
+    artists_to_filter: list[str] | None = None,
+) -> None:
     st.markdown(
         "<div style='font-size: 0.92rem; color: var(--t2); margin: 0 0 14px; line-height: 1.5; font-weight: 500;'>"
         "Label dominance, normalization stats, and cross-platform reach across iTunes &amp; Spotify."
@@ -787,6 +790,14 @@ def render_label_analysis() -> None:
     if it_df.empty and sp_df.empty:
         st.warning("No label data available for the selected region.")
         return
+
+    # Apply filters if they are provided
+    if labels_to_filter:
+        if not it_df.empty:
+            it_df = it_df[it_df["label"].isin(labels_to_filter)]
+        if not sp_df.empty:
+            sp_df = sp_df[sp_df["label"].isin(labels_to_filter)]
+
 
     # ── Derived metrics ───────────────────────────────────────────
     norm_stats  = _build_normalization_stats(it_df, sp_df)

@@ -316,7 +316,10 @@ def _build_payload(albums: list[dict[str, Any]], dates: list[date], limit: int =
     }
 
 
-def render_album_acquisition(labels_filter: list[str] | None = None) -> None:
+def render_album_acquisition(
+    labels_filter: list[str] | None = None,
+    artists_to_filter: list[str] | None = None,
+) -> None:
     st.markdown(
         "<div style='font-size: 0.92rem; color: var(--t2); margin: 0 0 14px; line-height: 1.5; font-weight: 500;'>"
         "💿 Album-level acquisition intelligence tracking project velocity across iTunes Worldwide and regional markets. "
@@ -333,6 +336,10 @@ def render_album_acquisition(labels_filter: list[str] | None = None) -> None:
     sp_all_df = _load_window_multi("itunes_artist_album", all_codes, window_days)
     if labels_filter and not sp_all_df.empty and "label" in sp_all_df.columns:
         sp_all_df = sp_all_df[sp_all_df["label"].isin(labels_filter)]
+    
+    if artists_to_filter and not sp_all_df.empty and "artist_title" in sp_all_df.columns:
+        sp_all_df = sp_all_df[sp_all_df["artist_title"].str.split(" - ").str[0].isin(artists_to_filter)]
+
     
     sp_global_df = sp_all_df if not sp_all_df.empty else pd.DataFrame()
     sp_us_df = sp_all_df[sp_all_df["country"] == "us"] if not sp_all_df.empty else pd.DataFrame()

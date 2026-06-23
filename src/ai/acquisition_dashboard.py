@@ -477,7 +477,10 @@ def _fmt_n(n: float | int | None) -> str:
 
 # ───────────────────────── render ──────────────────────────
 
-def render_acquisition(labels_filter: list[str] | None = None) -> None:
+def render_acquisition(
+    labels_filter: list[str] | None = None,
+    artists_to_filter: list[str] | None = None,
+) -> None:
     st.markdown(
       "<div style='font-size: 0.92rem; color: var(--t2); margin: 0 0 14px; line-height: 1.5; font-weight: 500;'>"
       "🎤 Artist-level acquisition recommendations driven by peak Spotify monthly listeners, iTunes Worldwide performance, "
@@ -516,6 +519,9 @@ def render_acquisition(labels_filter: list[str] | None = None) -> None:
     if labels_filter:
         upper_filters = [lbl.upper() for lbl in labels_filter]
         artist_data = {k: v for k, v in artist_data.items() if v["label"].upper() in upper_filters}
+    
+    if artists_to_filter:
+        artist_data = {k: v for k, v in artist_data.items() if k in artists_to_filter}
 
     if not artist_data:
       st.warning("No artist signals could be computed.")
