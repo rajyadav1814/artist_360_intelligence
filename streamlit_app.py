@@ -4691,6 +4691,12 @@ def show_acquisition_page() -> None:
         render_acquisition(labels_to_filter, artists_to_filter)
 
 
+def show_genre_analysis_page() -> None:
+    """Wrapper function for Genre Analysis page"""
+    from src.ai.genre_analysis_dashboard import render_genre_analysis
+    render_genre_analysis()
+
+
 NAV_ITEMS = [
     {
         "page": show_artists_overview_page,
@@ -4740,6 +4746,12 @@ NAV_ITEMS = [
         "title": "AI Data Analyst",
         "icon": "bot",
         "path": "ai-data-analyst",
+    },
+    {
+        "page": show_genre_analysis_page,
+        "title": "Genre Analysis",
+        "icon": "analytics",
+        "path": "genre-analysis",
     },
 ]
 
