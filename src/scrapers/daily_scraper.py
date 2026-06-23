@@ -392,6 +392,7 @@ def scrape_itunes_artist_album() -> List[ItunesArtistAlbum]:
                         total_points=_safe_int(row.get("TPts", 0)),
                         label=genre_info.get("label"),
                         rank_change=_normalize_rank_change(row.get("P+")),
+                        genere=genre_info.get("genre"),
                     )
                 )
             except Exception as e:
