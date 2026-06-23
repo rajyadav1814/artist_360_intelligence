@@ -4724,13 +4724,14 @@ def show_acquisition_page() -> None:
     tab1, tab2, tab3 = st.tabs(["🎵 Track Acquisition", "💿 Album Acquisition", "🎤 Artist Acquisition"])
     
     labels_to_filter = selected_sony_labels if sony_music_only else None
+    artists_to_filter = filtered["name"].unique().tolist() if (latam_only or sony_music_only) else None
     
     with tab1:
-        render_track_acquisition(labels_to_filter)
+        render_track_acquisition(labels_to_filter, artists_to_filter)
     with tab2:
-        render_album_acquisition(labels_to_filter)
+        render_album_acquisition(labels_to_filter, artists_to_filter)
     with tab3:
-        render_acquisition(labels_to_filter)
+        render_acquisition(labels_to_filter, artists_to_filter)
 
 
 NAV_ITEMS = [
