@@ -4574,7 +4574,11 @@ def show_label_analysis_page() -> None:
         </style>
     """, unsafe_allow_html=True)
     from src.ai.label_analysis_dashboard import render_label_analysis
-    render_label_analysis()
+    
+    labels_to_filter = selected_sony_labels if sony_music_only else None
+    artists_to_filter = filtered["name"].unique().tolist() if (latam_only or sony_music_only) else None
+    
+    render_label_analysis(labels_to_filter=labels_to_filter, artists_to_filter=artists_to_filter)
 
 
 def show_debut_report_page() -> None:
