@@ -111,10 +111,15 @@ def build_tracker_demo_data(leaderboard: pd.DataFrame, days: int = 14, limit: in
     return pd.DataFrame(records), pd.DataFrame(best_rows).sort_values("best_position")
 
 
-def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> None:
+def render_chart_tracker(
+    history: pd.DataFrame,
+    leaderboard: pd.DataFrame,
+    artists_to_filter: list[str] | None = None,
+) -> None:
     if history.empty and leaderboard.empty:
         st.warning("Not enough ranking data available yet.")
         return
+
 
     # ── Inject Chart Tracker styles (scoped) ─────────────────────────
     st.markdown(
@@ -232,6 +237,10 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
     time_window_days = int(time_range.split()[0])
     using_demo = unique_runs < 3
     if using_demo:
+        # When using demo data, we should still respect the artist filter if it's active
+        if artists_to_filter:
+            leaderboard = leaderboard[leaderboard["name"].isin(artists_to_filter)]
+
         line_df, best_df = build_tracker_demo_data(leaderboard, days=time_window_days, limit=num_artists)
     else:
         history = history.copy()
@@ -246,6 +255,10 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
             history = history[history["scraped_at"] >= window_start]
 
         if history.empty:
+            # Also filter leaderboard for demo data fallback
+            if artists_to_filter:
+                leaderboard = leaderboard[leaderboard["name"].isin(artists_to_filter)]
+
             st.info("📊 Limited long-range history is available. Showing an interpolated top-artist trend instead.", icon="ℹ️")
             line_df, best_df = build_tracker_demo_data(leaderboard, days=time_window_days)
             using_demo = True
@@ -254,6 +267,9 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
             line_df = history.rename(columns={"name": "artist", "rank": "position", "scraped_at": "date"})[
                 ["day", "date", "artist", "position"]
             ]
+            # Apply artist filter to historical data
+            if artists_to_filter:
+                line_df = line_df[line_df["artist"].isin(artists_to_filter)]
 
             if latest_scraped_at is not None and window_start is not None:
                 target_dates = pd.date_range(start=window_start.normalize(), end=latest_scraped_at.normalize(), freq="D")
