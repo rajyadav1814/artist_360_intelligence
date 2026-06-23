@@ -21,50 +21,11 @@ def render_plotly_html(fig: go.Figure, *, height: int | None = None, dark_mode: 
     if dark_mode is None:
         dark_mode = st.session_state.get("dark_mode", True)
 
-    chart_height = height or (int(fig.layout.height) if fig.layout.height else 520)
     fig.update_layout(
         template="plotly_dark" if dark_mode else "plotly_white",
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
     )
-    chart_html = pio.to_html(
-        fig,
-        config=PLOTLY_CONFIG,
-        full_html=False,
-        include_plotlyjs="cdn",
-        default_width="100%",
-        default_height=f"{chart_height}px",
-    )
-    bg_color = "rgba(13, 17, 23, 0.95)" if dark_mode else "#FFFFFF"
-    border_color = "rgba(108, 92, 231, 0.2)" if dark_mode else "rgba(108, 92, 231, 0.15)"
-    shadow_color = "rgba(0, 0, 0, 0.22)" if dark_mode else "rgba(108, 92, 231, 0.05)"
-
-    st_components.html(
-        f"""
-        <div class="graph-card">
-            <div class="plotly-html-chart">{chart_html}</div>
-        </div>
-        <style>
-            body {{ margin: 0; background: transparent; }}
-            .graph-card {{
-                width: 100%; box-sizing: border-box; padding: 10px 10px 6px 10px;
-                border-radius: 20px; border: 1px solid {border_color};
-                background: {bg_color}; box-shadow: 0 4px 12px {shadow_color};
-            }}
-            .plotly-html-chart {{ width: 100%; }}
-            .plotly-html-chart .js-plotly-plot,
-            .plotly-html-chart .plot-container,
-            .plotly-html-chart .svg-container {{ width: 100% !important; }}
-        </style>
-        <script>
-            setTimeout(() => {{ window.dispatchEvent(new Event('resize')); }}, 300);
-            setTimeout(() => {{ window.dispatchEvent(new Event('resize')); }}, 1000);
-        </script>
-        """,
-        height=chart_height + 32,
-        scrolling=False,
-    )
-
 
 def style_figure(fig, height: int, dark_mode: bool | None = None) -> None:
     if dark_mode is None:
@@ -640,19 +601,6 @@ def render_chart_tracker(history: pd.DataFrame, leaderboard: pd.DataFrame) -> No
         best_df_plot = best_df_plot.sort_values("best_position", ascending=True)
         best_df_plot["artist_tick"] = best_df_plot["artist"].map(
             lambda v: v if len(str(v)) <= 20 else f"{str(v)[:18]}..."
-        )
-
-        st.markdown(
-            """
-            <div class='ct-chart-note'>
-              <div class='ct-chart-note-title'>🏆 Best Recent Positions</div>
-              <div class='ct-chart-note-copy'>
-                This chart highlights each artist's strongest chart rank within the selected time window.
-                A longer bar means a stronger recent peak position. Hover over any bar to see the actual best rank reached.
-              </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
         )
 
         blue_scale = [
