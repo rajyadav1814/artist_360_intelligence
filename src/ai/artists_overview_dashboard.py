@@ -910,7 +910,11 @@ def render_artists_overview(last_run_label: str = "n/a", filtered_artists: list[
 
     # --- Artist Selection Dropdown ---
     # all_artists_combined_df is already sorted by rank in _build_artist_table
-    all_artist_names = ["Search Artists..."] + all_artists_combined_df["name"].dropna().unique().tolist()
+    if filtered_artists:
+        all_artist_names = ["Search Artists..."] + [artist for artist in all_artists_combined_df["name"].dropna().unique() if artist in filtered_artists]
+    else:
+        all_artist_names = ["Search Artists..."] + all_artists_combined_df["name"].dropna().unique().tolist()
+
     
     col1, col2 = st.columns([0.5, 0.5])
     with col1:
