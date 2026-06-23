@@ -4673,7 +4673,7 @@ def show_movement_page() -> None:
     tab1, tab2, tab3 = st.tabs(["🎤 Artist Movement", "🎵 Track Movement", "💿 Album Movement"])
     
     labels_to_filter = selected_sony_labels if sony_music_only else None
-    artists_to_filter = filtered["name"].unique().tolist() if latam_only else None
+    artists_to_filter = filtered["name"].unique().tolist() if (latam_only or sony_music_only) else None
     
     with tab1:
         render_chart_tracker(history, filtered, artists_to_filter=artists_to_filter)
