@@ -10,11 +10,8 @@ import plotly.graph_objects as go
 import plotly.io as pio
 import streamlit as st
 import streamlit.components.v1 as st_components
-
-from src.ai.custom_chatbot import render_custom_chatbot
 from src.ai.label_dashboard import render_pulse_report
 from src.ai.debut_dashboard import render_debut_tab, prefetch_debut_data
-from src.ai.compare_dashboard import render_compare_dashboard
 import threading
 from streamlit.runtime.scriptrunner import add_script_run_ctx
 from src.ai.track_movement_dashboard import render_track_movement
