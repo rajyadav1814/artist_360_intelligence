@@ -4200,7 +4200,7 @@ def show_compare_page() -> None:
         unsafe_allow_html=True,
     )
 
-    available_artists = leaderboard["name"].dropna().tolist()[:20]
+    available_artists = filtered["name"].dropna().unique().tolist()
     selected_for_comparison = custom_multiselect(
         "Select artists to compare",
         available_artists,
@@ -4210,7 +4210,7 @@ def show_compare_page() -> None:
     )
 
     if len(selected_for_comparison) >= 2:
-        comparison_data = leaderboard[leaderboard["name"].isin(selected_for_comparison)].copy()
+        comparison_data = filtered[filtered["name"].isin(selected_for_comparison)].copy()
         comparison_data = comparison_data.sort_values("rank")
         comparison_data["monthly_label"] = comparison_data["monthly_listeners"].apply(fmt_short)
 
