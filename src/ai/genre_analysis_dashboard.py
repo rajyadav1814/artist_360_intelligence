@@ -666,7 +666,7 @@ body{{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg
 .filter-label{{font-size:14px;font-weight:600;color:var(--t2);margin-right:4px;text-transform:uppercase;letter-spacing:0.04em}}
 .fbtn{{font-size:13px;font-weight:600;padding:8px 18px;border-radius:20px;border:1px solid var(--border);background:var(--bg3);color:var(--t2);cursor:pointer;transition:all 0.2s ease}}
 .fbtn:hover{{background:var(--bg4);color:var(--t1)}}
-.fbtn.active{{background:var(--bd);color:var(--blue);border-color:var(--blue)}}
+.fbtn.active{{background:#fb923c;color:#1A1A1A;border-color:#fb923c}}
 
 .country-grid{{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}}
 .ccard{{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:1.15rem;box-shadow:{box_shadow}}}
