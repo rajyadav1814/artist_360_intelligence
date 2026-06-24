@@ -4740,18 +4740,17 @@ NAV_ITEMS = [
         "title": "Compare",
         "icon": "compare",
         "path": "compare",
+    },{
+        "page": show_genre_analysis_page,
+        "title": "Genre Analysis",
+        "icon": "analytics",
+        "path": "genre-analysis",
     },
     {
         "page": show_ai_analyst_page,
         "title": "AI Data Analyst",
         "icon": "bot",
         "path": "ai-data-analyst",
-    },
-    {
-        "page": show_genre_analysis_page,
-        "title": "Genre Analysis",
-        "icon": "analytics",
-        "path": "genre-analysis",
     },
 ]
 
