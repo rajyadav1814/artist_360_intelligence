@@ -291,9 +291,9 @@ def get_genre_analysis_data(days: int = 30):
     return payload
 
 
-def _build_html(payload: dict, dark_mode: bool) -> str:
+def _build_html(payloads: dict, dark_mode: bool) -> str:
     theme_css = _THEME_DARK if dark_mode else _THEME_LIGHT
-    payload_json = json.dumps(payload)
+    payload_json = json.dumps(payloads)
     
     box_shadow = "0 4px 20px rgba(0,0,0,0.25)" if dark_mode else "0 2px 10px rgba(0,0,0,0.04)"
     
@@ -303,6 +303,35 @@ def _build_html(payload: dict, dark_mode: bool) -> str:
 *{{box-sizing:border-box;margin:0;padding:0}}
 body{{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--t1);padding:1.25rem 0}}
 .db{{width:100%;max-width:1400px;margin:0 auto;display:flex;flex-direction:column;gap:1.5rem}}
+
+/* --- Time Filter Pills --- */
+.time-filter-row {{
+  display: flex;
+  gap: 10px;
+  margin-bottom: 0.25rem;
+  align-items: center;
+}}
+.tpill {{
+  font-size: 13px;
+  font-weight: 500;
+  padding: 6px 16px;
+  border-radius: 20px;
+  border: 1px solid var(--border2);
+  background: var(--bg2);
+  color: var(--t2);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}}
+.tpill:hover {{
+  background: var(--bg4);
+  color: var(--t1);
+}}
+.tpill.active {{
+  background: var(--rd);
+  color: var(--red);
+  border-color: var(--red);
+  font-weight: 600;
+}}
 
 /* --- KPIs --- */
 .kpi-grid{{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}}
@@ -375,6 +404,12 @@ body{{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg
 
 <div class="db">
 
+<div class="time-filter-row">
+  <button class="tpill active" data-days="7">Last week</button>
+  <button class="tpill" data-days="15">Last 15 days</button>
+  <button class="tpill" data-days="30">Last month</button>
+</div>
+
 <div class="kpi-grid">
   <div class="kpi">
     <div class="kpi-label"><i class="ti ti-music"></i> genres tracked</div>
@@ -431,7 +466,7 @@ body{{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg
 </div>
 
 <script>
-const dashData = {payload_json};
+const combinedData = {payload_json};
 const rootStyles = getComputedStyle(document.documentElement);
 const cssVar = (name) => rootStyles.getPropertyValue(name).trim();
 
@@ -456,13 +491,6 @@ function getColor(g) {{
   return `hsl(${{h}}, 65%, 50%)`;
 }}
 
-const genreScores = dashData.genreScores;
-const spotifyStreams = dashData.spotifyStreams;
-const perfData = dashData.perfData;
-const countries = dashData.countries;
-const countryGenres = dashData.countryGenres;
-const kpis = dashData.kpis;
-
 function fmtScore(v){{
   if(v>=1e9) return (v/1e9).toFixed(1)+'B';
   if(v>=1e6) return (v/1e6).toFixed(1)+'M';
@@ -470,17 +498,9 @@ function fmtScore(v){{
   return v;
 }}
 
-// Update KPIs
-document.getElementById('kpi-genresTracked').innerText = kpis.genresTracked;
-document.getElementById('kpi-topGenreScore').innerText = fmtScore(kpis.topGenreScore);
-document.getElementById('kpi-topGenreName').innerText = kpis.topGenreName;
-document.getElementById('kpi-topStreamsVal').innerText = fmtScore(kpis.topStreamsVal);
-document.getElementById('kpi-topStreamsName').innerText = kpis.topStreamsName;
-document.getElementById('kpi-countriesCovered').innerText = kpis.countriesCovered;
-
 function renderBars(containerId, data, colorFn){{
   const el = document.getElementById(containerId);
-  if(data.length === 0) {{ el.innerHTML = "<div style='color:var(--t3);padding:20px;text-align:center;'>No data available</div>"; return; }}
+  if(!data || data.length === 0) {{ el.innerHTML = "<div style='color:var(--t3);padding:20px;text-align:center;'>No data available</div>"; return; }}
   const max = Math.max(...data.map(d=>d.s));
   el.innerHTML = data.slice(0,8).map(d=>`
     <div class="genre-bar">
@@ -490,64 +510,102 @@ function renderBars(containerId, data, colorFn){{
     </div>`).join('');
 }}
 
-renderBars('score-bars', genreScores, getColor);
-renderBars('stream-bars', spotifyStreams, getColor);
+function updateDashboard(days) {{
+  const dashData = combinedData[days];
+  if(!dashData) return;
 
+  const genreScores = dashData.genreScores || [];
+  const spotifyStreams = dashData.spotifyStreams || [];
+  const perfData = dashData.perfData || {{}};
+  const countries = dashData.countries || [];
+  const countryGenres = dashData.countryGenres || [];
+  const kpis = dashData.kpis || {{}};
 
-const genres = Object.keys(perfData);
-const tabsEl = document.getElementById('genre-tabs');
-if(genres.length > 0) {{
-    tabsEl.innerHTML = genres.map((g,i)=>`<button class="tab${{i===0?' active':''}}" data-g="${{g}}">${{g}}</button>`).join('');
-}} else {{
-    tabsEl.innerHTML = "<div style='color:var(--t3);'>No performance data</div>";
+  // Update KPIs
+  document.getElementById('kpi-genresTracked').innerText = kpis.genresTracked || 0;
+  document.getElementById('kpi-topGenreScore').innerText = fmtScore(kpis.topGenreScore || 0);
+  document.getElementById('kpi-topGenreName').innerText = kpis.topGenreName || 'N/A';
+  document.getElementById('kpi-topStreamsVal').innerText = fmtScore(kpis.topStreamsVal || 0);
+  document.getElementById('kpi-topStreamsName').innerText = kpis.topStreamsName || 'N/A';
+  document.getElementById('kpi-countriesCovered').innerText = kpis.countriesCovered || 0;
+
+  renderBars('score-bars', genreScores, getColor);
+  renderBars('stream-bars', spotifyStreams, getColor);
+
+  const genres = Object.keys(perfData);
+  const tabsEl = document.getElementById('genre-tabs');
+  if(genres.length > 0) {{
+      tabsEl.innerHTML = genres.map((g,i)=>`<button class="tab${{i===0?' active':''}}" data-g="${{g}}">${{g}}</button>`).join('');
+  }} else {{
+      tabsEl.innerHTML = "<div style='color:var(--t3);'>No performance data</div>";
+  }}
+
+  window.renderPerf = function(genre) {{
+    const rows = perfData[genre]||[];
+    const colors=['#378ADD','#7F77DD','#BA7517','#639922','#D4537E','#1D9E75'];
+    document.getElementById('perf-list').innerHTML = rows.map((r,i)=>{{
+      const c = colors[i%colors.length];
+      return `<div class="perf-row">
+        <div class="rank-circle" style="background:${{c}}22;color:${{c}}">${{i+1}}</div>
+        <span class="perf-name" title="${{r.name}}">${{r.name}}</span>
+        <span class="perf-score">${{fmtScore(r.score)}}</span>
+      </div>`;
+    }}).join('');
+  }};
+
+  if(genres.length > 0) {{
+      window.renderPerf(genres[0]);
+  }} else {{
+      document.getElementById('perf-list').innerHTML = "";
+  }}
+
+  document.getElementById('country-list').innerHTML = countries.map(c=>`
+    <div class="country-row">
+      <div><div class="country-name">${{c.name}}</div><div class="country-genres">${{c.genres}} genres tracked</div></div>
+      <div class="country-streams">${{fmtScore(c.streams)}}</div>
+    </div>`).join('');
+
+  document.getElementById('country-genre').innerHTML = countryGenres.map(c=>`
+    <div class="country-row" style="align-items: center; justify-content: space-between;">
+      <span class="country-name" style="flex: 1;">${{c.country}}</span>
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <span class="badge" style="background-color: ${{getColor(c.genre)}}; color: #fff; padding: 4px 8px; border-radius: 12px; font-size: 10px; font-weight: 600; text-transform: uppercase;">${{c.genre}}</span>
+        <span class="country-streams" style="width: 45px; text-align: right; font-size: 12px; color: var(--t2); font-weight: 600;">${{fmtScore(c.streams)}}</span>
+      </div>
+    </div>`).join('');
 }}
 
-function renderPerf(genre){{
-  const rows = perfData[genre]||[];
-  const colors=['#378ADD','#7F77DD','#BA7517','#639922','#D4537E','#1D9E75'];
-  document.getElementById('perf-list').innerHTML = rows.map((r,i)=>{{
-    const c = colors[i%colors.length];
-    return `<div class="perf-row">
-      <div class="rank-circle" style="background:${{c}}22;color:${{c}}">${{i+1}}</div>
-      <span class="perf-name" title="${{r.name}}">${{r.name}}</span>
-      <span class="perf-score">${{fmtScore(r.score)}}</span>
-    </div>`;
-  }}).join('');
-}}
+// Initialize Dashboard
+const activePill = document.querySelector('.tpill.active');
+const defaultDays = activePill ? activePill.dataset.days : "7";
+updateDashboard(defaultDays);
 
-if(genres.length > 0) {{
-    renderPerf(genres[0]);
-    tabsEl.addEventListener('click',e=>{{
-      const btn=e.target.closest('.tab');
-      if(!btn) return;
-      tabsEl.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));
-      btn.classList.add('active');
-      renderPerf(btn.dataset.g);
-    }});
-}}
+// Time filter click listeners
+document.querySelectorAll('.tpill').forEach(btn => {{
+  btn.addEventListener('click', () => {{
+    document.querySelectorAll('.tpill').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    updateDashboard(btn.dataset.days);
+  }});
+}});
 
-document.getElementById('country-list').innerHTML = countries.map(c=>`
-  <div class="country-row">
-    <div><div class="country-name">${{c.name}}</div><div class="country-genres">${{c.genres}} genres tracked</div></div>
-    <div class="country-streams">${{fmtScore(c.streams)}}</div>
-  </div>`).join('');
-
-document.getElementById('country-genre').innerHTML = countryGenres.map(c=>`
-  <div class="country-row" style="align-items: center; justify-content: space-between;">
-    <span class="country-name" style="flex: 1;">${{c.country}}</span>
-    <div style="display: flex; align-items: center; gap: 12px;">
-      <span class="badge" style="background-color: ${{getColor(c.genre)}}; color: #fff; padding: 4px 8px; border-radius: 12px; font-size: 10px; font-weight: 600; text-transform: uppercase;">${{c.genre}}</span>
-      <span class="country-streams" style="width: 45px; text-align: right; font-size: 12px; color: var(--t2); font-weight: 600;">${{fmtScore(c.streams)}}</span>
-    </div>
-  </div>`).join('');
-
+// Tab switching click listener (delegated)
+document.getElementById('genre-tabs').addEventListener('click', e => {{
+  const btn = e.target.closest('.tab');
+  if(!btn) return;
+  document.querySelectorAll('#genre-tabs .tab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  if (typeof window.renderPerf === 'function') {{
+    window.renderPerf(btn.dataset.g);
+  }}
+}});
 
 </script>
 """
 
-def _build_regional_html(payload: dict, dark_mode: bool) -> str:
+def _build_regional_html(payloads: dict, dark_mode: bool) -> str:
     theme_css = _THEME_DARK if dark_mode else _THEME_LIGHT
-    payload_json = json.dumps(payload)
+    payload_json = json.dumps(payloads)
     box_shadow = "0 4px 20px rgba(0,0,0,0.25)" if dark_mode else "0 2px 10px rgba(0,0,0,0.04)"
     
     return f"""
@@ -556,6 +614,35 @@ def _build_regional_html(payload: dict, dark_mode: bool) -> str:
 *{{box-sizing:border-box;margin:0;padding:0}}
 body{{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--t1);padding:1.25rem 0}}
 .db{{width:100%;max-width:1400px;margin:0 auto;display:flex;flex-direction:column;gap:1.5rem}}
+
+/* --- Time Filter Pills --- */
+.time-filter-row {{
+  display: flex;
+  gap: 10px;
+  margin-bottom: 0.25rem;
+  align-items: center;
+}}
+.tpill {{
+  font-size: 13px;
+  font-weight: 500;
+  padding: 6px 16px;
+  border-radius: 20px;
+  border: 1px solid var(--border2);
+  background: var(--bg2);
+  color: var(--t2);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}}
+.tpill:hover {{
+  background: var(--bg4);
+  color: var(--t1);
+}}
+.tpill.active {{
+  background: var(--rd);
+  color: var(--red);
+  border-color: var(--red);
+  font-weight: 600;
+}}
 
 /* --- KPIs --- */
 .kpi-grid{{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}}
@@ -605,6 +692,12 @@ body{{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg
 
 <div class="db">
 
+<div class="time-filter-row">
+  <button class="tpill active" data-days="7">Last week</button>
+  <button class="tpill" data-days="15">Last 15 days</button>
+  <button class="tpill" data-days="30">Last month</button>
+</div>
+
 <div class="kpi-grid">
   <div class="kpi"><div class="kpi-label"><i class="ti ti-world"></i> countries analyzed <i class="ti ti-info-circle tooltip-icon" title="Total number of distinct geographic regions tracked in the daily stream data."></i></div><div class="kpi-value" id="kpi-analyzed"></div><div class="kpi-sub">Spotify regional data</div></div>
   <div class="kpi"><div class="kpi-label"><i class="ti ti-chart-bar"></i> top country (streams) <i class="ti ti-info-circle tooltip-icon" title="The single highest-streaming country across all genres."></i></div><div class="kpi-value" id="kpi-top-country"></div><div class="kpi-sub" id="kpi-top-streams"></div></div>
@@ -634,10 +727,7 @@ body{{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script>
-const dashData = {payload_json};
-const DATA = dashData.regionalData;
-const kpis = dashData.regionalKpis;
-
+const combinedData = {payload_json};
 const rootStyles = getComputedStyle(document.documentElement);
 const cssVar = (name) => rootStyles.getPropertyValue(name).trim();
 
@@ -651,14 +741,6 @@ function fmt(v){{
   if(v>=1e3) return (v/1e3).toFixed(0)+'K';
   return v;
 }}
-
-document.getElementById('kpi-analyzed').innerText = kpis.countriesAnalyzed;
-document.getElementById('kpi-top-country').innerText = kpis.topCountryStreams;
-document.getElementById('kpi-top-streams').innerText = fmt(kpis.topCountryStreamsVal) + ' streams';
-document.getElementById('kpi-latam').innerText = kpis.dominantGenreLatam;
-document.getElementById('kpi-latam-sub').innerText = kpis.dominantGenreLatamCount;
-document.getElementById('kpi-usa').innerText = kpis.usaTopGenre;
-document.getElementById('kpi-usa-sub').innerText = fmt(kpis.usaTopGenreStreams) + ' streams';
 
 const GENRE_COLORS = {{
   'Pop':'#378ADD','Indie':'#7F77DD','Country':'#BA7517','Rock':'#639922',
@@ -677,80 +759,8 @@ function getColor(g) {{
   return `hsl(${{h}}, 65%, 50%)`;
 }}
 
-let activeRegion = 'all';
-
-function renderCards(region){{
-  const list = region==='all' ? DATA : DATA.filter(d=>d.region===region||d.region==='global'&&region==='global');
-  const filtered = region==='all' ? DATA : (region==='global' ? DATA.filter(d=>d.region==='global') : DATA.filter(d=>d.region===region));
-  const grid = document.getElementById('country-grid');
-  grid.innerHTML = filtered.map(d=>{{
-    const max = d.genres.length > 0 ? d.genres[0].s : 0;
-    const bars = d.genres.map((g,i)=>{{
-      const pct = Math.round(g.s/d.total*100);
-      const w = Math.round(g.s/max*100);
-      const c = getColor(g.g);
-      return `<div class="genre-row">
-        <div class="genre-top">
-          <span class="genre-name">${{i===0?`<span class="top-badge" style="background:${{c}}18;color:${{c}};border:0.5px solid ${{c}}44">★</span>`:''}}${{g.g}}</span>
-          <span class="genre-pct">${{fmt(g.s)}} · ${{pct}}%</span>
-        </div>
-        <div class="bar-bg"><div class="bar-fg" style="width:${{w}}%;background:${{c}}"></div></div>
-      </div>`;
-    }}).join('');
-    return `<div class="ccard">
-      <div class="ccard-header">
-        <span class="ccard-name"><span style="font-size:18px">${{d.flag}}</span>${{d.country}}</span>
-        <span class="ccard-total">${{fmt(d.total)}} total</span>
-      </div>
-      ${{bars}}
-    </div>`;
-  }}).join('');
-}}
-
-renderCards('all');
-
-document.querySelectorAll('.fbtn').forEach(btn=>{{
-  btn.addEventListener('click',()=>{{
-    document.querySelectorAll('.fbtn').forEach(b=>b.classList.remove('active'));
-    btn.classList.add('active');
-    renderCards(btn.dataset.region);
-  }});
-}});
-
-// ── Heatmap ──────────────────────────────────────────────────
-// Rank genres by total streams across all non-global countries → top 10
-const genreTotals = {{}};
-DATA.forEach(d => {{
-  if (d.region !== 'global') {{
-    d.genres.forEach(g => {{
-      genreTotals[g.g] = (genreTotals[g.g] || 0) + g.s;
-    }});
-  }}
-}});
-const GENRES_HM = Object.entries(genreTotals)
-  .sort((a, b) => b[1] - a[1])
-  .slice(0, 10)
-  .map(([g]) => g);
-
-// Build clickable legend chips
-const hmLegend = document.getElementById('hm-legend');
-hmLegend.style.cursor = 'pointer';
-hmLegend.innerHTML = GENRES_HM.map((g, i) => `
-  <span class="leg-item hm-chip" data-gi="${{i}}" style="
-    padding:4px 10px 4px 6px;border-radius:20px;border:1.5px solid ${{getColor(g)}}33;
-    background:${{getColor(g)}}18;transition:all 0.18s;user-select:none"
-  >
-    <span class="leg-sq" style="background:${{getColor(g)}};border-radius:3px"></span>${{g}}
-  </span>`).join('');
-
-const countries_hm = DATA.filter(d => d.country !== 'Global');
-const hmEl = document.getElementById('heatmap');
-
 const labelW = 148, cellW = 88, cellH = 32;
-const cols = GENRES_HM.length;
-const totalW = labelW + cols * cellW + (cols + 1) * 3;
 
-// Helper – hex/hsl color → luminance check → pick text color
 function hexToRgb(hex) {{
   const r = parseInt(hex.slice(1,3),16), g2 = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
   return [r,g2,b];
@@ -762,138 +772,227 @@ function luminance(hex) {{
   }} catch(e) {{ return 0.5; }}
 }}
 function textOn(hex, alpha) {{
-  // When alpha is very low the bg looks almost white/dark-bg – use muted color
   if (alpha < 0.25) return cssVar('--t3');
   return luminance(hex) > 0.45 ? '#1a1a1a' : '#ffffff';
 }}
 
-// Build grid HTML – opacity only on bg via rgba, never on the whole cell
-function buildHeatmap(activeGi) {{
-  // Column-header row
-  let html = `<div style="display:grid;grid-template-columns:${{labelW}}px repeat(${{cols}},${{cellW}}px);gap:3px;min-width:${{totalW}}px">`;
-  // header spacer
-  html += `<div></div>`;
-  GENRES_HM.forEach((gn, gi) => {{
-    const isDim = activeGi !== null && gi !== activeGi;
-    const baseC = getColor(gn);
-    html += `<div style="
-      font-size:9px;font-weight:700;text-align:center;
-      padding:3px 2px;border-radius:4px;
-      color:${{isDim ? cssVar('--t4') : baseC}};
-      background:${{isDim ? 'transparent' : baseC+'18'}};
-      opacity:${{isDim ? 0.35 : 1}};
-      letter-spacing:0.03em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-      transition:opacity 0.2s"
-      title="${{gn}}"
-    >${{gn}}</div>`;
-  }});
+let currentGenresHm = [];
 
-  // Data rows
-  countries_hm.forEach(d => {{
-    const maxS = d.genres.length > 0 ? Math.max(...d.genres.map(g2 => g2.s)) : 1;
-    const label = d.flag + ' ' + (d.country.length > 14 ? d.country.substring(0,14)+'…' : d.country);
-    html += `<div style="font-size:11px;font-weight:600;color:var(--t1);display:flex;align-items:center;padding:0 4px;height:${{cellH}}px;white-space:nowrap">${{label}}</div>`;
-    GENRES_HM.forEach((gn, gi) => {{
-      const found = d.genres.find(g2 => g2.g === gn);
-      const s = found ? found.s : 0;
-      const intensity = s > 0 ? Math.max(0.15, Math.min(1, s / maxS)) : 0;
-      const baseC = getColor(gn);
-      const isDim = activeGi !== null && gi !== activeGi;
-      let bgStyle, txtColor;
-      if (s > 0) {{
-        // Use rgba so only the fill has transparency – text stays legible
-        const r = parseInt(baseC.slice(1,3)||'60',16);
-        const g2 = parseInt(baseC.slice(3,5)||'a5',16);
-        const b  = parseInt(baseC.slice(5,7)||'fa',16);
-        const alpha = isDim ? 0.06 : intensity;
-        bgStyle = `rgba(${{r}},${{g2}},${{b}},${{alpha}})`;
-        txtColor = isDim ? 'transparent' : textOn(baseC, intensity);
-      }} else {{
-        bgStyle = cssVar('--bg4');
-        txtColor = isDim ? 'transparent' : cssVar('--t4');
-      }}
-      const dimBorder = isDim ? '' : (s > 0 ? `1.5px solid ${{baseC}}44` : '');
-      html += `<div
-        style="height:${{cellH}}px;background:${{bgStyle}};border-radius:5px;
-               display:flex;align-items:center;justify-content:center;
-               font-size:10px;font-weight:700;color:${{txtColor}};
-               border:${{dimBorder || 'none'}};
-               transition:opacity 0.2s,background 0.2s;"
-        title="${{gn}} – ${{d.country}}: ${{s>0?fmt(s):'–'}}"
-      >${{s>0?fmt(s):'–'}}</div>`;
-    }});
+function updateRegionalDashboard(days) {{
+  const dashData = combinedData[days];
+  if (!dashData) return;
+
+  const DATA = dashData.regionalData || [];
+  const kpis = dashData.regionalKpis || {{}};
+
+  // Update KPIs
+  document.getElementById('kpi-analyzed').innerText = kpis.countriesAnalyzed || 0;
+  document.getElementById('kpi-top-country').innerText = kpis.topCountryStreams || 'N/A';
+  document.getElementById('kpi-top-streams').innerText = fmt(kpis.topCountryStreamsVal || 0) + ' streams';
+  document.getElementById('kpi-latam').innerText = kpis.dominantGenreLatam || 'N/A';
+  document.getElementById('kpi-latam-sub').innerText = kpis.dominantGenreLatamCount || '';
+  document.getElementById('kpi-usa').innerText = kpis.usaTopGenre || 'N/A';
+  document.getElementById('kpi-usa-sub').innerText = fmt(kpis.usaTopGenreStreams || 0) + ' streams';
+
+  window.renderCards = function(region) {{
+    const filtered = region==='all' ? DATA : (region==='global' ? DATA.filter(d=>d.region==='global') : DATA.filter(d=>d.region===region));
+    const grid = document.getElementById('country-grid');
+    grid.innerHTML = filtered.map(d=>{{
+      const max = d.genres.length > 0 ? d.genres[0].s : 0;
+      const bars = d.genres.map((g,i)=>{{
+        const pct = Math.round(g.s/d.total*100);
+        const w = Math.round(g.s/max*100);
+        const c = getColor(g.g);
+        return `<div class="genre-row">
+          <div class="genre-top">
+            <span class="genre-name">${{i===0?`<span class="top-badge" style="background:${{c}}18;color:${{c}};border:0.5px solid ${{c}}44">★</span>`:''}}${{g.g}}</span>
+            <span class="genre-pct">${{fmt(g.s)}} · ${{pct}}%</span>
+          </div>
+          <div class="bar-bg"><div class="bar-fg" style="width:${{w}}%;background:${{c}}"></div></div>
+        </div>`;
+      }}).join('');
+      return `<div class="ccard">
+        <div class="ccard-header">
+          <span class="ccard-name"><span style="font-size:18px">${{d.flag}}</span>${{d.country}}</span>
+          <span class="ccard-total">${{fmt(d.total)}} total</span>
+        </div>
+        ${{bars}}
+      </div>`;
+    }}).join('');
+  }};
+
+  const activeRegionBtn = document.querySelector('.fbtn.active');
+  const activeReg = activeRegionBtn ? activeRegionBtn.dataset.region : 'all';
+  window.renderCards(activeReg);
+
+  // ── Heatmap ──────────────────────────────────────────────────
+  const genreTotals = {{}};
+  DATA.forEach(d => {{
+    if (d.region !== 'global') {{
+      d.genres.forEach(g => {{
+        genreTotals[g.g] = (genreTotals[g.g] || 0) + g.s;
+      }});
+    }}
   }});
-  html += '</div>';
-  return html;
+  const GENRES_HM = Object.entries(genreTotals)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10)
+    .map(([g]) => g);
+
+  currentGenresHm = GENRES_HM;
+
+  const hmLegend = document.getElementById('hm-legend');
+  hmLegend.innerHTML = GENRES_HM.map((g, i) => `
+    <span class="leg-item hm-chip" data-gi="${{i}}" style="
+      padding:4px 10px 4px 6px;border-radius:20px;border:1.5px solid ${{getColor(g)}}33;
+      background:${{getColor(g)}}18;transition:all 0.18s;user-select:none"
+    >
+      <span class="leg-sq" style="background:${{getColor(g)}};border-radius:3px"></span>${{g}}
+    </span>`).join('');
+
+  const countries_hm = DATA.filter(d => d.country !== 'Global');
+  const hmEl = document.getElementById('heatmap');
+
+  const cols = GENRES_HM.length;
+  const totalW = labelW + cols * cellW + (cols + 1) * 3;
+
+  window.buildHeatmap = function(activeGi) {{
+    let html = `<div style="display:grid;grid-template-columns:${{labelW}}px repeat(${{cols}},${{cellW}}px);gap:3px;min-width:${{totalW}}px">`;
+    html += `<div></div>`;
+    GENRES_HM.forEach((gn, gi) => {{
+      const isDim = activeGi !== null && gi !== activeGi;
+      const baseC = getColor(gn);
+      html += `<div style="
+        font-size:9px;font-weight:700;text-align:center;
+        padding:3px 2px;border-radius:4px;
+        color:${{isDim ? cssVar('--t4') : baseC}};
+        background:${{isDim ? 'transparent' : baseC+'18'}};
+        opacity:${{isDim ? 0.35 : 1}};
+        letter-spacing:0.03em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+        transition:opacity 0.2s"
+        title="${{gn}}"
+      >${{gn}}</div>`;
+    }});
+
+    countries_hm.forEach(d => {{
+      const maxS = d.genres.length > 0 ? Math.max(...d.genres.map(g2 => g2.s)) : 1;
+      const label = d.flag + ' ' + (d.country.length > 14 ? d.country.substring(0,14)+'…' : d.country);
+      html += `<div style="font-size:11px;font-weight:600;color:var(--t1);display:flex;align-items:center;padding:0 4px;height:${{cellH}}px;white-space:nowrap">${{label}}</div>`;
+      GENRES_HM.forEach((gn, gi) => {{
+        const found = d.genres.find(g2 => g2.g === gn);
+        const s = found ? found.s : 0;
+        const intensity = s > 0 ? Math.max(0.15, Math.min(1, s / maxS)) : 0;
+        const baseC = getColor(gn);
+        const isDim = activeGi !== null && gi !== activeGi;
+        let bgStyle, txtColor;
+        if (s > 0) {{
+          const r = parseInt(baseC.slice(1,3)||'60',16);
+          const g2 = parseInt(baseC.slice(3,5)||'a5',16);
+          const b  = parseInt(baseC.slice(5,7)||'fa',16);
+          const alpha = isDim ? 0.06 : intensity;
+          bgStyle = `rgba(${{r}},${{g2}},${{b}},${{alpha}})`;
+          txtColor = isDim ? 'transparent' : textOn(baseC, intensity);
+        }} else {{
+          bgStyle = cssVar('--bg4');
+          txtColor = isDim ? 'transparent' : cssVar('--t4');
+        }}
+        const dimBorder = isDim ? '' : (s > 0 ? `1.5px solid ${{baseC}}44` : '');
+        html += `<div
+          style="height:${{cellH}}px;background:${{bgStyle}};border-radius:5px;
+                 display:flex;align-items:center;justify-content:center;
+                 font-size:10px;font-weight:700;color:${{txtColor}};
+                 border:${{dimBorder || 'none'}};
+                 transition:opacity 0.2s,background 0.2s;"
+          title="${{gn}} – ${{d.country}}: ${{s>0?fmt(s):'–'}}"
+        >${{s>0?fmt(s):'–'}}</div>`;
+      }});
+    }});
+    html += '</div>';
+    return html;
+  }};
+
+  window.activeGi = null;
+  hmEl.innerHTML = window.buildHeatmap(null);
 }}
 
-let activeGi = null;
-hmEl.innerHTML = buildHeatmap(null);
+// Initialize Dashboard
+const activePill = document.querySelector('.tpill.active');
+const defaultDays = activePill ? activePill.dataset.days : "7";
+updateRegionalDashboard(defaultDays);
 
-// Click legend chip → highlight that column
+// Time filter click listeners
+document.querySelectorAll('.tpill').forEach(btn => {{
+  btn.addEventListener('click', () => {{
+    document.querySelectorAll('.tpill').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    updateRegionalDashboard(btn.dataset.days);
+  }});
+}});
+
+// Region filter click listener (setup once)
+document.querySelectorAll('.fbtn').forEach(btn => {{
+  btn.addEventListener('click', () => {{
+    document.querySelectorAll('.fbtn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    if (typeof window.renderCards === 'function') {{
+      window.renderCards(btn.dataset.region);
+    }}
+  }});
+}});
+
+// Heatmap Legend click listener (setup once)
+const hmLegend = document.getElementById('hm-legend');
+hmLegend.style.cursor = 'pointer';
 hmLegend.addEventListener('click', e => {{
   const chip = e.target.closest('.hm-chip');
   if (!chip) return;
   const gi = parseInt(chip.dataset.gi);
-  if (activeGi === gi) {{
-    // click same again → deselect
-    activeGi = null;
+  const hmEl = document.getElementById('heatmap');
+  if (window.activeGi === gi) {{
+    window.activeGi = null;
     hmLegend.querySelectorAll('.hm-chip').forEach(c => {{
       c.style.opacity = '1';
       c.style.boxShadow = 'none';
     }});
   }} else {{
-    activeGi = gi;
+    window.activeGi = gi;
     hmLegend.querySelectorAll('.hm-chip').forEach((c, i) => {{
       c.style.opacity = i === gi ? '1' : '0.35';
-      c.style.boxShadow = i === gi ? `0 0 0 2px ${{getColor(GENRES_HM[gi])}}` : 'none';
+      c.style.boxShadow = i === gi ? `0 0 0 2px ${{getColor(currentGenresHm[gi])}}` : 'none';
     }});
   }}
-  hmEl.innerHTML = buildHeatmap(activeGi);
+  if (typeof window.buildHeatmap === 'function') {{
+    hmEl.innerHTML = window.buildHeatmap(window.activeGi);
+  }}
 }});
-
 
 </script>
 """
 
 def render_genre_analysis():
-    days_map = {"Last week": 7, "Last 15 days": 15, "Last month": 30}
-    time_options = list(days_map.keys())
+    # Fetch all payloads eagerly to allow instant interactive switching in HTML/JS
+    payload_7 = get_genre_analysis_data(7)
+    payload_15 = get_genre_analysis_data(15)
+    payload_30 = get_genre_analysis_data(30)
+
+    if not payload_7 and not payload_15 and not payload_30:
+        st.warning("No data available for Genre Analysis.")
+        return
+
+    payloads = {
+        "7": payload_7 or {},
+        "15": payload_15 or {},
+        "30": payload_30 or {}
+    }
 
     tab1, tab2 = st.tabs(["Overview", "Regional Analysis"])
+    dark_mode = st.session_state.get("dark_mode", False)
 
     with tab1:
-        time_filter = st.pills(
-            "Time Range",
-            options=time_options,
-            default="Last month",
-            selection_mode="single",
-            label_visibility="collapsed",
-            key="genre_time_filter_overview"
-        )
-        days = days_map.get(time_filter or "Last month", 30)
-        data_payload = get_genre_analysis_data(days)
-        if not data_payload:
-            st.warning("No data available for Genre Analysis.")
-        else:
-            dark_mode = st.session_state.get("dark_mode", False)
-            html_content = _build_html(data_payload, dark_mode)
-            components.html(html_content, height=1350, scrolling=True)
+        html_content = _build_html(payloads, dark_mode)
+        components.html(html_content, height=1400, scrolling=True)
 
     with tab2:
-        time_filter2 = st.pills(
-            "Time Range",
-            options=time_options,
-            default="Last month",
-            selection_mode="single",
-            label_visibility="collapsed",
-            key="genre_time_filter_regional"
-        )
-        days2 = days_map.get(time_filter2 or "Last month", 30)
-        data_payload2 = get_genre_analysis_data(days2)
-        if not data_payload2:
-            st.warning("No data available for Genre Analysis.")
-        else:
-            dark_mode = st.session_state.get("dark_mode", False)
-            regional_html_content = _build_regional_html(data_payload2, dark_mode)
-            components.html(regional_html_content, height=800, scrolling=True)
+        regional_html_content = _build_regional_html(payloads, dark_mode)
+        components.html(regional_html_content, height=850, scrolling=True)
+
