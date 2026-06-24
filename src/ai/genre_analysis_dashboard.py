@@ -1,4 +1,5 @@
 import json
+import unicodedata
 import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
@@ -70,8 +71,9 @@ def extract_primary_genre(raw_str):
             is_noise = True
             
         if not is_noise:
-            # Title-case for display (e.g. "Alternative Rock")
-            return p.title()
+            # Normalize accents (Reggaetón → Reggaeton) then title-case
+            normalized = unicodedata.normalize('NFKD', p).encode('ascii', 'ignore').decode('ascii')
+            return normalized.title()
             
     return "Unknown"
 
@@ -242,10 +244,11 @@ def get_genre_analysis_data(days: int = 30):
                 "genres": genres_list
             })
             
-            # KPI logic
-            if region == "latam" and len(genres_list) > 0:
-                top_genre_here = genres_list[0]['g']
-                latam_genres[top_genre_here] = latam_genres.get(top_genre_here, 0) + 1
+            # KPI logic — accumulate total streams per genre across LATAM
+            # (same basis as heatmap: absolute stream volume, not just #1 rank)
+            if region == "latam":
+                for g in genres_list:
+                    latam_genres[g['g']] = latam_genres.get(g['g'], 0) + g['s']
             if c_code == "us" and len(genres_list) > 0:
                 usa_top = (genres_list[0]['g'], genres_list[0]['s'])
                 
@@ -260,8 +263,7 @@ def get_genre_analysis_data(days: int = 30):
         if latam_genres:
             dom_latam = max(latam_genres.items(), key=lambda x: x[1])
             regional_kpis["dominantGenreLatam"] = dom_latam[0]
-            latam_total = sum(1 for d in regional_data if d['region'] == 'latam')
-            regional_kpis["dominantGenreLatamCount"] = f"{dom_latam[1]} of {latam_total} countries"
+            regional_kpis["dominantGenreLatamCount"] = f"{dom_latam[1]:,} streams across LATAM"
         if usa_top[0] != "N/A":
             regional_kpis["usaTopGenre"] = usa_top[0]
             regional_kpis["usaTopGenreStreams"] = usa_top[1]
@@ -426,17 +428,8 @@ body{{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg
   </div>
 </div>
 
-<div class="full-card">
-  <div class="card-title"><i class="ti ti-chart-line"></i> Genre Track Distribution — iTunes vs Spotify</div>
-  <div class="legend-row" id="platform-legend"></div>
-  <div style="position:relative;height:240px">
-    <canvas id="barChart" role="img" aria-label="Genre track count bar chart comparing iTunes and Spotify"></canvas>
-  </div>
 </div>
 
-</div>
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script>
 const dashData = {payload_json};
 const rootStyles = getComputedStyle(document.documentElement);
@@ -468,9 +461,6 @@ const spotifyStreams = dashData.spotifyStreams;
 const perfData = dashData.perfData;
 const countries = dashData.countries;
 const countryGenres = dashData.countryGenres;
-const allGenres = dashData.allGenres;
-const spotifyCount = dashData.spotifyCount;
-const itunesCount = dashData.itunesCount;
 const kpis = dashData.kpis;
 
 function fmtScore(v){{
@@ -551,65 +541,7 @@ document.getElementById('country-genre').innerHTML = countryGenres.map(c=>`
     </div>
   </div>`).join('');
 
-document.getElementById('platform-legend').innerHTML = `
-  <span class="legend-item"><span class="legend-dot" style="background:var(--blue)"></span>Spotify</span>
-  <span class="legend-item"><span class="legend-dot" style="background:var(--pink)"></span>iTunes</span>`;
 
-const bh = Math.max(240, allGenres.length * 35 + 40);
-document.querySelector('#barChart').parentElement.style.height = bh+'px';
-
-if(allGenres.length > 0) {{
-    new Chart(document.getElementById('barChart'),{{
-      type:'bar',
-      data:{{
-        labels:allGenres,
-        datasets:[
-          {{
-            label:'Spotify',
-            data:spotifyCount,
-            backgroundColor: 'rgba(96,165,250,0.8)',
-            borderColor: 'rgb(96,165,250)',
-            borderWidth:1,
-            borderRadius: 4
-          }},
-          {{
-            label:'iTunes',
-            data:itunesCount,
-            backgroundColor: 'rgba(249,168,212,0.8)',
-            borderColor: 'rgb(249,168,212)',
-            borderWidth:1,
-            borderRadius: 4
-          }}
-        ]
-      }},
-      options:{{
-        indexAxis:'y',
-        responsive:true,
-        maintainAspectRatio:false,
-        plugins:{{
-          legend:{{display:false}},
-          tooltip:{{
-            backgroundColor: cssVar('--bg3'),
-            titleColor: cssVar('--t1'),
-            bodyColor: cssVar('--t2'),
-            borderColor: cssVar('--border'),
-            borderWidth: 1,
-            callbacks:{{label:ctx=>` ${{ctx.dataset.label}}: ${{ctx.raw}} tracks`}}
-          }}
-        }},
-        scales:{{
-          x:{{
-            grid:{{color: gridColor}},
-            ticks:{{color: textColor, font:{{size:11, family:'Inter'}}}}
-          }},
-          y:{{
-            grid:{{display:false}},
-            ticks:{{color: textColor, font:{{size:12, family:'Inter'}}}}
-          }}
-        }}
-      }}
-    }});
-}}
 </script>
 """
 
@@ -680,6 +612,14 @@ body{{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg
   <div class="kpi"><div class="kpi-label"><i class="ti ti-flag"></i> USA #1 genre <i class="ti ti-info-circle tooltip-icon" title="The most streamed genre currently within the United States."></i></div><div class="kpi-value" id="kpi-usa"></div><div class="kpi-sub" id="kpi-usa-sub"></div></div>
 </div>
 
+<div class="full-card">
+  <div class="card-title"><i class="ti ti-layout-grid"></i> Genre Strength Heatmap — Streams by Country</div>
+  <div class="leg-row" id="hm-legend"></div>
+  <div style="overflow-x:auto">
+    <div id="heatmap"></div>
+  </div>
+</div>
+
 <div class="filter-row">
   <span class="filter-label"><i class="ti ti-filter"></i> filter by region:</span>
   <button class="fbtn active" data-region="all">All countries</button>
@@ -689,21 +629,6 @@ body{{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg
 </div>
 
 <div class="country-grid" id="country-grid"></div>
-
-<div class="full-card">
-  <div class="card-title"><i class="ti ti-layout-grid"></i> Genre Strength Heatmap — Streams by Country</div>
-  <div class="leg-row" id="hm-legend"></div>
-  <div style="overflow-x:auto">
-    <div id="heatmap"></div>
-  </div>
-</div>
-
-<div class="full-card">
-  <div class="card-title"><i class="ti ti-chart-bar"></i> Top Genre per Country — Stream Comparison</div>
-  <div style="position:relative;height:460px">
-    <canvas id="barChart" role="img" aria-label="Horizontal bar chart showing top genre streams by country"></canvas>
-  </div>
-</div>
 
 </div>
 
@@ -792,110 +717,183 @@ document.querySelectorAll('.fbtn').forEach(btn=>{{
   }});
 }});
 
-// Calculate top genres globally across countries for heatmap
-let genreSet = new Set();
+// ── Heatmap ──────────────────────────────────────────────────
+// Rank genres by total streams across all non-global countries → top 10
+const genreTotals = {{}};
 DATA.forEach(d => {{
-  if(d.region !== 'global') {{
-    d.genres.slice(0,3).forEach(g => genreSet.add(g.g));
+  if (d.region !== 'global') {{
+    d.genres.forEach(g => {{
+      genreTotals[g.g] = (genreTotals[g.g] || 0) + g.s;
+    }});
   }}
 }});
-const GENRES_HM = Array.from(genreSet).slice(0, 12); // top 12 genres
+const GENRES_HM = Object.entries(genreTotals)
+  .sort((a, b) => b[1] - a[1])
+  .slice(0, 10)
+  .map(([g]) => g);
 
+// Build clickable legend chips
 const hmLegend = document.getElementById('hm-legend');
-hmLegend.innerHTML = GENRES_HM.map(g=>`<span class="leg-item"><span class="leg-sq" style="background:${{getColor(g)}}"></span>${{g}}</span>`).join('');
+hmLegend.style.cursor = 'pointer';
+hmLegend.innerHTML = GENRES_HM.map((g, i) => `
+  <span class="leg-item hm-chip" data-gi="${{i}}" style="
+    padding:4px 10px 4px 6px;border-radius:20px;border:1.5px solid ${{getColor(g)}}33;
+    background:${{getColor(g)}}18;transition:all 0.18s;user-select:none"
+  >
+    <span class="leg-sq" style="background:${{getColor(g)}};border-radius:3px"></span>${{g}}
+  </span>`).join('');
 
-const countries_hm = DATA.filter(d=>d.country!=='Global');
+const countries_hm = DATA.filter(d => d.country !== 'Global');
 const hmEl = document.getElementById('heatmap');
 
-const labelW = 150, cellW = 85, cellH = 28;
-const totalW = labelW + GENRES_HM.length * cellW + 8;
+const labelW = 148, cellW = 88, cellH = 32;
+const cols = GENRES_HM.length;
+const totalW = labelW + cols * cellW + (cols + 1) * 3;
 
-let hmHTML = `<div style="display:grid;grid-template-columns:${{labelW}}px ${{GENRES_HM.map(()=>cellW+'px').join(' ')}};gap:2px;min-width:${{totalW}}px">`;
-countries_hm.forEach(d=>{{
-  hmHTML += `<div style="font-size:11px;font-weight:600;color:var(--t1);display:flex;align-items:center;padding:2px 4px;height:${{cellH}}px">${{d.flag}} ${{d.country.length>15?d.country.substring(0,15)+'…':d.country}}</div>`;
-  const maxS = Math.max(...d.genres.map(g2=>g2.s));
-  GENRES_HM.forEach(gn=>{{
-    const found = d.genres.find(g2=>g2.g===gn);
-    const s = found ? found.s : 0;
-    const intensity = s > 0 ? Math.max(0.1, Math.min(1, s/maxS)) : 0;
-    const bg = s > 0 ? getColor(gn) : cssVar('--bg4');
-    const opacity = s > 0 ? intensity : 1;
-    const isBright = s > 0 && intensity > 0.5;
-    const textColor = isBright ? '#fff' : (s>0 ? getColor(gn) : cssVar('--t3'));
-    const label = s > 0 ? fmt(s) : '–';
-    hmHTML += `<div style="height:${{cellH}}px;background:${{bg}};opacity:${{opacity}};border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;color:${{textColor}}" title="${{gn}}: ${{s>0?fmt(s):'–'}}">${{label}}</div>`;
+// Helper – hex/hsl color → luminance check → pick text color
+function hexToRgb(hex) {{
+  const r = parseInt(hex.slice(1,3),16), g2 = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+  return [r,g2,b];
+}}
+function luminance(hex) {{
+  try {{
+    const [r,g2,b] = hexToRgb(hex);
+    return (0.299*r + 0.587*g2 + 0.114*b) / 255;
+  }} catch(e) {{ return 0.5; }}
+}}
+function textOn(hex, alpha) {{
+  // When alpha is very low the bg looks almost white/dark-bg – use muted color
+  if (alpha < 0.25) return cssVar('--t3');
+  return luminance(hex) > 0.45 ? '#1a1a1a' : '#ffffff';
+}}
+
+// Build grid HTML – opacity only on bg via rgba, never on the whole cell
+function buildHeatmap(activeGi) {{
+  // Column-header row
+  let html = `<div style="display:grid;grid-template-columns:${{labelW}}px repeat(${{cols}},${{cellW}}px);gap:3px;min-width:${{totalW}}px">`;
+  // header spacer
+  html += `<div></div>`;
+  GENRES_HM.forEach((gn, gi) => {{
+    const isDim = activeGi !== null && gi !== activeGi;
+    const baseC = getColor(gn);
+    html += `<div style="
+      font-size:9px;font-weight:700;text-align:center;
+      padding:3px 2px;border-radius:4px;
+      color:${{isDim ? cssVar('--t4') : baseC}};
+      background:${{isDim ? 'transparent' : baseC+'18'}};
+      opacity:${{isDim ? 0.35 : 1}};
+      letter-spacing:0.03em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+      transition:opacity 0.2s"
+      title="${{gn}}"
+    >${{gn}}</div>`;
   }});
-}});
-hmHTML += '</div>';
-hmEl.innerHTML = hmHTML;
 
-const barCountries = DATA.filter(d=>d.country!=='Global' && d.genres.length > 0).sort((a,b)=>b.genres[0].s - a.genres[0].s);
-const barH = Math.max(300, barCountries.length * 38 + 60);
-document.querySelector('#barChart').parentElement.style.height = barH+'px';
+  // Data rows
+  countries_hm.forEach(d => {{
+    const maxS = d.genres.length > 0 ? Math.max(...d.genres.map(g2 => g2.s)) : 1;
+    const label = d.flag + ' ' + (d.country.length > 14 ? d.country.substring(0,14)+'…' : d.country);
+    html += `<div style="font-size:11px;font-weight:600;color:var(--t1);display:flex;align-items:center;padding:0 4px;height:${{cellH}}px;white-space:nowrap">${{label}}</div>`;
+    GENRES_HM.forEach((gn, gi) => {{
+      const found = d.genres.find(g2 => g2.g === gn);
+      const s = found ? found.s : 0;
+      const intensity = s > 0 ? Math.max(0.15, Math.min(1, s / maxS)) : 0;
+      const baseC = getColor(gn);
+      const isDim = activeGi !== null && gi !== activeGi;
+      let bgStyle, txtColor;
+      if (s > 0) {{
+        // Use rgba so only the fill has transparency – text stays legible
+        const r = parseInt(baseC.slice(1,3)||'60',16);
+        const g2 = parseInt(baseC.slice(3,5)||'a5',16);
+        const b  = parseInt(baseC.slice(5,7)||'fa',16);
+        const alpha = isDim ? 0.06 : intensity;
+        bgStyle = `rgba(${{r}},${{g2}},${{b}},${{alpha}})`;
+        txtColor = isDim ? 'transparent' : textOn(baseC, intensity);
+      }} else {{
+        bgStyle = cssVar('--bg4');
+        txtColor = isDim ? 'transparent' : cssVar('--t4');
+      }}
+      const dimBorder = isDim ? '' : (s > 0 ? `1.5px solid ${{baseC}}44` : '');
+      html += `<div
+        style="height:${{cellH}}px;background:${{bgStyle}};border-radius:5px;
+               display:flex;align-items:center;justify-content:center;
+               font-size:10px;font-weight:700;color:${{txtColor}};
+               border:${{dimBorder || 'none'}};
+               transition:opacity 0.2s,background 0.2s;"
+        title="${{gn}} – ${{d.country}}: ${{s>0?fmt(s):'–'}}"
+      >${{s>0?fmt(s):'–'}}</div>`;
+    }});
+  }});
+  html += '</div>';
+  return html;
+}}
 
-new Chart(document.getElementById('barChart'),{{
-  type:'bar',
-  data:{{
-    labels: barCountries.map(d=>`${{d.flag}} ${{d.country}}`),
-    datasets:[{{
-      label:'Top genre streams',
-      data: barCountries.map(d=>d.genres[0].s),
-      backgroundColor: barCountries.map(d=>getColor(d.genres[0].g)+'CC'),
-      borderColor: barCountries.map(d=>getColor(d.genres[0].g)),
-      borderWidth:1
-    }}]
-  }},
-  options:{{
-    indexAxis:'y',
-    responsive:true,
-    maintainAspectRatio:false,
-    plugins:{{
-      legend:{{display:false}},
-      tooltip:{{
-        backgroundColor: cssVar('--bg3'),
-        titleColor: cssVar('--t1'),
-        bodyColor: cssVar('--t2'),
-        borderColor: cssVar('--border'),
-        borderWidth: 1,
-        callbacks:{{
-          label:ctx=>{{
-            const d = barCountries[ctx.dataIndex];
-            return ` ${{d.genres[0].g}}: ${{fmt(d.genres[0].s)}} streams`;
-          }}
-        }}
-      }}
-    }},
-    scales:{{
-      x:{{
-        grid:{{color: gridColor}},
-        ticks:{{color: textColor, font:{{size:11, family:'Inter'}}, callback:v=>fmt(v)}},
-        title:{{display:true, text:'streams', color: textColor, font:{{size:11}}}}
-      }},
-      y:{{
-        grid:{{display:false}},
-        ticks:{{color: textColor, font:{{size:11, family:'Inter', weight: 600}}}}
-      }}
-    }}
+let activeGi = null;
+hmEl.innerHTML = buildHeatmap(null);
+
+// Click legend chip → highlight that column
+hmLegend.addEventListener('click', e => {{
+  const chip = e.target.closest('.hm-chip');
+  if (!chip) return;
+  const gi = parseInt(chip.dataset.gi);
+  if (activeGi === gi) {{
+    // click same again → deselect
+    activeGi = null;
+    hmLegend.querySelectorAll('.hm-chip').forEach(c => {{
+      c.style.opacity = '1';
+      c.style.boxShadow = 'none';
+    }});
+  }} else {{
+    activeGi = gi;
+    hmLegend.querySelectorAll('.hm-chip').forEach((c, i) => {{
+      c.style.opacity = i === gi ? '1' : '0.35';
+      c.style.boxShadow = i === gi ? `0 0 0 2px ${{getColor(GENRES_HM[gi])}}` : 'none';
+    }});
   }}
+  hmEl.innerHTML = buildHeatmap(activeGi);
 }});
+
+
 </script>
 """
 
 def render_genre_analysis():
-    data_payload = get_genre_analysis_data(30)
-    
-    if not data_payload:
-        st.warning("No data available for Genre Analysis.")
-        return
-        
-    dark_mode = st.session_state.get("dark_mode", False)
-    
+    days_map = {"Last week": 7, "Last 15 days": 15, "Last month": 30}
+    time_options = list(days_map.keys())
+
     tab1, tab2 = st.tabs(["Overview", "Regional Analysis"])
-    
+
     with tab1:
-        html_content = _build_html(data_payload, dark_mode)
-        components.html(html_content, height=1350, scrolling=True)
-        
+        time_filter = st.pills(
+            "Time Range",
+            options=time_options,
+            default="Last month",
+            selection_mode="single",
+            label_visibility="collapsed",
+            key="genre_time_filter_overview"
+        )
+        days = days_map.get(time_filter or "Last month", 30)
+        data_payload = get_genre_analysis_data(days)
+        if not data_payload:
+            st.warning("No data available for Genre Analysis.")
+        else:
+            dark_mode = st.session_state.get("dark_mode", False)
+            html_content = _build_html(data_payload, dark_mode)
+            components.html(html_content, height=1350, scrolling=True)
+
     with tab2:
-        regional_html_content = _build_regional_html(data_payload, dark_mode)
-        components.html(regional_html_content, height=1200, scrolling=True)
+        time_filter2 = st.pills(
+            "Time Range",
+            options=time_options,
+            default="Last month",
+            selection_mode="single",
+            label_visibility="collapsed",
+            key="genre_time_filter_regional"
+        )
+        days2 = days_map.get(time_filter2 or "Last month", 30)
+        data_payload2 = get_genre_analysis_data(days2)
+        if not data_payload2:
+            st.warning("No data available for Genre Analysis.")
+        else:
+            dark_mode = st.session_state.get("dark_mode", False)
+            regional_html_content = _build_regional_html(data_payload2, dark_mode)
+            components.html(regional_html_content, height=800, scrolling=True)
