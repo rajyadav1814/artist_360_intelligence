@@ -420,7 +420,7 @@ body{{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg
     <div class="kpi-sub">across iTunes + Spotify</div>
   </div>
   <div class="kpi">
-    <div class="kpi-label"><i class="ti ti-chart-bar"></i> top genre score</div>
+    <div class="kpi-label"><i class="ti ti-chart-bar"></i> top genre streams</div>
     <div class="kpi-value" id="kpi-topGenreScore"></div>
     <div class="kpi-sub"><span id="kpi-topGenreName" style="color:var(--blue);font-weight:600;"></span> — combined platforms</div>
   </div>
