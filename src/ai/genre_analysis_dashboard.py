@@ -1044,6 +1044,14 @@ def render_genre_analysis():
     }
 
     tab1, tab2 = st.tabs(["Overview", "Regional Analysis"])
+    st.markdown("""
+        <style>
+            div[data-testid="stTabs"] > div:first-child {
+                margin-left: 50px;
+                margin-right: 20px;
+            }
+        </style>
+    """, unsafe_allow_html=True)
     dark_mode = st.session_state.get("dark_mode", False)
 
     with tab1:
