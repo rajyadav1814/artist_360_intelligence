@@ -312,6 +312,7 @@ body{{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg
   gap: 10px;
   margin-bottom: 0.25rem;
   align-items: center;
+  justify-content: flex-end;
 }}
 .tpill {{
   font-size: 15px;
@@ -624,6 +625,8 @@ body{{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg
   gap: 10px;
   margin-bottom: 0.25rem;
   align-items: center;
+  justify-content: flex-end;
+  justify-content: flex-end;
 }}
 .tpill {{
   font-size: 15px;
