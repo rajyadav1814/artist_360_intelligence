@@ -763,7 +763,7 @@ function getColor(g) {{
   return `hsl(${{h}}, 65%, 50%)`;
 }}
 
-const labelW = 148, cellW = 88, cellH = 32;
+const labelW = 200, cellW = 110, cellH = 40;
 
 function hexToRgb(hex) {{
   const r = parseInt(hex.slice(1,3),16), g2 = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
