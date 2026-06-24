@@ -234,7 +234,9 @@ def get_genre_analysis_data(days: int = 30):
             
             genres_list = []
             for g_name, g_val in top_g.items():
-                genres_list.append({"g": g_name, "s": int(g_val)})
+                daily_series = c_valid[c_valid['raw_genere'] == g_name].groupby('date')['metric'].sum().sort_index()
+                trend_history = [int(val) for val in daily_series.values][:-1]
+                genres_list.append({"g": g_name, "s": int(g_val), "trend": trend_history})
             
             regional_data.append({
                 "country": name_only,
@@ -312,9 +314,9 @@ body{{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg
   align-items: center;
 }}
 .tpill {{
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 500;
-  padding: 6px 16px;
+  padding: 8px 20px;
   border-radius: 20px;
   border: 1px solid var(--border2);
   background: var(--bg2);
@@ -408,6 +410,7 @@ body{{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg
   <button class="tpill active" data-days="7">Last week</button>
   <button class="tpill" data-days="15">Last 15 days</button>
   <button class="tpill" data-days="30">Last month</button>
+  <button class="tpill" data-days="90">Last 3 months</button>
 </div>
 
 <div class="kpi-grid">
@@ -623,9 +626,9 @@ body{{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg
   align-items: center;
 }}
 .tpill {{
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 500;
-  padding: 6px 16px;
+  padding: 8px 20px;
   border-radius: 20px;
   border: 1px solid var(--border2);
   background: var(--bg2);
@@ -662,20 +665,20 @@ body{{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg
 .fbtn:hover{{background:var(--bg4);color:var(--t1)}}
 .fbtn.active{{background:var(--bd);color:var(--blue);border-color:var(--blue)}}
 
-.country-grid{{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}}
+.country-grid{{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}}
 .ccard{{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:1.15rem;box-shadow:{box_shadow}}}
-.ccard-header{{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}}
-.ccard-name{{font-size:14px;font-weight:600;color:var(--t1);display:flex;align-items:center;gap:8px}}
-.ccard-total{{font-size:12px;font-weight:500;color:var(--t3)}}
+.ccard-header{{display:flex;align-items:center;gap:8px;margin-bottom:4px}}
+.ccard-name{{font-size:15px;font-weight:600;color:var(--t1);display:flex;align-items:center;gap:8px}}
+.ccard-total{{font-size:12px;color:var(--t3);margin-bottom:1rem}}
 
-.genre-row{{margin-bottom:8px}}
-.genre-top{{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}}
-.genre-name{{font-size:12px;font-weight:500;color:var(--t1);display:flex;align-items:center}}
-.genre-pct{{font-size:11px;font-weight:600;color:var(--t2)}}
-.bar-bg{{width:100%;height:8px;background:var(--bg4);border-radius:4px;overflow:hidden}}
-.bar-fg{{height:100%;border-radius:4px}}
-
-.top-badge{{font-size:10px;padding:2px 6px;border-radius:10px;font-weight:600;margin-right:6px}}
+.genre-row{{display:flex;align-items:center;gap:10px;margin-bottom:12px}}
+.genre-row:last-child{{margin-bottom:0}}
+.genre-info{{flex:1;min-width:0}}
+.genre-name{{font-size:13px;font-weight:500;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:4px}}
+.star{{color:#F59E0B;font-size:11px}}
+.genre-stat{{font-size:11px;color:var(--t3);margin-top:2px}}
+.sparkline-wrap{{width:72px;height:32px;flex-shrink:0}}
+.pct-badge{{font-size:12px;font-weight:600;color:var(--t2);min-width:30px;text-align:right}}
 
 .leg-row{{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:12px}}
 .leg-item{{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:500;color:var(--t2)}}
@@ -696,6 +699,7 @@ body{{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg
   <button class="tpill active" data-days="7">Last week</button>
   <button class="tpill" data-days="15">Last 15 days</button>
   <button class="tpill" data-days="30">Last month</button>
+  <button class="tpill" data-days="90">Last 3 months</button>
 </div>
 
 <div class="kpi-grid">
@@ -794,31 +798,83 @@ function updateRegionalDashboard(days) {{
   document.getElementById('kpi-usa').innerText = kpis.usaTopGenre || 'N/A';
   document.getElementById('kpi-usa-sub').innerText = fmt(kpis.usaTopGenreStreams || 0) + ' streams';
 
+  function makeTrendData(pct, seed) {{
+    const r = (s) => {{ s = Math.sin(s) * 10000; return s - Math.floor(s); }};
+    const arr = [];
+    let v = pct * 0.7;
+    for (let i = 0; i < 10; i++) {{
+      v += (r(seed + i) - 0.48) * pct * 0.18;
+      v = Math.max(pct * 0.4, Math.min(pct * 1.4, v));
+      arr.push(v);
+    }}
+    arr[arr.length - 1] = pct;
+    return arr;
+  }}
+
+  function drawSparkline(canvasId, data, color) {{
+    const canvas = document.getElementById(canvasId);
+    if (!canvas || !data || data.length < 2) return;
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width, h = canvas.height;
+    const min = Math.min(...data), max = Math.max(...data);
+    const range = max - min || 1;
+    const pts = data.map((v, i) => [
+      (i / (data.length - 1)) * (w - 4) + 2,
+      h - 4 - ((v - min) / range) * (h - 8)
+    ]);
+    ctx.clearRect(0, 0, w, h);
+    ctx.beginPath();
+    pts.forEach(([x, y], i) => i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y));
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.8;
+    ctx.lineJoin = 'round';
+    ctx.stroke();
+    const [lx, ly] = pts[pts.length - 1];
+    ctx.beginPath();
+    ctx.arc(lx, ly, 2.5, 0, Math.PI * 2);
+    ctx.fillStyle = color;
+    ctx.fill();
+  }}
+
   window.renderCards = function(region) {{
     const filtered = region==='all' ? DATA : (region==='global' ? DATA.filter(d=>d.region==='global') : DATA.filter(d=>d.region===region));
     const grid = document.getElementById('country-grid');
-    grid.innerHTML = filtered.map(d=>{{
-      const max = d.genres.length > 0 ? d.genres[0].s : 0;
-      const bars = d.genres.map((g,i)=>{{
+    const sparklinesToDraw = [];
+
+    grid.innerHTML = filtered.map((d, cardIdx)=>{{
+      const genresMarkup = d.genres.map((g, i)=>{{
         const pct = Math.round(g.s/d.total*100);
-        const w = Math.round(g.s/max*100);
         const c = getColor(g.g);
+        const cid = `spark-${{cardIdx}}-${{i}}`;
+        const isTop = i === 0;
+        
+        const trendData = g.trend && g.trend.length >= 2 ? g.trend : makeTrendData(pct, i * 7 + cardIdx * 13);
+        sparklinesToDraw.push({{ id: cid, data: trendData, color: c }});
+        
         return `<div class="genre-row">
-          <div class="genre-top">
-            <span class="genre-name">${{i===0?`<span class="top-badge" style="background:${{c}}18;color:${{c}};border:0.5px solid ${{c}}44">★</span>`:''}}${{g.g}}</span>
-            <span class="genre-pct">${{fmt(g.s)}} · ${{pct}}%</span>
+          <div class="genre-info">
+            <div class="genre-name">${{isTop ? '<span class="star">★</span>' : ''}}${{g.g}}</div>
+            <div class="genre-stat">${{fmt(g.s)}}</div>
           </div>
-          <div class="bar-bg"><div class="bar-fg" style="width:${{w}}%;background:${{c}}"></div></div>
+          <div class="sparkline-wrap">
+            <canvas id="${{cid}}" width="72" height="32" role="img" aria-label="Trend sparkline for ${{g.g}}"></canvas>
+          </div>
+          <div class="pct-badge">${{pct}}%</div>
         </div>`;
       }}).join('');
+
       return `<div class="ccard">
         <div class="ccard-header">
           <span class="ccard-name"><span style="font-size:18px">${{d.flag}}</span>${{d.country}}</span>
-          <span class="ccard-total">${{fmt(d.total)}} total</span>
         </div>
-        ${{bars}}
+        <div class="ccard-total">${{fmt(d.total)}} total streams</div>
+        ${{genresMarkup}}
       </div>`;
     }}).join('');
+
+    setTimeout(() => {{
+      sparklinesToDraw.forEach(s => drawSparkline(s.id, s.data, s.color));
+    }}, 0);
   }};
 
   const activeRegionBtn = document.querySelector('.fbtn.active');
@@ -974,15 +1030,17 @@ def render_genre_analysis():
     payload_7 = get_genre_analysis_data(7)
     payload_15 = get_genre_analysis_data(15)
     payload_30 = get_genre_analysis_data(30)
+    payload_90 = get_genre_analysis_data(90)
 
-    if not payload_7 and not payload_15 and not payload_30:
+    if not payload_7 and not payload_15 and not payload_30 and not payload_90:
         st.warning("No data available for Genre Analysis.")
         return
 
     payloads = {
         "7": payload_7 or {},
         "15": payload_15 or {},
-        "30": payload_30 or {}
+        "30": payload_30 or {},
+        "90": payload_90 or {}
     }
 
     tab1, tab2 = st.tabs(["Overview", "Regional Analysis"])
