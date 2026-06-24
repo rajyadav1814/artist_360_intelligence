@@ -400,17 +400,11 @@ body{{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg
   <div class="card">
     <div class="card-title"><i class="ti ti-chart-bar"></i> Genre Score (All Platforms)</div>
     <div id="score-bars"></div>
-    <div style="margin-top:16px; position:relative; height:160px;">
-      <canvas id="pieChart" role="img" aria-label="Genre score distribution pie chart"></canvas>
-    </div>
   </div>
 
   <div class="card">
     <div class="card-title"><i class="ti ti-headphones"></i> Spotify Streams by Genre</div>
     <div id="stream-bars"></div>
-    <div style="margin-top:16px; position:relative; height:160px;">
-      <canvas id="pieChart2" role="img" aria-label="Spotify streams distribution pie chart"></canvas>
-    </div>
   </div>
 </div>
 
@@ -509,75 +503,6 @@ function renderBars(containerId, data, colorFn){{
 renderBars('score-bars', genreScores, getColor);
 renderBars('stream-bars', spotifyStreams, getColor);
 
-const top6 = genreScores.slice(0,6);
-if(top6.length > 0) {{
-    new Chart(document.getElementById('pieChart'),{{
-      type:'doughnut',
-      data:{{
-        labels:top6.map(d=>d.g),
-        datasets:[{{
-            data:top6.map(d=>d.s),
-            backgroundColor:top6.map(d=>getColor(d.g)),
-            borderWidth: 2,
-            borderColor: cssVar('--bg2')
-        }}]
-      }},
-      options:{{
-        responsive:true,
-        maintainAspectRatio:false,
-        cutout:'65%',
-        plugins:{{
-          legend:{{
-            position: 'right',
-            labels: {{ color: textColor, boxWidth: 12, padding: 15, font: {{size: 11, family: 'Inter'}} }}
-          }},
-          tooltip:{{
-            backgroundColor: cssVar('--bg3'),
-            titleColor: cssVar('--t1'),
-            bodyColor: cssVar('--t2'),
-            borderColor: cssVar('--border'),
-            borderWidth: 1,
-            callbacks:{{label:ctx=>' '+ctx.label+': '+fmtScore(ctx.raw)}}
-          }}
-        }}
-      }}
-    }});
-}}
-
-const top6Streams = spotifyStreams.slice(0,6);
-if(top6Streams.length > 0) {{
-    new Chart(document.getElementById('pieChart2'),{{
-      type:'doughnut',
-      data:{{
-        labels:top6Streams.map(d=>d.g),
-        datasets:[{{
-            data:top6Streams.map(d=>d.s),
-            backgroundColor:top6Streams.map(d=>getColor(d.g)),
-            borderWidth: 2,
-            borderColor: cssVar('--bg2')
-        }}]
-      }},
-      options:{{
-        responsive:true,
-        maintainAspectRatio:false,
-        cutout:'65%',
-        plugins:{{
-          legend:{{
-            position: 'right',
-            labels: {{ color: textColor, boxWidth: 12, padding: 15, font: {{size: 11, family: 'Inter'}} }}
-          }},
-          tooltip:{{
-            backgroundColor: cssVar('--bg3'),
-            titleColor: cssVar('--t1'),
-            bodyColor: cssVar('--t2'),
-            borderColor: cssVar('--border'),
-            borderWidth: 1,
-            callbacks:{{label:ctx=>' '+ctx.label+': '+fmtScore(ctx.raw)}}
-          }}
-        }}
-      }}
-    }});
-}}
 
 const genres = Object.keys(perfData);
 const tabsEl = document.getElementById('genre-tabs');
