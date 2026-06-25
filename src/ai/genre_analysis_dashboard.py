@@ -5,7 +5,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 from src.database.connection import get_connection
 
-_THEME_LIGHT = ":root{--bg:#EEF2F7;--bg2:#FFFFFF;--bg3:#F7F9FD;--bg4:#E8EEF6;--border:rgba(100,116,139,.18);--border2:rgba(100,116,139,.32);--t1:#111827;--t2:#475569;--t3:#7C8798;--t4:#A8B1C2;--green:#16A37A;--gd:rgba(22,163,122,.14);--red:#E24B4A;--rd:rgba(226,75,74,.14);--blue:#2E86DE;--bd:rgba(46,134,222,.14);--purple:#7769D8;--pd:rgba(119,105,216,.14);--amber:#D99019;--teal:#20BFA9;--pink:#D94E86;}"
+_THEME_LIGHT = ":root{--bg2:#FFFFFF;--bg3:#F7F9FD;--bg4:#E8EEF6;--border:rgba(100,116,139,.18);--border2:rgba(100,116,139,.32);--t1:#111827;--t2:#475569;--t3:#7C8798;--t4:#A8B1C2;--green:#16A37A;--gd:rgba(22,163,122,.14);--red:#E24B4A;--rd:rgba(226,75,74,.14);--blue:#2E86DE;--bd:rgba(46,134,222,.14);--purple:#7769D8;--pd:rgba(119,105,216,.14);--amber:#D99019;--teal:#20BFA9;--pink:#D94E86;}"
 _THEME_DARK  = ":root{--bg:#0B1020;--bg2:#111827;--bg3:#172033;--bg4:#1D2940;--border:rgba(100,116,139,.28);--border2:rgba(148,163,184,.36);--t1:#F8FAFC;--t2:#CBD5E1;--t3:#94A3B8;--t4:#64748B;--green:#34D399;--gd:rgba(52,211,153,.16);--red:#F87171;--rd:rgba(248,113,113,.16);--blue:#60A5FA;--bd:rgba(96,165,250,.16);--purple:#A78BFA;--pd:rgba(167,139,250,.16);--amber:#FBBF24;--teal:#2DD4BF;--pink:#F472B6;}"
 
 COUNTRY_FLAGS = {
@@ -1085,7 +1085,7 @@ def render_genre_analysis():
                 gap: 8px;
                 border: none;
                 border-radius: 0;
-                background: transparent;
+                background: #fff;
                 box-shadow: none;
             }}
             button[data-baseweb="tab"] {{
