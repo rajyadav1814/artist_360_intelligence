@@ -2607,10 +2607,15 @@ def render_header(title: str, meta: str, last_run_label: str) -> None:
         unsafe_allow_html=True,
     )
 
-
 def render_footer() -> None:
     st.markdown(
         """
+        <style>
+            [data-testid="stStatusWidget"] { display: none !important; }
+            .stDeployButton { display: none !important; }
+            #MainMenu { visibility: hidden !important; }
+            footer { visibility: hidden !important; }
+        </style>
         <div class="app-footer">
             <div><a href="mailto:info@chromadata.ai">info@chromadata.ai</a></div>
             <div>© 2026 - Chromadata. All rights reserved.</div>
@@ -2618,7 +2623,6 @@ def render_footer() -> None:
         """,
         unsafe_allow_html=True,
     )
-
 
 def render_kpis(leaderboard: pd.DataFrame, runs: pd.DataFrame) -> None:
     success_rate = (runs["status"].eq("success").mean() * 100) if not runs.empty else 0
