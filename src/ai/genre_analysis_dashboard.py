@@ -5,8 +5,8 @@ import streamlit as st
 import streamlit.components.v1 as components
 from src.database.connection import get_connection
 
-_THEME_LIGHT = ":root{--bg:#F5F6FA;--bg2:#FFFFFF;--bg3:#F8F9FB;--bg4:#EEF1F7;--border:rgba(148,163,184,.2);--border2:rgba(148,163,184,.35);--t1:#1A1A1A;--t2:#4A5568;--t3:#8A8FA3;--t4:#A0AEC0;--green:#34d399;--gd:rgba(52,211,153,.18);--red:#fb7185;--rd:rgba(251,113,133,.18);--blue:#60a5fa;--bd:rgba(96,165,250,.18);--purple:#c4b5fd;--pd:rgba(196,181,253,.18);--amber:#fcd34d;--teal:#5eead4;--pink:#f9a8d4;}"
-_THEME_DARK  = ":root{--bg:#0d1117;--bg2:#161b27;--bg3:#1a2035;--bg4:#1e2740;--border:rgba(41,52,85,.7);--border2:rgba(58,70,97,.8);--t1:#e2e8f0;--t2:#94a3b8;--t3:#8b95ad;--t4:#6b7a99;--green:#34d399;--gd:rgba(52,211,153,.18);--red:#fb7185;--rd:rgba(251,113,133,.18);--blue:#60a5fa;--bd:rgba(96,165,250,.18);--purple:#c4b5fd;--pd:rgba(196,181,253,.18);--amber:#fcd34d;--teal:#5eead4;--pink:#f9a8d4;}"
+_THEME_LIGHT = ":root{--bg:#EEF2F7;--bg2:#FFFFFF;--bg3:#F7F9FD;--bg4:#E8EEF6;--border:rgba(100,116,139,.18);--border2:rgba(100,116,139,.32);--t1:#111827;--t2:#475569;--t3:#7C8798;--t4:#A8B1C2;--green:#16A37A;--gd:rgba(22,163,122,.14);--red:#E24B4A;--rd:rgba(226,75,74,.14);--blue:#2E86DE;--bd:rgba(46,134,222,.14);--purple:#7769D8;--pd:rgba(119,105,216,.14);--amber:#D99019;--teal:#20BFA9;--pink:#D94E86;}"
+_THEME_DARK  = ":root{--bg:#0B1020;--bg2:#111827;--bg3:#172033;--bg4:#1D2940;--border:rgba(100,116,139,.28);--border2:rgba(148,163,184,.36);--t1:#F8FAFC;--t2:#CBD5E1;--t3:#94A3B8;--t4:#64748B;--green:#34D399;--gd:rgba(52,211,153,.16);--red:#F87171;--rd:rgba(248,113,113,.16);--blue:#60A5FA;--bd:rgba(96,165,250,.16);--purple:#A78BFA;--pd:rgba(167,139,250,.16);--amber:#FBBF24;--teal:#2DD4BF;--pink:#F472B6;}"
 
 COUNTRY_FLAGS = {
     "us": "🇺🇸 United States",
@@ -297,88 +297,94 @@ def _build_html(payloads: dict, dark_mode: bool) -> str:
     theme_css = _THEME_DARK if dark_mode else _THEME_LIGHT
     payload_json = json.dumps(payloads)
     
-    box_shadow = "0 4px 20px rgba(0,0,0,0.25)" if dark_mode else "0 2px 10px rgba(0,0,0,0.04)"
+    box_shadow = "0 18px 40px rgba(0,0,0,0.26)" if dark_mode else "0 12px 28px rgba(15,23,42,0.08)"
     
     return f"""
 <style>
 {theme_css}
 *{{box-sizing:border-box;margin:0;padding:0}}
-body{{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--t1);padding:1.25rem 0}}
-.db{{width:100%;max-width:1400px;margin:0 auto;display:flex;flex-direction:column;gap:1.5rem}}
+body{{font-family:'Inter',system-ui,-apple-system,sans-serif;background:linear-gradient(180deg,var(--bg) 0%,var(--bg3) 100%);color:var(--t1);padding:0}}
+.db{{width:100%;max-width:1500px;margin:0 auto;display:flex;flex-direction:column;gap:1.15rem;padding:0 16px 24px}}
 
 /* --- Time Filter Pills --- */
 .time-filter-row {{
-  display: flex;
-  gap: 10px;
-  margin-bottom: 0.25rem;
-  align-items: center;
-  justify-content: flex-end;
+  display:flex;
+  gap:10px;
+  margin-bottom:0.1rem;
+  align-items:center;
+  justify-content:flex-end;
 }}
 .tpill {{
-  font-size: 15px;
-  font-weight: 500;
-  padding: 8px 20px;
-  border-radius: 20px;
-  border: 1px solid var(--border2);
-  background: var(--bg2);
-  color: var(--t2);
-  cursor: pointer;
-  transition: all 0.2s ease;
+  font-size:13px;
+  line-height:1;
+  font-weight:700;
+  padding:10px 18px;
+  min-height:38px;
+  border-radius:999px;
+  border:1px solid var(--border);
+  background:var(--bg2);
+  color:var(--t2);
+  cursor:pointer;
+  box-shadow:0 6px 16px rgba(15,23,42,.05);
+  transition:background .18s ease,border-color .18s ease,box-shadow .18s ease,transform .18s ease,color .18s ease;
 }}
 .tpill:hover {{
-  background: var(--bg4);
-  color: var(--t1);
+  background:var(--bg3);
+  color:var(--t1);
+  border-color:var(--border2);
+  transform:translateY(-1px);
 }}
 .tpill.active {{
-  background: var(--rd);
-  color: var(--red);
-  border-color: var(--red);
-  font-weight: 600;
+  background:linear-gradient(135deg,var(--red),#f07a5f);
+  color:#fff;
+  border-color:transparent;
+  box-shadow:0 10px 22px rgba(226,75,74,.25);
 }}
 
 /* --- KPIs --- */
-.kpi-grid{{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}}
-.kpi{{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:1.15rem;box-shadow:{box_shadow};transition:transform 0.2s ease, box-shadow 0.2s ease}}
-.kpi:hover{{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,0.12)}}
-.kpi-label{{font-size:12px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:8px;display:flex;align-items:center;gap:6px}}
-.kpi-label i{{color:var(--blue);font-size:16px}}
-.kpi-value{{font-size:26px;font-weight:700;color:var(--t1);letter-spacing:-0.02em}}
-.kpi-sub{{font-size:12px;color:var(--t3);margin-top:6px;font-weight:500}}
+.kpi-grid{{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}}
+.kpi{{position:relative;overflow:hidden;background:linear-gradient(180deg,var(--bg2),var(--bg3));border:1px solid var(--border);border-radius:10px;padding:1.2rem 1.25rem;box-shadow:{box_shadow};transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease}}
+.kpi::before{{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:linear-gradient(180deg,var(--blue),var(--teal))}}
+.kpi:hover{{transform:translateY(-2px);border-color:var(--border2);box-shadow:0 18px 34px rgba(15,23,42,.12)}}
+.kpi-label{{font-size:11px;font-weight:800;color:var(--t2);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;display:flex;align-items:center;gap:7px}}
+.kpi-label i{{color:var(--blue);font-size:17px}}
+.kpi-value{{font-size:28px;line-height:1.05;font-weight:800;color:var(--t1);letter-spacing:0}}
+.kpi-sub{{font-size:12px;color:var(--t3);margin-top:8px;font-weight:600}}
 
 /* --- Cards --- */
 .charts-row{{display:grid;grid-template-columns:1fr 1fr;gap:16px}}
-.card, .full-card{{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:1.25rem;box-shadow:{box_shadow}}}
-.card-title{{font-size:14px;font-weight:600;color:var(--t1);margin-bottom:16px;display:flex;align-items:center;gap:8px}}
-.card-title i{{color:var(--t3);font-size:18px}}
+.card,.full-card{{background:linear-gradient(180deg,var(--bg2),var(--bg3));border:1px solid var(--border);border-radius:10px;padding:1.25rem;box-shadow:{box_shadow}}}
+.card-title{{font-size:15px;font-weight:800;color:var(--t1);margin-bottom:16px;display:flex;align-items:center;gap:9px}}
+.card-title i{{color:var(--blue);font-size:18px;background:var(--bd);width:26px;height:26px;border-radius:7px;display:inline-flex;align-items:center;justify-content:center}}
 
 /* --- Progress Bars --- */
-.genre-bar{{display:flex;align-items:center;gap:10px;margin-bottom:10px}}
-.genre-label{{font-size:12px;font-weight:500;color:var(--t1);width:120px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}
-.bar-track{{flex:1;background:var(--bg4);border-radius:6px;height:10px;overflow:hidden}}
-.bar-fill{{height:100%;border-radius:6px;transition:width 0.8s cubic-bezier(0.4, 0, 0.2, 1)}}
-.genre-val{{font-size:12px;font-weight:600;color:var(--t2);width:55px;text-align:right;flex-shrink:0}}
+.genre-bar{{display:flex;align-items:center;gap:12px;margin-bottom:12px}}
+.genre-label{{font-size:13px;font-weight:700;color:var(--t1);width:130px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}
+.bar-track{{flex:1;background:var(--bg4);border-radius:999px;height:12px;overflow:hidden;box-shadow:inset 0 1px 2px rgba(15,23,42,.08)}}
+.bar-fill{{height:100%;border-radius:999px;transition:width 0.8s cubic-bezier(0.4, 0, 0.2, 1);box-shadow:0 4px 10px rgba(15,23,42,.14)}}
+.genre-val{{font-size:12px;font-weight:800;color:var(--t2);width:62px;text-align:right;flex-shrink:0;font-variant-numeric:tabular-nums}}
 
 /* --- Tabs --- */
-.tabs{{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;border-bottom:1px solid var(--border);padding-bottom:8px}}
-.tab{{font-size:12px;font-weight:600;padding:6px 14px;border-radius:20px;border:1px solid var(--border);background:var(--bg3);color:var(--t2);cursor:pointer;transition:all 0.2s ease}}
-.tab:hover{{background:var(--bg4);color:var(--t1)}}
-.tab.active{{background:var(--bd);color:var(--blue);border-color:var(--blue)}}
+.tabs{{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;border-bottom:1px solid var(--border);padding-bottom:10px}}
+.tab{{font-size:12px;font-weight:800;padding:8px 15px;border-radius:999px;border:1px solid var(--border);background:var(--bg3);color:var(--t2);cursor:pointer;transition:all .18s ease;box-shadow:0 4px 10px rgba(15,23,42,.04)}}
+.tab:hover{{background:var(--bg2);color:var(--t1);border-color:var(--border2)}}
+.tab.active{{background:var(--bd);color:var(--blue);border-color:var(--blue);box-shadow:0 8px 16px rgba(46,134,222,.16)}}
 
 /* --- Performance List --- */
-.perf-row{{display:flex;align-items:center;gap:12px;padding:10px 8px;border-bottom:1px dashed var(--border);border-radius:6px;transition:background 0.2s ease}}
+.perf-row{{display:flex;align-items:center;gap:13px;padding:12px 10px;border-bottom:1px solid var(--border);border-radius:0;transition:background .18s ease}}
 .perf-row:hover{{background:var(--bg3)}}
 .perf-row:last-child{{border-bottom:none}}
-.rank-circle{{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;box-shadow:inset 0 0 0 1px rgba(0,0,0,0.05)}}
-.perf-name{{font-size:13px;font-weight:500;color:var(--t1);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}
-.perf-score{{font-size:13px;font-weight:600;color:var(--t2);text-align:right;min-width:70px}}
+.rank-circle{{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;flex-shrink:0;box-shadow:inset 0 0 0 1px rgba(15,23,42,.06)}}
+.perf-name{{font-size:13px;font-weight:700;color:var(--t1);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}
+.perf-score{{font-size:13px;font-weight:800;color:var(--t2);text-align:right;min-width:76px;font-variant-numeric:tabular-nums}}
 
 /* --- Lists --- */
-.country-row{{display:flex;align-items:center;justify-content:space-between;padding:8px 8px;border-bottom:1px solid var(--border);border-radius:6px;transition:background 0.2s ease}}
+.country-row{{display:flex;align-items:center;justify-content:space-between;padding:11px 10px;border-bottom:1px solid var(--border);border-radius:0;transition:background .18s ease}}
 .country-row:hover{{background:var(--bg3)}}
 .country-row:last-child{{border-bottom:none}}
-.country-name{{font-size:13px;font-weight:600;color:var(--t1)}}
-.country-genres{{font-size:11px;color:var(--t3);margin-top:2px;font-weight:500}}
-.country-streams{{font-size:13px;font-weight:700;color:var(--t2)}}
+.country-name{{font-size:13px;font-weight:800;color:var(--t1)}}
+.country-genres{{font-size:11px;color:var(--t3);margin-top:3px;font-weight:600}}
+.country-streams{{font-size:13px;font-weight:800;color:var(--t2);font-variant-numeric:tabular-nums}}
 
 /* --- Badges --- */
 .badge{{font-size:10px;padding:4px 8px;border-radius:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;display:inline-block}}
@@ -396,10 +402,12 @@ body{{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg
 .legend-dot{{width:12px;height:12px;border-radius:3px;flex-shrink:0}}
 
 /* Custom Scrollbar for lists */
-::-webkit-scrollbar{{width:6px;height:6px}}
+::-webkit-scrollbar{{width:8px;height:8px}}
 ::-webkit-scrollbar-track{{background:transparent}}
-::-webkit-scrollbar-thumb{{background:var(--border2);border-radius:4px}}
+::-webkit-scrollbar-thumb{{background:var(--border2);border-radius:999px}}
 ::-webkit-scrollbar-thumb:hover{{background:var(--t3)}}
+@media (max-width: 1100px){{.kpi-grid,.charts-row,.country-grid{{grid-template-columns:repeat(2,minmax(0,1fr))}}}}
+@media (max-width: 720px){{.db{{padding:0 10px 18px}}.time-filter-row{{justify-content:flex-start;overflow-x:auto;padding-bottom:4px}}.kpi-grid,.charts-row,.country-grid{{grid-template-columns:1fr}}.tpill{{white-space:nowrap}}}}
 </style>
 
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
@@ -610,87 +618,98 @@ document.getElementById('genre-tabs').addEventListener('click', e => {{
 def _build_regional_html(payloads: dict, dark_mode: bool) -> str:
     theme_css = _THEME_DARK if dark_mode else _THEME_LIGHT
     payload_json = json.dumps(payloads)
-    box_shadow = "0 4px 20px rgba(0,0,0,0.25)" if dark_mode else "0 2px 10px rgba(0,0,0,0.04)"
+    box_shadow = "0 18px 40px rgba(0,0,0,0.26)" if dark_mode else "0 12px 28px rgba(15,23,42,0.08)"
     
     return f"""
 <style>
 {theme_css}
 *{{box-sizing:border-box;margin:0;padding:0}}
-body{{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--t1);padding:1.25rem 0}}
-.db{{width:100%;max-width:1400px;margin:0 auto;display:flex;flex-direction:column;gap:1.5rem}}
+body{{font-family:'Inter',system-ui,-apple-system,sans-serif;background:linear-gradient(180deg,var(--bg) 0%,var(--bg3) 100%);color:var(--t1);padding:0}}
+.db{{width:100%;max-width:1500px;margin:0 auto;display:flex;flex-direction:column;gap:1.15rem;padding:0 16px 24px}}
 
 /* --- Time Filter Pills --- */
 .time-filter-row {{
-  display: flex;
-  gap: 10px;
-  margin-bottom: 0.25rem;
-  align-items: center;
-  justify-content: flex-end;
-  justify-content: flex-end;
+  display:flex;
+  gap:10px;
+  margin-bottom:0.1rem;
+  align-items:center;
+  justify-content:flex-end;
 }}
 .tpill {{
-  font-size: 15px;
-  font-weight: 500;
-  padding: 8px 20px;
-  border-radius: 20px;
-  border: 1px solid var(--border2);
-  background: var(--bg2);
-  color: var(--t2);
-  cursor: pointer;
-  transition: all 0.2s ease;
+  font-size:13px;
+  line-height:1;
+  font-weight:700;
+  padding:10px 18px;
+  min-height:38px;
+  border-radius:999px;
+  border:1px solid var(--border);
+  background:var(--bg2);
+  color:var(--t2);
+  cursor:pointer;
+  box-shadow:0 6px 16px rgba(15,23,42,.05);
+  transition:background .18s ease,border-color .18s ease,box-shadow .18s ease,transform .18s ease,color .18s ease;
 }}
 .tpill:hover {{
-  background: var(--bg4);
-  color: var(--t1);
+  background:var(--bg3);
+  color:var(--t1);
+  border-color:var(--border2);
+  transform:translateY(-1px);
 }}
 .tpill.active {{
-  background: var(--rd);
-  color: var(--red);
-  border-color: var(--red);
-  font-weight: 600;
+  background:linear-gradient(135deg,var(--red),#f07a5f);
+  color:#fff;
+  border-color:transparent;
+  box-shadow:0 10px 22px rgba(226,75,74,.25);
 }}
 
 /* --- KPIs --- */
-.kpi-grid{{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}}
-.kpi{{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:1.15rem;box-shadow:{box_shadow};transition:transform 0.2s ease, box-shadow 0.2s ease}}
-.kpi-label{{font-size:12px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:8px;display:flex;align-items:center;gap:6px}}
-.kpi-value{{font-size:26px;font-weight:700;color:var(--t1);letter-spacing:-0.02em}}
-.kpi-sub{{font-size:12px;color:var(--t3);margin-top:6px;font-weight:500}}
-.tooltip-icon{{color:var(--t3);cursor:help;margin-left:auto;font-size:15px;transition:color 0.2s}}
+.kpi-grid{{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}}
+.kpi{{position:relative;overflow:hidden;background:linear-gradient(180deg,var(--bg2),var(--bg3));border:1px solid var(--border);border-radius:10px;padding:1.2rem 1.25rem;box-shadow:{box_shadow};transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease}}
+.kpi::before{{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:linear-gradient(180deg,var(--blue),var(--teal))}}
+.kpi:hover{{transform:translateY(-2px);border-color:var(--border2);box-shadow:0 18px 34px rgba(15,23,42,.12)}}
+.kpi-label{{font-size:11px;font-weight:800;color:var(--t2);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;display:flex;align-items:center;gap:7px}}
+.kpi-label i:not(.tooltip-icon){{color:var(--blue);font-size:17px}}
+.kpi-value{{font-size:28px;line-height:1.05;font-weight:800;color:var(--t1);letter-spacing:0}}
+.kpi-sub{{font-size:12px;color:var(--t3);margin-top:8px;font-weight:600}}
+.tooltip-icon{{color:var(--t3);cursor:help;margin-left:auto;font-size:15px;transition:color .18s ease}}
 .tooltip-icon:hover{{color:var(--blue)}}
 
-.full-card{{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:1.25rem;box-shadow:{box_shadow}}}
-.card-title{{font-size:14px;font-weight:600;color:var(--t1);margin-bottom:16px;display:flex;align-items:center;gap:8px}}
+.full-card{{background:linear-gradient(180deg,var(--bg2),var(--bg3));border:1px solid var(--border);border-radius:10px;padding:1.25rem;box-shadow:{box_shadow}}}
+.card-title{{font-size:15px;font-weight:800;color:var(--t1);margin-bottom:16px;display:flex;align-items:center;gap:9px}}
+.card-title i{{color:var(--blue);font-size:18px;background:var(--bd);width:26px;height:26px;border-radius:7px;display:inline-flex;align-items:center;justify-content:center}}
 
-.filter-row{{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:0.75rem;align-items:center}}
-.filter-label{{font-size:14px;font-weight:600;color:var(--t2);margin-right:4px;text-transform:uppercase;letter-spacing:0.04em}}
-.fbtn{{font-size:13px;font-weight:600;padding:8px 18px;border-radius:20px;border:1px solid var(--border);background:var(--bg3);color:var(--t2);cursor:pointer;transition:all 0.2s ease}}
-.fbtn:hover{{background:var(--bg4);color:var(--t1)}}
-.fbtn.active{{background:#fb923c;color:#1A1A1A;border-color:#fb923c}}
+.filter-row{{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:.75rem;align-items:center}}
+.filter-label{{font-size:12px;font-weight:800;color:var(--t2);margin-right:4px;text-transform:uppercase;letter-spacing:0.06em}}
+.fbtn{{font-size:13px;font-weight:800;padding:9px 17px;border-radius:999px;border:1px solid var(--border);background:var(--bg3);color:var(--t2);cursor:pointer;transition:all .18s ease;box-shadow:0 4px 10px rgba(15,23,42,.04)}}
+.fbtn:hover{{background:var(--bg2);color:var(--t1);border-color:var(--border2)}}
+.fbtn.active{{background:linear-gradient(135deg,var(--amber),#f5b14c);color:#1A1A1A;border-color:transparent;box-shadow:0 10px 20px rgba(217,144,25,.20)}}
 
-.country-grid{{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}}
-.ccard{{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:1.15rem;box-shadow:{box_shadow}}}
-.ccard-header{{display:flex;align-items:center;gap:8px;margin-bottom:4px}}
-.ccard-name{{font-size:15px;font-weight:600;color:var(--t1);display:flex;align-items:center;gap:8px}}
-.ccard-total{{font-size:12px;color:var(--t3);margin-bottom:1rem}}
+.country-grid{{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}}
+.ccard{{background:linear-gradient(180deg,var(--bg2),var(--bg3));border:1px solid var(--border);border-radius:10px;padding:1.15rem;box-shadow:{box_shadow};transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease}}
+.ccard:hover{{transform:translateY(-2px);border-color:var(--border2);box-shadow:0 18px 34px rgba(15,23,42,.12)}}
+.ccard-header{{display:flex;align-items:center;gap:8px;margin-bottom:5px}}
+.ccard-name{{font-size:15px;font-weight:800;color:var(--t1);display:flex;align-items:center;gap:8px;min-width:0}}
+.ccard-total{{font-size:12px;color:var(--t3);margin-bottom:1rem;font-weight:700}}
 
-.genre-row{{display:flex;align-items:center;gap:10px;margin-bottom:12px}}
-.genre-row:last-child{{margin-bottom:0}}
+.genre-row{{display:flex;align-items:center;gap:10px;margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid var(--border)}}
+.genre-row:last-child{{margin-bottom:0;padding-bottom:0;border-bottom:none}}
 .genre-info{{flex:1;min-width:0}}
-.genre-name{{font-size:13px;font-weight:500;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:4px}}
-.star{{color:#F59E0B;font-size:11px}}
-.genre-stat{{font-size:11px;color:var(--t3);margin-top:2px}}
+.genre-name{{font-size:13px;font-weight:700;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:4px}}
+.star{{color:var(--amber);font-size:11px}}
+.genre-stat{{font-size:11px;color:var(--t3);margin-top:3px;font-weight:700}}
 .sparkline-wrap{{width:72px;height:32px;flex-shrink:0}}
-.pct-badge{{font-size:12px;font-weight:600;color:var(--t2);min-width:30px;text-align:right}}
+.pct-badge{{font-size:12px;font-weight:800;color:var(--t2);min-width:34px;text-align:right;font-variant-numeric:tabular-nums}}
 
 .leg-row{{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:12px}}
 .leg-item{{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:500;color:var(--t2)}}
 .leg-sq{{width:12px;height:12px;border-radius:3px}}
 
-::-webkit-scrollbar{{width:6px;height:6px}}
+::-webkit-scrollbar{{width:8px;height:8px}}
 ::-webkit-scrollbar-track{{background:transparent}}
-::-webkit-scrollbar-thumb{{background:var(--border2);border-radius:4px}}
+::-webkit-scrollbar-thumb{{background:var(--border2);border-radius:999px}}
 ::-webkit-scrollbar-thumb:hover{{background:var(--t3)}}
+@media (max-width: 1100px){{.kpi-grid,.charts-row,.country-grid{{grid-template-columns:repeat(2,minmax(0,1fr))}}}}
+@media (max-width: 720px){{.db{{padding:0 10px 18px}}.time-filter-row{{justify-content:flex-start;overflow-x:auto;padding-bottom:4px}}.kpi-grid,.charts-row,.country-grid{{grid-template-columns:1fr}}.tpill{{white-space:nowrap}}}}
 </style>
 
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
@@ -1049,9 +1068,33 @@ def render_genre_analysis():
     tab1, tab2 = st.tabs(["Overview", "Regional Analysis"])
     st.markdown("""
         <style>
+            .block-container {
+                max-width: 1600px;
+                padding-top: 1rem;
+                padding-left: 2rem;
+                padding-right: 2rem;
+            }
             div[data-testid="stTabs"] > div:first-child {
-                margin-left: 50px;
-                margin-right: 20px;
+                margin: 0 0 1rem 0;
+                padding: 6px;
+                gap: 8px;
+                border: 1px solid rgba(100,116,139,.22);
+                border-radius: 14px;
+                background: rgba(255,255,255,.72);
+                box-shadow: 0 10px 28px rgba(15,23,42,.06);
+            }
+            button[data-baseweb="tab"] {
+                border-radius: 10px;
+                min-height: 44px;
+                font-weight: 800;
+                color: #475569;
+            }
+            button[data-baseweb="tab"][aria-selected="true"] {
+                background: #111827;
+                color: #fff;
+            }
+            button[data-baseweb="tab"] p {
+                font-weight: 800;
             }
         </style>
     """, unsafe_allow_html=True)
