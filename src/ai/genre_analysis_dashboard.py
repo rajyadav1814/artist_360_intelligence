@@ -1068,9 +1068,6 @@ def render_genre_analysis():
     }
 
     dark_mode = st.session_state.get("dark_mode", False)
-    tab_shell_bg = "#111827" if dark_mode else "#FFFFFF"
-    tab_shell_border = "rgba(148,163,184,.28)" if dark_mode else "rgba(100,116,139,.22)"
-    tab_shell_shadow = "0 12px 30px rgba(0,0,0,.22)" if dark_mode else "0 10px 28px rgba(15,23,42,.06)"
     tab_text = "#CBD5E1" if dark_mode else "#475569"
     tab_hover_bg = "#1D2940" if dark_mode else "#F7F9FD"
     tab_active_bg = "linear-gradient(135deg, #fb7185, #f43f5e)" if dark_mode else "rgba(251,113,133,.14)"
@@ -1086,10 +1083,10 @@ def render_genre_analysis():
             div[data-testid="stTabs"] > div:first-child {{
                 margin: 43px 0 1rem 0;
                 gap: 8px;
-                border: 1px solid {tab_shell_border};
-                border-radius: 14px;
-                background: {tab_shell_bg};
-                box-shadow: {tab_shell_shadow};
+                border: none;
+                border-radius: 0;
+                background: transparent;
+                box-shadow: none;
             }}
             button[data-baseweb="tab"] {{
                 border-radius: 10px;
