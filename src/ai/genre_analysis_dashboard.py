@@ -1085,8 +1085,6 @@ def render_genre_analysis():
                 gap: 8px;
                 border: none;
                 border-radius: 0;
-                background: #fff;
-                box-shadow: none;
             }}
             button[data-baseweb="tab"] {{
                 border-radius: 10px;
