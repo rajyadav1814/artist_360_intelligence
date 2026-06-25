@@ -304,7 +304,7 @@ def _build_html(payloads: dict, dark_mode: bool) -> str:
 {theme_css}
 *{{box-sizing:border-box;margin:0;padding:0}}
 body{{font-family:'Inter',system-ui,-apple-system,sans-serif;color:var(--t1);padding:0}}
-.db{{width:100%;max-width:1500px;margin:0 auto;display:flex;flex-direction:column;gap:1.15rem;padding:0 16px 24px}}
+.db{{width:100%;max-width:1500px;margin:0 auto;display:flex;flex-direction:column;gap:1.00rem;padding:0 16px 24px}}
 
 /* --- Time Filter Pills --- */
 .time-filter-row {{
@@ -625,7 +625,7 @@ def _build_regional_html(payloads: dict, dark_mode: bool) -> str:
 {theme_css}
 *{{box-sizing:border-box;margin:0;padding:0}}
 body{{font-family:'Inter',system-ui,-apple-system,sans-serif;color:var(--t1);padding:0}}
-.db{{width:100%;max-width:1500px;margin:0 auto;display:flex;flex-direction:column;gap:1.15rem;padding:0 16px 24px}}
+.db{{width:100%;max-width:1500px;margin:0 auto;display:flex;flex-direction:column;gap:1.00rem;padding:0 16px 24px}}
 
 /* --- Time Filter Pills --- */
 .time-filter-row {{
