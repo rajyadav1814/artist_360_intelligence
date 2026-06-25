@@ -304,6 +304,7 @@ def _build_html(payloads: dict, dark_mode: bool) -> str:
 {theme_css}
 *{{box-sizing:border-box;margin:0;padding:0}}
 body{{font-family:'Inter',system-ui,-apple-system,sans-serif;color:var(--t1);padding:0}}
+html,body{{background:var(--bg)}}
 .db{{width:100%;max-width:1500px;margin:0 auto;display:flex;flex-direction:column;gap:1.00rem;padding:0 16px 24px}}
 
 /* --- Time Filter Pills --- */
@@ -625,6 +626,7 @@ def _build_regional_html(payloads: dict, dark_mode: bool) -> str:
 {theme_css}
 *{{box-sizing:border-box;margin:0;padding:0}}
 body{{font-family:'Inter',system-ui,-apple-system,sans-serif;color:var(--t1);padding:0}}
+html,body{{background:var(--bg)}}
 .db{{width:100%;max-width:1500px;margin:0 auto;display:flex;flex-direction:column;gap:1.00rem;padding:0 16px 24px}}
 
 /* --- Time Filter Pills --- */
@@ -1065,37 +1067,56 @@ def render_genre_analysis():
         "90": payload_90 or {}
     }
 
+    dark_mode = st.session_state.get("dark_mode", False)
+    tab_shell_bg = "#111827" if dark_mode else "#FFFFFF"
+    tab_shell_border = "rgba(148,163,184,.28)" if dark_mode else "rgba(100,116,139,.22)"
+    tab_shell_shadow = "0 12px 30px rgba(0,0,0,.22)" if dark_mode else "0 10px 28px rgba(15,23,42,.06)"
+    tab_text = "#CBD5E1" if dark_mode else "#475569"
+    tab_hover_bg = "#1D2940" if dark_mode else "#F7F9FD"
+    tab_active_bg = "linear-gradient(135deg, #fb7185, #f43f5e)" if dark_mode else "rgba(251,113,133,.14)"
+    tab_active_text = "#FFFFFF" if dark_mode else "#111827"
+
     tab1, tab2 = st.tabs(["Overview", "Regional Analysis"])
-    st.markdown("""
+    st.markdown(f"""
         <style>
-            .block-container {
+            .block-container {{
                 max-width: 1600px;
                 padding-top: 1rem;
-            }
-            div[data-testid="stTabs"] > div:first-child {
+            }}
+            div[data-testid="stTabs"] > div:first-child {{
                 margin: 43px 0 1rem 0;
                 gap: 8px;
-                border: 1px solid rgba(100,116,139,.22);
+                border: 1px solid {tab_shell_border};
                 border-radius: 14px;
-                background: #ffffff;
-                box-shadow: 0 10px 28px rgba(15,23,42,.06);
-            }
-            button[data-baseweb="tab"] {
+                background: {tab_shell_bg};
+                box-shadow: {tab_shell_shadow};
+            }}
+            button[data-baseweb="tab"] {{
                 border-radius: 10px;
                 min-height: 44px;
                 font-weight: 800;
-                color: #475569;
-            }
-            button[data-baseweb="tab"][aria-selected="true"] {
-                background: #111827;
-                color: #fff;
-            }
-            button[data-baseweb="tab"] p {
+                color: {tab_text} !important;
+            }}
+            button[data-baseweb="tab"]:hover {{
+                background: {tab_hover_bg} !important;
+                color: var(--text) !important;
+            }}
+            button[data-baseweb="tab"][aria-selected="true"] {{
+                background: {tab_active_bg} !important;
+                border-color: #fb7185 !important;
+                color: {tab_active_text} !important;
+                box-shadow: inset 0 0 0 1px rgba(251,113,133,.16), 0 6px 16px rgba(251,113,133,.10) !important;
+            }}
+            button[data-baseweb="tab"] p {{
                 font-weight: 800;
-            }
+                color: inherit !important;
+            }}
+            button[data-baseweb="tab"][aria-selected="true"] p {{
+                color: {tab_active_text} !important;
+            }}
         </style>
     """, unsafe_allow_html=True)
-    dark_mode = st.session_state.get("dark_mode", False)
+
 
     with tab1:
         html_content = _build_html(payloads, dark_mode)
