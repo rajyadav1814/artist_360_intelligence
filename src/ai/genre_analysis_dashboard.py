@@ -1075,7 +1075,7 @@ def render_genre_analysis():
                 padding-right: 2rem;
             }
             div[data-testid="stTabs"] > div:first-child {
-                margin: 0 0 1rem 0;
+                margin: 43px 0 1rem 0;
                 padding: 6px;
                 gap: 8px;
                 border: 1px solid rgba(100,116,139,.22);
