@@ -303,7 +303,7 @@ def _build_html(payloads: dict, dark_mode: bool) -> str:
 <style>
 {theme_css}
 *{{box-sizing:border-box;margin:0;padding:0}}
-body{{font-family:'Inter',system-ui,-apple-system,sans-serif;background:linear-gradient(180deg,var(--bg) 0%,var(--bg3) 100%);color:var(--t1);padding:0}}
+body{{font-family:'Inter',system-ui,-apple-system,sans-serif;color:var(--t1);padding:0}}
 .db{{width:100%;max-width:1500px;margin:0 auto;display:flex;flex-direction:column;gap:1.15rem;padding:0 16px 24px}}
 
 /* --- Time Filter Pills --- */
@@ -624,7 +624,7 @@ def _build_regional_html(payloads: dict, dark_mode: bool) -> str:
 <style>
 {theme_css}
 *{{box-sizing:border-box;margin:0;padding:0}}
-body{{font-family:'Inter',system-ui,-apple-system,sans-serif;background:linear-gradient(180deg,var(--bg) 0%,var(--bg3) 100%);color:var(--t1);padding:0}}
+body{{font-family:'Inter',system-ui,-apple-system,sans-serif;color:var(--t1);padding:0}}
 .db{{width:100%;max-width:1500px;margin:0 auto;display:flex;flex-direction:column;gap:1.15rem;padding:0 16px 24px}}
 
 /* --- Time Filter Pills --- */
@@ -1071,16 +1071,13 @@ def render_genre_analysis():
             .block-container {
                 max-width: 1600px;
                 padding-top: 1rem;
-                padding-left: 2rem;
-                padding-right: 2rem;
             }
             div[data-testid="stTabs"] > div:first-child {
                 margin: 43px 0 1rem 0;
-                padding: 6px;
                 gap: 8px;
                 border: 1px solid rgba(100,116,139,.22);
                 border-radius: 14px;
-                background: rgba(255,255,255,.72);
+                background: #ffffff;
                 box-shadow: 0 10px 28px rgba(15,23,42,.06);
             }
             button[data-baseweb="tab"] {
