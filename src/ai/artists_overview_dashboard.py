@@ -974,10 +974,12 @@ def render_artists_overview(last_run_label: str = "n/a", filtered_artists: list[
             align-items: center !important;
             gap: 16px !important;
             margin-bottom: 0 !important;
+            width: 50% !important;
         }
         div.element-container:has(div.gradient-marker) + div.element-container div[data-testid="stSelectbox"] label {
             margin-bottom: 0 !important;
             min-height: auto !important;
+            white-space: nowrap !important;
         }
         div.element-container:has(div.gradient-marker) + div.element-container div[data-testid="stSelectbox"] label p {
             font-weight: 700 !important;
