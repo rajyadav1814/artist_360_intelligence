@@ -1493,11 +1493,9 @@ def render_artists_overview(last_run_label: str = "n/a", filtered_artists: list[
         <thead>
           <tr>
             <th style="width:58px">#</th>
-            <th style="width:230px">Artist</th>
+            <th style="width:200px">Artist</th>
             <th style="width:82px" class="num">Rank</th>
-            <th style="width:92px">Move</th>
-            <th style="width:110px" class="num">Points</th>
-            <th style="width:120px" class="num">Listeners</th>
+            <th style="width:92px">Movement</th>
             <th style="width:82px" class="num">Tracks</th>
             <th style="width:82px" class="num">Albums</th>
             <th style="width:130px">Top country</th>
@@ -1713,8 +1711,6 @@ function renderArtistLeaderboard() {{
       <td><div class="leader-artist"><div class="leader-avatar">${{escLeader(initials(row.name))}}</div><button class="leader-name" type="button" onclick="openArtistDetail(${{row.position}})" title="${{escLeader(row.name)}}">${{escLeader(row.name)}}</button></div></td>
       <td class="num leader-rank-cell">#${{fmtLeaderNumber(row.rank)}}</td>
       <td><span class="leader-change ${{escLeader(row.changeClass)}}">${{escLeader(row.change)}}</span></td>
-      <td class="num">${{fmtLeaderNumber(row.points)}}</td>
-      <td class="num">${{fmtLeaderNumber(row.listeners)}}</td>
       <td class="num">${{fmtLeaderNumber(row.songs)}}</td>
       <td class="num">${{fmtLeaderNumber(row.albums)}}</td>
       <td class="country-cell" title="${{escLeader(row.topCountry)}}">${{escLeader(row.topCountry)}}</td>
