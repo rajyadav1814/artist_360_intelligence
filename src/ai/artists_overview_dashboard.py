@@ -915,94 +915,91 @@ def render_artists_overview(last_run_label: str = "n/a", filtered_artists: list[
     else:
         all_artist_names = ["Search Artists..."] + all_artists_combined_df["name"].dropna().unique().tolist()
 
-    
-    col1, col2 = st.columns([0.5, 0.5])
-    with col1:
-        st.markdown(
-            """
-            <div class="gradient-marker"></div>
-            <style>
-            /* Gradient border selectbox styling */
-            div.element-container:has(div.gradient-marker) + div.element-container div[data-testid="stSelectbox"] div[data-baseweb="select"] > div {
-                border: 2.5px solid transparent !important;
-                border-radius: 24px !important;
-                background-image: linear-gradient(var(--surface2, #1f2633), var(--surface2, #1f2633)), 
-                                  linear-gradient(90deg, #60a5fa 0%, #c4b5fd 50%, #fb7185 100%) !important;
-                background-clip: padding-box, border-box !important;
-                background-origin: padding-box, border-box !important;
-                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08) !important;
-                padding-left: 46px !important;
-                position: relative !important;
-                min-height: 44px !important;
-                display: flex !important;
-                align-items: center !important;
-                transition: all 0.2s ease !important;
-            }
-            div.element-container:has(div.gradient-marker) + div.element-container div[data-testid="stSelectbox"] div[data-baseweb="select"] > div:hover {
-                background-image: linear-gradient(var(--surface3, #283041), var(--surface3, #283041)), 
-                                  linear-gradient(90deg, #60a5fa 0%, #c4b5fd 50%, #fb7185 100%) !important;
-            }
-            div.element-container:has(div.gradient-marker) + div.element-container div[data-testid="stSelectbox"] div[data-baseweb="select"] > div:focus-within {
-                box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.2) !important;
-            }
-            div.element-container:has(div.gradient-marker) + div.element-container div[data-testid="stSelectbox"] div[data-baseweb="select"] > div::before {
-                content: "" !important;
-                position: absolute !important;
-                left: 16px !important;
-                top: 50% !important;
-                transform: translateY(-50%) !important;
-                width: 18px !important;
-                height: 18px !important;
-                background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%238A8FA3' stroke-width='2.5'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z'/%3E%3C/svg%3E") !important;
-                background-size: contain !important;
-                background-repeat: no-repeat !important;
-                pointer-events: none !important;
-                z-index: 10 !important;
-            }
-            div.element-container:has(div.gradient-marker) + div.element-container div[data-testid="stSelectbox"] div[data-baseweb="select"] > div::after {
-                content: "" !important;
-                position: absolute !important;
-                left: 42px !important;
-                top: 25% !important;
-                bottom: 25% !important;
-                width: 1px !important;
-                background-color: var(--border, rgba(148, 163, 184, 0.3)) !important;
-                pointer-events: none !important;
-                z-index: 10 !important;
-            }
-            /* Style label to look modern and inline */
-            div.element-container:has(div.gradient-marker) + div.element-container div[data-testid="stSelectbox"] {
-                display: flex !important;
-                flex-direction: row !important;
-                align-items: center !important;
-                gap: 16px !important;
-                margin-bottom: 0 !important;
-            }
-            div.element-container:has(div.gradient-marker) + div.element-container div[data-testid="stSelectbox"] label {
-                margin-bottom: 0 !important;
-                min-height: auto !important;
-            }
-            div.element-container:has(div.gradient-marker) + div.element-container div[data-testid="stSelectbox"] label p {
-                font-weight: 700 !important;
-                letter-spacing: 0.02em !important;
-                margin-bottom: 0 !important;
-                white-space: nowrap !important;
-            }
-            div.element-container:has(div.gradient-marker) + div.element-container div[data-testid="stSelectbox"] > div[data-baseweb="select"] {
-                flex-grow: 1 !important;
-                width: 100% !important;
-            }
-            </style>
-            """,
-            unsafe_allow_html=True,
-        )
-        selected_artist_name = st.selectbox(
-            "Select an Artist to filter the dashboard",
-            options=all_artist_names,
-            key="artists_overview_selected_artist",
-            on_change=lambda: st.session_state.pop("artists_overview_selected_artist_detail", None), # Clear detail view on new selection
-            index=0, # Default to "Search Artists..."
-        )
+    st.markdown(
+        """
+        <div class="gradient-marker"></div>
+        <style>
+        /* Gradient border selectbox styling */
+        div.element-container:has(div.gradient-marker) + div.element-container div[data-testid="stSelectbox"] div[data-baseweb="select"] > div {
+            border: 2.5px solid transparent !important;
+            border-radius: 24px !important;
+            background-image: linear-gradient(var(--surface2, #1f2633), var(--surface2, #1f2633)), 
+                              linear-gradient(90deg, #60a5fa 0%, #c4b5fd 50%, #fb7185 100%) !important;
+            background-clip: padding-box, border-box !important;
+            background-origin: padding-box, border-box !important;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08) !important;
+            padding-left: 46px !important;
+            position: relative !important;
+            min-height: 44px !important;
+            display: flex !important;
+            align-items: center !important;
+            transition: all 0.2s ease !important;
+        }
+        div.element-container:has(div.gradient-marker) + div.element-container div[data-testid="stSelectbox"] div[data-baseweb="select"] > div:hover {
+            background-image: linear-gradient(var(--surface3, #283041), var(--surface3, #283041)), 
+                              linear-gradient(90deg, #60a5fa 0%, #c4b5fd 50%, #fb7185 100%) !important;
+        }
+        div.element-container:has(div.gradient-marker) + div.element-container div[data-testid="stSelectbox"] div[data-baseweb="select"] > div:focus-within {
+            box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.2) !important;
+        }
+        div.element-container:has(div.gradient-marker) + div.element-container div[data-testid="stSelectbox"] div[data-baseweb="select"] > div::before {
+            content: "" !important;
+            position: absolute !important;
+            left: 16px !important;
+            top: 50% !important;
+            transform: translateY(-50%) !important;
+            width: 18px !important;
+            height: 18px !important;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%238A8FA3' stroke-width='2.5'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z'/%3E%3C/svg%3E") !important;
+            background-size: contain !important;
+            background-repeat: no-repeat !important;
+            pointer-events: none !important;
+            z-index: 10 !important;
+        }
+        div.element-container:has(div.gradient-marker) + div.element-container div[data-testid="stSelectbox"] div[data-baseweb="select"] > div::after {
+            content: "" !important;
+            position: absolute !important;
+            left: 42px !important;
+            top: 25% !important;
+            bottom: 25% !important;
+            width: 1px !important;
+            background-color: var(--border, rgba(148, 163, 184, 0.3)) !important;
+            pointer-events: none !important;
+            z-index: 10 !important;
+        }
+        /* Style label to look modern and inline */
+        div.element-container:has(div.gradient-marker) + div.element-container div[data-testid="stSelectbox"] {
+            display: flex !important;
+            flex-direction: row !important;
+            align-items: center !important;
+            gap: 16px !important;
+            margin-bottom: 0 !important;
+        }
+        div.element-container:has(div.gradient-marker) + div.element-container div[data-testid="stSelectbox"] label {
+            margin-bottom: 0 !important;
+            min-height: auto !important;
+        }
+        div.element-container:has(div.gradient-marker) + div.element-container div[data-testid="stSelectbox"] label p {
+            font-weight: 700 !important;
+            letter-spacing: 0.02em !important;
+            margin-bottom: 0 !important;
+            white-space: nowrap !important;
+        }
+        div.element-container:has(div.gradient-marker) + div.element-container div[data-testid="stSelectbox"] > div[data-baseweb="select"] {
+            flex-grow: 1 !important;
+            width: 100% !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+    selected_artist_name = st.selectbox(
+        "Select an Artist to filter the dashboard",
+        options=all_artist_names,
+        key="artists_overview_selected_artist",
+        on_change=lambda: st.session_state.pop("artists_overview_selected_artist_detail", None), # Clear detail view on new selection
+        index=0, # Default to "Search Artists..."
+    )
 
     # --- Filter all dataframes based on selection ---
     current_view_artists_df = all_artists_combined_df.copy()
