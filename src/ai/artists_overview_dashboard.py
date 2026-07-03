@@ -915,94 +915,93 @@ def render_artists_overview(last_run_label: str = "n/a", filtered_artists: list[
     else:
         all_artist_names = ["Search Artists..."] + all_artists_combined_df["name"].dropna().unique().tolist()
 
-    
-    col1, col2 = st.columns([0.5, 0.5])
-    with col1:
-        st.markdown(
-            """
-            <div class="gradient-marker"></div>
-            <style>
-            /* Gradient border selectbox styling */
-            div.element-container:has(div.gradient-marker) + div.element-container div[data-testid="stSelectbox"] div[data-baseweb="select"] > div {
-                border: 2.5px solid transparent !important;
-                border-radius: 24px !important;
-                background-image: linear-gradient(var(--surface2, #1f2633), var(--surface2, #1f2633)), 
-                                  linear-gradient(90deg, #60a5fa 0%, #c4b5fd 50%, #fb7185 100%) !important;
-                background-clip: padding-box, border-box !important;
-                background-origin: padding-box, border-box !important;
-                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08) !important;
-                padding-left: 46px !important;
-                position: relative !important;
-                min-height: 44px !important;
-                display: flex !important;
-                align-items: center !important;
-                transition: all 0.2s ease !important;
-            }
-            div.element-container:has(div.gradient-marker) + div.element-container div[data-testid="stSelectbox"] div[data-baseweb="select"] > div:hover {
-                background-image: linear-gradient(var(--surface3, #283041), var(--surface3, #283041)), 
-                                  linear-gradient(90deg, #60a5fa 0%, #c4b5fd 50%, #fb7185 100%) !important;
-            }
-            div.element-container:has(div.gradient-marker) + div.element-container div[data-testid="stSelectbox"] div[data-baseweb="select"] > div:focus-within {
-                box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.2) !important;
-            }
-            div.element-container:has(div.gradient-marker) + div.element-container div[data-testid="stSelectbox"] div[data-baseweb="select"] > div::before {
-                content: "" !important;
-                position: absolute !important;
-                left: 16px !important;
-                top: 50% !important;
-                transform: translateY(-50%) !important;
-                width: 18px !important;
-                height: 18px !important;
-                background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%238A8FA3' stroke-width='2.5'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z'/%3E%3C/svg%3E") !important;
-                background-size: contain !important;
-                background-repeat: no-repeat !important;
-                pointer-events: none !important;
-                z-index: 10 !important;
-            }
-            div.element-container:has(div.gradient-marker) + div.element-container div[data-testid="stSelectbox"] div[data-baseweb="select"] > div::after {
-                content: "" !important;
-                position: absolute !important;
-                left: 42px !important;
-                top: 25% !important;
-                bottom: 25% !important;
-                width: 1px !important;
-                background-color: var(--border, rgba(148, 163, 184, 0.3)) !important;
-                pointer-events: none !important;
-                z-index: 10 !important;
-            }
-            /* Style label to look modern and inline */
-            div.element-container:has(div.gradient-marker) + div.element-container div[data-testid="stSelectbox"] {
-                display: flex !important;
-                flex-direction: row !important;
-                align-items: center !important;
-                gap: 16px !important;
-                margin-bottom: 0 !important;
-            }
-            div.element-container:has(div.gradient-marker) + div.element-container div[data-testid="stSelectbox"] label {
-                margin-bottom: 0 !important;
-                min-height: auto !important;
-            }
-            div.element-container:has(div.gradient-marker) + div.element-container div[data-testid="stSelectbox"] label p {
-                font-weight: 700 !important;
-                letter-spacing: 0.02em !important;
-                margin-bottom: 0 !important;
-                white-space: nowrap !important;
-            }
-            div.element-container:has(div.gradient-marker) + div.element-container div[data-testid="stSelectbox"] > div[data-baseweb="select"] {
-                flex-grow: 1 !important;
-                width: 100% !important;
-            }
-            </style>
-            """,
-            unsafe_allow_html=True,
-        )
-        selected_artist_name = st.selectbox(
-            "Select an Artist to filter the dashboard",
-            options=all_artist_names,
-            key="artists_overview_selected_artist",
-            on_change=lambda: st.session_state.pop("artists_overview_selected_artist_detail", None), # Clear detail view on new selection
-            index=0, # Default to "Search Artists..."
-        )
+    st.markdown(
+        """
+        <div class="gradient-marker"></div>
+        <style>
+        /* Gradient border selectbox styling */
+        div.element-container:has(div.gradient-marker) + div.element-container div[data-testid="stSelectbox"] div[data-baseweb="select"] > div {
+            border: 2.5px solid transparent !important;
+            border-radius: 24px !important;
+            background-image: linear-gradient(var(--surface2, #1f2633), var(--surface2, #1f2633)), 
+                              linear-gradient(90deg, #60a5fa 0%, #c4b5fd 50%, #fb7185 100%) !important;
+            background-clip: padding-box, border-box !important;
+            background-origin: padding-box, border-box !important;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08) !important;
+            padding-left: 46px !important;
+            position: relative !important;
+            min-height: 44px !important;
+            display: flex !important;
+            align-items: center !important;
+            transition: all 0.2s ease !important;
+        }
+        div.element-container:has(div.gradient-marker) + div.element-container div[data-testid="stSelectbox"] div[data-baseweb="select"] > div:hover {
+            background-image: linear-gradient(var(--surface3, #283041), var(--surface3, #283041)), 
+                              linear-gradient(90deg, #60a5fa 0%, #c4b5fd 50%, #fb7185 100%) !important;
+        }
+        div.element-container:has(div.gradient-marker) + div.element-container div[data-testid="stSelectbox"] div[data-baseweb="select"] > div:focus-within {
+            box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.2) !important;
+        }
+        div.element-container:has(div.gradient-marker) + div.element-container div[data-testid="stSelectbox"] div[data-baseweb="select"] > div::before {
+            content: "" !important;
+            position: absolute !important;
+            left: 16px !important;
+            top: 50% !important;
+            transform: translateY(-50%) !important;
+            width: 18px !important;
+            height: 18px !important;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%238A8FA3' stroke-width='2.5'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z'/%3E%3C/svg%3E") !important;
+            background-size: contain !important;
+            background-repeat: no-repeat !important;
+            pointer-events: none !important;
+            z-index: 10 !important;
+        }
+        div.element-container:has(div.gradient-marker) + div.element-container div[data-testid="stSelectbox"] div[data-baseweb="select"] > div::after {
+            content: "" !important;
+            position: absolute !important;
+            left: 42px !important;
+            top: 25% !important;
+            bottom: 25% !important;
+            width: 1px !important;
+            background-color: var(--border, rgba(148, 163, 184, 0.3)) !important;
+            pointer-events: none !important;
+            z-index: 10 !important;
+        }
+        /* Style label to look modern and inline */
+        div.element-container:has(div.gradient-marker) + div.element-container div[data-testid="stSelectbox"] {
+            display: flex !important;
+            flex-direction: row !important;
+            align-items: center !important;
+            gap: 16px !important;
+            margin-bottom: 0 !important;
+            width: 50% !important;
+        }
+        div.element-container:has(div.gradient-marker) + div.element-container div[data-testid="stSelectbox"] label {
+            margin-bottom: 0 !important;
+            min-height: auto !important;
+            white-space: nowrap !important;
+        }
+        div.element-container:has(div.gradient-marker) + div.element-container div[data-testid="stSelectbox"] label p {
+            font-weight: 700 !important;
+            letter-spacing: 0.02em !important;
+            margin-bottom: 0 !important;
+            white-space: nowrap !important;
+        }
+        div.element-container:has(div.gradient-marker) + div.element-container div[data-testid="stSelectbox"] > div[data-baseweb="select"] {
+            flex-grow: 1 !important;
+            width: 100% !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+    selected_artist_name = st.selectbox(
+        "Select an Artist to filter the dashboard",
+        options=all_artist_names,
+        key="artists_overview_selected_artist",
+        on_change=lambda: st.session_state.pop("artists_overview_selected_artist_detail", None), # Clear detail view on new selection
+        index=0, # Default to "Search Artists..."
+    )
 
     # --- Filter all dataframes based on selection ---
     current_view_artists_df = all_artists_combined_df.copy()
@@ -1475,7 +1474,7 @@ def render_artists_overview(last_run_label: str = "n/a", filtered_artists: list[
 .modal-backdrop{position:fixed;inset:0;z-index:40;display:none;align-items:flex-start;justify-content:center;background:rgba(2,6,23,.62);padding:22px 18px}.modal-backdrop.open{display:flex}.leader-modal{width:min(1040px,100%);max-height:calc(100vh - 44px);display:flex;flex-direction:column;background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--border);border-radius:14px;box-shadow:0 28px 88px rgba(0,0,0,.42);overflow:hidden}.leader-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:18px 20px;border-bottom:1px solid var(--border)}.leader-kicker{color:var(--rose);font-size:11px;text-transform:uppercase;letter-spacing:.08em;font-weight:900}.leader-title{margin-top:4px;color:var(--text);font-size:20px;font-weight:900}.leader-sub{margin-top:5px;color:var(--muted);font-size:12px;font-weight:650}.leader-close,.leader-back{height:34px;border-radius:8px;border:1px solid var(--border);background:var(--panel3);color:var(--text);cursor:pointer}.leader-close{width:34px;font-size:20px;line-height:1}.leader-back{display:none;padding:0 12px;font-size:12px;font-weight:900}.leader-back.show{display:inline-flex;align-items:center}.leader-actions{display:flex;gap:8px;align-items:center}.leader-close:hover,.leader-back:hover{border-color:rgba(251,113,133,.55);color:var(--rose)}.leader-table-wrap{overflow:auto;padding:0 0 8px}.leader-table-wrap.hide{display:none}.leader-table{width:100%;border-collapse:collapse;min-width:880px;table-layout:fixed}.leader-table th{position:sticky;top:0;z-index:1;background:var(--panel2);color:var(--soft);font-size:10px;text-align:left;text-transform:uppercase;letter-spacing:.06em;font-weight:900;padding:10px 12px;border-bottom:1px solid var(--border)}.leader-table td{padding:11px 12px;border-bottom:1px solid var(--border);color:var(--muted);font-size:12px;font-weight:650;vertical-align:middle;overflow:hidden}.leader-table tbody tr:hover td{background:var(--panel3)}.leader-pos{color:var(--soft);font-weight:900}.leader-artist{display:flex;align-items:center;gap:9px;min-width:0;max-width:100%;overflow:hidden}.leader-avatar{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;color:#fff;background:linear-gradient(135deg,var(--rose),var(--blue));font-size:11px;font-weight:900;flex:0 0 auto}.leader-name{display:block;width:100%;max-width:100%;border:0;background:transparent;padding:0;color:var(--text);font:inherit;font-size:14px;font-weight:700;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;text-align:left}.leader-name:hover{text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:3px;color:var(--rose)}.leader-rank-cell{color:var(--text);font-size:13px;font-weight:900}.leader-change{display:inline-flex;align-items:center;justify-content:center;min-width:54px;border-radius:999px;padding:3px 8px;font-size:10px;font-weight:900;border:1px solid var(--border);background:var(--panel3)}.leader-change.up{color:#86efac;background:rgba(52,211,153,.14);border-color:rgba(52,211,153,.25)}.leader-change.down{color:#fda4af;background:rgba(251,113,133,.14);border-color:rgba(251,113,133,.25)}.leader-change.flat{color:var(--muted)}.platform-pill{display:inline-flex;align-items:center;border:1px solid var(--border);border-radius:999px;padding:4px 9px;margin:2px 4px 2px 0;font-size:11px;font-weight:900;line-height:1}.platform-itunes{color:#b45309;background:rgba(252,211,77,.22);border-color:rgba(217,119,6,.30)}.platform-spotify{color:#047857;background:rgba(52,211,153,.18);border-color:rgba(16,185,129,.30)}.platform-mixed{color:#2563eb;background:rgba(96,165,250,.16);border-color:rgba(37,99,235,.24)}.leader-empty{padding:26px;color:var(--muted);font-size:13px;text-align:center}.num{text-align:center;font-variant-numeric:tabular-nums}.leader-table th.num{text-align:center}.country-cell{min-width:0;max-width:100%;white-space:nowrap;text-overflow:ellipsis}.artist-detail{display:none;overflow:auto;padding:18px 20px 22px}.artist-detail.show{display:block}.detail-hero{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:14px}.detail-name{font-size:24px;font-weight:950;color:var(--text);line-height:1}.detail-photo{width:96px;height:96px;border-radius:14px;object-fit:cover;border:1px solid var(--border);background:var(--panel3);box-shadow:0 12px 28px rgba(15,23,42,.18);flex:0 0 auto}.detail-meta{margin-top:8px;display:flex;flex-wrap:wrap;gap:7px}.detail-pill{display:inline-flex;align-items:center;border:1px solid var(--border);border-radius:999px;background:var(--panel3);padding:4px 9px;color:var(--muted);font-size:11px;font-weight:850}.detail-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:14px}.detail-card{background:var(--panel3);border:1px solid var(--border);border-radius:10px;padding:11px 12px;min-height:70px}.detail-label{color:var(--soft);font-size:10px;text-transform:uppercase;letter-spacing:.06em;font-weight:900}.detail-val{margin-top:7px;color:var(--text);font-size:18px;font-weight:950;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.detail-sections{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.detail-section{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:12px;min-height:150px}.detail-section h4{margin:0 0 9px;color:var(--text);font-size:13px;font-weight:950}.detail-list{display:flex;flex-direction:column;gap:7px}.detail-item{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:12px;font-weight:750;min-width:0}.detail-dot{width:7px;height:7px;border-radius:50%;background:linear-gradient(135deg,var(--rose),var(--blue));flex:0 0 auto}.detail-item span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.platform-bars{display:flex;flex-direction:column;gap:8px}.platform-row{display:grid;grid-template-columns:88px 1fr 58px;gap:8px;align-items:center;color:var(--muted);font-size:11px;font-weight:850}.platform-track{height:8px;border-radius:999px;background:var(--track);overflow:hidden}.platform-fill{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,var(--rose),var(--blue))}
 @media(max-width:1200px){.grid,.insight-grid,.artist-story-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.detail-grid,.detail-sections{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:768px){.grid,.insight-grid,.artist-story-grid{grid-template-columns:1fr}}@media(max-width:640px){.dash{padding:10px}.kpi{max-width:none;min-height:100px}.artist-story-grid{grid-template-columns:1fr}.donut-layout{grid-template-columns:1fr}.bar-row{grid-template-columns:18px minmax(84px,34%) minmax(0,1fr)}.modal-backdrop{padding:10px;align-items:flex-start}.leader-head{padding:14px}.leader-title{font-size:17px}.detail-grid,.detail-sections{grid-template-columns:1fr}.detail-hero{display:block}.platform-row{grid-template-columns:78px 1fr 48px}}
 </style></head><body>
-""" + f"<main class='dash {theme}'>" + "<div class='kpis'>" + kpi_html("Artists", _fmt_n(artist_total), "&#127908;", f"Latest rank snapshot", "openArtistLeaderboard()") + kpi_html("Tracks", _fmt_n(song_total), "&#9835;", details_label, "openSongsLeaderboard()") + kpi_html("Albums", _fmt_n(album_total), "&#9673;", album_rows_label, "openAlbumsLeaderboard()") + kpi_html("Popular Tracks", _fmt_n(popular_songs), "&#9679;", "Top 10 ranked tracks", "openPopularSongsLeaderboard()") + "</div><div class='grid'>" + bars_html(top_artists, "name", "total_points", "Top Artist - Last Month", "Highest scoring artists in the latest ranking snapshot.", 10) + bars_html(current_view_top_tracks, "title", "metric", "Top Track - Last Month", "Tracks with the strongest combined chart metric.", 10, artist_filter_col="artist") + bars_html(top_listeners, "name", "monthly_listeners", "Spotify Listener Leaders", "Artists with the highest latest monthly listener counts.", 10) + donut_html(current_view_artists_df) + radar_html(current_view_artists_df) + bars_html(current_view_top_albums, "album", "metric", "Top Album - Last Month", "Albums with the strongest album chart metric.", 10, artist_filter_col="artist") + "</div>" + f"""
+""" + f"<main class='dash {theme}'>" + "<div class='kpis'>" + kpi_html("Artists", _fmt_n(artist_total), "&#127908;", f"Latest rank snapshot", "openArtistLeaderboard()") + kpi_html("Tracks", _fmt_n(song_total), "&#9835;", details_label, "openSongsLeaderboard()") + kpi_html("Albums", _fmt_n(album_total), "&#9673;", album_rows_label, "openAlbumsLeaderboard()") + kpi_html("Popular Tracks", _fmt_n(popular_songs), "&#9679;", "Top 10 ranked tracks", "openPopularSongsLeaderboard()") + "</div><div class='grid'>" + bars_html(top_artists, "name", "total_points", "Top Artist - Last Month", "Highest scoring artists in the latest ranking snapshot.", 10) + bars_html(current_view_top_tracks, "title", "metric", "Top Track - Last Month", "Tracks with the strongest combined chart metric.", 10, artist_filter_col="artist") + bars_html(current_view_top_albums, "album", "metric", "Top Album - Last Month", "Albums with the strongest album chart metric.", 10, artist_filter_col="artist") + donut_html(current_view_artists_df) + radar_html(current_view_artists_df) + bars_html(top_listeners, "name", "monthly_listeners", "Spotify Listener Leaders", "Artists with the highest latest monthly listener counts.", 10) + "</div>" + f"""
 <div class="modal-backdrop" id="artistLeaderboardModal">
   <section class="leader-modal" role="dialog" aria-modal="true" aria-labelledby="artistLeaderboardTitle" onclick="event.stopPropagation()">
     <div class="leader-head">
@@ -1493,11 +1492,9 @@ def render_artists_overview(last_run_label: str = "n/a", filtered_artists: list[
         <thead>
           <tr>
             <th style="width:58px">#</th>
-            <th style="width:230px">Artist</th>
+            <th style="width:200px">Artist</th>
             <th style="width:82px" class="num">Rank</th>
-            <th style="width:92px">Move</th>
-            <th style="width:110px" class="num">Points</th>
-            <th style="width:120px" class="num">Listeners</th>
+            <th style="width:92px">Movement</th>
             <th style="width:82px" class="num">Tracks</th>
             <th style="width:82px" class="num">Albums</th>
             <th style="width:130px">Top country</th>
@@ -1713,8 +1710,6 @@ function renderArtistLeaderboard() {{
       <td><div class="leader-artist"><div class="leader-avatar">${{escLeader(initials(row.name))}}</div><button class="leader-name" type="button" onclick="openArtistDetail(${{row.position}})" title="${{escLeader(row.name)}}">${{escLeader(row.name)}}</button></div></td>
       <td class="num leader-rank-cell">#${{fmtLeaderNumber(row.rank)}}</td>
       <td><span class="leader-change ${{escLeader(row.changeClass)}}">${{escLeader(row.change)}}</span></td>
-      <td class="num">${{fmtLeaderNumber(row.points)}}</td>
-      <td class="num">${{fmtLeaderNumber(row.listeners)}}</td>
       <td class="num">${{fmtLeaderNumber(row.songs)}}</td>
       <td class="num">${{fmtLeaderNumber(row.albums)}}</td>
       <td class="country-cell" title="${{escLeader(row.topCountry)}}">${{escLeader(row.topCountry)}}</td>

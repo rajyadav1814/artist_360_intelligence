@@ -1,11 +1,12 @@
 import json
+import unicodedata
 import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
 from src.database.connection import get_connection
 
-_THEME_LIGHT = ":root{--bg:#F5F6FA;--bg2:#FFFFFF;--bg3:#F8F9FB;--bg4:#EEF1F7;--border:rgba(148,163,184,.2);--border2:rgba(148,163,184,.35);--t1:#1A1A1A;--t2:#4A5568;--t3:#8A8FA3;--t4:#A0AEC0;--green:#34d399;--gd:rgba(52,211,153,.18);--red:#fb7185;--rd:rgba(251,113,133,.18);--blue:#60a5fa;--bd:rgba(96,165,250,.18);--purple:#c4b5fd;--pd:rgba(196,181,253,.18);--amber:#fcd34d;--teal:#5eead4;--pink:#f9a8d4;}"
-_THEME_DARK  = ":root{--bg:#0d1117;--bg2:#161b27;--bg3:#1a2035;--bg4:#1e2740;--border:rgba(41,52,85,.7);--border2:rgba(58,70,97,.8);--t1:#e2e8f0;--t2:#94a3b8;--t3:#8b95ad;--t4:#6b7a99;--green:#34d399;--gd:rgba(52,211,153,.18);--red:#fb7185;--rd:rgba(251,113,133,.18);--blue:#60a5fa;--bd:rgba(96,165,250,.18);--purple:#c4b5fd;--pd:rgba(196,181,253,.18);--amber:#fcd34d;--teal:#5eead4;--pink:#f9a8d4;}"
+_THEME_LIGHT = ":root{--bg2:#FFFFFF;--bg3:#F7F9FD;--bg4:#E8EEF6;--border:rgba(100,116,139,.18);--border2:rgba(100,116,139,.32);--t1:#111827;--t2:#475569;--t3:#7C8798;--t4:#A8B1C2;--green:#16A37A;--gd:rgba(22,163,122,.14);--red:#E24B4A;--rd:rgba(226,75,74,.14);--blue:#2E86DE;--bd:rgba(46,134,222,.14);--purple:#7769D8;--pd:rgba(119,105,216,.14);--amber:#D99019;--teal:#20BFA9;--pink:#D94E86;}"
+_THEME_DARK  = ":root{--bg:#0B1020;--bg2:#111827;--bg3:#172033;--bg4:#1D2940;--border:rgba(100,116,139,.28);--border2:rgba(148,163,184,.36);--t1:#F8FAFC;--t2:#CBD5E1;--t3:#94A3B8;--t4:#64748B;--green:#34D399;--gd:rgba(52,211,153,.16);--red:#F87171;--rd:rgba(248,113,113,.16);--blue:#60A5FA;--bd:rgba(96,165,250,.16);--purple:#A78BFA;--pd:rgba(167,139,250,.16);--amber:#FBBF24;--teal:#2DD4BF;--pink:#F472B6;}"
 
 COUNTRY_FLAGS = {
     "us": "🇺🇸 United States",
@@ -70,8 +71,9 @@ def extract_primary_genre(raw_str):
             is_noise = True
             
         if not is_noise:
-            # Title-case for display (e.g. "Alternative Rock")
-            return p.title()
+            # Normalize accents (Reggaetón → Reggaeton) then title-case
+            normalized = unicodedata.normalize('NFKD', p).encode('ascii', 'ignore').decode('ascii')
+            return normalized.title()
             
     return "Unknown"
 
@@ -232,7 +234,9 @@ def get_genre_analysis_data(days: int = 30):
             
             genres_list = []
             for g_name, g_val in top_g.items():
-                genres_list.append({"g": g_name, "s": int(g_val)})
+                daily_series = c_valid[c_valid['raw_genere'] == g_name].groupby('date')['metric'].sum().sort_index()
+                trend_history = [int(val) for val in daily_series.values][:-1]
+                genres_list.append({"g": g_name, "s": int(g_val), "trend": trend_history})
             
             regional_data.append({
                 "country": name_only,
@@ -242,10 +246,11 @@ def get_genre_analysis_data(days: int = 30):
                 "genres": genres_list
             })
             
-            # KPI logic
-            if region == "latam" and len(genres_list) > 0:
-                top_genre_here = genres_list[0]['g']
-                latam_genres[top_genre_here] = latam_genres.get(top_genre_here, 0) + 1
+            # KPI logic — accumulate total streams per genre across LATAM
+            # (same basis as heatmap: absolute stream volume, not just #1 rank)
+            if region == "latam":
+                for g in genres_list:
+                    latam_genres[g['g']] = latam_genres.get(g['g'], 0) + g['s']
             if c_code == "us" and len(genres_list) > 0:
                 usa_top = (genres_list[0]['g'], genres_list[0]['s'])
                 
@@ -260,8 +265,7 @@ def get_genre_analysis_data(days: int = 30):
         if latam_genres:
             dom_latam = max(latam_genres.items(), key=lambda x: x[1])
             regional_kpis["dominantGenreLatam"] = dom_latam[0]
-            latam_total = sum(1 for d in regional_data if d['region'] == 'latam')
-            regional_kpis["dominantGenreLatamCount"] = f"{dom_latam[1]} of {latam_total} countries"
+            regional_kpis["dominantGenreLatamCount"] = f"{dom_latam[1]:,} streams across LATAM"
         if usa_top[0] != "N/A":
             regional_kpis["usaTopGenre"] = usa_top[0]
             regional_kpis["usaTopGenreStreams"] = usa_top[1]
@@ -289,62 +293,99 @@ def get_genre_analysis_data(days: int = 30):
     return payload
 
 
-def _build_html(payload: dict, dark_mode: bool) -> str:
+def _build_html(payloads: dict, dark_mode: bool) -> str:
     theme_css = _THEME_DARK if dark_mode else _THEME_LIGHT
-    payload_json = json.dumps(payload)
+    payload_json = json.dumps(payloads)
     
-    box_shadow = "0 4px 20px rgba(0,0,0,0.25)" if dark_mode else "0 2px 10px rgba(0,0,0,0.04)"
+    box_shadow = "0 18px 40px rgba(0,0,0,0.26)" if dark_mode else "0 12px 28px rgba(15,23,42,0.08)"
     
     return f"""
 <style>
 {theme_css}
 *{{box-sizing:border-box;margin:0;padding:0}}
-body{{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--t1);padding:1.25rem 0}}
-.db{{width:100%;max-width:1400px;margin:0 auto;display:flex;flex-direction:column;gap:1.5rem}}
+body{{font-family:'Inter',system-ui,-apple-system,sans-serif;color:var(--t1);padding:0}}
+html,body{{background:var(--bg)}}
+.db{{width:100%;max-width:1500px;margin:0 auto;display:flex;flex-direction:column;gap:1.00rem;padding:0 16px 24px}}
+
+/* --- Time Filter Pills --- */
+.time-filter-row {{
+  display:flex;
+  gap:10px;
+  margin-bottom:0.1rem;
+  align-items:center;
+  justify-content:flex-end;
+}}
+.tpill {{
+  font-size:13px;
+  line-height:1;
+  font-weight:700;
+  padding:10px 18px;
+  min-height:38px;
+  border-radius:999px;
+  border:1px solid var(--border);
+  background:var(--bg2);
+  color:var(--t2);
+  cursor:pointer;
+  box-shadow:0 6px 16px rgba(15,23,42,.05);
+  transition:background .18s ease,border-color .18s ease,box-shadow .18s ease,transform .18s ease,color .18s ease;
+}}
+.tpill:hover {{
+  background:var(--bg3);
+  color:var(--t1);
+  border-color:var(--border2);
+  transform:translateY(-1px);
+}}
+.tpill.active {{
+  background:linear-gradient(135deg,var(--red),#f07a5f);
+  color:#fff;
+  border-color:transparent;
+  box-shadow:0 10px 22px rgba(226,75,74,.25);
+}}
 
 /* --- KPIs --- */
-.kpi-grid{{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}}
-.kpi{{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:1.15rem;box-shadow:{box_shadow};transition:transform 0.2s ease, box-shadow 0.2s ease}}
-.kpi:hover{{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,0.12)}}
-.kpi-label{{font-size:12px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:8px;display:flex;align-items:center;gap:6px}}
-.kpi-label i{{color:var(--blue);font-size:16px}}
-.kpi-value{{font-size:26px;font-weight:700;color:var(--t1);letter-spacing:-0.02em}}
-.kpi-sub{{font-size:12px;color:var(--t3);margin-top:6px;font-weight:500}}
+.kpi-grid{{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}}
+.kpi{{position:relative;overflow:hidden;background:linear-gradient(180deg,var(--bg2),var(--bg3));border:1px solid var(--border);border-radius:10px;padding:1.2rem 1.25rem;box-shadow:{box_shadow};transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease}}
+.kpi::before{{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:linear-gradient(180deg,var(--blue),var(--teal))}}
+.kpi:hover{{transform:translateY(-2px);border-color:var(--border2);box-shadow:0 18px 34px rgba(15,23,42,.12)}}
+.kpi-label{{font-size:11px;font-weight:800;color:var(--t2);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;display:flex;align-items:center;gap:7px}}
+.kpi-label i{{color:var(--blue);font-size:17px}}
+.kpi-value{{font-size:28px;line-height:1.05;font-weight:800;color:var(--t1);letter-spacing:0}}
+.kpi-sub{{font-size:12px;color:var(--t3);margin-top:8px;font-weight:600}}
 
 /* --- Cards --- */
 .charts-row{{display:grid;grid-template-columns:1fr 1fr;gap:16px}}
-.card, .full-card{{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:1.25rem;box-shadow:{box_shadow}}}
-.card-title{{font-size:14px;font-weight:600;color:var(--t1);margin-bottom:16px;display:flex;align-items:center;gap:8px}}
-.card-title i{{color:var(--t3);font-size:18px}}
+.card,.full-card{{background:linear-gradient(180deg,var(--bg2),var(--bg3));border:1px solid var(--border);border-radius:10px;padding:1.25rem;box-shadow:{box_shadow}}}
+.card-title{{font-size:15px;font-weight:800;color:var(--t1);margin-bottom:16px;display:flex;align-items:center;gap:9px}}
+.card-title i{{color:var(--blue);font-size:18px;background:var(--bd);width:26px;height:26px;border-radius:7px;display:inline-flex;align-items:center;justify-content:center}}
 
 /* --- Progress Bars --- */
-.genre-bar{{display:flex;align-items:center;gap:10px;margin-bottom:10px}}
-.genre-label{{font-size:12px;font-weight:500;color:var(--t1);width:120px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}
-.bar-track{{flex:1;background:var(--bg4);border-radius:6px;height:10px;overflow:hidden}}
-.bar-fill{{height:100%;border-radius:6px;transition:width 0.8s cubic-bezier(0.4, 0, 0.2, 1)}}
-.genre-val{{font-size:12px;font-weight:600;color:var(--t2);width:55px;text-align:right;flex-shrink:0}}
+.genre-bar{{display:flex;align-items:center;gap:12px;margin-bottom:12px}}
+.genre-label{{font-size:13px;font-weight:700;color:var(--t1);width:130px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}
+.bar-track{{flex:1;background:var(--bg4);border-radius:999px;height:12px;overflow:hidden;box-shadow:inset 0 1px 2px rgba(15,23,42,.08)}}
+.bar-fill{{height:100%;border-radius:999px;transition:width 0.8s cubic-bezier(0.4, 0, 0.2, 1);box-shadow:0 4px 10px rgba(15,23,42,.14)}}
+.genre-val{{font-size:12px;font-weight:800;color:var(--t2);width:62px;text-align:right;flex-shrink:0;font-variant-numeric:tabular-nums}}
 
 /* --- Tabs --- */
-.tabs{{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;border-bottom:1px solid var(--border);padding-bottom:8px}}
-.tab{{font-size:12px;font-weight:600;padding:6px 14px;border-radius:20px;border:1px solid var(--border);background:var(--bg3);color:var(--t2);cursor:pointer;transition:all 0.2s ease}}
-.tab:hover{{background:var(--bg4);color:var(--t1)}}
-.tab.active{{background:var(--bd);color:var(--blue);border-color:var(--blue)}}
+.tabs{{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;border-bottom:1px solid var(--border);padding-bottom:10px}}
+.tab{{font-size:12px;font-weight:800;padding:8px 15px;border-radius:999px;border:1px solid var(--border);background:var(--bg3);color:var(--t2);cursor:pointer;transition:all .18s ease;box-shadow:0 4px 10px rgba(15,23,42,.04)}}
+.tab:hover{{background:var(--bg2);color:var(--t1);border-color:var(--border2)}}
+.tab.active{{background:var(--bd);color:var(--blue);border-color:var(--blue);box-shadow:0 8px 16px rgba(46,134,222,.16)}}
 
 /* --- Performance List --- */
-.perf-row{{display:flex;align-items:center;gap:12px;padding:10px 8px;border-bottom:1px dashed var(--border);border-radius:6px;transition:background 0.2s ease}}
+.perf-row{{display:flex;align-items:center;gap:13px;padding:12px 10px;border-bottom:1px solid var(--border);border-radius:0;transition:background .18s ease}}
 .perf-row:hover{{background:var(--bg3)}}
 .perf-row:last-child{{border-bottom:none}}
-.rank-circle{{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;box-shadow:inset 0 0 0 1px rgba(0,0,0,0.05)}}
-.perf-name{{font-size:13px;font-weight:500;color:var(--t1);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}
-.perf-score{{font-size:13px;font-weight:600;color:var(--t2);text-align:right;min-width:70px}}
+.rank-circle{{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;flex-shrink:0;box-shadow:inset 0 0 0 1px rgba(15,23,42,.06)}}
+.perf-name{{font-size:13px;font-weight:700;color:var(--t1);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}
+.perf-score{{font-size:13px;font-weight:800;color:var(--t2);text-align:right;min-width:76px;font-variant-numeric:tabular-nums}}
 
 /* --- Lists --- */
-.country-row{{display:flex;align-items:center;justify-content:space-between;padding:8px 8px;border-bottom:1px solid var(--border);border-radius:6px;transition:background 0.2s ease}}
+.country-row{{display:flex;align-items:center;justify-content:space-between;padding:11px 10px;border-bottom:1px solid var(--border);border-radius:0;transition:background .18s ease}}
 .country-row:hover{{background:var(--bg3)}}
 .country-row:last-child{{border-bottom:none}}
-.country-name{{font-size:13px;font-weight:600;color:var(--t1)}}
-.country-genres{{font-size:11px;color:var(--t3);margin-top:2px;font-weight:500}}
-.country-streams{{font-size:13px;font-weight:700;color:var(--t2)}}
+.country-name{{font-size:13px;font-weight:800;color:var(--t1)}}
+.country-genres{{font-size:11px;color:var(--t3);margin-top:3px;font-weight:600}}
+.country-streams{{font-size:13px;font-weight:800;color:var(--t2);font-variant-numeric:tabular-nums}}
 
 /* --- Badges --- */
 .badge{{font-size:10px;padding:4px 8px;border-radius:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;display:inline-block}}
@@ -362,16 +403,25 @@ body{{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg
 .legend-dot{{width:12px;height:12px;border-radius:3px;flex-shrink:0}}
 
 /* Custom Scrollbar for lists */
-::-webkit-scrollbar{{width:6px;height:6px}}
+::-webkit-scrollbar{{width:8px;height:8px}}
 ::-webkit-scrollbar-track{{background:transparent}}
-::-webkit-scrollbar-thumb{{background:var(--border2);border-radius:4px}}
+::-webkit-scrollbar-thumb{{background:var(--border2);border-radius:999px}}
 ::-webkit-scrollbar-thumb:hover{{background:var(--t3)}}
+@media (max-width: 1100px){{.kpi-grid,.charts-row,.country-grid{{grid-template-columns:repeat(2,minmax(0,1fr))}}}}
+@media (max-width: 720px){{.db{{padding:0 10px 18px}}.time-filter-row{{justify-content:flex-start;overflow-x:auto;padding-bottom:4px}}.kpi-grid,.charts-row,.country-grid{{grid-template-columns:1fr}}.tpill{{white-space:nowrap}}}}
 </style>
 
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
 <div class="db">
+
+<div class="time-filter-row">
+  <button class="tpill active" data-days="7">Last week</button>
+  <button class="tpill" data-days="15">Last 15 days</button>
+  <button class="tpill" data-days="30">Last month</button>
+  <button class="tpill" data-days="90">Last 3 months</button>
+</div>
 
 <div class="kpi-grid">
   <div class="kpi">
@@ -380,7 +430,7 @@ body{{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg
     <div class="kpi-sub">across iTunes + Spotify</div>
   </div>
   <div class="kpi">
-    <div class="kpi-label"><i class="ti ti-chart-bar"></i> top genre score</div>
+    <div class="kpi-label"><i class="ti ti-chart-bar"></i> top genre streams</div>
     <div class="kpi-value" id="kpi-topGenreScore"></div>
     <div class="kpi-sub"><span id="kpi-topGenreName" style="color:var(--blue);font-weight:600;"></span> — combined platforms</div>
   </div>
@@ -400,17 +450,11 @@ body{{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg
   <div class="card">
     <div class="card-title"><i class="ti ti-chart-bar"></i> Genre Score (All Platforms)</div>
     <div id="score-bars"></div>
-    <div style="margin-top:16px; position:relative; height:160px;">
-      <canvas id="pieChart" role="img" aria-label="Genre score distribution pie chart"></canvas>
-    </div>
   </div>
 
   <div class="card">
     <div class="card-title"><i class="ti ti-headphones"></i> Spotify Streams by Genre</div>
     <div id="stream-bars"></div>
-    <div style="margin-top:16px; position:relative; height:160px;">
-      <canvas id="pieChart2" role="img" aria-label="Spotify streams distribution pie chart"></canvas>
-    </div>
   </div>
 </div>
 
@@ -432,19 +476,10 @@ body{{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg
   </div>
 </div>
 
-<div class="full-card">
-  <div class="card-title"><i class="ti ti-chart-line"></i> Genre Track Distribution — iTunes vs Spotify</div>
-  <div class="legend-row" id="platform-legend"></div>
-  <div style="position:relative;height:240px">
-    <canvas id="barChart" role="img" aria-label="Genre track count bar chart comparing iTunes and Spotify"></canvas>
-  </div>
 </div>
 
-</div>
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script>
-const dashData = {payload_json};
+const combinedData = {payload_json};
 const rootStyles = getComputedStyle(document.documentElement);
 const cssVar = (name) => rootStyles.getPropertyValue(name).trim();
 
@@ -469,16 +504,6 @@ function getColor(g) {{
   return `hsl(${{h}}, 65%, 50%)`;
 }}
 
-const genreScores = dashData.genreScores;
-const spotifyStreams = dashData.spotifyStreams;
-const perfData = dashData.perfData;
-const countries = dashData.countries;
-const countryGenres = dashData.countryGenres;
-const allGenres = dashData.allGenres;
-const spotifyCount = dashData.spotifyCount;
-const itunesCount = dashData.itunesCount;
-const kpis = dashData.kpis;
-
 function fmtScore(v){{
   if(v>=1e9) return (v/1e9).toFixed(1)+'B';
   if(v>=1e6) return (v/1e6).toFixed(1)+'M';
@@ -486,17 +511,9 @@ function fmtScore(v){{
   return v;
 }}
 
-// Update KPIs
-document.getElementById('kpi-genresTracked').innerText = kpis.genresTracked;
-document.getElementById('kpi-topGenreScore').innerText = fmtScore(kpis.topGenreScore);
-document.getElementById('kpi-topGenreName').innerText = kpis.topGenreName;
-document.getElementById('kpi-topStreamsVal').innerText = fmtScore(kpis.topStreamsVal);
-document.getElementById('kpi-topStreamsName').innerText = kpis.topStreamsName;
-document.getElementById('kpi-countriesCovered').innerText = kpis.countriesCovered;
-
 function renderBars(containerId, data, colorFn){{
   const el = document.getElementById(containerId);
-  if(data.length === 0) {{ el.innerHTML = "<div style='color:var(--t3);padding:20px;text-align:center;'>No data available</div>"; return; }}
+  if(!data || data.length === 0) {{ el.innerHTML = "<div style='color:var(--t3);padding:20px;text-align:center;'>No data available</div>"; return; }}
   const max = Math.max(...data.map(d=>d.s));
   el.innerHTML = data.slice(0,8).map(d=>`
     <div class="genre-bar">
@@ -506,241 +523,195 @@ function renderBars(containerId, data, colorFn){{
     </div>`).join('');
 }}
 
-renderBars('score-bars', genreScores, getColor);
-renderBars('stream-bars', spotifyStreams, getColor);
+function updateDashboard(days) {{
+  const dashData = combinedData[days];
+  if(!dashData) return;
 
-const top6 = genreScores.slice(0,6);
-if(top6.length > 0) {{
-    new Chart(document.getElementById('pieChart'),{{
-      type:'doughnut',
-      data:{{
-        labels:top6.map(d=>d.g),
-        datasets:[{{
-            data:top6.map(d=>d.s),
-            backgroundColor:top6.map(d=>getColor(d.g)),
-            borderWidth: 2,
-            borderColor: cssVar('--bg2')
-        }}]
-      }},
-      options:{{
-        responsive:true,
-        maintainAspectRatio:false,
-        cutout:'65%',
-        plugins:{{
-          legend:{{
-            position: 'right',
-            labels: {{ color: textColor, boxWidth: 12, padding: 15, font: {{size: 11, family: 'Inter'}} }}
-          }},
-          tooltip:{{
-            backgroundColor: cssVar('--bg3'),
-            titleColor: cssVar('--t1'),
-            bodyColor: cssVar('--t2'),
-            borderColor: cssVar('--border'),
-            borderWidth: 1,
-            callbacks:{{label:ctx=>' '+ctx.label+': '+fmtScore(ctx.raw)}}
-          }}
-        }}
-      }}
-    }});
+  const genreScores = dashData.genreScores || [];
+  const spotifyStreams = dashData.spotifyStreams || [];
+  const perfData = dashData.perfData || {{}};
+  const countries = dashData.countries || [];
+  const countryGenres = dashData.countryGenres || [];
+  const kpis = dashData.kpis || {{}};
+
+  // Update KPIs
+  document.getElementById('kpi-genresTracked').innerText = kpis.genresTracked || 0;
+  document.getElementById('kpi-topGenreScore').innerText = fmtScore(kpis.topGenreScore || 0);
+  document.getElementById('kpi-topGenreName').innerText = kpis.topGenreName || 'N/A';
+  document.getElementById('kpi-topStreamsVal').innerText = fmtScore(kpis.topStreamsVal || 0);
+  document.getElementById('kpi-topStreamsName').innerText = kpis.topStreamsName || 'N/A';
+  document.getElementById('kpi-countriesCovered').innerText = kpis.countriesCovered || 0;
+
+  renderBars('score-bars', genreScores, getColor);
+  renderBars('stream-bars', spotifyStreams, getColor);
+
+  const genres = Object.keys(perfData);
+  const tabsEl = document.getElementById('genre-tabs');
+  if(genres.length > 0) {{
+      tabsEl.innerHTML = genres.map((g,i)=>`<button class="tab${{i===0?' active':''}}" data-g="${{g}}">${{g}}</button>`).join('');
+  }} else {{
+      tabsEl.innerHTML = "<div style='color:var(--t3);'>No performance data</div>";
+  }}
+
+  window.renderPerf = function(genre) {{
+    const rows = perfData[genre]||[];
+    const colors=['#378ADD','#7F77DD','#BA7517','#639922','#D4537E','#1D9E75'];
+    document.getElementById('perf-list').innerHTML = rows.map((r,i)=>{{
+      const c = colors[i%colors.length];
+      return `<div class="perf-row">
+        <div class="rank-circle" style="background:${{c}}22;color:${{c}}">${{i+1}}</div>
+        <span class="perf-name" title="${{r.name}}">${{r.name}}</span>
+        <span class="perf-score">${{fmtScore(r.score)}}</span>
+      </div>`;
+    }}).join('');
+  }};
+
+  if(genres.length > 0) {{
+      window.renderPerf(genres[0]);
+  }} else {{
+      document.getElementById('perf-list').innerHTML = "";
+  }}
+
+  document.getElementById('country-list').innerHTML = countries.map(c=>`
+    <div class="country-row">
+      <div><div class="country-name">${{c.name}}</div><div class="country-genres">${{c.genres}} genres tracked</div></div>
+      <div class="country-streams">${{fmtScore(c.streams)}}</div>
+    </div>`).join('');
+
+  document.getElementById('country-genre').innerHTML = countryGenres.map(c=>`
+    <div class="country-row" style="align-items: center; justify-content: space-between;">
+      <span class="country-name" style="flex: 1;">${{c.country}}</span>
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <span class="badge" style="background-color: ${{getColor(c.genre)}}; color: #fff; padding: 4px 8px; border-radius: 12px; font-size: 10px; font-weight: 600; text-transform: uppercase;">${{c.genre}}</span>
+        <span class="country-streams" style="width: 45px; text-align: right; font-size: 12px; color: var(--t2); font-weight: 600;">${{fmtScore(c.streams)}}</span>
+      </div>
+    </div>`).join('');
 }}
 
-const top6Streams = spotifyStreams.slice(0,6);
-if(top6Streams.length > 0) {{
-    new Chart(document.getElementById('pieChart2'),{{
-      type:'doughnut',
-      data:{{
-        labels:top6Streams.map(d=>d.g),
-        datasets:[{{
-            data:top6Streams.map(d=>d.s),
-            backgroundColor:top6Streams.map(d=>getColor(d.g)),
-            borderWidth: 2,
-            borderColor: cssVar('--bg2')
-        }}]
-      }},
-      options:{{
-        responsive:true,
-        maintainAspectRatio:false,
-        cutout:'65%',
-        plugins:{{
-          legend:{{
-            position: 'right',
-            labels: {{ color: textColor, boxWidth: 12, padding: 15, font: {{size: 11, family: 'Inter'}} }}
-          }},
-          tooltip:{{
-            backgroundColor: cssVar('--bg3'),
-            titleColor: cssVar('--t1'),
-            bodyColor: cssVar('--t2'),
-            borderColor: cssVar('--border'),
-            borderWidth: 1,
-            callbacks:{{label:ctx=>' '+ctx.label+': '+fmtScore(ctx.raw)}}
-          }}
-        }}
-      }}
-    }});
-}}
+// Initialize Dashboard
+const activePill = document.querySelector('.tpill.active');
+const defaultDays = activePill ? activePill.dataset.days : "7";
+updateDashboard(defaultDays);
 
-const genres = Object.keys(perfData);
-const tabsEl = document.getElementById('genre-tabs');
-if(genres.length > 0) {{
-    tabsEl.innerHTML = genres.map((g,i)=>`<button class="tab${{i===0?' active':''}}" data-g="${{g}}">${{g}}</button>`).join('');
-}} else {{
-    tabsEl.innerHTML = "<div style='color:var(--t3);'>No performance data</div>";
-}}
+// Time filter click listeners
+document.querySelectorAll('.tpill').forEach(btn => {{
+  btn.addEventListener('click', () => {{
+    document.querySelectorAll('.tpill').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    updateDashboard(btn.dataset.days);
+  }});
+}});
 
-function renderPerf(genre){{
-  const rows = perfData[genre]||[];
-  const colors=['#378ADD','#7F77DD','#BA7517','#639922','#D4537E','#1D9E75'];
-  document.getElementById('perf-list').innerHTML = rows.map((r,i)=>{{
-    const c = colors[i%colors.length];
-    return `<div class="perf-row">
-      <div class="rank-circle" style="background:${{c}}22;color:${{c}}">${{i+1}}</div>
-      <span class="perf-name" title="${{r.name}}">${{r.name}}</span>
-      <span class="perf-score">${{fmtScore(r.score)}}</span>
-    </div>`;
-  }}).join('');
-}}
+// Tab switching click listener (delegated)
+document.getElementById('genre-tabs').addEventListener('click', e => {{
+  const btn = e.target.closest('.tab');
+  if(!btn) return;
+  document.querySelectorAll('#genre-tabs .tab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  if (typeof window.renderPerf === 'function') {{
+    window.renderPerf(btn.dataset.g);
+  }}
+}});
 
-if(genres.length > 0) {{
-    renderPerf(genres[0]);
-    tabsEl.addEventListener('click',e=>{{
-      const btn=e.target.closest('.tab');
-      if(!btn) return;
-      tabsEl.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));
-      btn.classList.add('active');
-      renderPerf(btn.dataset.g);
-    }});
-}}
-
-document.getElementById('country-list').innerHTML = countries.map(c=>`
-  <div class="country-row">
-    <div><div class="country-name">${{c.name}}</div><div class="country-genres">${{c.genres}} genres tracked</div></div>
-    <div class="country-streams">${{fmtScore(c.streams)}}</div>
-  </div>`).join('');
-
-document.getElementById('country-genre').innerHTML = countryGenres.map(c=>`
-  <div class="country-row" style="align-items: center; justify-content: space-between;">
-    <span class="country-name" style="flex: 1;">${{c.country}}</span>
-    <div style="display: flex; align-items: center; gap: 12px;">
-      <span class="badge" style="background-color: ${{getColor(c.genre)}}; color: #fff; padding: 4px 8px; border-radius: 12px; font-size: 10px; font-weight: 600; text-transform: uppercase;">${{c.genre}}</span>
-      <span class="country-streams" style="width: 45px; text-align: right; font-size: 12px; color: var(--t2); font-weight: 600;">${{fmtScore(c.streams)}}</span>
-    </div>
-  </div>`).join('');
-
-document.getElementById('platform-legend').innerHTML = `
-  <span class="legend-item"><span class="legend-dot" style="background:var(--blue)"></span>Spotify</span>
-  <span class="legend-item"><span class="legend-dot" style="background:var(--pink)"></span>iTunes</span>`;
-
-const bh = Math.max(240, allGenres.length * 35 + 40);
-document.querySelector('#barChart').parentElement.style.height = bh+'px';
-
-if(allGenres.length > 0) {{
-    new Chart(document.getElementById('barChart'),{{
-      type:'bar',
-      data:{{
-        labels:allGenres,
-        datasets:[
-          {{
-            label:'Spotify',
-            data:spotifyCount,
-            backgroundColor: 'rgba(96,165,250,0.8)',
-            borderColor: 'rgb(96,165,250)',
-            borderWidth:1,
-            borderRadius: 4
-          }},
-          {{
-            label:'iTunes',
-            data:itunesCount,
-            backgroundColor: 'rgba(249,168,212,0.8)',
-            borderColor: 'rgb(249,168,212)',
-            borderWidth:1,
-            borderRadius: 4
-          }}
-        ]
-      }},
-      options:{{
-        indexAxis:'y',
-        responsive:true,
-        maintainAspectRatio:false,
-        plugins:{{
-          legend:{{display:false}},
-          tooltip:{{
-            backgroundColor: cssVar('--bg3'),
-            titleColor: cssVar('--t1'),
-            bodyColor: cssVar('--t2'),
-            borderColor: cssVar('--border'),
-            borderWidth: 1,
-            callbacks:{{label:ctx=>` ${{ctx.dataset.label}}: ${{ctx.raw}} tracks`}}
-          }}
-        }},
-        scales:{{
-          x:{{
-            grid:{{color: gridColor}},
-            ticks:{{color: textColor, font:{{size:11, family:'Inter'}}}}
-          }},
-          y:{{
-            grid:{{display:false}},
-            ticks:{{color: textColor, font:{{size:12, family:'Inter'}}}}
-          }}
-        }}
-      }}
-    }});
-}}
 </script>
 """
 
-def _build_regional_html(payload: dict, dark_mode: bool) -> str:
+def _build_regional_html(payloads: dict, dark_mode: bool) -> str:
     theme_css = _THEME_DARK if dark_mode else _THEME_LIGHT
-    payload_json = json.dumps(payload)
-    box_shadow = "0 4px 20px rgba(0,0,0,0.25)" if dark_mode else "0 2px 10px rgba(0,0,0,0.04)"
+    payload_json = json.dumps(payloads)
+    box_shadow = "0 18px 40px rgba(0,0,0,0.26)" if dark_mode else "0 12px 28px rgba(15,23,42,0.08)"
     
     return f"""
 <style>
 {theme_css}
 *{{box-sizing:border-box;margin:0;padding:0}}
-body{{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--t1);padding:1.25rem 0}}
-.db{{width:100%;max-width:1400px;margin:0 auto;display:flex;flex-direction:column;gap:1.5rem}}
+body{{font-family:'Inter',system-ui,-apple-system,sans-serif;color:var(--t1);padding:0}}
+html,body{{background:var(--bg)}}
+.db{{width:100%;max-width:1500px;margin:0 auto;display:flex;flex-direction:column;gap:1.00rem;padding:0 16px 24px}}
+
+/* --- Time Filter Pills --- */
+.time-filter-row {{
+  display:flex;
+  gap:10px;
+  margin-bottom:0.1rem;
+  align-items:center;
+  justify-content:flex-end;
+}}
+.tpill {{
+  font-size:13px;
+  line-height:1;
+  font-weight:700;
+  padding:10px 18px;
+  min-height:38px;
+  border-radius:999px;
+  border:1px solid var(--border);
+  background:var(--bg2);
+  color:var(--t2);
+  cursor:pointer;
+  box-shadow:0 6px 16px rgba(15,23,42,.05);
+  transition:background .18s ease,border-color .18s ease,box-shadow .18s ease,transform .18s ease,color .18s ease;
+}}
+.tpill:hover {{
+  background:var(--bg3);
+  color:var(--t1);
+  border-color:var(--border2);
+  transform:translateY(-1px);
+}}
+.tpill.active {{
+  background:linear-gradient(135deg,var(--red),#f07a5f);
+  color:#fff;
+  border-color:transparent;
+  box-shadow:0 10px 22px rgba(226,75,74,.25);
+}}
 
 /* --- KPIs --- */
-.kpi-grid{{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}}
-.kpi{{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:1.15rem;box-shadow:{box_shadow};transition:transform 0.2s ease, box-shadow 0.2s ease}}
-.kpi-label{{font-size:12px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:8px;display:flex;align-items:center;gap:6px}}
-.kpi-value{{font-size:26px;font-weight:700;color:var(--t1);letter-spacing:-0.02em}}
-.kpi-sub{{font-size:12px;color:var(--t3);margin-top:6px;font-weight:500}}
-.tooltip-icon{{color:var(--t3);cursor:help;margin-left:auto;font-size:15px;transition:color 0.2s}}
+.kpi-grid{{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}}
+.kpi{{position:relative;overflow:hidden;background:linear-gradient(180deg,var(--bg2),var(--bg3));border:1px solid var(--border);border-radius:10px;padding:1.2rem 1.25rem;box-shadow:{box_shadow};transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease}}
+.kpi::before{{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:linear-gradient(180deg,var(--blue),var(--teal))}}
+.kpi:hover{{transform:translateY(-2px);border-color:var(--border2);box-shadow:0 18px 34px rgba(15,23,42,.12)}}
+.kpi-label{{font-size:11px;font-weight:800;color:var(--t2);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;display:flex;align-items:center;gap:7px}}
+.kpi-label i:not(.tooltip-icon){{color:var(--blue);font-size:17px}}
+.kpi-value{{font-size:28px;line-height:1.05;font-weight:800;color:var(--t1);letter-spacing:0}}
+.kpi-sub{{font-size:12px;color:var(--t3);margin-top:8px;font-weight:600}}
+.tooltip-icon{{color:var(--t3);cursor:help;margin-left:auto;font-size:15px;transition:color .18s ease}}
 .tooltip-icon:hover{{color:var(--blue)}}
 
-.full-card{{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:1.25rem;box-shadow:{box_shadow}}}
-.card-title{{font-size:14px;font-weight:600;color:var(--t1);margin-bottom:16px;display:flex;align-items:center;gap:8px}}
+.full-card{{background:linear-gradient(180deg,var(--bg2),var(--bg3));border:1px solid var(--border);border-radius:10px;padding:1.25rem;box-shadow:{box_shadow}}}
+.card-title{{font-size:15px;font-weight:800;color:var(--t1);margin-bottom:16px;display:flex;align-items:center;gap:9px}}
+.card-title i{{color:var(--blue);font-size:18px;background:var(--bd);width:26px;height:26px;border-radius:7px;display:inline-flex;align-items:center;justify-content:center}}
 
-.filter-row{{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:0.25rem;align-items:center}}
-.filter-label{{font-size:12px;font-weight:600;color:var(--t2);margin-right:2px;text-transform:uppercase;letter-spacing:0.04em}}
-.fbtn{{font-size:11px;font-weight:600;padding:6px 14px;border-radius:20px;border:1px solid var(--border);background:var(--bg3);color:var(--t2);cursor:pointer;transition:all 0.2s ease}}
-.fbtn:hover{{background:var(--bg4);color:var(--t1)}}
-.fbtn.active{{background:var(--bd);color:var(--blue);border-color:var(--blue)}}
+.filter-row{{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:.75rem;align-items:center}}
+.filter-label{{font-size:12px;font-weight:800;color:var(--t2);margin-right:4px;text-transform:uppercase;letter-spacing:0.06em}}
+.fbtn{{font-size:13px;font-weight:800;padding:9px 17px;border-radius:999px;border:1px solid var(--border);background:var(--bg3);color:var(--t2);cursor:pointer;transition:all .18s ease;box-shadow:0 4px 10px rgba(15,23,42,.04)}}
+.fbtn:hover{{background:var(--bg2);color:var(--t1);border-color:var(--border2)}}
+.fbtn.active{{background:linear-gradient(135deg,var(--amber),#f5b14c);color:#1A1A1A;border-color:transparent;box-shadow:0 10px 20px rgba(217,144,25,.20)}}
 
-.country-grid{{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}}
-.ccard{{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:1.15rem;box-shadow:{box_shadow}}}
-.ccard-header{{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}}
-.ccard-name{{font-size:14px;font-weight:600;color:var(--t1);display:flex;align-items:center;gap:8px}}
-.ccard-total{{font-size:12px;font-weight:500;color:var(--t3)}}
+.country-grid{{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}}
+.ccard{{background:linear-gradient(180deg,var(--bg2),var(--bg3));border:1px solid var(--border);border-radius:10px;padding:1.15rem;box-shadow:{box_shadow};transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease}}
+.ccard:hover{{transform:translateY(-2px);border-color:var(--border2);box-shadow:0 18px 34px rgba(15,23,42,.12)}}
+.ccard-header{{display:flex;align-items:center;gap:8px;margin-bottom:5px}}
+.ccard-name{{font-size:15px;font-weight:800;color:var(--t1);display:flex;align-items:center;gap:8px;min-width:0}}
+.ccard-total{{font-size:12px;color:var(--t3);margin-bottom:1rem;font-weight:700}}
 
-.genre-row{{margin-bottom:8px}}
-.genre-top{{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}}
-.genre-name{{font-size:12px;font-weight:500;color:var(--t1);display:flex;align-items:center}}
-.genre-pct{{font-size:11px;font-weight:600;color:var(--t2)}}
-.bar-bg{{width:100%;height:8px;background:var(--bg4);border-radius:4px;overflow:hidden}}
-.bar-fg{{height:100%;border-radius:4px}}
-
-.top-badge{{font-size:10px;padding:2px 6px;border-radius:10px;font-weight:600;margin-right:6px}}
+.genre-row{{display:flex;align-items:center;gap:10px;margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid var(--border)}}
+.genre-row:last-child{{margin-bottom:0;padding-bottom:0;border-bottom:none}}
+.genre-info{{flex:1;min-width:0}}
+.genre-name{{font-size:13px;font-weight:700;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:4px}}
+.star{{color:var(--amber);font-size:11px}}
+.genre-stat{{font-size:11px;color:var(--t3);margin-top:3px;font-weight:700}}
+.sparkline-wrap{{width:72px;height:32px;flex-shrink:0}}
+.pct-badge{{font-size:12px;font-weight:800;color:var(--t2);min-width:34px;text-align:right;font-variant-numeric:tabular-nums}}
 
 .leg-row{{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:12px}}
 .leg-item{{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:500;color:var(--t2)}}
 .leg-sq{{width:12px;height:12px;border-radius:3px}}
 
-::-webkit-scrollbar{{width:6px;height:6px}}
+::-webkit-scrollbar{{width:8px;height:8px}}
 ::-webkit-scrollbar-track{{background:transparent}}
-::-webkit-scrollbar-thumb{{background:var(--border2);border-radius:4px}}
+::-webkit-scrollbar-thumb{{background:var(--border2);border-radius:999px}}
 ::-webkit-scrollbar-thumb:hover{{background:var(--t3)}}
+@media (max-width: 1100px){{.kpi-grid,.charts-row,.country-grid{{grid-template-columns:repeat(2,minmax(0,1fr))}}}}
+@media (max-width: 720px){{.db{{padding:0 10px 18px}}.time-filter-row{{justify-content:flex-start;overflow-x:auto;padding-bottom:4px}}.kpi-grid,.charts-row,.country-grid{{grid-template-columns:1fr}}.tpill{{white-space:nowrap}}}}
 </style>
 
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
@@ -748,11 +719,26 @@ body{{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg
 
 <div class="db">
 
+<div class="time-filter-row">
+  <button class="tpill active" data-days="7">Last week</button>
+  <button class="tpill" data-days="15">Last 15 days</button>
+  <button class="tpill" data-days="30">Last month</button>
+  <button class="tpill" data-days="90">Last 3 months</button>
+</div>
+
 <div class="kpi-grid">
   <div class="kpi"><div class="kpi-label"><i class="ti ti-world"></i> countries analyzed <i class="ti ti-info-circle tooltip-icon" title="Total number of distinct geographic regions tracked in the daily stream data."></i></div><div class="kpi-value" id="kpi-analyzed"></div><div class="kpi-sub">Spotify regional data</div></div>
   <div class="kpi"><div class="kpi-label"><i class="ti ti-chart-bar"></i> top country (streams) <i class="ti ti-info-circle tooltip-icon" title="The single highest-streaming country across all genres."></i></div><div class="kpi-value" id="kpi-top-country"></div><div class="kpi-sub" id="kpi-top-streams"></div></div>
   <div class="kpi"><div class="kpi-label"><i class="ti ti-map-pin"></i> dominant genre (LATAM) <i class="ti ti-info-circle tooltip-icon" title="The single genre that holds the #1 ranking in the highest number of Latin American countries."></i></div><div class="kpi-value" id="kpi-latam"></div><div class="kpi-sub" id="kpi-latam-sub"></div></div>
   <div class="kpi"><div class="kpi-label"><i class="ti ti-flag"></i> USA #1 genre <i class="ti ti-info-circle tooltip-icon" title="The most streamed genre currently within the United States."></i></div><div class="kpi-value" id="kpi-usa"></div><div class="kpi-sub" id="kpi-usa-sub"></div></div>
+</div>
+
+<div class="full-card">
+  <div class="card-title"><i class="ti ti-layout-grid"></i> Genre Strength Heatmap — Streams by Country</div>
+  <div class="leg-row" id="hm-legend"></div>
+  <div style="overflow-x:auto">
+    <div id="heatmap"></div>
+  </div>
 </div>
 
 <div class="filter-row">
@@ -765,29 +751,11 @@ body{{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg
 
 <div class="country-grid" id="country-grid"></div>
 
-<div class="full-card">
-  <div class="card-title"><i class="ti ti-layout-grid"></i> Genre Strength Heatmap — Streams by Country</div>
-  <div class="leg-row" id="hm-legend"></div>
-  <div style="overflow-x:auto">
-    <div id="heatmap"></div>
-  </div>
-</div>
-
-<div class="full-card">
-  <div class="card-title"><i class="ti ti-chart-bar"></i> Top Genre per Country — Stream Comparison</div>
-  <div style="position:relative;height:460px">
-    <canvas id="barChart" role="img" aria-label="Horizontal bar chart showing top genre streams by country"></canvas>
-  </div>
-</div>
-
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script>
-const dashData = {payload_json};
-const DATA = dashData.regionalData;
-const kpis = dashData.regionalKpis;
-
+const combinedData = {payload_json};
 const rootStyles = getComputedStyle(document.documentElement);
 const cssVar = (name) => rootStyles.getPropertyValue(name).trim();
 
@@ -801,14 +769,6 @@ function fmt(v){{
   if(v>=1e3) return (v/1e3).toFixed(0)+'K';
   return v;
 }}
-
-document.getElementById('kpi-analyzed').innerText = kpis.countriesAnalyzed;
-document.getElementById('kpi-top-country').innerText = kpis.topCountryStreams;
-document.getElementById('kpi-top-streams').innerText = fmt(kpis.topCountryStreamsVal) + ' streams';
-document.getElementById('kpi-latam').innerText = kpis.dominantGenreLatam;
-document.getElementById('kpi-latam-sub').innerText = kpis.dominantGenreLatamCount;
-document.getElementById('kpi-usa').innerText = kpis.usaTopGenre;
-document.getElementById('kpi-usa-sub').innerText = fmt(kpis.usaTopGenreStreams) + ' streams';
 
 const GENRE_COLORS = {{
   'Pop':'#378ADD','Indie':'#7F77DD','Country':'#BA7517','Rock':'#639922',
@@ -827,154 +787,337 @@ function getColor(g) {{
   return `hsl(${{h}}, 65%, 50%)`;
 }}
 
-let activeRegion = 'all';
+const labelW = 200, cellW = 110, cellH = 40;
 
-function renderCards(region){{
-  const list = region==='all' ? DATA : DATA.filter(d=>d.region===region||d.region==='global'&&region==='global');
-  const filtered = region==='all' ? DATA : (region==='global' ? DATA.filter(d=>d.region==='global') : DATA.filter(d=>d.region===region));
-  const grid = document.getElementById('country-grid');
-  grid.innerHTML = filtered.map(d=>{{
-    const max = d.genres.length > 0 ? d.genres[0].s : 0;
-    const bars = d.genres.map((g,i)=>{{
-      const pct = Math.round(g.s/d.total*100);
-      const w = Math.round(g.s/max*100);
-      const c = getColor(g.g);
-      return `<div class="genre-row">
-        <div class="genre-top">
-          <span class="genre-name">${{i===0?`<span class="top-badge" style="background:${{c}}18;color:${{c}};border:0.5px solid ${{c}}44">★</span>`:''}}${{g.g}}</span>
-          <span class="genre-pct">${{fmt(g.s)}} · ${{pct}}%</span>
-        </div>
-        <div class="bar-bg"><div class="bar-fg" style="width:${{w}}%;background:${{c}}"></div></div>
-      </div>`;
-    }}).join('');
-    return `<div class="ccard">
-      <div class="ccard-header">
-        <span class="ccard-name"><span style="font-size:18px">${{d.flag}}</span>${{d.country}}</span>
-        <span class="ccard-total">${{fmt(d.total)}} total</span>
-      </div>
-      ${{bars}}
-    </div>`;
-  }}).join('');
+function hexToRgb(hex) {{
+  const r = parseInt(hex.slice(1,3),16), g2 = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+  return [r,g2,b];
+}}
+function luminance(hex) {{
+  try {{
+    const [r,g2,b] = hexToRgb(hex);
+    return (0.299*r + 0.587*g2 + 0.114*b) / 255;
+  }} catch(e) {{ return 0.5; }}
+}}
+function textOn(hex, alpha) {{
+  if (alpha < 0.25) return cssVar('--t3');
+  return luminance(hex) > 0.45 ? '#1a1a1a' : '#ffffff';
 }}
 
-renderCards('all');
+let currentGenresHm = [];
 
-document.querySelectorAll('.fbtn').forEach(btn=>{{
-  btn.addEventListener('click',()=>{{
-    document.querySelectorAll('.fbtn').forEach(b=>b.classList.remove('active'));
-    btn.classList.add('active');
-    renderCards(btn.dataset.region);
-  }});
-}});
+function updateRegionalDashboard(days) {{
+  const dashData = combinedData[days];
+  if (!dashData) return;
 
-// Calculate top genres globally across countries for heatmap
-let genreSet = new Set();
-DATA.forEach(d => {{
-  if(d.region !== 'global') {{
-    d.genres.slice(0,3).forEach(g => genreSet.add(g.g));
-  }}
-}});
-const GENRES_HM = Array.from(genreSet).slice(0, 12); // top 12 genres
+  const DATA = dashData.regionalData || [];
+  const kpis = dashData.regionalKpis || {{}};
 
-const hmLegend = document.getElementById('hm-legend');
-hmLegend.innerHTML = GENRES_HM.map(g=>`<span class="leg-item"><span class="leg-sq" style="background:${{getColor(g)}}"></span>${{g}}</span>`).join('');
+  // Update KPIs
+  document.getElementById('kpi-analyzed').innerText = kpis.countriesAnalyzed || 0;
+  document.getElementById('kpi-top-country').innerText = kpis.topCountryStreams || 'N/A';
+  document.getElementById('kpi-top-streams').innerText = fmt(kpis.topCountryStreamsVal || 0) + ' streams';
+  document.getElementById('kpi-latam').innerText = kpis.dominantGenreLatam || 'N/A';
+  document.getElementById('kpi-latam-sub').innerText = kpis.dominantGenreLatamCount || '';
+  document.getElementById('kpi-usa').innerText = kpis.usaTopGenre || 'N/A';
+  document.getElementById('kpi-usa-sub').innerText = fmt(kpis.usaTopGenreStreams || 0) + ' streams';
 
-const countries_hm = DATA.filter(d=>d.country!=='Global');
-const hmEl = document.getElementById('heatmap');
-
-const labelW = 150, cellW = 85, cellH = 28, headerH = 100;
-const totalW = labelW + GENRES_HM.length * cellW + 8;
-
-let hmHTML = `<div style="display:grid;grid-template-columns:${{labelW}}px ${{GENRES_HM.map(()=>cellW+'px').join(' ')}};gap:2px;min-width:${{totalW}}px">`;
-hmHTML += `<div style="font-size:10px;color:var(--t3);padding:4px 2px;display:flex;align-items:flex-end"></div>`;
-GENRES_HM.forEach(g=>{{
-  hmHTML += `<div style="font-size:10px;font-weight:600;color:var(--t2);text-align:center;padding:4px;height:${{headerH}}px;display:flex;align-items:flex-end;justify-content:center;writing-mode:vertical-rl;transform:rotate(180deg)">${{g}}</div>`;
-}});
-countries_hm.forEach(d=>{{
-  hmHTML += `<div style="font-size:11px;font-weight:600;color:var(--t1);display:flex;align-items:center;padding:2px 4px;height:${{cellH}}px">${{d.flag}} ${{d.country.length>15?d.country.substring(0,15)+'…':d.country}}</div>`;
-  const maxS = Math.max(...d.genres.map(g2=>g2.s));
-  GENRES_HM.forEach(gn=>{{
-    const found = d.genres.find(g2=>g2.g===gn);
-    const s = found ? found.s : 0;
-    const intensity = s > 0 ? Math.max(0.1, Math.min(1, s/maxS)) : 0;
-    const bg = s > 0 ? getColor(gn) : cssVar('--bg4');
-    const opacity = s > 0 ? intensity : 1;
-    const isBright = s > 0 && intensity > 0.5;
-    const textColor = isBright ? '#fff' : (s>0 ? getColor(gn) : cssVar('--t3'));
-    const label = s > 0 ? fmt(s) : '–';
-    hmHTML += `<div style="height:${{cellH}}px;background:${{bg}};opacity:${{opacity}};border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;color:${{textColor}}" title="${{gn}}: ${{s>0?fmt(s):'–'}}">${{label}}</div>`;
-  }});
-}});
-hmHTML += '</div>';
-hmEl.innerHTML = hmHTML;
-
-const barCountries = DATA.filter(d=>d.country!=='Global' && d.genres.length > 0).sort((a,b)=>b.genres[0].s - a.genres[0].s);
-const barH = Math.max(300, barCountries.length * 38 + 60);
-document.querySelector('#barChart').parentElement.style.height = barH+'px';
-
-new Chart(document.getElementById('barChart'),{{
-  type:'bar',
-  data:{{
-    labels: barCountries.map(d=>`${{d.flag}} ${{d.country}}`),
-    datasets:[{{
-      label:'Top genre streams',
-      data: barCountries.map(d=>d.genres[0].s),
-      backgroundColor: barCountries.map(d=>getColor(d.genres[0].g)+'CC'),
-      borderColor: barCountries.map(d=>getColor(d.genres[0].g)),
-      borderWidth:1
-    }}]
-  }},
-  options:{{
-    indexAxis:'y',
-    responsive:true,
-    maintainAspectRatio:false,
-    plugins:{{
-      legend:{{display:false}},
-      tooltip:{{
-        backgroundColor: cssVar('--bg3'),
-        titleColor: cssVar('--t1'),
-        bodyColor: cssVar('--t2'),
-        borderColor: cssVar('--border'),
-        borderWidth: 1,
-        callbacks:{{
-          label:ctx=>{{
-            const d = barCountries[ctx.dataIndex];
-            return ` ${{d.genres[0].g}}: ${{fmt(d.genres[0].s)}} streams`;
-          }}
-        }}
-      }}
-    }},
-    scales:{{
-      x:{{
-        grid:{{color: gridColor}},
-        ticks:{{color: textColor, font:{{size:11, family:'Inter'}}, callback:v=>fmt(v)}},
-        title:{{display:true, text:'streams', color: textColor, font:{{size:11}}}}
-      }},
-      y:{{
-        grid:{{display:false}},
-        ticks:{{color: textColor, font:{{size:11, family:'Inter', weight: 600}}}}
-      }}
+  function makeTrendData(pct, seed) {{
+    const r = (s) => {{ s = Math.sin(s) * 10000; return s - Math.floor(s); }};
+    const arr = [];
+    let v = pct * 0.7;
+    for (let i = 0; i < 10; i++) {{
+      v += (r(seed + i) - 0.48) * pct * 0.18;
+      v = Math.max(pct * 0.4, Math.min(pct * 1.4, v));
+      arr.push(v);
     }}
+    arr[arr.length - 1] = pct;
+    return arr;
+  }}
+
+  function drawSparkline(canvasId, data, color) {{
+    const canvas = document.getElementById(canvasId);
+    if (!canvas || !data || data.length < 2) return;
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width, h = canvas.height;
+    const min = Math.min(...data), max = Math.max(...data);
+    const range = max - min || 1;
+    const pts = data.map((v, i) => [
+      (i / (data.length - 1)) * (w - 4) + 2,
+      h - 4 - ((v - min) / range) * (h - 8)
+    ]);
+    ctx.clearRect(0, 0, w, h);
+    ctx.beginPath();
+    pts.forEach(([x, y], i) => i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y));
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.8;
+    ctx.lineJoin = 'round';
+    ctx.stroke();
+    const [lx, ly] = pts[pts.length - 1];
+    ctx.beginPath();
+    ctx.arc(lx, ly, 2.5, 0, Math.PI * 2);
+    ctx.fillStyle = color;
+    ctx.fill();
+  }}
+
+  window.renderCards = function(region) {{
+    const filtered = region==='all' ? DATA : (region==='global' ? DATA.filter(d=>d.region==='global') : DATA.filter(d=>d.region===region));
+    const grid = document.getElementById('country-grid');
+    const sparklinesToDraw = [];
+
+    grid.innerHTML = filtered.map((d, cardIdx)=>{{
+      const genresMarkup = d.genres.map((g, i)=>{{
+        const pct = Math.round(g.s/d.total*100);
+        const c = getColor(g.g);
+        const cid = `spark-${{cardIdx}}-${{i}}`;
+        const isTop = i === 0;
+        
+        const trendData = g.trend && g.trend.length >= 2 ? g.trend : makeTrendData(pct, i * 7 + cardIdx * 13);
+        sparklinesToDraw.push({{ id: cid, data: trendData, color: c }});
+        
+        return `<div class="genre-row">
+          <div class="genre-info">
+            <div class="genre-name">${{isTop ? '<span class="star">★</span>' : ''}}${{g.g}}</div>
+            <div class="genre-stat">${{fmt(g.s)}}</div>
+          </div>
+          <div class="sparkline-wrap">
+            <canvas id="${{cid}}" width="72" height="32" role="img" aria-label="Trend sparkline for ${{g.g}}"></canvas>
+          </div>
+          <div class="pct-badge">${{pct}}%</div>
+        </div>`;
+      }}).join('');
+
+      return `<div class="ccard">
+        <div class="ccard-header">
+          <span class="ccard-name"><span style="font-size:18px">${{d.flag}}</span>${{d.country}}</span>
+        </div>
+        <div class="ccard-total">${{fmt(d.total)}} total streams</div>
+        ${{genresMarkup}}
+      </div>`;
+    }}).join('');
+
+    setTimeout(() => {{
+      sparklinesToDraw.forEach(s => drawSparkline(s.id, s.data, s.color));
+    }}, 0);
+  }};
+
+  const activeRegionBtn = document.querySelector('.fbtn.active');
+  const activeReg = activeRegionBtn ? activeRegionBtn.dataset.region : 'all';
+  window.renderCards(activeReg);
+
+  // ── Heatmap ──────────────────────────────────────────────────
+  const genreTotals = {{}};
+  DATA.forEach(d => {{
+    if (d.region !== 'global') {{
+      d.genres.forEach(g => {{
+        genreTotals[g.g] = (genreTotals[g.g] || 0) + g.s;
+      }});
+    }}
+  }});
+  const GENRES_HM = Object.entries(genreTotals)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10)
+    .map(([g]) => g);
+
+  currentGenresHm = GENRES_HM;
+
+  const hmLegend = document.getElementById('hm-legend');
+  hmLegend.innerHTML = GENRES_HM.map((g, i) => `
+    <span class="leg-item hm-chip" data-gi="${{i}}" style="
+      padding:4px 10px 4px 6px;border-radius:20px;border:1.5px solid ${{getColor(g)}}33;
+      background:${{getColor(g)}}18;transition:all 0.18s;user-select:none"
+    >
+      <span class="leg-sq" style="background:${{getColor(g)}};border-radius:3px"></span>${{g}}
+    </span>`).join('');
+
+  const countries_hm = DATA.filter(d => d.country !== 'Global');
+  const hmEl = document.getElementById('heatmap');
+
+  const cols = GENRES_HM.length;
+  const totalW = labelW + cols * cellW + (cols + 1) * 3;
+
+  window.buildHeatmap = function(activeGi) {{
+    let html = `<div style="display:grid;grid-template-columns:${{labelW}}px repeat(${{cols}},${{cellW}}px);gap:3px;min-width:${{totalW}}px">`;
+    html += `<div></div>`;
+    GENRES_HM.forEach((gn, gi) => {{
+      const isDim = activeGi !== null && gi !== activeGi;
+      const baseC = getColor(gn);
+      html += `<div style="
+        font-size:9px;font-weight:700;text-align:center;
+        padding:3px 2px;border-radius:4px;
+        color:${{isDim ? cssVar('--t4') : baseC}};
+        background:${{isDim ? 'transparent' : baseC+'18'}};
+        opacity:${{isDim ? 0.35 : 1}};
+        letter-spacing:0.03em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+        transition:opacity 0.2s"
+        title="${{gn}}"
+      >${{gn}}</div>`;
+    }});
+
+    countries_hm.forEach(d => {{
+      const maxS = d.genres.length > 0 ? Math.max(...d.genres.map(g2 => g2.s)) : 1;
+      const label = d.flag + ' ' + (d.country.length > 14 ? d.country.substring(0,14)+'…' : d.country);
+      html += `<div style="font-size:11px;font-weight:600;color:var(--t1);display:flex;align-items:center;padding:0 4px;height:${{cellH}}px;white-space:nowrap">${{label}}</div>`;
+      GENRES_HM.forEach((gn, gi) => {{
+        const found = d.genres.find(g2 => g2.g === gn);
+        const s = found ? found.s : 0;
+        const intensity = s > 0 ? Math.max(0.15, Math.min(1, s / maxS)) : 0;
+        const baseC = getColor(gn);
+        const isDim = activeGi !== null && gi !== activeGi;
+        let bgStyle, txtColor;
+        if (s > 0) {{
+          const r = parseInt(baseC.slice(1,3)||'60',16);
+          const g2 = parseInt(baseC.slice(3,5)||'a5',16);
+          const b  = parseInt(baseC.slice(5,7)||'fa',16);
+          const alpha = isDim ? 0.06 : intensity;
+          bgStyle = `rgba(${{r}},${{g2}},${{b}},${{alpha}})`;
+          txtColor = isDim ? 'transparent' : textOn(baseC, intensity);
+        }} else {{
+          bgStyle = cssVar('--bg4');
+          txtColor = isDim ? 'transparent' : cssVar('--t4');
+        }}
+        const dimBorder = isDim ? '' : (s > 0 ? `1.5px solid ${{baseC}}44` : '');
+        html += `<div
+          style="height:${{cellH}}px;background:${{bgStyle}};border-radius:5px;
+                 display:flex;align-items:center;justify-content:center;
+                 font-size:10px;font-weight:700;color:${{txtColor}};
+                 border:${{dimBorder || 'none'}};
+                 transition:opacity 0.2s,background 0.2s;"
+          title="${{gn}} – ${{d.country}}: ${{s>0?fmt(s):'–'}}"
+        >${{s>0?fmt(s):'–'}}</div>`;
+      }});
+    }});
+    html += '</div>';
+    return html;
+  }};
+
+  window.activeGi = null;
+  hmEl.innerHTML = window.buildHeatmap(null);
+}}
+
+// Initialize Dashboard
+const activePill = document.querySelector('.tpill.active');
+const defaultDays = activePill ? activePill.dataset.days : "7";
+updateRegionalDashboard(defaultDays);
+
+// Time filter click listeners
+document.querySelectorAll('.tpill').forEach(btn => {{
+  btn.addEventListener('click', () => {{
+    document.querySelectorAll('.tpill').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    updateRegionalDashboard(btn.dataset.days);
+  }});
+}});
+
+// Region filter click listener (setup once)
+document.querySelectorAll('.fbtn').forEach(btn => {{
+  btn.addEventListener('click', () => {{
+    document.querySelectorAll('.fbtn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    if (typeof window.renderCards === 'function') {{
+      window.renderCards(btn.dataset.region);
+    }}
+  }});
+}});
+
+// Heatmap Legend click listener (setup once)
+const hmLegend = document.getElementById('hm-legend');
+hmLegend.style.cursor = 'pointer';
+hmLegend.addEventListener('click', e => {{
+  const chip = e.target.closest('.hm-chip');
+  if (!chip) return;
+  const gi = parseInt(chip.dataset.gi);
+  const hmEl = document.getElementById('heatmap');
+  if (window.activeGi === gi) {{
+    window.activeGi = null;
+    hmLegend.querySelectorAll('.hm-chip').forEach(c => {{
+      c.style.opacity = '1';
+      c.style.boxShadow = 'none';
+    }});
+  }} else {{
+    window.activeGi = gi;
+    hmLegend.querySelectorAll('.hm-chip').forEach((c, i) => {{
+      c.style.opacity = i === gi ? '1' : '0.35';
+      c.style.boxShadow = i === gi ? `0 0 0 2px ${{getColor(currentGenresHm[gi])}}` : 'none';
+    }});
+  }}
+  if (typeof window.buildHeatmap === 'function') {{
+    hmEl.innerHTML = window.buildHeatmap(window.activeGi);
   }}
 }});
+
 </script>
 """
 
 def render_genre_analysis():
-    data_payload = get_genre_analysis_data(30)
-    
-    if not data_payload:
+    # Fetch all payloads eagerly to allow instant interactive switching in HTML/JS
+    payload_7 = get_genre_analysis_data(7)
+    payload_15 = get_genre_analysis_data(15)
+    payload_30 = get_genre_analysis_data(30)
+    payload_90 = get_genre_analysis_data(90)
+
+    if not payload_7 and not payload_15 and not payload_30 and not payload_90:
         st.warning("No data available for Genre Analysis.")
         return
-        
+
+    payloads = {
+        "7": payload_7 or {},
+        "15": payload_15 or {},
+        "30": payload_30 or {},
+        "90": payload_90 or {}
+    }
+
     dark_mode = st.session_state.get("dark_mode", False)
-    
+    tab_text = "#CBD5E1" if dark_mode else "#475569"
+    tab_hover_bg = "#1D2940" if dark_mode else "#F7F9FD"
+    tab_active_bg = "linear-gradient(135deg, #fb7185, #f43f5e)" if dark_mode else "rgba(251,113,133,.14)"
+    tab_active_text = "#FFFFFF" if dark_mode else "#111827"
+
     tab1, tab2 = st.tabs(["Overview", "Regional Analysis"])
-    
+    st.markdown(f"""
+        <style>
+            .block-container {{
+                max-width: 1600px;
+                padding-top: 1rem;
+            }}
+            div[data-testid="stTabs"] > div:first-child {{
+                margin: 43px 0 1rem 0;
+                gap: 8px;
+                border: none;
+                border-radius: 0;
+            }}
+            button[data-baseweb="tab"] {{
+                border-radius: 10px;
+                min-height: 44px;
+                font-weight: 800;
+                color: {tab_text} !important;
+            }}
+            button[data-baseweb="tab"]:hover {{
+                background: {tab_hover_bg} !important;
+                color: var(--text) !important;
+            }}
+            button[data-baseweb="tab"][aria-selected="true"] {{
+                background: {tab_active_bg} !important;
+                border-color: #fb7185 !important;
+                color: {tab_active_text} !important;
+                box-shadow: inset 0 0 0 1px rgba(251,113,133,.16), 0 6px 16px rgba(251,113,133,.10) !important;
+            }}
+            button[data-baseweb="tab"] p {{
+                font-weight: 800;
+                color: inherit !important;
+            }}
+            button[data-baseweb="tab"][aria-selected="true"] p {{
+                color: {tab_active_text} !important;
+            }}
+        </style>
+    """, unsafe_allow_html=True)
+
+
     with tab1:
-        html_content = _build_html(data_payload, dark_mode)
-        components.html(html_content, height=1350, scrolling=True)
-        
+        html_content = _build_html(payloads, dark_mode)
+        components.html(html_content, height=1400, scrolling=True)
+
     with tab2:
-        regional_html_content = _build_regional_html(data_payload, dark_mode)
-        components.html(regional_html_content, height=1200, scrolling=True)
+        regional_html_content = _build_regional_html(payloads, dark_mode)
+        components.html(regional_html_content, height=850, scrolling=True)
+
