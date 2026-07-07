@@ -109,7 +109,7 @@ elif "dark_mode" not in st.session_state:
 if "active_artist_profile" not in st.session_state:
     st.session_state.active_artist_profile = None
 
-# Inject JS to sync theme with localStorage AND Cookies
+# Inject JS to sync theme with localStorage AND Cookies and hide Streamlit Cloud badge in parent
 st_components.html(
     f"""
     <script>
@@ -132,6 +132,33 @@ st_components.html(
         }} else if (storedTheme) {{
             // Keep cookies synced for Python to read on next load
             window.parent.document.cookie = `theme=${{storedTheme}}; path=/; max-age=31536000`;
+        }}
+
+        // Attempt to hide Streamlit Cloud's "Hosted with Streamlit" badge in the parent window
+        try {{
+            const parentDoc = window.parent.document;
+            if (!parentDoc.getElementById('hide-streamlit-badge')) {{
+                const style = parentDoc.createElement('style');
+                style.id = 'hide-streamlit-badge';
+                style.innerHTML = `
+                    [data-testid="stHostedBadge"],
+                    [data-testid="viewerBadge"],
+                    .viewerBadge_container,
+                    .viewerBadge_link,
+                    div[class*="viewerBadge"],
+                    div[class*="_viewerBadge_"],
+                    a[class*="_viewerBadge_"],
+                    a[href*="streamlit.io/cloud"] {{
+                        display: none !important;
+                        visibility: hidden !important;
+                        opacity: 0 !important;
+                        pointer-events: none !important;
+                    }}
+                `;
+                parentDoc.head.appendChild(style);
+            }}
+        }} catch (e) {{
+            console.log("Could not access parent document to hide Streamlit badge:", e);
         }}
     </script>
     """,
