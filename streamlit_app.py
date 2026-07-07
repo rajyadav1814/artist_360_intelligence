@@ -134,32 +134,65 @@ st_components.html(
             window.parent.document.cookie = `theme=${{storedTheme}}; path=/; max-age=31536000`;
 
         }}
-        // Attempt to hide Streamlit Cloud's "Hosted with Streamlit" badge in the parent window
-        try {{
-            const parentDoc = window.parent.document;
-            if (!parentDoc.getElementById('hide-streamlit-badge')) {{
-                const style = parentDoc.createElement('style');
-                style.id = 'hide-streamlit-badge';
-                style.innerHTML = `
-                    [data-testid="stHostedBadge"],
-                    [data-testid="viewerBadge"],
-                    .viewerBadge_container,
-                    .viewerBadge_link,
-                    div[class*="viewerBadge"],
-                    div[class*="_viewerBadge_"],
-                    a[class*="_viewerBadge_"],
-                    a[href*="streamlit.io/cloud"] {{
-                        display: none !important;
-                        visibility: hidden !important;
-                        opacity: 0 !important;
-                        pointer-events: none !important;
+        // Shadow-DOM piercing script to ruthlessly hide the Hosted with Streamlit badge
+        const hideBadgeEverywhere = () => {{
+            const hideInNode = (node) => {{
+                if (!node) return;
+                
+                // Traverse into shadow DOM if it exists
+                if (node.shadowRoot) {{
+                    hideInNode(node.shadowRoot);
+                }}
+                
+                // Hide by detecting the Streamlit Cloud href
+                if (node.tagName === 'A' && node.href && (node.href.includes('streamlit.io/cloud') || node.href.includes('share.streamlit.io'))) {{
+                    let curr = node;
+                    for(let i = 0; i < 5; i++) {{
+                        if (curr && curr.style && curr.tagName !== 'BODY' && curr.tagName !== 'HTML') {{
+                            curr.style.setProperty('display', 'none', 'important');
+                            curr.style.setProperty('visibility', 'hidden', 'important');
+                            curr.style.setProperty('opacity', '0', 'important');
+                        }}
+                        curr = curr.parentElement;
                     }}
-                `;
-                parentDoc.head.appendChild(style);
-            }}
-        }} catch (e) {{
-            console.log("Could not access parent document to hide Streamlit badge:", e);
-        }}
+                }}
+                
+                // Hide by known test IDs and classes
+                if (node.getAttribute) {{
+                    const testId = node.getAttribute('data-testid');
+                    if (testId === 'stHostedBadge' || testId === 'viewerBadge' || testId === 'stViewerBadge' || testId === 'stProfileContainer' || testId === 'stBottomBlockContainer') {{
+                        node.style.setProperty('display', 'none', 'important');
+                    }}
+                }}
+
+                if (node.className && typeof node.className === 'string') {{
+                    if (node.className.includes('viewerBadge') || node.className.includes('stHostedBadge') || node.className.includes('_profileContainer_')) {{
+                        node.style.setProperty('display', 'none', 'important');
+                    }}
+                }}
+
+                // Recursively check children
+                if (node.childNodes) {{
+                    node.childNodes.forEach(child => {{
+                        if (child.nodeType === 1 || child.nodeType === 11) {{ // Element or DocumentFragment
+                            hideInNode(child);
+                        }}
+                    }});
+                }}
+            }};
+
+            // Try to clean the current iframe
+            try {{ hideInNode(document.body); }} catch (e) {{}}
+            
+            // Try to clean the parent Streamlit App window
+            try {{ if (window.parent && window.parent.document) hideInNode(window.parent.document.body); }} catch (e) {{}}
+            
+            // Try to clean the top-level Streamlit Cloud wrapper window
+            try {{ if (window.top && window.top.document) hideInNode(window.top.document.body); }} catch (e) {{}}
+        }};
+
+        hideBadgeEverywhere();
+        setInterval(hideBadgeEverywhere, 500);
     </script>
     """,
     height=0,
