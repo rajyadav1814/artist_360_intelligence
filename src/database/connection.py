@@ -1,5 +1,5 @@
-import psycopg2
-from psycopg2.extras import RealDictCursor
+import psycopg
+from psycopg.rows import dict_row
 from config.settings import DB_CONFIG
 from src.utils.logger import get_logger
 
@@ -7,11 +7,11 @@ logger = get_logger(__name__)
 
 
 def get_connection():
-    """Return a new psycopg2 connection."""
+    """Return a new psycopg (v3) connection with dict-style rows."""
     try:
-        conn = psycopg2.connect(**DB_CONFIG, cursor_factory=RealDictCursor)
+        conn = psycopg.connect(**DB_CONFIG, row_factory=dict_row)
         return conn
-    except psycopg2.OperationalError as exc:
+    except psycopg.OperationalError as exc:
         logger.error(f"Database connection failed: {exc}")
         raise
 
