@@ -57,13 +57,25 @@ st.markdown(
         [data-testid="stHostedBadge"],
         [data-testid="viewerBadge"],
         [data-testid="stDeployButton"],
+        [data-testid="stAppDeployButton"],
+        [data-testid="manage-app-button"],
+        [data-testid="stActiveUsers"],
+        [data-testid="stPresenceIndicator"],
+        [data-testid="appCreatorAvatar"],
         .viewerBadge_container,
         .viewerBadge_link,
         .viewerBadge_text,
         .stDeployButton,
+        .stAppDeployButton,
         div[class*="viewerBadge"],
+        div[class*="stDeployButton"],
+        div[class*="stAppDeployButton"],
+        div[class*="_profileContainer_"],
+        div[class*="_viewerBadge_"],
+        a[class*="_viewerBadge_"],
         a[href*="streamlit.io/cloud"],
         a[href*="share.streamlit.io"],
+        a[href*="share.streamlit.io/user"],
         #MainMenu,
         footer {
             display: none !important;
@@ -97,30 +109,92 @@ elif "dark_mode" not in st.session_state:
 if "active_artist_profile" not in st.session_state:
     st.session_state.active_artist_profile = None
 
-# Inject JS to sync theme with localStorage AND Cookies
+# Inject JS to sync theme with localStorage AND Cookies and hide Streamlit Cloud badge
 st_components.html(
-    f"""
+    """
     <script>
-        const urlParams = new URLSearchParams(window.parent.location.search);
-        const urlTheme = urlParams.get('theme');
-        let storedTheme = window.parent.localStorage.getItem('theme');
-        
-        // If URL has a theme (e.g., from toggle), update local storage first
-        if (urlTheme && urlTheme !== storedTheme) {{
-            window.parent.localStorage.setItem('theme', urlTheme);
-            storedTheme = urlTheme;
-        }}
+        try {
+            // Safe access to parent window to avoid CORS issues
+            let urlParams = null;
+            let urlTheme = null;
+            let storedTheme = null;
+            
+            try {
+                if (window.parent && window.parent.location) {
+                    urlParams = new URLSearchParams(window.parent.location.search);
+                    urlTheme = urlParams.get('theme');
+                    storedTheme = window.parent.localStorage.getItem('theme');
+                }
+            } catch (corsError) {
+                // Ignore CORS error if we are in an iframe
+            }
+            
+            if (urlParams) {
+                if (urlTheme && urlTheme !== storedTheme) {
+                    window.parent.localStorage.setItem('theme', urlTheme);
+                    storedTheme = urlTheme;
+                }
+                const currentPythonTheme = "{ 'dark' if st.session_state.dark_mode else 'light' }";
+                if (storedTheme && storedTheme !== currentPythonTheme) {
+                    urlParams.set('theme', storedTheme);
+                    window.parent.location.search = urlParams.toString();
+                } else if (storedTheme) {
+                    window.parent.document.cookie = `theme=${storedTheme}; path=/; max-age=31536000`;
+                }
+            }
+        } catch (e) {
+            console.error("Theme sync error:", e);
+        }
 
-        const currentPythonTheme = "{ 'dark' if st.session_state.dark_mode else 'light' }";
+        // Hide Streamlit Cloud's "Hosted with Streamlit" badge via JS
+        const hideBadge = (doc) => {
+            if (!doc) return;
+            try {
+                if (!doc.getElementById('hide-streamlit-badge')) {
+                    const style = doc.createElement('style');
+                    style.id = 'hide-streamlit-badge';
+                    style.innerHTML = `
+                        [data-testid="stHostedBadge"],
+                        [data-testid="viewerBadge"],
+                        .viewerBadge_container,
+                        .viewerBadge_link,
+                        div[class*="viewerBadge"],
+                        div[class*="_viewerBadge_"],
+                        a[class*="_viewerBadge_"],
+                        a[href*="streamlit.io/cloud"] {
+                            display: none !important;
+                            visibility: hidden !important;
+                            opacity: 0 !important;
+                            pointer-events: none !important;
+                        }
+                    `;
+                    doc.head.appendChild(style);
+                }
+                // Try to actively remove elements
+                const els = doc.querySelectorAll('[data-testid="stHostedBadge"], .viewerBadge_container, a[href*="streamlit.io/cloud"]');
+                els.forEach(el => el.remove());
+            } catch (e) {}
+        };
+
+        const tryHideBadges = () => {
+            hideBadge(document);
+            try { if (window.parent && window.parent.document) hideBadge(window.parent.document); } catch (e) {}
+            try { if (window.top && window.top.document) hideBadge(window.top.document); } catch (e) {}
+        };
+
+        tryHideBadges();
+        setTimeout(tryHideBadges, 500);
+        setTimeout(tryHideBadges, 1500);
+        setTimeout(tryHideBadges, 3000);
         
-        // Always check theme in local storage based on that change Python state if needed
-        if (storedTheme && storedTheme !== currentPythonTheme) {{
-            urlParams.set('theme', storedTheme);
-            window.parent.location.search = urlParams.toString();
-        }} else if (storedTheme) {{
-            // Keep cookies synced for Python to read on next load
-            window.parent.document.cookie = `theme=${{storedTheme}}; path=/; max-age=31536000`;
-        }}
+        // MutationObserver to catch it if injected late
+        try {
+            const observer = new MutationObserver((mutations) => {
+                tryHideBadges();
+            });
+            observer.observe(document.body, { childList: true, subtree: true });
+            try { if (window.parent && window.parent.document) observer.observe(window.parent.document.body, { childList: true, subtree: true }); } catch(e){}
+        } catch (e) {}
     </script>
     """,
     height=0,
@@ -2613,6 +2687,13 @@ def render_footer() -> None:
         <style>
             [data-testid="stStatusWidget"] { display: none !important; }
             .stDeployButton { display: none !important; }
+            [data-testid="stAppDeployButton"] { display: none !important; }
+            [data-testid="manage-app-button"] { display: none !important; }
+            [data-testid="stActiveUsers"] { display: none !important; }
+            [data-testid="stPresenceIndicator"] { display: none !important; }
+            .stAppDeployButton { display: none !important; }
+            div[class*="stDeployButton"] { display: none !important; }
+            div[class*="stAppDeployButton"] { display: none !important; }
             #MainMenu { visibility: hidden !important; }
             footer { visibility: hidden !important; }
         </style>
