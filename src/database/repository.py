@@ -1,7 +1,6 @@
 from typing import List, Dict
 
-from psycopg2 import errors
-from psycopg2.extras import execute_values
+from psycopg import errors
 from src.database.connection import get_connection
 from src.database.models import ArtistDetail, ItunesRanking, SpotifyArtist, TrendingArtist, SpotifyDaily, ItunesDaily, ItunesArtistAlbum
 from src.utils.logger import get_logger
@@ -57,32 +56,32 @@ def _repair_serial_sequences(cur, table_names: List[str]) -> None:
 
 def _batch_upsert_artists(cur, artist_data: List[tuple]) -> Dict[str, int]:
     """Batch upsert artists and return a mapping of name -> artist_id.
-    
+
     Args:
         artist_data: List of (name, profile_url) tuples
-    
+
     Returns:
         Dict mapping artist name to artist_id
     """
     if not artist_data:
         return {}
-    
-    # Use execute_values for efficient batch insert
+
     query = """
         INSERT INTO artists (name, profile_url, updated_at)
-        VALUES %s
+        VALUES (%s, %s, NOW())
         ON CONFLICT (name) DO UPDATE SET
             profile_url = COALESCE(EXCLUDED.profile_url, artists.profile_url),
             updated_at = NOW()
         RETURNING name, id
     """
-    
-    result = execute_values(
-        cur, query, artist_data,
-        template="(%s, %s, NOW())",
-        fetch=True
-    )
-    
+
+    cur.executemany(query, artist_data, returning=True)
+    result = []
+    while True:
+        result.extend(cur.fetchall())
+        if not cur.nextset():
+            break
+
     # Create mapping of artist name to ID
     return {row["name"]: row["id"] for row in result}
 
@@ -123,15 +122,14 @@ def save_itunes_rankings(rankings: List[ItunesRanking]) -> int:
                     if r.artist_name in artist_map
                 ]
                 
-                execute_values(
-                    cur,
+                cur.executemany(
                     """
                     INSERT INTO itunes_artist_rankings
                         (artist_id, rank, rank_change, total_points,
                          itunes_points, spotify_points, apple_music_points,
                          shazam_points, youtube_points, other_points,
                          top_country, num_countries, scrape_date)
-                    VALUES %s
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     """,
                     rankings_data
                 )
@@ -172,12 +170,11 @@ def save_spotify_artists(artists: List[SpotifyArtist]) -> int:
                     if a.artist_name in artist_map
                 ]
                 
-                execute_values(
-                    cur,
+                cur.executemany(
                     """
                     INSERT INTO spotify_artists
                         (artist_id, monthly_listeners, peak_listeners, peak_date, scrape_date)
-                    VALUES %s
+                    VALUES (%s, %s, %s, %s, %s)
                     """,
                     spotify_data
                 )
@@ -220,13 +217,12 @@ def save_trending_artists(trending: List[TrendingArtist]) -> int:
                     if t.artist_name in artist_map
                 ]
                 
-                execute_values(
-                    cur,
+                cur.executemany(
                     """
                     INSERT INTO trending_artists_monthly
                         (artist_id, source, rank, rank_change,
                          total_points, top_country, month)
-                    VALUES %s
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
                     ON CONFLICT (artist_id, source, month)
                     DO UPDATE SET
                         rank         = EXCLUDED.rank,
@@ -279,14 +275,13 @@ def save_artist_details(details: List[ArtistDetail]) -> int:
                     if d.artist_name in artist_map
                 ]
                 
-                execute_values(
-                    cur,
+                cur.executemany(
                     """
                     INSERT INTO artist_details
                         (artist_id, page_title, snapshot_text, songs_count,
                          albums_count, countries_count, top_songs, top_albums,
                          top_countries, scrape_date)
-                    VALUES %s
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     ON CONFLICT (artist_id, scrape_date)
                     DO UPDATE SET
                         page_title     = EXCLUDED.page_title,
@@ -362,12 +357,11 @@ def save_spotify_daily(data: List[SpotifyDaily]) -> int:
                     )
                     for d in data
                 ]
-                execute_values(
-                    cur,
+                cur.executemany(
                     """
                     INSERT INTO spotify_daily
                         (date, country, rank, artist_title, days, peak, streams, streams_change, total_streams, label, rank_change, genere)
-                    VALUES %s
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     ON CONFLICT (date, country, rank, artist_title)
                     DO UPDATE SET
                         days            = EXCLUDED.days,
@@ -405,12 +399,11 @@ def save_itunes_daily(data: List[ItunesDaily]) -> int:
                     )
                     for d in data
                 ]
-                execute_values(
-                    cur,
+                cur.executemany(
                     """
                     INSERT INTO itunes_daily
                         (date, country, rank, artist_title, days, peak, points, points_change, total_points, label, rank_change, genere)
-                    VALUES %s
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     ON CONFLICT (date, country, rank, artist_title)
                     DO UPDATE SET
                         days            = EXCLUDED.days,
@@ -448,12 +441,11 @@ def save_itunes_artist_album(data: List[ItunesArtistAlbum]) -> int:
                     )
                     for d in data
                 ]
-                execute_values(
-                    cur,
+                cur.executemany(
                     """
                     INSERT INTO itunes_artist_album
                         (date, country, rank, artist_title, days, peak, points, points_change, total_points, label, rank_change, genere)
-                    VALUES %s
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     ON CONFLICT (date, country, rank, artist_title)
                     DO UPDATE SET
                         days            = EXCLUDED.days,

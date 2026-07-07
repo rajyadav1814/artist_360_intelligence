@@ -51,7 +51,7 @@ if not DATABASE_URL:
         pass
 
 if DATABASE_URL:
-    DB_CONFIG = {"dsn": DATABASE_URL}
+    DB_CONFIG = {"conninfo": DATABASE_URL}
 else:
     DB_CONFIG = {
         "host": os.getenv("DB_HOST", "localhost"),
