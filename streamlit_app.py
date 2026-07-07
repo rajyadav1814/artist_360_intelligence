@@ -57,11 +57,18 @@ st.markdown(
         [data-testid="stHostedBadge"],
         [data-testid="viewerBadge"],
         [data-testid="stDeployButton"],
+        [data-testid="stAppDeployButton"],
+        [data-testid="manage-app-button"],
+        [data-testid="stActiveUsers"],
+        [data-testid="stPresenceIndicator"],
         .viewerBadge_container,
         .viewerBadge_link,
         .viewerBadge_text,
         .stDeployButton,
+        .stAppDeployButton,
         div[class*="viewerBadge"],
+        div[class*="stDeployButton"],
+        div[class*="stAppDeployButton"],
         a[href*="streamlit.io/cloud"],
         a[href*="share.streamlit.io"],
         #MainMenu,
@@ -2613,6 +2620,13 @@ def render_footer() -> None:
         <style>
             [data-testid="stStatusWidget"] { display: none !important; }
             .stDeployButton { display: none !important; }
+            [data-testid="stAppDeployButton"] { display: none !important; }
+            [data-testid="manage-app-button"] { display: none !important; }
+            [data-testid="stActiveUsers"] { display: none !important; }
+            [data-testid="stPresenceIndicator"] { display: none !important; }
+            .stAppDeployButton { display: none !important; }
+            div[class*="stDeployButton"] { display: none !important; }
+            div[class*="stAppDeployButton"] { display: none !important; }
             #MainMenu { visibility: hidden !important; }
             footer { visibility: hidden !important; }
         </style>
