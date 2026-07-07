@@ -134,32 +134,38 @@ st_components.html(
             window.parent.document.cookie = `theme=${{storedTheme}}; path=/; max-age=31536000`;
 
         }}
-        // Attempt to hide Streamlit Cloud's "Hosted with Streamlit" badge in the parent window
-        try {{
-            const parentDoc = window.parent.document;
-            if (!parentDoc.getElementById('hide-streamlit-badge')) {{
-                const style = parentDoc.createElement('style');
-                style.id = 'hide-streamlit-badge';
-                style.innerHTML = `
-                    [data-testid="stHostedBadge"],
-                    [data-testid="viewerBadge"],
-                    .viewerBadge_container,
-                    .viewerBadge_link,
-                    div[class*="viewerBadge"],
-                    div[class*="_viewerBadge_"],
-                    a[class*="_viewerBadge_"],
-                    a[href*="streamlit.io/cloud"] {{
-                        display: none !important;
-                        visibility: hidden !important;
-                        opacity: 0 !important;
-                        pointer-events: none !important;
-                    }}
-                `;
-                parentDoc.head.appendChild(style);
+        // Attempt to remove Streamlit Cloud's badge using the requested logic
+        (function () {{
+            function hide() {{
+                try {{
+                    const parentDoc = window.parent.document;
+                    parentDoc.querySelectorAll('a[href*="streamlit.io/cloud"]').forEach(e => {{
+                        e.closest('div')?.remove();
+                        e.remove();
+                    }});
+
+                    parentDoc.querySelectorAll('a[href*="share.streamlit.io/user"]').forEach(e => {{
+                        e.closest('div')?.remove();
+                        e.remove();
+                    }});
+                }} catch (e) {{}}
+
+                try {{
+                    const topDoc = window.top.document;
+                    topDoc.querySelectorAll('a[href*="streamlit.io/cloud"]').forEach(e => {{
+                        e.closest('div')?.remove();
+                        e.remove();
+                    }});
+
+                    topDoc.querySelectorAll('a[href*="share.streamlit.io/user"]').forEach(e => {{
+                        e.closest('div')?.remove();
+                        e.remove();
+                    }});
+                }} catch (e) {{}}
             }}
-        }} catch (e) {{
-            console.log("Could not access parent document to hide Streamlit badge:", e);
-        }}
+
+            setInterval(hide, 200);
+        }})();
     </script>
     """,
     height=0,
