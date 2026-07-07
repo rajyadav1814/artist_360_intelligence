@@ -160,9 +160,6 @@ st_components.html(
         }} catch (e) {{
             console.log("Could not access parent document to hide Streamlit badge:", e);
         }}
-        
-        hideStreamlitBadge();
-        setInterval(hideStreamlitBadge, 500);
     </script>
     """,
     height=0,
