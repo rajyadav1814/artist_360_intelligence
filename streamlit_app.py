@@ -119,25 +119,29 @@ if "active_artist_profile" not in st.session_state:
 st_components.html(
     f"""
     <script>
-        const urlParams = new URLSearchParams(window.parent.location.search);
-        const urlTheme = urlParams.get('theme');
-        let storedTheme = window.parent.localStorage.getItem('theme');
-        
-        // If URL has a theme (e.g., from toggle), update local storage first
-        if (urlTheme && urlTheme !== storedTheme) {{
-            window.parent.localStorage.setItem('theme', urlTheme);
-            storedTheme = urlTheme;
-        }}
+        try {{
+            const urlParams = new URLSearchParams(window.parent.location.search);
+            const urlTheme = urlParams.get('theme');
+            let storedTheme = window.parent.localStorage.getItem('theme');
+            
+            // If URL has a theme (e.g., from toggle), update local storage first
+            if (urlTheme && urlTheme !== storedTheme) {{
+                window.parent.localStorage.setItem('theme', urlTheme);
+                storedTheme = urlTheme;
+            }}
 
-        const currentPythonTheme = "{ 'dark' if st.session_state.dark_mode else 'light' }";
-        
-        // Always check theme in local storage based on that change Python state if needed
-        if (storedTheme && storedTheme !== currentPythonTheme) {{
-            urlParams.set('theme', storedTheme);
-            window.parent.location.search = urlParams.toString();
-        }} else if (storedTheme) {{
-            // Keep cookies synced for Python to read on next load
-            window.parent.document.cookie = `theme=${{storedTheme}}; path=/; max-age=31536000`;
+            const currentPythonTheme = "{ 'dark' if st.session_state.dark_mode else 'light' }";
+            
+            // Always check theme in local storage based on that change Python state if needed
+            if (storedTheme && storedTheme !== currentPythonTheme) {{
+                urlParams.set('theme', storedTheme);
+                window.parent.location.search = urlParams.toString();
+            }} else if (storedTheme) {{
+                // Keep cookies synced for Python to read on next load
+                window.parent.document.cookie = `theme=${{storedTheme}}; path=/; max-age=31536000`;
+            }}
+        }} catch (e) {{
+            console.log("Theme sync failed due to cross-origin or storage access restrictions:", e);
         }}
 
         // Aggressively hide Streamlit Cloud's "Hosted with Streamlit" badge in the very top window
