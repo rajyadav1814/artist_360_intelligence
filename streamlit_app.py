@@ -61,6 +61,7 @@ st.markdown(
         [data-testid="manage-app-button"],
         [data-testid="stActiveUsers"],
         [data-testid="stPresenceIndicator"],
+        [data-testid="appCreatorAvatar"],
         .viewerBadge_container,
         .viewerBadge_link,
         .viewerBadge_text,
@@ -69,8 +70,12 @@ st.markdown(
         div[class*="viewerBadge"],
         div[class*="stDeployButton"],
         div[class*="stAppDeployButton"],
+        div[class*="_profileContainer_"],
+        div[class*="_viewerBadge_"],
+        a[class*="_viewerBadge_"],
         a[href*="streamlit.io/cloud"],
         a[href*="share.streamlit.io"],
+        a[href*="share.streamlit.io/user"],
         #MainMenu,
         footer {
             display: none !important;
