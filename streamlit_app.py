@@ -76,17 +76,11 @@ st.markdown(
         a[href*="streamlit.io/cloud"],
         a[href*="share.streamlit.io"],
         a[href*="share.streamlit.io/user"],
-        /* Use :has() to target the container of the Streamlit badge in case of dynamic class names */
-        div:has(> a[href*="streamlit.io/cloud"]),
-        div:has(> div > a[href*="streamlit.io/cloud"]),
-        div:has(> a[href*="share.streamlit.io"]),
-        div:has(> div > a[href*="share.streamlit.io"]),
         #MainMenu,
         footer {
             display: none !important;
             visibility: hidden !important;
             pointer-events: none !important;
-            opacity: 0 !important;
         }
     </style>
     """,
@@ -119,60 +113,53 @@ if "active_artist_profile" not in st.session_state:
 st_components.html(
     f"""
     <script>
-        try {{
-            const urlParams = new URLSearchParams(window.parent.location.search);
-            const urlTheme = urlParams.get('theme');
-            let storedTheme = window.parent.localStorage.getItem('theme');
-            
-            // If URL has a theme (e.g., from toggle), update local storage first
-            if (urlTheme && urlTheme !== storedTheme) {{
-                window.parent.localStorage.setItem('theme', urlTheme);
-                storedTheme = urlTheme;
-            }}
-
-            const currentPythonTheme = "{ 'dark' if st.session_state.dark_mode else 'light' }";
-            
-            // Always check theme in local storage based on that change Python state if needed
-            if (storedTheme && storedTheme !== currentPythonTheme) {{
-                urlParams.set('theme', storedTheme);
-                window.parent.location.search = urlParams.toString();
-            }} else if (storedTheme) {{
-                // Keep cookies synced for Python to read on next load
-                window.parent.document.cookie = `theme=${{storedTheme}}; path=/; max-age=31536000`;
-            }}
-        }} catch (e) {{
-            console.log("Theme sync failed due to cross-origin or storage access restrictions:", e);
+        const urlParams = new URLSearchParams(window.parent.location.search);
+        const urlTheme = urlParams.get('theme');
+        let storedTheme = window.parent.localStorage.getItem('theme');
+        
+        // If URL has a theme (e.g., from toggle), update local storage first
+        if (urlTheme && urlTheme !== storedTheme) {{
+            window.parent.localStorage.setItem('theme', urlTheme);
+            storedTheme = urlTheme;
         }}
 
-        // Aggressively hide Streamlit Cloud's "Hosted with Streamlit" badge in the very top window
-        const hideStreamlitBadge = () => {{
-            try {{
-                // Use window.top to reach the outermost Streamlit Cloud wrapper document
-                const targetDoc = window.top ? window.top.document : window.parent.document;
-                
-                // Hide specific known selectors
-                const elements = targetDoc.querySelectorAll('[data-testid="stHostedBadge"], [data-testid="viewerBadge"], .viewerBadge_container, div[class*="viewerBadge"], div[class*="_viewerBadge_"]');
-                elements.forEach(el => {{
-                    el.style.setProperty('display', 'none', 'important');
-                    el.style.setProperty('visibility', 'hidden', 'important');
-                    el.style.setProperty('opacity', '0', 'important');
-                }});
-                
-                // Find anchor tags pointing to the cloud hosting page and hide their containers
-                const anchors = targetDoc.querySelectorAll('a[href*="streamlit.io/cloud"]');
-                anchors.forEach(a => {{
-                    let curr = a;
-                    // Traverse up to 4 levels to hide the outer container of the badge
-                    for(let i = 0; i < 4; i++) {{
-                        if (curr && curr.tagName !== 'BODY' && curr.tagName !== 'HTML') {{
-                            curr.style.setProperty('display', 'none', 'important');
-                            curr.style.setProperty('visibility', 'hidden', 'important');
-                            curr = curr.parentElement;
-                        }}
+        const currentPythonTheme = "{ 'dark' if st.session_state.dark_mode else 'light' }";
+        
+        // Always check theme in local storage based on that change Python state if needed
+        if (storedTheme && storedTheme !== currentPythonTheme) {{
+            urlParams.set('theme', storedTheme);
+            window.parent.location.search = urlParams.toString();
+        }} else if (storedTheme) {{
+            // Keep cookies synced for Python to read on next load
+            window.parent.document.cookie = `theme=${{storedTheme}}; path=/; max-age=31536000`;
+
+        }}
+        // Attempt to hide Streamlit Cloud's "Hosted with Streamlit" badge in the parent window
+        try {{
+            const parentDoc = window.parent.document;
+            if (!parentDoc.getElementById('hide-streamlit-badge')) {{
+                const style = parentDoc.createElement('style');
+                style.id = 'hide-streamlit-badge';
+                style.innerHTML = `
+                    [data-testid="stHostedBadge"],
+                    [data-testid="viewerBadge"],
+                    .viewerBadge_container,
+                    .viewerBadge_link,
+                    div[class*="viewerBadge"],
+                    div[class*="_viewerBadge_"],
+                    a[class*="_viewerBadge_"],
+                    a[href*="streamlit.io/cloud"] {{
+                        display: none !important;
+                        visibility: hidden !important;
+                        opacity: 0 !important;
+                        pointer-events: none !important;
                     }}
-                }});
-            }} catch (e) {{}}
-        }};
+                `;
+                parentDoc.head.appendChild(style);
+            }}
+        }} catch (e) {{
+            console.log("Could not access parent document to hide Streamlit badge:", e);
+        }}
         
         hideStreamlitBadge();
         setInterval(hideStreamlitBadge, 500);
