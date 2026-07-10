@@ -1,12 +1,13 @@
 import unicodedata
 
 from bs4 import BeautifulSoup
-from typing import List
+from typing import Dict, List, Tuple
 from datetime import datetime
 from config.settings import SPOTIFY_ARTISTS_URL, SPOTIFY_LISTENERS_URL, SPOTIFY_LISTENERS2_URL
 from src.utils.http_client import fetch_page
 from src.utils.logger import get_logger
-from src.database.models import SpotifyArtist
+from src.database.models import SpotifyArtist, SpotifyArtistSong, SpotifyArtistAlbum, ArtistDetail
+from src.scrapers.artist_details_scraper import parse_artist_detail_page
 
 logger = get_logger(__name__)
 
@@ -90,6 +91,8 @@ def _normalize_name(name: str) -> str:
 
 
 _EXTRA_ARTISTS_LOWER = {_normalize_name(name) for name in EXTRA_ARTISTS}
+
+BASE_SPOTIFY_URL = "https://kworb.net/spotify/"
 
 
 def _safe_int(value: str) -> int | None:
@@ -240,3 +243,223 @@ def scrape_extra_spotify_artists() -> List[SpotifyArtist]:
 
     logger.info(f"Scraped {len(found)}/{len(EXTRA_ARTISTS)} extra Latin artists")
     return found
+
+
+# ---------------------------------------------------------------------------
+# Artist songs & albums scraping
+# ---------------------------------------------------------------------------
+
+def _parse_row_with_link(row) -> Tuple[SpotifyArtist, str | None] | None:
+    """Parse a listener-table row into (SpotifyArtist, href) or None."""
+    cells = row.find_all("td")
+    if len(cells) < 3:
+        return None
+
+    texts = [c.get_text(strip=True) for c in cells]
+    raw_name = texts[1]
+    if not raw_name:
+        return None
+
+    artist_name = _fix_encoding(raw_name)
+    artist_name = unicodedata.normalize("NFC", artist_name)
+
+    monthly = _safe_int(texts[2]) if len(texts) > 2 else None
+    peak = _safe_int(texts[5]) if len(texts) > 5 else None
+
+    link_tag = cells[1].find("a")
+    href = link_tag["href"] if link_tag and link_tag.has_attr("href") else None
+
+    artist = SpotifyArtist(
+        artist_name=artist_name,
+        monthly_listeners=monthly,
+        peak_listeners=peak,
+        peak_date=None,
+    )
+    return artist, href
+
+
+def _collect_extra_artist_links() -> Dict[str, str]:
+    """
+    Scan listeners.html + listeners2.html and return a mapping of
+    canonical artist_name -> songs_page_url for each EXTRA_ARTIST found.
+    """
+    alias_lookup = {_normalize_name(k): v for k, v in ARTIST_ALIASES.items()}
+    still_needed = set(_EXTRA_ARTISTS_LOWER)
+    links: Dict[str, str] = {}  # canonical_name -> full songs URL
+
+    for url in [SPOTIFY_LISTENERS_URL, SPOTIFY_LISTENERS2_URL]:
+        if not still_needed:
+            break
+
+        html = fetch_page(url)
+        if not html:
+            logger.error(f"Failed to fetch {url}")
+            continue
+
+        soup = BeautifulSoup(html, "lxml")
+        table = soup.find("table")
+        if not table:
+            logger.error(f"No table found on {url}")
+            continue
+
+        for row in table.find_all("tr"):
+            if not still_needed:
+                break
+
+            result = _parse_row_with_link(row)
+            if result is None:
+                continue
+
+            artist, href = result
+            norm = _normalize_name(artist.artist_name)
+
+            matched_name = None
+            if norm in still_needed:
+                matched_name = artist.artist_name
+                still_needed.discard(norm)
+            else:
+                canonical = alias_lookup.get(norm)
+                if canonical and _normalize_name(canonical) in still_needed:
+                    matched_name = canonical
+                    still_needed.discard(_normalize_name(canonical))
+
+            if matched_name and href:
+                songs_url = BASE_SPOTIFY_URL + href
+                links[matched_name] = songs_url
+
+    if still_needed:
+        logger.warning(
+            f"{len(still_needed)} extra artist(s) have no kworb page: "
+            f"{', '.join(sorted(still_needed))}"
+        )
+
+    logger.info(f"Collected kworb links for {len(links)}/{len(EXTRA_ARTISTS)} artists")
+    return links
+
+
+def _parse_songs_table(html: str, artist_name: str, limit: int = 20) -> List[SpotifyArtistSong]:
+    """Parse a kworb artist _songs.html page into SpotifyArtistSong list, up to `limit` items."""
+    soup = BeautifulSoup(html, "lxml")
+    tables = soup.find_all("table")
+
+    # The songs table is the last (usually 2nd) table; first is the summary stats
+    if len(tables) < 2:
+        return []
+    song_table = tables[-1]
+
+    songs: List[SpotifyArtistSong] = []
+    for row in song_table.find_all("tr"):
+        cells = row.find_all("td")
+        if len(cells) < 3:
+            continue
+
+        texts = [c.get_text(strip=True) for c in cells]
+        song_title = _fix_encoding(texts[0])
+        song_title = unicodedata.normalize("NFC", song_title)
+        if not song_title:
+            continue
+
+        songs.append(
+            SpotifyArtistSong(
+                artist_name=artist_name,
+                song_title=song_title,
+                total_streams=_safe_int(texts[1]),
+                daily_streams=_safe_int(texts[2]),
+            )
+        )
+
+        if len(songs) >= limit:
+            break
+
+    return songs
+
+
+def _build_itunes_profile_url(artist_name: str) -> str:
+    base = unicodedata.normalize('NFKD', artist_name).encode('ascii', 'ignore').decode('utf-8')
+    base = "".join(c for c in base if c.isalnum()).lower()
+    return f"https://kworb.net/itunes/artist/{base}.html"
+
+
+def _parse_albums_table(html: str, artist_name: str, limit: int = 20) -> List[SpotifyArtistAlbum]:
+    """Parse a kworb artist _albums.html page into SpotifyArtistAlbum list, up to `limit` items."""
+    soup = BeautifulSoup(html, "lxml")
+    table = soup.find("table")
+    if not table:
+        return []
+
+    albums: List[SpotifyArtistAlbum] = []
+    for row in table.find_all("tr"):
+        cells = row.find_all("td")
+        if len(cells) < 3:
+            continue
+
+        texts = [c.get_text(strip=True) for c in cells]
+        album_title = _fix_encoding(texts[0])
+        album_title = unicodedata.normalize("NFC", album_title)
+        if not album_title:
+            continue
+
+        albums.append(
+            SpotifyArtistAlbum(
+                artist_name=artist_name,
+                album_title=album_title,
+                total_streams=_safe_int(texts[1]),
+                daily_streams=_safe_int(texts[2]),
+            )
+        )
+
+        if len(albums) >= limit:
+            break
+
+    return albums
+
+
+def scrape_extra_artist_songs_albums() -> Tuple[List[SpotifyArtistSong], List[SpotifyArtistAlbum], List[ArtistDetail]]:
+    """
+    For each EXTRA_ARTIST found on kworb.net, scrape their individual
+    Songs and Albums pages, and also fetch their artist profile page.
+
+    Returns (all_songs, all_albums, all_details).
+    """
+    artist_links = _collect_extra_artist_links()
+
+    all_songs: List[SpotifyArtistSong] = []
+    all_albums: List[SpotifyArtistAlbum] = []
+    all_details: List[ArtistDetail] = []
+
+    for artist_name, songs_url in artist_links.items():
+        albums_url = songs_url.replace("_songs.html", "_albums.html")
+        profile_url = _build_itunes_profile_url(artist_name)
+
+        # --- Details ---
+        profile_html = fetch_page(profile_url)
+        if profile_html:
+            detail = parse_artist_detail_page(profile_html, artist_name, profile_url)
+            all_details.append(detail)
+            logger.info(f"{artist_name}: scraped profile details")
+        else:
+            logger.warning(f"{artist_name}: failed to fetch profile page {profile_url}")
+
+        # --- Songs ---
+        songs_html = fetch_page(songs_url)
+        if songs_html:
+            songs = _parse_songs_table(songs_html, artist_name)
+            all_songs.extend(songs)
+            logger.info(f"{artist_name}: {len(songs)} songs")
+        else:
+            logger.warning(f"{artist_name}: failed to fetch songs page")
+
+        # --- Albums ---
+        albums_html = fetch_page(albums_url)
+        if albums_html:
+            albums = _parse_albums_table(albums_html, artist_name)
+            all_albums.extend(albums)
+            logger.info(f"{artist_name}: {len(albums)} albums")
+        else:
+            logger.warning(f"{artist_name}: failed to fetch albums page")
+
+    logger.info(
+        f"Total: {len(all_songs)} songs, {len(all_albums)} albums, {len(all_details)} profiles "
+        f"across {len(artist_links)} artists"
+    )
+    return all_songs, all_albums, all_details

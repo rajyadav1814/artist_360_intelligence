@@ -7,6 +7,7 @@ Commands:
   python main.py scrape itunes            — iTunes global rankings only
   python main.py scrape spotify           — Spotify artist stats only (top 300)
   python main.py scrape extra_spotify     — 46 extra Latin artists from Spotify listeners page
+  python main.py scrape extra_songs_albums — Songs & albums for the 46 extra Latin artists
   python main.py scrape trending          — Trending artists (last month) only
   python main.py scrape details [limit] — Artist detail pages from kworb.net (default: all)
   python main.py schedule                 — Run on a daily schedule
@@ -25,10 +26,12 @@ from src.database.repository import (
     save_spotify_daily,
     save_itunes_daily,
     save_itunes_artist_album,
+    save_spotify_artist_songs,
+    save_spotify_artist_albums,
 )
 from src.scrapers.artist_details_scraper import scrape_artist_details
 from src.scrapers.itunes_scraper import scrape_itunes_global_artists
-from src.scrapers.spotify_scraper import scrape_spotify_artists, scrape_extra_spotify_artists
+from src.scrapers.spotify_scraper import scrape_spotify_artists, scrape_extra_spotify_artists, scrape_extra_artist_songs_albums
 from src.scrapers.trending_scraper import scrape_trending_artists_last_month
 from src.scrapers.daily_scraper import scrape_spotify_daily, scrape_itunes_daily, scrape_itunes_artist_album
 from src.utils.logger import get_logger
@@ -133,10 +136,29 @@ def run_daily_charts():
 
 
 
+def run_extra_songs_albums():
+    logger.info("=== Starting Extra Latin Artists Songs & Albums scrape ===")
+    try:
+        songs, albums, details = scrape_extra_artist_songs_albums()
+        song_rows = save_spotify_artist_songs(songs)
+        album_rows = save_spotify_artist_albums(albums)
+        detail_rows = save_artist_details(details)
+        total = song_rows + album_rows + detail_rows
+        log_scrape_run("extra_songs_albums", "success", total)
+        logger.info(
+            f"Extra songs/albums scrape complete: {song_rows} songs, "
+            f"{album_rows} albums, {detail_rows} profiles saved"
+        )
+    except Exception as exc:
+        log_scrape_run("extra_songs_albums", "failed", error=str(exc))
+        logger.error(f"Extra songs/albums scrape failed: {exc}")
+
+
 def run_all():
     run_itunes()
     run_spotify()
     run_extra_spotify()
+    run_extra_songs_albums()
     run_trending()
     run_artist_details()
     run_daily_charts()
@@ -171,6 +193,7 @@ def main():
             "itunes": run_itunes,
             "spotify": run_spotify,
             "extra_spotify": run_extra_spotify,
+            "extra_songs_albums": run_extra_songs_albums,
             "trending": run_trending,
             "daily": run_daily_charts,
         }
