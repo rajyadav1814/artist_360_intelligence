@@ -3,9 +3,10 @@ kworb_scraper — Main entry point
 ---------------------------------
 Commands:
   python main.py migrate                  — Apply DB migrations
-  python main.py scrape                   — Run standard scrapers (iTunes + Spotify + Trending + Artist Details + Daily)
+  python main.py scrape                   — Run standard scrapers (iTunes + Spotify + Extra Spotify + Trending + Artist Details + Daily)
   python main.py scrape itunes            — iTunes global rankings only
-  python main.py scrape spotify           — Spotify artist stats only
+  python main.py scrape spotify           — Spotify artist stats only (top 300)
+  python main.py scrape extra_spotify     — 46 extra Latin artists from Spotify listeners page
   python main.py scrape trending          — Trending artists (last month) only
   python main.py scrape details [limit] — Artist detail pages from kworb.net (default: all)
   python main.py schedule                 — Run on a daily schedule
@@ -27,7 +28,7 @@ from src.database.repository import (
 )
 from src.scrapers.artist_details_scraper import scrape_artist_details
 from src.scrapers.itunes_scraper import scrape_itunes_global_artists
-from src.scrapers.spotify_scraper import scrape_spotify_artists
+from src.scrapers.spotify_scraper import scrape_spotify_artists, scrape_extra_spotify_artists
 from src.scrapers.trending_scraper import scrape_trending_artists_last_month
 from src.scrapers.daily_scraper import scrape_spotify_daily, scrape_itunes_daily, scrape_itunes_artist_album
 from src.utils.logger import get_logger
@@ -57,6 +58,18 @@ def run_spotify():
     except Exception as exc:
         log_scrape_run("spotify_artists", "failed", error=str(exc))
         logger.error(f"Spotify scrape failed: {exc}")
+
+
+def run_extra_spotify():
+    logger.info("=== Starting Extra Latin Spotify Artists scrape ===")
+    try:
+        data = scrape_extra_spotify_artists()
+        rows = save_spotify_artists(data)
+        log_scrape_run("extra_spotify_artists", "success", rows)
+        logger.info(f"Extra Spotify scrape complete: {rows} rows saved")
+    except Exception as exc:
+        log_scrape_run("extra_spotify_artists", "failed", error=str(exc))
+        logger.error(f"Extra Spotify scrape failed: {exc}")
 
 
 def run_trending():
@@ -123,6 +136,7 @@ def run_daily_charts():
 def run_all():
     run_itunes()
     run_spotify()
+    run_extra_spotify()
     run_trending()
     run_artist_details()
     run_daily_charts()
@@ -156,6 +170,7 @@ def main():
             "all": run_all,
             "itunes": run_itunes,
             "spotify": run_spotify,
+            "extra_spotify": run_extra_spotify,
             "trending": run_trending,
             "daily": run_daily_charts,
         }

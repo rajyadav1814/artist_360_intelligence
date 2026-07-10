@@ -67,6 +67,7 @@ ITUNES_ARTISTS_URL = f"{BASE_URL}/itunes/"
 ITUNES_TRACKS_URL = f"{BASE_URL}/ww"
 SPOTIFY_ARTISTS_URL = f"{BASE_URL}/spotify/artists.html"
 SPOTIFY_LISTENERS_URL = f"{BASE_URL}/spotify/listeners.html"
+SPOTIFY_LISTENERS2_URL = f"{BASE_URL}/spotify/listeners2.html"
 SPOTIFY_DAILY_URL = f"{BASE_URL}/spotify/country/{{country}}_daily.html"
 ITUNES_DAILY_URL = f"{BASE_URL}/charts/itunes/{{country}}.html"
 
