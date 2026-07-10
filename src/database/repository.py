@@ -2,7 +2,7 @@ from typing import List, Dict
 
 from psycopg import errors
 from src.database.connection import get_connection
-from src.database.models import ArtistDetail, ItunesRanking, SpotifyArtist, TrendingArtist, SpotifyDaily, ItunesDaily, ItunesArtistAlbum
+from src.database.models import ArtistDetail, ItunesRanking, SpotifyArtist, TrendingArtist, SpotifyDaily, ItunesDaily, ItunesArtistAlbum, SpotifyArtistSong, SpotifyArtistAlbum
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -463,3 +463,105 @@ def save_itunes_artist_album(data: List[ItunesArtistAlbum]) -> int:
                 return len(rows)
     finally:
         conn.close()
+
+
+def save_spotify_artist_songs(songs: List[SpotifyArtistSong]) -> int:
+    """Bulk-save Spotify artist songs data. Returns row count."""
+    if not songs:
+        return 0
+
+    conn = get_connection()
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                _repair_serial_sequences(cur, ["artists", "spotify_artist_songs"])
+
+                # Step 1: Batch upsert all artists
+                unique_artists = list({s.artist_name for s in songs})
+                artist_data = [(name, None) for name in unique_artists]
+                artist_map = _batch_upsert_artists(cur, artist_data)
+
+                # Step 2: Batch upsert songs
+                songs_data = [
+                    (
+                        artist_map[s.artist_name],
+                        s.song_title,
+                        s.total_streams,
+                        s.daily_streams,
+                        s.scrape_date,
+                    )
+                    for s in songs
+                    if s.artist_name in artist_map
+                ]
+
+                cur.executemany(
+                    """
+                    INSERT INTO spotify_artist_songs
+                        (artist_id, song_title, total_streams, daily_streams, scrape_date)
+                    VALUES (%s, %s, %s, %s, %s)
+                    ON CONFLICT (artist_id, song_title, scrape_date)
+                    DO UPDATE SET
+                        total_streams = EXCLUDED.total_streams,
+                        daily_streams = EXCLUDED.daily_streams,
+                        scraped_at    = NOW()
+                    """,
+                    songs_data,
+                )
+
+                saved = len(songs_data)
+    finally:
+        conn.close()
+
+    logger.info(f"Saved {saved} Spotify artist songs to DB")
+    return saved
+
+
+def save_spotify_artist_albums(albums: List[SpotifyArtistAlbum]) -> int:
+    """Bulk-save Spotify artist albums data. Returns row count."""
+    if not albums:
+        return 0
+
+    conn = get_connection()
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                _repair_serial_sequences(cur, ["artists", "spotify_artist_albums"])
+
+                # Step 1: Batch upsert all artists
+                unique_artists = list({a.artist_name for a in albums})
+                artist_data = [(name, None) for name in unique_artists]
+                artist_map = _batch_upsert_artists(cur, artist_data)
+
+                # Step 2: Batch upsert albums
+                albums_data = [
+                    (
+                        artist_map[a.artist_name],
+                        a.album_title,
+                        a.total_streams,
+                        a.daily_streams,
+                        a.scrape_date,
+                    )
+                    for a in albums
+                    if a.artist_name in artist_map
+                ]
+
+                cur.executemany(
+                    """
+                    INSERT INTO spotify_artist_albums
+                        (artist_id, album_title, total_streams, daily_streams, scrape_date)
+                    VALUES (%s, %s, %s, %s, %s)
+                    ON CONFLICT (artist_id, album_title, scrape_date)
+                    DO UPDATE SET
+                        total_streams = EXCLUDED.total_streams,
+                        daily_streams = EXCLUDED.daily_streams,
+                        scraped_at    = NOW()
+                    """,
+                    albums_data,
+                )
+
+                saved = len(albums_data)
+    finally:
+        conn.close()
+
+    logger.info(f"Saved {saved} Spotify artist albums to DB")
+    return saved
