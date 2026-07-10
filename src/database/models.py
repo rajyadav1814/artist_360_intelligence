@@ -111,6 +111,20 @@ class ItunesArtistAlbum:
     genere: Optional[str] = None
 
 
+@dataclass
+class SpotifyArtistSong:
+    artist_name: str
+    song_title: str
+    total_streams: Optional[int] = None
+    daily_streams: Optional[int] = None
+    scrape_date: date = field(default_factory=date.today)
 
 
+@dataclass
+class SpotifyArtistAlbum:
+    artist_name: str
+    album_title: str
+    total_streams: Optional[int] = None
+    daily_streams: Optional[int] = None
+    scrape_date: date = field(default_factory=date.today)
 
