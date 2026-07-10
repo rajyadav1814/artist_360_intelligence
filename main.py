@@ -139,14 +139,15 @@ def run_daily_charts():
 def run_extra_songs_albums():
     logger.info("=== Starting Extra Latin Artists Songs & Albums scrape ===")
     try:
-        songs, albums = scrape_extra_artist_songs_albums()
+        songs, albums, details = scrape_extra_artist_songs_albums()
         song_rows = save_spotify_artist_songs(songs)
         album_rows = save_spotify_artist_albums(albums)
-        total = song_rows + album_rows
+        detail_rows = save_artist_details(details)
+        total = song_rows + album_rows + detail_rows
         log_scrape_run("extra_songs_albums", "success", total)
         logger.info(
             f"Extra songs/albums scrape complete: {song_rows} songs, "
-            f"{album_rows} albums saved"
+            f"{album_rows} albums, {detail_rows} profiles saved"
         )
     except Exception as exc:
         log_scrape_run("extra_songs_albums", "failed", error=str(exc))

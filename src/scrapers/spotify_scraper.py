@@ -6,7 +6,8 @@ from datetime import datetime
 from config.settings import SPOTIFY_ARTISTS_URL, SPOTIFY_LISTENERS_URL, SPOTIFY_LISTENERS2_URL
 from src.utils.http_client import fetch_page
 from src.utils.logger import get_logger
-from src.database.models import SpotifyArtist, SpotifyArtistSong, SpotifyArtistAlbum
+from src.database.models import SpotifyArtist, SpotifyArtistSong, SpotifyArtistAlbum, ArtistDetail
+from src.scrapers.artist_details_scraper import parse_artist_detail_page
 
 logger = get_logger(__name__)
 
@@ -373,6 +374,12 @@ def _parse_songs_table(html: str, artist_name: str, limit: int = 20) -> List[Spo
     return songs
 
 
+def _build_itunes_profile_url(artist_name: str) -> str:
+    base = unicodedata.normalize('NFKD', artist_name).encode('ascii', 'ignore').decode('utf-8')
+    base = "".join(c for c in base if c.isalnum()).lower()
+    return f"https://kworb.net/itunes/artist/{base}.html"
+
+
 def _parse_albums_table(html: str, artist_name: str, limit: int = 20) -> List[SpotifyArtistAlbum]:
     """Parse a kworb artist _albums.html page into SpotifyArtistAlbum list, up to `limit` items."""
     soup = BeautifulSoup(html, "lxml")
@@ -407,20 +414,31 @@ def _parse_albums_table(html: str, artist_name: str, limit: int = 20) -> List[Sp
     return albums
 
 
-def scrape_extra_artist_songs_albums() -> Tuple[List[SpotifyArtistSong], List[SpotifyArtistAlbum]]:
+def scrape_extra_artist_songs_albums() -> Tuple[List[SpotifyArtistSong], List[SpotifyArtistAlbum], List[ArtistDetail]]:
     """
     For each EXTRA_ARTIST found on kworb.net, scrape their individual
-    Songs and Albums pages.
+    Songs and Albums pages, and also fetch their artist profile page.
 
-    Returns (all_songs, all_albums).
+    Returns (all_songs, all_albums, all_details).
     """
     artist_links = _collect_extra_artist_links()
 
     all_songs: List[SpotifyArtistSong] = []
     all_albums: List[SpotifyArtistAlbum] = []
+    all_details: List[ArtistDetail] = []
 
     for artist_name, songs_url in artist_links.items():
         albums_url = songs_url.replace("_songs.html", "_albums.html")
+        profile_url = _build_itunes_profile_url(artist_name)
+
+        # --- Details ---
+        profile_html = fetch_page(profile_url)
+        if profile_html:
+            detail = parse_artist_detail_page(profile_html, artist_name, profile_url)
+            all_details.append(detail)
+            logger.info(f"{artist_name}: scraped profile details")
+        else:
+            logger.warning(f"{artist_name}: failed to fetch profile page {profile_url}")
 
         # --- Songs ---
         songs_html = fetch_page(songs_url)
@@ -441,7 +459,7 @@ def scrape_extra_artist_songs_albums() -> Tuple[List[SpotifyArtistSong], List[Sp
             logger.warning(f"{artist_name}: failed to fetch albums page")
 
     logger.info(
-        f"Total: {len(all_songs)} songs, {len(all_albums)} albums "
+        f"Total: {len(all_songs)} songs, {len(all_albums)} albums, {len(all_details)} profiles "
         f"across {len(artist_links)} artists"
     )
-    return all_songs, all_albums
+    return all_songs, all_albums, all_details
