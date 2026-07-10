@@ -174,13 +174,11 @@ def _load_artist_rank_history(days: int = WINDOW_DAYS) -> pd.DataFrame:
 @st.cache_data(ttl=300, show_spinner=False)
 def _load_spotify_artist_latest() -> pd.DataFrame:
     query = """
-        WITH latest AS (
-            SELECT MAX(scraped_at) AS ts FROM spotify_artists
-        )
-        SELECT a.name, s.monthly_listeners, s.peak_listeners, s.peak_date
+        SELECT DISTINCT ON (s.artist_id)
+               a.name, s.monthly_listeners, s.peak_listeners, s.peak_date
         FROM spotify_artists s
         JOIN artists a ON a.id = s.artist_id
-        JOIN latest l ON s.scraped_at = l.ts
+        ORDER BY s.artist_id, s.scraped_at DESC
     """
     rows = _run_query(query)
     if not rows:

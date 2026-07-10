@@ -2439,28 +2439,22 @@ def query_to_df(conn, sql: str) -> pd.DataFrame:
 def load_dashboard_data() -> dict[str, pd.DataFrame]:
     queries = {
         "itunes": """
-            WITH latest_run AS (
-                SELECT MAX(scraped_at) AS ts FROM itunes_artist_rankings
-            )
-            SELECT a.name, a.profile_url, r.rank, r.rank_change, r.total_points,
+            SELECT DISTINCT ON (r.artist_id)
+                   a.name, a.profile_url, r.rank, r.rank_change, r.total_points,
                    r.itunes_points, r.spotify_points, r.apple_music_points,
                    r.shazam_points, r.youtube_points, r.other_points,
                    r.top_country, r.num_countries, r.scrape_date, r.scraped_at
             FROM itunes_artist_rankings r
             JOIN artists a ON a.id = r.artist_id
-            JOIN latest_run lr ON r.scraped_at = lr.ts
-            ORDER BY r.rank ASC
+            ORDER BY r.artist_id, r.scraped_at DESC
         """,
         "spotify": """
-            WITH latest_run AS (
-                SELECT MAX(scraped_at) AS ts FROM spotify_artists
-            )
-            SELECT a.name, s.monthly_listeners, s.peak_listeners, s.peak_date,
+            SELECT DISTINCT ON (s.artist_id)
+                   a.name, s.monthly_listeners, s.peak_listeners, s.peak_date,
                    s.scrape_date, s.scraped_at
             FROM spotify_artists s
             JOIN artists a ON a.id = s.artist_id
-            JOIN latest_run lr ON s.scraped_at = lr.ts
-            ORDER BY s.monthly_listeners DESC NULLS LAST
+            ORDER BY s.artist_id, s.scraped_at DESC
         """,
         "details": """
             SELECT DISTINCT ON (a.name)
@@ -2479,14 +2473,19 @@ def load_dashboard_data() -> dict[str, pd.DataFrame]:
         """,
         "history": f"""
             WITH bounds AS (
-                SELECT MAX(scraped_at) AS ts, MAX(scrape_date) AS max_d
+                SELECT MAX(scrape_date) AS max_d
                 FROM itunes_artist_rankings
+            ),
+            latest_per_artist AS (
+                SELECT DISTINCT ON (artist_id)
+                       artist_id, rank, scrape_date, scraped_at
+                FROM itunes_artist_rankings
+                ORDER BY artist_id, scraped_at DESC
             ),
             top_artists AS (
                 SELECT artist_id
-                FROM itunes_artist_rankings r
-                JOIN bounds b ON r.scraped_at = b.ts
-                WHERE r.rank <= 300
+                FROM latest_per_artist
+                WHERE rank <= 300
             )
             SELECT a.name, r.rank, r.scraped_at
             FROM itunes_artist_rankings r
